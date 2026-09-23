@@ -699,15 +699,19 @@ class LoyaltyProgram(models.Model):
         :return: the create values, or an empty dict when the type contributes none.
         :rtype: dict
         """
+        creates = self._get_children_default_values(program_type, field_name)
+        return creates[0] if len(creates) == 1 else {}
+
+    @api.model
+    def _get_children_default_values(self, program_type, field_name):
         defaults = self._program_type_default_values().get(program_type) or {}
-        creates = [
+        return [
             command[2]
             for command in defaults.get(field_name) or ()
             if isinstance(command, (list, tuple))
             and command[0] == Command.CREATE
             and isinstance(command[2], dict)
         ]
-        return creates[0] if len(creates) == 1 else {}
 
     @api.depends("program_type")
     def _compute_from_program_type(self):
@@ -1054,7 +1058,7 @@ class LoyaltyProgram(models.Model):
         used to produce a program with none of the three. The "at least one reward"
         constraint did not catch it either, because `reward_ids` was never in the
         values. Both entry points now fill the children from the same source,
-        `_get_child_default_values`.
+        `_get_children_default_values`.
 
         `trigger_product_ids` is dropped for the types whose form never shows it: it
         is related to `rule_ids.product_ids` and would replace the products of every
@@ -1081,7 +1085,7 @@ class LoyaltyProgram(models.Model):
         for field_name in self._TYPE_DEFAULT_CHILDREN:
             if field_name in completed:
                 continue
-            child_values = self._get_child_default_values(program_type, field_name)
-            if child_values:
-                completed[field_name] = [Command.create(child_values)]
+            children = self._get_children_default_values(program_type, field_name)
+            if children:
+                completed[field_name] = [Command.create(vals) for vals in children]
         return completed
