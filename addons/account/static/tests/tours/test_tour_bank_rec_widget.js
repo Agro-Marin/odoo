@@ -62,8 +62,17 @@ registry.category("web_tour.tours").add("account_accountant_bank_rec_widget", {
             trigger: "div.modal-dialog",
         },
         {
-            content: "Select first partner",
-            trigger: "tbody > tr > td[name='complete_name']",
+            content: "Search the partner the invoices were made for",
+            trigger: "div.modal-dialog .o_searchview_input",
+            run: "edit AAAA",
+        },
+        {
+            trigger: "div.modal-dialog .o_searchview_input",
+            run: "press Enter",
+        },
+        {
+            content: "Select the partner the invoices were made for",
+            trigger: "tbody > tr > td[name='complete_name']:contains('AAAA')",
             run: "click",
         },
         {
