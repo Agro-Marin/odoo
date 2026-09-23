@@ -194,8 +194,8 @@ class SaleOrderLine(models.Model):
                     .exists()
                     .root_plan_id
                 )
-                if accounts_to_add := project._get_analytic_accounts().filtered(
-                    lambda account: account.root_plan_id not in applied_root_plans  # noqa: B023 - lambda consumed immediately in-loop, no late binding
+                if accounts_to_add := project._get_analytic_accounts().filtered_domain(
+                    [("root_plan_id", "not in", applied_root_plans.ids)]
                 ):
                     _debug.logic(
                         "analytic_distribution_extended",

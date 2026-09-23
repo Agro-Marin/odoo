@@ -1178,8 +1178,8 @@ class SaleOrder(models.Model):
                     lambda c: c.order_id == self
                 )
                 all_coupons -= coupons_from_order
-                program_reward_lines = self.line_ids.filtered(
-                    lambda l: l.coupon_id in coupons_from_order  # noqa: B023  (consumed by filtered() in the same iteration)
+                program_reward_lines = self.line_ids.filtered_domain(
+                    [("coupon_id", "in", coupons_from_order.ids)]
                 )
                 program_reward_lines._reset_loyalty(True)
                 lines_to_unlink |= program_reward_lines
@@ -1237,8 +1237,8 @@ class SaleOrder(models.Model):
                 program.applies_on == "current"
                 and "error" in all_programs_status[program]
             ):
-                program_reward_lines = self.line_ids.filtered(
-                    lambda l: l.coupon_id in applied_coupon_per_program[program]  # noqa: B023  (consumed by filtered() in the same iteration)
+                program_reward_lines = self.line_ids.filtered_domain(
+                    [("coupon_id", "in", applied_coupon_per_program[program].ids)]
                 )
                 program_reward_lines._reset_loyalty(True)
                 lines_to_unlink |= program_reward_lines

@@ -117,7 +117,9 @@ class AccountDepreciationProfile(models.Model):
                 profile.depreciation_journal_id.company_id != profile.company_id
             )
         )
-        for company in needs_default.company_id:
+        for company, profiles in needs_default.grouped("company_id").items():
+            if not company:
+                continue
             journal = AccountJournal.search(  # noqa: E8507  one search per distinct company, not per profile
                 [
                     *AccountJournal._check_company_domain(company),
@@ -125,9 +127,7 @@ class AccountDepreciationProfile(models.Model):
                 ],
                 limit=1,
             )
-            needs_default.filtered(
-                lambda profile: profile.company_id == company  # noqa: B023  the lambda runs inside this iteration
-            ).depreciation_journal_id = journal
+            profiles.depreciation_journal_id = journal
 
     def _get_asset_defaults(self):
         self.check_singleton()

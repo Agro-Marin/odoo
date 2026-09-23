@@ -481,8 +481,8 @@ class TestAPI(ThreadRecipients):
                 names=active_partners.mapped("name"), followers=followers.mapped("name")
             ):
                 # removes (through deactivating) some partners to check ordering
-                (portal_user + internal_user).filtered(
-                    lambda u: u.partner_id not in active_partners  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
+                (portal_user + internal_user).filtered_domain(
+                    [("partner_id", "not in", active_partners.ids)]
                 ).active = False
                 (all_partners - active_partners).active = False
                 self.ticket_record.message_subscribe(followers.ids)

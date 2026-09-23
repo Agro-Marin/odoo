@@ -305,12 +305,14 @@ class CalendarRecurrence(models.Model):
         synced_events = self.env["calendar.event"]
         for recurrence in self:
             if recurrence.calendar_event_ids:
-                start = min(recurrence.calendar_event_ids.mapped("start"))
-                starts = set(recurrence._get_occurrences(start))
-                synced_events |= recurrence.calendar_event_ids.filtered(
-                    lambda e: e.start in starts  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
-                )
+                synced_events |= recurrence._get_synced_events()
         return self.calendar_event_ids - synced_events
+
+    def _get_synced_events(self):
+        self.check_singleton()
+        start = min(self.calendar_event_ids.mapped("start"))
+        starts = set(self._get_occurrences(start))
+        return self.calendar_event_ids.filtered(lambda e: e.start in starts)
 
     def _get_events_from(self, dtstart):
         """Occurrences of this recurrence starting at or after `dtstart`.

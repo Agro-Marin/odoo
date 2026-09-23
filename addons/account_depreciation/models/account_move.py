@@ -117,18 +117,10 @@ class AccountMove(models.Model):
             if asset:
                 depreciation_lines = move._get_asset_depreciation_line()
                 asset_depreciation = sum(depreciation_lines.mapped("balance"))
-                initial_lines = move.line_ids.filtered(
-                    lambda line, asset=asset: (
-                        line.account_id == asset.account_asset_id
-                        and asset.currency_id.compare_amounts(
-                            -line.balance, asset.value_original
-                        )
-                        == 0
-                    )
-                )
+                initial_lines = move._get_asset_initial_lines(asset)
                 if initial_lines and len(move.line_ids) > 2:
-                    accumulated = (move.line_ids - initial_lines).filtered(
-                        lambda line: line.account_id == asset.account_depreciation_id  # noqa: B023  the lambda runs inside this iteration
+                    accumulated = (move.line_ids - initial_lines).filtered_domain(
+                        [("account_id", "=", asset.account_depreciation_id.id)]
                     )[:1]
                     asset_depreciation = (
                         asset.value_original
@@ -139,6 +131,17 @@ class AccountMove(models.Model):
             else:
                 asset_depreciation = 0
             move.depreciation_value = asset_depreciation
+
+    def _get_asset_initial_lines(self, asset):
+        return self.line_ids.filtered(
+            lambda line: (
+                line.account_id == asset.account_asset_id
+                and asset.currency_id.compare_amounts(
+                    -line.balance, asset.value_original
+                )
+                == 0
+            )
+        )
 
     @api.depends("depreciation_board_id", "capitalised_board_ids")
     def _compute_asset_move_type(self):

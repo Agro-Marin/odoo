@@ -125,8 +125,8 @@ class WorkflowEdge(models.Model):
                         )
                     )
                 seen.update(frontier.ids)
-                frontier = frontier._get_predecessors().filtered(
-                    lambda node: node.id not in seen,  # noqa: B023 - filtered() evaluates the lambda immediately, within this same loop iteration
+                frontier = frontier._get_predecessors().filtered_domain(
+                    [("id", "not in", list(seen))]
                 )
 
     @api.constrains("condition", "delay", "source_node_id")

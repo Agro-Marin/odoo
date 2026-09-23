@@ -367,8 +367,8 @@ class AutomationRule(models.Model):
             if automation.model_name == "automation.rule":
                 continue
 
-            failing_actions = automation.action_server_ids.filtered(
-                lambda action: action.model_id != automation.model_id,  # noqa: B023 - filtered() evaluates the lambda immediately, within this same loop iteration
+            failing_actions = automation.action_server_ids.filtered_domain(
+                [("model_id", "!=", automation.model_id.id)]
             )
             if failing_actions:
                 raise exceptions.ValidationError(
@@ -706,8 +706,8 @@ class AutomationRule(models.Model):
             if automation.model_name == "automation.rule":
                 continue
 
-            actions_to_remove = automation.action_server_ids.filtered(
-                lambda action: action.model_id != automation.model_id,  # noqa: B023 - filtered() evaluates the lambda immediately, within this same loop iteration
+            actions_to_remove = automation.action_server_ids.filtered_domain(
+                [("model_id", "!=", automation.model_id.id)]
             )
             if actions_to_remove:
                 actions_to_remove.unlink()

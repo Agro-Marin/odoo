@@ -702,10 +702,8 @@ class AppointmentType(models.Model):
                 appt.schedule_based_on == "users" and appt.category == "anytime"
             )
         ):
-            duplicate = anytime_appointments.filtered(
-                lambda apt_type: bool(
-                    apt_type.staff_user_ids & appointment_type.staff_user_ids  # noqa: B023  (consumed by filtered() in the same iteration)
-                )
+            duplicate = anytime_appointments.filtered_domain(
+                [("staff_user_ids", "in", appointment_type.staff_user_ids.ids)]
             )
             if appointment_type.ids != duplicate.ids:
                 raise ValidationError(
@@ -1121,14 +1119,15 @@ class AppointmentType(models.Model):
             slot_weekday = [
                 int(weekday) - 1 for weekday in self.slot_ids.mapped("weekday")
             ]
+            slots_by_isoweekday = self.slot_ids.grouped(lambda x: int(x.weekday))
             for day in rrule.rrule(
                 rrule.DAILY,
                 dtstart=first_day.astimezone(appt_tz).date(),
                 until=last_day.astimezone(appt_tz).date(),
                 byweekday=slot_weekday,
             ):
-                for slot in self.slot_ids.filtered(
-                    lambda x: int(x.weekday) == day.isoweekday()  # noqa: B023  (consumed by filtered() in the same iteration)
+                for slot in slots_by_isoweekday.get(
+                    day.isoweekday(), self.slot_ids.browse()
                 ):
                     add_slot(day, slot)
         else:
@@ -1717,13 +1716,8 @@ class AppointmentType(models.Model):
             if (self.is_date_first and not self.is_auto_assign) or self.env.context.get(
                 "slots_check_all_users", False
             ):
-                available_staff_users = available_users_tz.filtered(
-                    lambda staff_user: self._slot_availability_is_user_available(
-                        slot,  # noqa: B023  consumed by filtered() in the same iteration
-                        staff_user,
-                        availability_values,
-                        asked_capacity,
-                    )
+                available_staff_users = self._get_available_staff_users(
+                    slot, available_users_tz, availability_values, asked_capacity
                 )
             else:
                 available_staff_users = next(
@@ -1746,6 +1740,15 @@ class AppointmentType(models.Model):
                     slot["available_staff_users"] = available_staff_users
                 else:
                     slot["staff_user_id"] = available_staff_users
+
+    def _get_available_staff_users(
+        self, slot, staff_users, availability_values, asked_capacity
+    ):
+        return staff_users.filtered(
+            lambda staff_user: self._slot_availability_is_user_available(
+                slot, staff_user, availability_values, asked_capacity
+            )
+        )
 
     def _slot_availability_is_user_available(
         self, slot, staff_user, availability_values, asked_capacity=1

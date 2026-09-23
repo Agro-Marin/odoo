@@ -12,10 +12,7 @@ class EventSlot(models.Model):
         )
 
         availabilities_by_slot_id = {}
-        for event in upcoming_slots.event_id:
-            event_slots = upcoming_slots.filtered(
-                lambda slot: slot.event_id == event  # noqa: B023  (consumed by filtered() in the same iteration)
-            )
+        for event, event_slots in upcoming_slots.grouped("event_id").items():
             slot_tickets = [
                 (slot, ticket)
                 for slot in event_slots

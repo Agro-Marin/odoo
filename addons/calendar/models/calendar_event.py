@@ -657,8 +657,8 @@ class CalendarEvent(models.Model):
         not available for this event.
         """
         for event in self:
-            organizer = event.attendee_ids.filtered(
-                lambda a: a.partner_id == event.partner_id  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
+            organizer = event.attendee_ids.filtered_domain(
+                [("partner_id", "=", event.partner_id.id)]
             )
             all_declined = not any(
                 (event.attendee_ids - organizer).filtered(
@@ -1108,13 +1108,12 @@ class CalendarEvent(models.Model):
             ):
                 existing_type = orig_activity_ids.activity_type_id
 
+        model_by_id = {model.id: model for model in all_models}
         for values in vals_list:
             # created from calendar: try to create an activity on the related record
             if values["activity_ids"] and not existing_event:
                 continue
-            res_model = all_models.filtered(
-                lambda m: m.id == values["res_model_id"]  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
-            )
+            res_model = model_by_id.get(values["res_model_id"], all_models.browse())
             res_id = values["res_id"]
             if (
                 not res_model
@@ -1128,8 +1127,8 @@ class CalendarEvent(models.Model):
             if existing_type and existing_type.res_model in {False, res_model.model}:
                 meeting_activity_type = existing_type
             if not meeting_activity_type:
-                meeting_activity_type = meeting_activity_types.filtered(
-                    lambda act: act.res_model in {False, res_model.model}  # noqa: B023 - filtered() is invoked eagerly within this same loop iteration, not deferred
+                meeting_activity_type = meeting_activity_types.filtered_domain(
+                    [("res_model", "in", [False, res_model.model])]
                 )
             if not meeting_activity_type:
                 continue

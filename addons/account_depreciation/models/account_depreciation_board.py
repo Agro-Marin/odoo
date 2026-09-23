@@ -969,22 +969,16 @@ class AccountDepreciationBoard(models.Model):
                 lambda m: m._is_effective_depreciation()
             )
             if posted_moves:
+                no_line = posted_moves.line_ids.browse()
+                lines_by_account = posted_moves.line_ids.grouped("account_id")
                 depreciation_change = sum(
-                    posted_moves.line_ids.mapped(
-                        lambda l: (
-                            l.debit
-                            if l.account_id == asset.account_depreciation_expense_id  # noqa: B023  the lambda runs inside this iteration
-                            else 0.0
-                        )
-                    )
+                    lines_by_account.get(
+                        asset.account_depreciation_expense_id, no_line
+                    ).mapped("debit")
                 )
                 acc_depreciation_change = sum(
-                    posted_moves.line_ids.mapped(
-                        lambda l: (
-                            l.credit
-                            if l.account_id == asset.account_depreciation_id  # noqa: B023  the lambda runs inside this iteration
-                            else 0.0
-                        )
+                    lines_by_account.get(asset.account_depreciation_id, no_line).mapped(
+                        "credit"
                     )
                 )
                 entries = Markup("<br>").join(
@@ -2043,12 +2037,12 @@ class AccountDepreciationBoard(models.Model):
                 if move.date <= lock_date:
                     continue
                 if "account_depreciation_id" in propagated:
-                    depreciation_lines |= move.line_ids.filtered(
-                        lambda line: line.account_id == depreciation_account  # noqa: B023  the lambda runs inside this iteration
+                    depreciation_lines |= move.line_ids.filtered_domain(
+                        [("account_id", "=", depreciation_account.id)]
                     )
                 if "account_depreciation_expense_id" in propagated:
-                    expense_lines |= move.line_ids.filtered(
-                        lambda line: line.account_id == expense_account  # noqa: B023  the lambda runs inside this iteration
+                    expense_lines |= move.line_ids.filtered_domain(
+                        [("account_id", "=", expense_account.id)]
                     )
                 if "depreciation_journal_id" in propagated:
                     rejournaled_moves |= move

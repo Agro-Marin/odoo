@@ -309,11 +309,14 @@ class CalendarEvent(models.Model):
     @api.depends("partner_ids")
     def _compute_name(self):
         for event in self.filtered(lambda e: e.appointment_type_id and not e.name):
-            non_staff_attendees = event.partner_ids.filtered(
-                lambda p: (
-                    p._origin.id
-                    not in event.appointment_type_id.staff_user_ids.partner_id.ids  # noqa: B023  (consumed by filtered() in the same iteration)
-                )
+            non_staff_attendees = event.partner_ids.filtered_domain(
+                [
+                    (
+                        "id",
+                        "not in",
+                        event.appointment_type_id.staff_user_ids.partner_id.ids,
+                    )
+                ]
             )
             if len(non_staff_attendees) == 1:
                 event.name = (
@@ -372,17 +375,22 @@ class CalendarEvent(models.Model):
                     )
                 ):
                     events_to_check |= booking_events
+            localized_unavailabilities = {
+                resource: [tuple(map(localized, interval)) for interval in intervals]
+                for resource, intervals in resource_unavailabilities.items()
+            }
             for event in events:
                 event_resources = event.resource_ids
                 event_interval = (localized(event.start), localized(event.stop))
-                event.unavailable_resource_ids = event_resources.filtered(
-                    lambda resource: any(
-                        intervals_overlap(
-                            tuple(map(localized, interval)),
-                            event_interval,  # noqa: B023  (consumed by filtered() in the same iteration)
+                event.unavailable_resource_ids = event_resources.browse(
+                    [
+                        resource.id
+                        for resource in event_resources
+                        if any(
+                            intervals_overlap(interval, event_interval)
+                            for interval in localized_unavailabilities.get(resource, ())
                         )
-                        for interval in resource_unavailabilities.get(resource, [])  # noqa: B023  same
-                    )
+                    ]
                 )
                 for conflicting_event in events_to_check - event._origin:
                     if (
