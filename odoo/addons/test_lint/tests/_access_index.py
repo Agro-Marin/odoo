@@ -115,6 +115,13 @@ def _walk(root: Path, suffix: str):
         yield path
 
 
+def _get_column_value(at, values, key):
+    index = at[key]
+    if index is None or index >= len(values):
+        return None
+    return values[index].strip() or None
+
+
 def _qualify(module: str, xmlid: str) -> str:
     return xmlid if "." in xmlid else f"{module}.{xmlid}"
 
@@ -151,11 +158,7 @@ def _csv_rows(module: str, path: Path) -> list[Row]:
         if not values or not any(values):
             continue
 
-        def value(key, values=values):
-            index = at[key]
-            if index is None or index >= len(values):
-                return None
-            return values[index].strip() or None
+        value = functools.partial(_get_column_value, at, values)
 
         rows.append(
             Row(

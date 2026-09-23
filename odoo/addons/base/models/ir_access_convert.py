@@ -1,4 +1,5 @@
 import csv
+import functools
 import io
 import itertools
 import re
@@ -1041,6 +1042,10 @@ def move_access_group(
     return moved + merged
 
 
+def _qualify_ref(module: str, ref: str | None) -> str:
+    return "" if not ref else ref if "." in ref else f"{module}.{ref}"
+
+
 def read_shipped_access_rows(modules: Iterable[str]) -> dict[str, dict[str, str]]:
     # the rows the modules' security files ship, by external id, as read from
     # disk: kind, group, operation and the model's external id
@@ -1050,9 +1055,7 @@ def read_shipped_access_rows(modules: Iterable[str]) -> dict[str, dict[str, str]
         if not path:
             continue
 
-        def qualify(ref: str | None, module: str = module) -> str:
-            return "" if not ref else ref if "." in ref else f"{module}.{ref}"
-
+        qualify = functools.partial(_qualify_ref, module)
         csv_path = Path(path, "security", "ir.access.csv")
         if csv_path.is_file():
             with csv_path.open(newline="", encoding="utf-8") as stream:
