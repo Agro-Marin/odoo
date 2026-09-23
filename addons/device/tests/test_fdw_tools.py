@@ -32,6 +32,29 @@ class TestFdwHelpers(DeviceTransactionCase):
             fdw.missing_columns(model, existing), [("raw_payload", "text")]
         )
 
+    def test_remote_name_follows_the_foreign_table_options(self):
+        self.assertEqual(
+            fdw.qualified_remote_name(
+                "device_data_log_gps",
+                ["schema_name=public", "table_name=remote_data_log_gps"],
+            ),
+            "public.remote_data_log_gps",
+        )
+        self.assertEqual(
+            fdw.qualified_remote_name("device_data_log_gps", None),
+            "public.device_data_log_gps",
+        )
+
+    def test_remote_ddl_targets_the_remote_table(self):
+        model = self.env["device.data.log"]
+        ddl = fdw.remote_schema_ddl(
+            model, [("raw_payload", "text")], "public.remote_data_log"
+        )
+        self.assertTrue(ddl)
+        for statement in ddl:
+            self.assertIn("public.remote_data_log ", statement)
+            self.assertNotIn(f"public.{LOG_TABLE} ", statement)
+
     def test_checked_references_resolve_to_tables(self):
         model = self.env["device.data.log"]
         self.assertEqual(
