@@ -14,7 +14,7 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.2.10.4 (matches `__manifest__.py`) |
+| Version | 19.0.2.11.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `mail`, and nothing else. `approval_automation` (which needs `automation`) and `approval_analytics` (which needs `mixin_report_sql`) were split out at 19.0.2.0.0 so that adopting `mixin.approval` costs one manifest row rather than nineteen prerequisites; both auto-install |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
@@ -110,6 +110,7 @@ dashboards.
 | `test_binding_actions.py` | Action bindings: a blocked server action refused on the server — the call web_studio let through — request, replay as the requester and approve-on-invoke on a server action, a report refused and then rendered once covered, the PDF entry point gated too, `is_enforced`, and every constraint on what an action binding may be |
 | `test_binding_client.py` | The approval button's questions: the `get_views` flag, an ungated button, who may decide each step before any call, a check that raises the request and runs nothing, decisions assigned to steps and withdrawn by a later step, a decision under one step leaving the user's other step open and withdrawn from that step alone, a step of another button refused, a refusal reopened by its refuser only, a record the caller cannot read, an action button |
 | `test_binding_editor.py` | Studio's editor on the engine: the first step binds the button as Studio did, further steps join it up to order nine, an action button named by xmlid, the approvers list keeping delegations, the steps action, the steps opening as a kanban with a quick-create card, a button whose steps are all archived no longer gated |
+| `test_binding_report_door.py` | The report route over HTTP: an uncovered record refused, and a context sent with the request not passing the gate |
 | `test_binding_studio_parity.py` | What a Studio rule did, held by steps and bindings, each test naming its Studio test: a record no step applies to is not gated, an exclusive approval counts toward the exclusive step first, an archived step is ignored in any context, a group member decides but only listed members are asked, a step holding decisions is archived not deleted, a binding's target is fixed once it has requests |
 | `test_engine_shape.py` | The engine ships no application: no root menu, no category records, its own menus only under Settings > Technical |
 | `test_sla_tracking.py` | SLA status computation, compliance tracking |
@@ -228,8 +229,8 @@ approval/
 |   +-- approval_delegate_wizard.py   # Delegation setup
 +-- reports/
 |   +-- approval_request_report.xml   # QWeb PDF report action
-+-- migrations/                       # 31 script directories (1.0.1 .. 2.10.2)
-+-- tests/                            # 44 test modules + common.py
++-- migrations/                       # 32 script directories (1.0.1 .. 2.11)
++-- tests/                            # 45 test modules + common.py
 +-- views/                            # 10 XML view files
 +-- data/                             # 6 XML data files
 +-- security/                         # Groups, rules, ACL
@@ -241,7 +242,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 44 |
-| Python test files | 44 (+ `common.py`) |
+| Python test files | 45 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 25 |
@@ -253,7 +254,7 @@ approval/
 | Transient models | 2 |
 | Test-only models | 3 |
 | Cron jobs | 4 |
-| Migration script directories | 31 |
+| Migration script directories | 32 |
 
 Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/*'
 -not -path './migrations/*' -not -path '*__pycache__*' -not -path './machine_doc_v1/*'
