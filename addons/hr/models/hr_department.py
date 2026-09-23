@@ -155,10 +155,8 @@ class HrDepartment(models.Model):
             len(members),
         )
         for department in scoped:
-            stranded = by_department[department.id].filtered(
-                lambda member, department=department: (
-                    member.company_id != department.company_id
-                )
+            stranded = by_department[department.id].filtered_domain(
+                [("company_id", "!=", department.company_id.id)]
             )
             if stranded:
                 raise ValidationError(

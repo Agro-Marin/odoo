@@ -1,6 +1,7 @@
 import re
 from collections import defaultdict
 from datetime import UTC, date, datetime, time, timedelta
+from functools import partial
 from random import choice
 from string import digits
 
@@ -22,6 +23,7 @@ from odoo.tools import (
 
 from ..tools import debug_log as dbg
 from odoo.addons.hr.models.hr_version import (
+    _get_sorted_difference,
     format_date_abbr,
     remove_values_from_other_companies,
 )
@@ -1210,8 +1212,8 @@ class HrEmployee(models.Model):
                 "hr.employee._prepare_create_values: version keys dropped as "
                 "unwritable: %s",
                 dbg.lazy(
-                    lambda version_vals=version_vals: sorted(
-                        set(version_vals) - writable_version_fields
+                    partial(
+                        _get_sorted_difference, version_vals, writable_version_fields
                     )
                 ),
             )
@@ -1279,8 +1281,8 @@ class HrEmployee(models.Model):
             visible = current.bank_account_id._filtered_access("read")
             # an account the writer could not see was never in the value they
             # wrote, so its absence from it is not a removal
-            removed = (current - kept).filtered(
-                lambda a, visible=visible: a.bank_account_id in visible
+            removed = (current - kept).filtered_domain(
+                [("bank_account_id", "in", visible.ids)]
             )
             added = wanted - kept.mapped("bank_account_id")
 
@@ -2680,12 +2682,12 @@ class HrEmployee(models.Model):
                 dbg.rec(employees),
             )
             for field in employee_fields_to_empty:
-                employees.filtered(lambda e, f=field: e[f] in archived_employees).write(
-                    {field: False}
-                )
+                employees.filtered_domain(
+                    [(field, "in", archived_employees.ids)]
+                ).write({field: False})
             for field in user_fields_to_empty:
-                employees.filtered(
-                    lambda e, f=field: e[f] in archived_employees.user_id
+                employees.filtered_domain(
+                    [(field, "in", archived_employees.user_id.ids)]
                 ).write({field: False})
 
             if len(archived_employees) == 1 and not self.env.context.get(
@@ -3441,8 +3443,8 @@ class HrEmployee(models.Model):
                 identifier.type_id.code for identifier in party.sudo().identifier_ids
             }
             wanted = codes - held
-            to_move = former.sudo().identifier_ids.filtered(
-                lambda identifier, wanted=wanted: identifier.type_id.code in wanted
+            to_move = former.sudo().identifier_ids.filtered_domain(
+                [("type_id.code", "in", list(wanted))]
             )
             if to_move:
                 dbg.pipeline.debug(

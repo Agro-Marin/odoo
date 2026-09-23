@@ -30,11 +30,10 @@ class HrEmployee(models.Model):
             .sudo()
             .search([("operator_id", "in", self.resource_id.ids)])
         )
+        vehicles_by_operator = vehicles.grouped("operator_id")
         for employee in self:
-            employee.car_ids = vehicles.filtered(
-                lambda vehicle, employee=employee: (
-                    vehicle.operator_id == employee.resource_id
-                )
+            employee.car_ids = vehicles_by_operator.get(
+                employee.resource_id, vehicles.browse()
             )
 
     def _search_car_ids(self, operator, value):

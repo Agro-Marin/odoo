@@ -180,6 +180,9 @@ class MicrosoftEvent(abc.Set):
     def filter(self, func) -> MicrosoftEvent:
         return MicrosoftEvent(e for e in self if func(e))
 
+    def _filtered_series(self, series_master_id) -> MicrosoftEvent:
+        return self.filter(lambda e: e.seriesMasterId == series_master_id)
+
     def is_recurrence(self):
         return self.type == "seriesMaster"
 

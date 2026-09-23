@@ -45,19 +45,16 @@ class ResourceScheduleException(models.Model):
         )
         for record in dated:
             if not record.resource_id:
-                existing_leaves = all_existing_leaves.filtered(
-                    lambda leave, record=record: (
-                        record.id != leave.id
-                        and record["company_id"] == leave["company_id"]
-                        and record["date_from"] < leave["date_to"]
-                        and record["date_to"] > leave["date_from"]
-                    )
+                existing_leaves = (all_existing_leaves - record).filtered_domain(
+                    [
+                        ("company_id", "=", record.company_id.id),
+                        ("date_to", ">", record.date_from),
+                        ("date_from", "<", record.date_to),
+                    ]
                 )
                 if record.calendar_id:
-                    existing_leaves = existing_leaves.filtered(
-                        lambda l, record=record: (
-                            not l.calendar_id or l.calendar_id == record.calendar_id
-                        )
+                    existing_leaves = existing_leaves.filtered_domain(
+                        [("calendar_id", "in", [False, record.calendar_id.id])]
                     )
                 if existing_leaves:
                     raise ValidationError(

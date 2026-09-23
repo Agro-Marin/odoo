@@ -288,7 +288,7 @@ class GamificationSkillNode(models.Model):
             ]
         )
         for node in candidates:
-            for user in users.filtered(lambda u, n=node: u.karma >= n.karma_threshold):
+            for user in users.filtered_domain([("karma", ">=", node.karma_threshold)]):
                 # Each unlock can satisfy the last missing prerequisite of a
                 # dependent, so walk the same frontier the quest path walks.
                 frontier = node
@@ -321,8 +321,8 @@ class GamificationSkillNode(models.Model):
                         )
                     )
                 seen |= set(frontier.ids)
-                frontier = frontier.prerequisite_ids.filtered(
-                    lambda n, seen=seen: n.id not in seen
+                frontier = frontier.prerequisite_ids.filtered_domain(
+                    [("id", "not in", list(seen))]
                 )
 
 

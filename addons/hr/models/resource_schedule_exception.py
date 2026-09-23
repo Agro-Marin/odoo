@@ -39,10 +39,8 @@ class ResourceScheduleException(models.Model):
                 if contract.date_end
                 else datetime.max  # noqa: DTZ901 - naive sentinel, compared only
             )
-            in_contract = leaves.filtered(
-                lambda leave, start_dt=start_dt, end_dt=end_dt: (
-                    leave.date_from and start_dt <= leave.date_from < end_dt
-                )
+            in_contract = leaves.filtered_domain(
+                [("date_from", ">=", start_dt), ("date_from", "<", end_dt)]
             )
             dbg.logic.debug(
                 "[version:%s] %s of %s fall in %s..%s, calendar -> %s",

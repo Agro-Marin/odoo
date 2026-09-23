@@ -303,10 +303,8 @@ class MaintenanceOrder(models.Model):
             [("resource_id", "in", self.resource_ids._origin.ids)]
         )
         for order in self:
-            order.asset_ids = assets.filtered(
-                lambda asset, resources=order.resource_ids._origin: (
-                    asset.resource_id in resources
-                )
+            order.asset_ids = assets.filtered_domain(
+                [("resource_id", "in", order.resource_ids._origin.ids)]
             )
 
     @api.depends("part_ids.review_state")
@@ -350,8 +348,8 @@ class MaintenanceOrder(models.Model):
         default_teams = {}
         for order in self:
             team = (
-                order.resource_ids.maintenance_profile_id.maintenance_team_id.filtered(
-                    lambda t, c=order.company_id: not t.company_id or t.company_id == c
+                order.resource_ids.maintenance_profile_id.maintenance_team_id.filtered_domain(
+                    [("company_id", "in", [False, order.company_id.id])]
                 )[:1]
                 or order.asset_ids.kind_id.maintenance_team_id[:1]
                 or order.maintenance_team_id
@@ -439,11 +437,10 @@ class MaintenanceOrder(models.Model):
         )
         if state == "done":
             planned = parts.filtered(lambda part: part.state == "draft")
+            planned_by_order = planned.grouped("maintenance_order_id")
             for order in self:
                 order._prepare_parts_for_installation(
-                    planned.filtered(
-                        lambda part, o=order: part.maintenance_order_id == o
-                    )
+                    planned_by_order.get(order, planned.browse())
                 )
             planned._action_install()
             planned._flag_not_returned()

@@ -971,20 +971,24 @@ class ApprovalRequest(models.Model):
         )
         return turn
 
+    def _get_rows_out_of_turn(self, rows):
+        self.check_singleton()
+        return rows.filtered(
+            lambda row: (
+                all(
+                    step.in_order and not self._is_row_turn(row, step)
+                    for step in row.step_ids - row.decided_step_ids
+                )
+                and row.step_ids - row.decided_step_ids
+            )
+        )
+
     def _refresh_turn_states(self) -> None:
         for request in self.filtered(lambda request: request.state == "pending"):
             rows = request.approver_ids.filtered(
                 lambda row: row.state in ("pending", "waiting") and row.step_ids
             )
-            waiting = rows.filtered(
-                lambda row, request=request: (
-                    all(
-                        step.in_order and not request._is_row_turn(row, step)
-                        for step in row.step_ids - row.decided_step_ids
-                    )
-                    and row.step_ids - row.decided_step_ids
-                )
-            )
+            waiting = request._get_rows_out_of_turn(rows)
             to_wait = waiting.filtered(lambda row: row.state == "pending")
             to_open = (rows - waiting).filtered(lambda row: row.state == "waiting")
             trace.STEPS.event(

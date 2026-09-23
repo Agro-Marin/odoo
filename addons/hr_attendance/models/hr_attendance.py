@@ -661,12 +661,15 @@ class HrAttendance(models.Model):
                 len(candidates),
                 passes,
             )
-            selected |= candidates.filtered(
-                lambda a, first=first, last=last: (
-                    (span := a._local_date_span())[1] >= first and span[0] <= last
-                )
-            )
+            selected |= candidates._filtered_local_span_overlapping(first, last)
         return closed, selected
+
+    def _filtered_local_span_overlapping(self, first, last):
+        return self.filtered(
+            lambda attendance: (
+                (span := attendance._local_date_span())[1] >= first and span[0] <= last
+            )
+        )
 
     def _update_overtime(self, windows=None):
         """Regenerate the overtime lines of `self`'s periods, plus `windows`.

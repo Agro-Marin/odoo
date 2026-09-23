@@ -170,10 +170,12 @@ class TestProjectMilestone(TestProjectCommon):
         self.assertNotEqual(project_copy.task_ids, False)
         for milestone in project_copy.task_ids.milestone_id:
             self.assertTrue(milestone in project_copy.milestone_ids)
+        orig_tasks_by_name = project.task_ids.grouped("name")
+        copied_tasks_by_name = project_copy.task_ids.grouped("name")
         for unique_name in unique_names:
-            orig_task = project.task_ids.filtered(lambda t, n=unique_name: t.name == n)
-            copied_task = project_copy.task_ids.filtered(
-                lambda t, n=unique_name: t.name == n
+            orig_task = orig_tasks_by_name.get(unique_name, project.task_ids.browse())
+            copied_task = copied_tasks_by_name.get(
+                unique_name, project_copy.task_ids.browse()
             )
             self.assertEqual(
                 orig_task.name,

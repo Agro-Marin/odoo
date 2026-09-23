@@ -116,13 +116,13 @@ class AccountMoveLine(models.Model):
             free = max(math.ceil(line.quantity), 1) - len(line.asset_part_ids)
             if free <= 0:
                 continue
-            candidates = parts.filtered(
-                lambda part, line=line, vendor=vendor: (
-                    part.asset_id == line.asset_id
-                    and part.product_id == line.product_id
-                    and part.vendor_id.commercial_partner_id == vendor
-                    and not part.account_move_line_id
-                )
+            candidates = parts.filtered_domain(
+                [
+                    ("asset_id", "=", line.asset_id.id),
+                    ("product_id", "=", line.product_id.id),
+                    ("vendor_id.commercial_partner_id", "=", vendor.id),
+                    ("account_move_line_id", "=", False),
+                ]
             )[:free]
             _debug.logic(
                 "bill_line_parts_bound",

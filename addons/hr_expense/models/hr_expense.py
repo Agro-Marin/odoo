@@ -893,10 +893,8 @@ class HrExpense(models.Model):
                 groups = 0  # debuglog
                 for duplicates_ids in (x[0] for x in self.env.cr.fetchall()):
                     groups += 1  # debuglog
-                    expenses_duplicates = expenses.filtered(
-                        lambda expense, duplicates_ids=duplicates_ids: (
-                            expense.id in duplicates_ids
-                        )
+                    expenses_duplicates = expenses.filtered_domain(
+                        [("id", "in", duplicates_ids)]
                     )
                     expenses_duplicates.duplicate_expense_ids = [
                         Command.set(duplicates_ids)

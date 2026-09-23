@@ -77,10 +77,12 @@ class ResourceAssetIdentifier(models.Model):
         for identifier in candidates:
             holders = taken[(identifier.type_id.id, identifier.normalized_value)]
             if identifier.type_id.unique_scope == "company":
-                holders = holders.filtered(
-                    lambda h, c=identifier.company_id: h.company_id == c
+                holders = holders.filtered_domain(
+                    [("asset_id.company_id", "=", identifier.company_id.id)]
                 )
-            holders = holders.filtered(lambda h, a=identifier.asset_id: h.asset_id != a)
+            holders = holders.filtered_domain(
+                [("asset_id", "!=", identifier.asset_id.id)]
+            )
             if holders:
                 _debug.logic(
                     "identifier.refused", reason="duplicate", identifier=identifier

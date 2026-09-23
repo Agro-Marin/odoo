@@ -156,10 +156,8 @@ class MailActivity(models.Model):
             )
         )
         for new_expiration_date, accesses in by_expiration.items():
-            accesses.filtered(
-                lambda access, expiration=new_expiration_date: (
-                    access.expiration_date != expiration
-                )
+            accesses.filtered_domain(
+                [("expiration_date", "!=", new_expiration_date)]
             ).expiration_date = new_expiration_date
         _debug.pipeline(
             "request_deadline_propagated",

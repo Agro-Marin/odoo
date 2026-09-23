@@ -1198,9 +1198,7 @@ class ApprovalBinding(models.Model):
             if binding.approve_on_invoke:
                 binding._approve_on_invoke(requests)
             covered_ids = binding._get_covered_ids(pending)
-            still = pending.filtered(
-                lambda record, ids=covered_ids: record.id not in ids,
-            )
+            still = pending.filtered_domain([("id", "not in", list(covered_ids))])
             if still:
                 waiting |= still
                 shown |= requests

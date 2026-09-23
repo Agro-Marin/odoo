@@ -394,7 +394,7 @@ class IrModuleModule(models.Model):
                 "raw": raw,
             }
             candidates = existing.get(values["url"], IrAttachment)
-            attachment = candidates.filtered(lambda a, n=values["name"]: a.name == n)
+            attachment = candidates.filtered_domain([("name", "=", values["name"])])
             if attachment:
                 attachment.write(values)
                 continue
@@ -981,8 +981,8 @@ class IrModuleModule(models.Model):
                 unmet_dependencies = set(terp.get("depends", [])).difference(
                     installed_mods, modules_in_zip
                 )
-                dependencies_to_install |= known_mods.filtered(
-                    lambda m, unmet=unmet_dependencies: m.name in unmet
+                dependencies_to_install |= known_mods.filtered_domain(
+                    [("name", "in", list(unmet_dependencies))]
                 )
                 not_found_modules |= {
                     mod

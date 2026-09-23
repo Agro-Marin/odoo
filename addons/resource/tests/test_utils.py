@@ -1,3 +1,4 @@
+import functools
 from datetime import UTC, date, datetime
 
 from dateutil.relativedelta import relativedelta
@@ -8,6 +9,10 @@ from odoo.tests import Form
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.resource.models import utils
+
+
+def _is_kept(removed_fields, field):
+    return field not in removed_fields
 
 
 class TestExpression(TransactionCase):
@@ -127,7 +132,7 @@ class TestExpression(TransactionCase):
         ]
         for idx, fields in enumerate(fields_to_remove):
             results = [
-                utils.filter_domain_leaf(dom, lambda field, _f=fields: field not in _f)
+                utils.filter_domain_leaf(dom, functools.partial(_is_kept, fields))
                 for dom in domains
             ]
             self.assertEqual(

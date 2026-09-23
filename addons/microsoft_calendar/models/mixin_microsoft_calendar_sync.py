@@ -217,10 +217,8 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
                 ),
                 need_sync_m=False,
             )
-            to_create = recurrents.filter(
-                lambda e, new_calendar_recurrence=new_calendar_recurrence: (
-                    e.seriesMasterId == new_calendar_recurrence["microsoft_id"]
-                )
+            to_create = recurrents._filtered_series(
+                new_calendar_recurrence["microsoft_id"]
             )
             recurrents -= to_create
             base_values = dict(
@@ -274,17 +272,12 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
         recurrences = self.env["calendar.recurrence"].search(
             [("ms_universal_event_id", "in", microsoft_events.uids)]
         )
+        recurrences_by_uid = recurrences.grouped("ms_universal_event_id")
         for recurrent_master_id in ms_recurrence_ids:
-            recurrence_id = recurrences.filtered(
-                lambda ev, recurrent_master_id=recurrent_master_id: (
-                    ev.ms_universal_event_id == ms_recurrence_uids[recurrent_master_id]
-                )
+            recurrence_id = recurrences_by_uid.get(
+                ms_recurrence_uids[recurrent_master_id], recurrences.browse()
             )
-            to_update = recurrents.filter(
-                lambda e, recurrent_master_id=recurrent_master_id: (
-                    e.seriesMasterId == recurrent_master_id
-                )
-            )
+            to_update = recurrents._filtered_series(recurrent_master_id)
             for recurrent_event in to_update:
                 if recurrent_event.type == "occurrence":
                     value = self.env[
@@ -296,11 +289,9 @@ class MixinMicrosoftCalendarSync(models.AbstractModel):
                     value = self.env["calendar.event"]._microsoft_to_odoo_values(
                         recurrent_event, default_values
                     )
-                existing_event = recurrence_id.calendar_event_ids.filtered(
-                    lambda e, recurrent_event=recurrent_event, value=value: (
-                        e._is_matching_timeslot(
-                            value["start"], value["stop"], recurrent_event.isAllDay
-                        )
+                existing_event = (
+                    recurrence_id.calendar_event_ids._filtered_matching_timeslot(
+                        value["start"], value["stop"], recurrent_event.isAllDay
                     )
                 )
                 if not existing_event:

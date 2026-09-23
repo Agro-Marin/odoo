@@ -58,6 +58,7 @@ class ProjectTriage(models.Model):
             ["triage_id"],
             ["id:recordset"],
         )
+        buckets_by_user = self.grouped("user_id")
         for user in self.user_id:
             if not user.active or user.share:
                 dbg.logic.debug(
@@ -65,7 +66,7 @@ class ProjectTriage(models.Model):
                     user.id,
                 )
                 continue
-            user_buckets_to_unlink = self.filtered(lambda b, u=user: b.user_id == u)
+            user_buckets_to_unlink = buckets_by_user[user]
             user_remaining = remaining_by_user[user]
             dbg.logic.debug(
                 "project.triage unlink: user %s deleting %s, %d remaining buckets",

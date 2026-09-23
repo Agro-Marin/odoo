@@ -160,10 +160,14 @@ class HrEmployee(models.Model):
                     continue
                 qualifying = certifications.get(
                     (employee, requirement.skill_id), self.env["hr.employee.skill"]
-                ).filtered(
-                    lambda row, requirement=requirement: (
-                        row.level_progress >= requirement.level_progress
-                    )
+                ).filtered_domain(
+                    [
+                        (
+                            "skill_level_id.level_progress",
+                            ">=",
+                            requirement.level_progress,
+                        )
+                    ]
                 )
                 covered_until = self._certification_covered_until(qualifying, today)
                 if covered_until is False or (

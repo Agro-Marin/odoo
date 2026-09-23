@@ -112,12 +112,13 @@ class CalendarRecurrence(models.Model):
         emails = [a.get("email") for a in google_attendees]
         partner_by_email = self._get_sync_partner(emails)
         existing_attendees = self.calendar_event_ids.attendee_ids
+        attendees_by_email = existing_attendees.grouped("email")
         for email, google_attendee in zip(emails, google_attendees, strict=True):
-            if email in existing_attendees.mapped("email"):
+            if email in attendees_by_email:
                 # Update existing attendees
-                existing_attendees.filtered(
-                    lambda att, email=email: att.email == email
-                ).write({"state": google_attendee.get("responseStatus")})
+                attendees_by_email[email].write(
+                    {"state": google_attendee.get("responseStatus")}
+                )
             else:
                 # Create new attendees
                 if google_attendee.get("self"):
@@ -141,19 +142,17 @@ class CalendarRecurrence(models.Model):
                 if google_attendee.get("displayName") and not partner.name:
                     partner.name = google_attendee.get("displayName")
 
-        organizers_partner_ids = [
-            event.user_id.partner_id
-            for event in self.calendar_event_ids
-            if event.user_id
-        ]
+        organizers = self.calendar_event_ids.user_id.partner_id
         for odoo_attendee_email in set(existing_attendees.mapped("email")):
             # Sometimes, several partners have the same email. Remove old attendees except organizer, otherwise the events will disappear.
             if email_normalize(odoo_attendee_email) not in emails:
-                attendees = existing_attendees.exists().filtered(
-                    lambda att, odoo_attendee_email=odoo_attendee_email: (
-                        att.email == email_normalize(odoo_attendee_email)
-                        and att.partner_id not in organizers_partner_ids
+                attendees = (
+                    attendees_by_email.get(
+                        email_normalize(odoo_attendee_email),
+                        existing_attendees.browse(),
                     )
+                    .exists()
+                    .filtered_domain([("partner_id", "not in", organizers.ids)])
                 )
                 self.calendar_event_ids.write(
                     {

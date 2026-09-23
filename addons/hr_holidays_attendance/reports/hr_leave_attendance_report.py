@@ -84,13 +84,7 @@ class HrLeaveAttendanceReport(models.Model):
 
         for rec in self:
             leaves = leaves_by_employees.get(rec.employee_id, self.env["hr.leave"])
-            rec_date_leaves = leaves.filtered(
-                lambda lv, rec=rec: (
-                    self._timestamped(lv.date_from)
-                    <= rec.date
-                    <= self._timestamped(lv.date_to)
-                ),
-            )
+            rec_date_leaves = self._get_leaves_covering(leaves, rec.date)
             rec.leave_ids = rec_date_leaves.ids
             leave_type_ids = rec_date_leaves.mapped("holiday_status_id")
             rec.leave_type_names = ", ".join(leave_type_ids.mapped("name"))
@@ -98,9 +92,23 @@ class HrLeaveAttendanceReport(models.Model):
             attendances = attendances_by_employees.get(
                 rec.employee_id, self.env["hr.attendance"]
             )
-            rec.attendance_ids = attendances.filtered(
-                lambda att, rec=rec: self._timestamped(att.check_in) == rec.date,
+            rec.attendance_ids = self._get_attendances_checked_in_on(
+                attendances, rec.date
             ).ids
+
+    def _get_leaves_covering(self, leaves, date):
+        return leaves.filtered(
+            lambda leave: (
+                self._timestamped(leave.date_from)
+                <= date
+                <= self._timestamped(leave.date_to)
+            )
+        )
+
+    def _get_attendances_checked_in_on(self, attendances, date):
+        return attendances.filtered(
+            lambda attendance: self._timestamped(attendance.check_in) == date
+        )
 
     def _timestamped(self, date):
         return fields.Datetime.context_timestamp(self, date).date()

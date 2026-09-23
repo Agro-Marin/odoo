@@ -72,18 +72,18 @@ def _restore_xmlid(cr, parked, target_model, res_id):
     )
 
 
-def _adopt_or_create(env, parked, target_model, create):
+def _adopt_or_create(env, parked, target_model, vals):
     """The module's own data and demo files reload before this script runs, so a
     record this migration is about to convert may already exist under the xml id
     parked in pre-migrate. Adopt that one instead of creating a second. With no
-    `create`, an unadopted record answers None and the caller creates it in batch."""
+    `vals`, an unadopted record answers None and the caller creates it in batch."""
     if parked:
         existing = env.ref(parked[0], raise_if_not_found=False)
         if existing and existing._name == target_model and existing.exists():
             return existing
-    if create is None:
+    if vals is None:
         return None
-    record = create()
+    record = env[target_model].create(vals)
     _restore_xmlid(env.cr, parked, target_model, record.id)
     return record
 
@@ -121,16 +121,12 @@ def _convert_offices(cr, env):
             env,
             parked.get(office_id),
             "res.partner",
-            lambda name=name, company_id=company_id, parent=company_partner_id: env[
-                "res.partner"
-            ].create(
-                {
-                    "name": _name(name),
-                    "type": "other",
-                    "parent_id": parent,
-                    "company_id": company_id,
-                }
-            ),
+            {
+                "name": _name(name),
+                "type": "other",
+                "parent_id": company_partner_id,
+                "company_id": company_id,
+            },
         )
         partners[office_id] = partner
         for prop in definition or []:
@@ -181,17 +177,13 @@ def _convert_rooms(cr, env, partners, renames):
             env,
             parked.get(room_id),
             "resource.asset",
-            lambda name=name, company_id=company_id, address=office_partner: env[
-                "resource.asset"
-            ].create(
-                {
-                    "name": name,
-                    "kind_id": kind.id,
-                    "state": "in_service",
-                    "company_id": company_id,
-                    "address_id": address.id if address else False,
-                }
-            ),
+            {
+                "name": name,
+                "kind_id": kind.id,
+                "state": "in_service",
+                "company_id": company_id,
+                "address_id": office_partner.id if office_partner else False,
+            },
         )
         values = {
             renames.get((office_id, key), key): value

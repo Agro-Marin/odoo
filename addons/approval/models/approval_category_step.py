@@ -337,10 +337,8 @@ class ApprovalCategoryStep(models.Model):
                 step.member_ids = [
                     Command.create({"user_id": user.id}) for user in missing
                 ]
-            step.member_ids.filtered(
-                lambda member, users=users: (
-                    not member.delegated_by_id and member.user_id not in users
-                )
+            step.member_ids.filtered_domain(
+                [("delegated_by_id", "=", False), ("user_id", "not in", users.ids)]
             ).unlink()
         self._check_pool()
 

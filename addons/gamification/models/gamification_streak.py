@@ -442,8 +442,8 @@ class GamificationStreak(models.Model):
                 )
                 continue
 
-            qualified = streaks.filtered(
-                lambda s, ok=active_user_ids: s.user_id.id in ok
+            qualified = streaks.filtered_domain(
+                [("user_id", "in", list(active_user_ids))]
             )
             # One savepoint for the whole type, not one per streak: the karma
             # grant and the feed insert are batched below, so a failure inside

@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any
 
 from odoo import api, models
@@ -8,6 +9,10 @@ from odoo.fields import Command
 from . import approval_trace as trace
 
 _logger = logging.getLogger(__name__)
+
+
+def _get_member_order(member_order, user_id):
+    return (user_id not in member_order, member_order.get(user_id, (0, 0)), user_id)
 
 
 @dataclass
@@ -645,14 +650,7 @@ class ApprovalRequestRouting(models.Model):
             if step.subject_user_required:
                 required |= named
             pool = step._get_pool_user_ids(document, self.company_id, self)
-            for user_id in sorted(
-                pool,
-                key=lambda user_id, order=member_order: (
-                    user_id not in order,
-                    order.get(user_id, (0, 0)),
-                    user_id,
-                ),
-            ):
+            for user_id in sorted(pool, key=partial(_get_member_order, member_order)):
                 if user_id in member_order:
                     sequence = member_order[user_id][0]
                 elif user_id in named and step.in_order:

@@ -431,12 +431,7 @@ class HrJob(models.Model):
                     if partner not in job.manager_id._get_related_partners().ids
                 ]
                 job.message_unsubscribe(to_unsubscribe)
-                application_ids = job.application_ids.filtered(
-                    lambda x, job=job: (
-                        x.user_id == old_recruiters[job]
-                        and x.application_status == "ongoing"
-                    )
-                )
+                application_ids = job._get_ongoing_applications_of(old_recruiters[job])
                 if application_ids:
                     _debug.pipeline(
                         "recruiter_changed",
@@ -455,6 +450,15 @@ class HrJob(models.Model):
             for job in self:
                 job.alias_defaults = job._alias_get_creation_values()["alias_defaults"]
         return res
+
+    def _get_ongoing_applications_of(self, recruiter):
+        self.check_singleton()
+        return self.application_ids.filtered(
+            lambda application: (
+                application.user_id == recruiter
+                and application.application_status == "ongoing"
+            )
+        )
 
     def _archive_applications(self):
         """Archive the applications still running on these jobs, reversibly.

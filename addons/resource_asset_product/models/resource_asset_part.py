@@ -389,11 +389,7 @@ class ResourceAssetPart(models.Model):
 
     def _flag_repeats(self):
         for part in self.filtered(lambda part: part.state in LEDGER_STATES):
-            same_work = part._get_same_work_parts().filtered(
-                lambda other, p=part: (
-                    (other.date_installed, other.id) < (p.date_installed, p.id)
-                )
-            )
+            same_work = part._get_same_work_parts()._filtered_installed_before(part)
             if same_work:
                 part._flag(
                     "same_work",
@@ -568,6 +564,13 @@ class ResourceAssetPart(models.Model):
     # HELPER METHODS
     def _get_domain_same_work(self):
         return None
+
+    def _filtered_installed_before(self, part):
+        return self.filtered(
+            lambda other: (
+                (other.date_installed, other.id) < (part.date_installed, part.id)
+            )
+        )
 
     def _get_same_work_parts(self):
         self.check_singleton()

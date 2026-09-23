@@ -1374,10 +1374,7 @@ Versions:
         fast_create = self.env.context.get("leave_fast_create")
         if not fast_create:
             double = holidays.filtered(lambda leave: leave.validation_type == "both")
-            for state in set(double.mapped("state")):
-                by_state = double.filtered(
-                    lambda leave, state=state: leave.state == state
-                )
+            for state, by_state in double.grouped("state").items():
                 by_state._check_double_validation_rules(by_state.employee_id, state)
         _debug.lifecycle(
             "create", leaves=holidays, count=len(vals_list), fast=bool(fast_create)

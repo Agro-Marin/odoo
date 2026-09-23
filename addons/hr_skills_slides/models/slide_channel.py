@@ -142,21 +142,24 @@ class SlideChannel(models.Model):
             )
         return res
 
-    def _message_employee_chatter(self, msg, partners):
-        for partner in partners:
-            employee = (
-                partner.user_ids.sudo()
-                .filtered(
-                    lambda u, partner=partner: (
-                        u.employee_id
-                        and (
-                            not partner.company_id
-                            or u.employee_id.company_id == partner.company_id
-                        )
+    def _get_partner_employees(self, partner):
+        return (
+            partner.user_ids.sudo()
+            .filtered(
+                lambda u: (
+                    u.employee_id
+                    and (
+                        not partner.company_id
+                        or u.employee_id.company_id == partner.company_id
                     )
                 )
-                .employee_id
             )
+            .employee_id
+        )
+
+    def _message_employee_chatter(self, msg, partners):
+        for partner in partners:
+            employee = self._get_partner_employees(partner)
 
             if employee:
                 employee.sudo().message_post(body=msg)

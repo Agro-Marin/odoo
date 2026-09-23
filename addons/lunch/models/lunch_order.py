@@ -184,8 +184,8 @@ class LunchOrder(models.Model):
             user_new_orders = new_orders.get(order.user_id)
             price = 0
             if user_new_orders:
-                user_new_orders = user_new_orders.filtered(
-                    lambda lunch_order, order=order: lunch_order.date == order.date
+                user_new_orders = user_new_orders.filtered_domain(
+                    [("date", "=", order.date)]
                 )
                 price = sum(order.price for order in user_new_orders)
             wallet_amount = (
@@ -260,8 +260,8 @@ class LunchOrder(models.Model):
             for index in range(1, 4):
                 availability = line["available_toppings_%s" % index]
                 quantity = line["topping_quantity_%s" % index]
-                toppings = line["topping_ids_%s" % index].filtered(
-                    lambda x, index=index: x.topping_category == index
+                toppings = line["topping_ids_%s" % index].filtered_domain(
+                    [("topping_category", "=", index)]
                 )
                 label = line["topping_label_%s" % index]
 

@@ -47,12 +47,11 @@ class ResourceAssetMeterReading(models.Model):
             return
         for reading in self.filtered("meter_id.monotonic"):
             neighbours = reading.meter_id.reading_ids - reading
-            date, value = reading.date, reading.value
-            before = neighbours.filtered(
-                lambda r, d=date, v=value: r.date <= d and r.value > v
+            before = neighbours.filtered_domain(
+                [("date", "<=", reading.date), ("value", ">", reading.value)]
             )
-            after = neighbours.filtered(
-                lambda r, d=date, v=value: r.date > d and r.value < v
+            after = neighbours.filtered_domain(
+                [("date", ">", reading.date), ("value", "<", reading.value)]
             )
             if before or after:
                 raise ValidationError(

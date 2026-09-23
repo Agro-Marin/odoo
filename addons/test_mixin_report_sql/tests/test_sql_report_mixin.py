@@ -15,7 +15,7 @@ def build(model, **registries):
     original = {name: cls.__dict__.get(name, _ABSENT) for name in registries}
     try:
         for name, value in registries.items():
-            setattr(cls, name, lambda self, _v=value: _v)
+            setattr(cls, name, _get_constant_hook(value))
         return model._query()
     finally:
         for name, method in original.items():
@@ -26,6 +26,13 @@ def build(model, **registries):
 
 
 _ABSENT = object()
+
+
+def _get_constant_hook(value):
+    def hook(self):
+        return value
+
+    return hook
 
 
 class TestRegistryComposition(TransactionCase):

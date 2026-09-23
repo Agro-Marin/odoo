@@ -1,3 +1,4 @@
+import functools
 import logging
 import re
 
@@ -143,7 +144,7 @@ def _convert_categories(cr, env):
             env,
             parked.get(category["id"]),
             "resource.asset.kind",
-            lambda category=category: create(category),
+            functools.partial(create, category),
         )
         cr.execute(
             "UPDATE maintenance_equipment_category SET kind_id = %s WHERE id = %s",
@@ -216,7 +217,7 @@ def _convert_equipment(cr, env, kinds):
             env,
             parked.get(equipment["id"]),
             "resource.asset",
-            lambda equipment=equipment: create(equipment),
+            functools.partial(create, equipment),
         )
         if parked.get(equipment["id"]):
             _name_serial_like_its_asset(cr, parked[equipment["id"]], asset)

@@ -32,14 +32,15 @@ class HrEmployee(models.Model):
         assets = self.env["resource.asset"].search(
             [("resource_id", "in", assignments.resource_id.ids)]
         )
+        active_by_assignee = assignments.filtered(
+            lambda assignment: assignment.state == "active"
+        ).grouped("assignee_id")
         for employee in self:
-            held = assignments.filtered(
-                lambda assignment, resource=employee.resource_id: (
-                    assignment.assignee_id == resource and assignment.state == "active"
-                )
+            held = active_by_assignee.get(
+                employee.resource_id, assignments.browse()
             ).resource_id
-            employee.asset_ids = assets.filtered(
-                lambda asset, held=held: asset.resource_id in held
+            employee.asset_ids = assets.filtered_domain(
+                [("resource_id", "in", held.ids)]
             )
             employee.asset_count = len(employee.asset_ids)
 

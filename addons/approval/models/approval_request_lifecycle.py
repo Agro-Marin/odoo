@@ -436,8 +436,8 @@ class ApprovalRequestLifecycle(models.Model):
             wanted = steps or (approver.step_ids - approver.decided_step_ids)
             if not wanted:
                 continue
-            waiting = wanted.filtered(
-                lambda step, row=approver: not self._is_row_turn(row, step)
+            waiting = wanted.browse(
+                [step.id for step in wanted if not self._is_row_turn(approver, step)]
             )
             if not waiting or (not steps and waiting != wanted):
                 continue
@@ -1023,10 +1023,8 @@ class ApprovalRequestLifecycle(models.Model):
                     ),
                 )
             if explicit_approver is not None:
-                req_approver = explicit_approver.filtered(
-                    lambda a, req=request: (
-                        a.request_id == req and a.state == "approved"
-                    ),
+                req_approver = explicit_approver.filtered_domain(
+                    [("request_id", "=", request.id), ("state", "=", "approved")]
                 )
             else:
                 req_approver = request.approver_ids.filtered(

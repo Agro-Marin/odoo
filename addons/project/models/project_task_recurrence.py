@@ -1,3 +1,4 @@
+import functools
 from datetime import datetime, timedelta
 from typing import Self
 
@@ -6,6 +7,10 @@ from odoo.exceptions import ValidationError
 from odoo.libs.datetime import timezone
 
 from ..tools import debug_log as dbg
+
+
+def _get_postponed_values(vals, postponed):
+    return {field: vals[field] for field in postponed if field in vals}
 
 
 class ProjectTaskRecurrence(models.Model):
@@ -232,9 +237,9 @@ class ProjectTaskRecurrence(models.Model):
                 dbg.rec(task),
                 create_values["step_id"],
                 dbg.lazy(
-                    lambda vals=create_values, postponed=fields_to_postpone: {
-                        field: vals[field] for field in postponed if field in vals
-                    }
+                    functools.partial(
+                        _get_postponed_values, create_values, fields_to_postpone
+                    )
                 ),
                 len(create_values["child_ids"]),
             )

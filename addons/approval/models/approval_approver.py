@@ -361,12 +361,12 @@ class ApprovalApprover(models.Model):
                 | approver.delegate_id
                 | previous_delegates.get(approver.id, approver.delegate_id)
             )
-            misplaced = activities.filtered(
-                lambda activity, row=approver, holder=holder, parties=parties: (
-                    activity.approver_id == row
-                    and activity.user_id in parties
-                    and activity.user_id != holder
-                )
+            misplaced = activities.filtered_domain(
+                [
+                    ("approver_id", "=", approver.id),
+                    ("user_id", "in", parties.ids),
+                    ("user_id", "!=", holder.id),
+                ]
             )
             if not misplaced:
                 continue

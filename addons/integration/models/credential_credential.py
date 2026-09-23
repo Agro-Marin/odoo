@@ -1,3 +1,4 @@
+import functools
 import json
 import logging
 from time import monotonic
@@ -11,6 +12,10 @@ from ..tools.session_cache import (
 )
 
 _logger = logging.getLogger(__name__)
+
+
+def _is_session_of_endpoint(endpoint_code, key):
+    return key.split(":", 1)[0] == endpoint_code
 
 
 class CredentialCredential(models.Model):
@@ -310,10 +315,9 @@ class CredentialCredential(models.Model):
 
             endpoint_code = record.endpoint_id.code
 
-            def is_invalidation_required(key, _sc=endpoint_code):
-                return key.split(":", 1)[0] == _sc
-
-            count = cache.invalidate_matching(is_invalidation_required)
+            count = cache.invalidate_matching(
+                functools.partial(_is_session_of_endpoint, endpoint_code)
+            )
 
             _logger.info(
                 "Invalidated %d cached sessions for credential '%s' (service: %s)",

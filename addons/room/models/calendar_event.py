@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from odoo import api, fields, models
 
 KIOSK_EVENT_FIELDS = {"name", "start", "stop", "active"}
@@ -19,13 +21,12 @@ class CalendarEvent(models.Model):
         return self.sudo().booking_line_ids.resource_id.filtered("access_token")
 
     def _notify_room_kiosks(self, method):
+        events_by_room = defaultdict(self.browse)
+        for event in self:
+            for room in event.sudo().booking_line_ids.resource_id:
+                events_by_room[room] |= event
         for room in self._get_kiosk_rooms():
-            events = self.filtered(
-                lambda event, room=room: (
-                    room in event.sudo().booking_line_ids.resource_id
-                )
-            )
-            room._notify_booking_view(method, events)
+            room._notify_booking_view(method, events_by_room[room])
 
     def write(self, vals):
         if not KIOSK_EVENT_FIELDS & vals.keys():

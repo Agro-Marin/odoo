@@ -2203,10 +2203,14 @@ class DocumentsDocument(models.Model):
         for doc, doc_copied in zip(self, res, strict=True):
             owner_partner = doc_copied.owner_id.partner_id
             doc_access_to_have = doc.access_ids.filtered("role")
-            doc_access_to_create = doc_access_to_have.filtered(
-                lambda a, doc_copied=doc_copied, owner_partner=owner_partner: (
-                    a.partner_id not in doc_copied.access_ids.partner_id | owner_partner
-                )
+            doc_access_to_create = doc_access_to_have.filtered_domain(
+                [
+                    (
+                        "partner_id",
+                        "not in",
+                        (doc_copied.access_ids.partner_id | owner_partner).ids,
+                    )
+                ]
             )
             access_vals_list += doc_access_to_create.copy_data(
                 default={"document_id": doc_copied.id}

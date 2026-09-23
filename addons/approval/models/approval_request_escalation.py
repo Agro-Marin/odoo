@@ -388,11 +388,12 @@ class ApprovalRequestEscalation(models.Model):
             request = approver.request_id
             effective = approver._get_effective_approver()
             asked = request._get_approval_activities()
-            correct = asked.filtered(lambda a, u=effective: a.user_id == u)
-            stale = asked.filtered(
-                lambda a, u=effective, ap=approver: (
-                    a.user_id != u and a.user_id in (ap.user_id | ap.delegate_id)
-                ),
+            correct = asked.filtered_domain([("user_id", "=", effective.id)])
+            stale = asked.filtered_domain(
+                [
+                    ("user_id", "!=", effective.id),
+                    ("user_id", "in", (approver.user_id | approver.delegate_id).ids),
+                ]
             )
             if not stale:
                 continue

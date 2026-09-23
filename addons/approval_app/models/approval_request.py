@@ -130,11 +130,9 @@ class ApprovalRequest(models.Model):
         explicit = dict(default or {})
         vals_list = super().copy_data(default=explicit)
         recent_by_owner = {
-            owner.id: self._recent_approved_by_category(
-                self.filtered(lambda r, o=owner: r.request_owner_id == o).category_id,
-                owner,
-            )
-            for owner in self.request_owner_id
+            owner.id: self._recent_approved_by_category(requests.category_id, owner)
+            for owner, requests in self.grouped("request_owner_id").items()
+            if owner
         }
         applied = 0
         suppressed = 0

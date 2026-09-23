@@ -352,8 +352,8 @@ class ResourceReservation(models.Model):
             window_end = localized(max(records.mapped("date_end")))
 
             if calendar:
-                native = records.resource_id.filtered(
-                    lambda resource, calendar=calendar: resource.calendar_id == calendar
+                native = records.resource_id.filtered_domain(
+                    [("calendar_id", "=", calendar.id)]
                 )
             else:
                 native = records.resource_id

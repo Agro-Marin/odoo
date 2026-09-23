@@ -262,7 +262,7 @@ class ApprovalDelegateWizard(models.TransientModel):
             # The row's write already handed the principal's activity over.
             handed_over = request._get_approval_activities(
                 user=self.delegate_id
-            ).filtered(lambda activity, row=approver: activity.approver_id == row)
+            ).filtered_domain([("approver_id", "=", approver.id)])
             if handed_over:
                 handed_over.write(delegated)
                 continue

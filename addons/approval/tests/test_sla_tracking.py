@@ -300,8 +300,9 @@ class TestSlaPythonAndSqlAgree(ApprovalCommon):
             "the fixture no longer spans every branch, so agreement below "
             "would be vacuous: %s" % sorted(statuses),
         )
+        made_by_status = made.grouped("sla_status")
         for status in sorted(statuses):
-            by_compute = made.filtered(lambda r, s=status: r.sla_status == s)
+            by_compute = made_by_status.get(status, made.browse())
             by_search = self.env["approval.request"].search(
                 [("id", "in", made.ids), ("sla_status", "=", status)],
             )

@@ -240,8 +240,8 @@ class DocumentsSharing(models.TransientModel):
                     access_urls = {}
                     for document in self.document_ids:
                         access_url = document.access_url
-                        member = document.access_ids.filtered(
-                            lambda access, partner=partner: access.partner_id == partner
+                        member = document.access_ids.filtered_domain(
+                            [("partner_id", "=", partner.id)]
                         )
                         if member and member._is_signup_available():
                             access_url = f"{access_url}?member_signup_token={member._get_member_signup_token()}&member_id={member.id}"

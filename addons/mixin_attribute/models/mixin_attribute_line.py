@@ -40,6 +40,12 @@ class MixinAttributeLine(models.AbstractModel):
         """
         return ""
 
+    def _get_stray_values(self):
+        self.check_singleton()
+        return self.value_ids.filtered(
+            lambda value: value.attribute_id != self.attribute_id
+        )
+
     @api.constrains("active", "attribute_id", "value_ids")
     def _check_values(self):
         """Values must belong to the attribute; single attributes allow one.
@@ -68,9 +74,7 @@ class MixinAttributeLine(models.AbstractModel):
                     )
                 )
 
-            stray = line.value_ids.filtered(
-                lambda v, line=line: v.attribute_id != line.attribute_id
-            )
+            stray = line._get_stray_values()
             if stray:
                 values = ", ".join(stray.mapped("display_name"))
                 raise ValidationError(

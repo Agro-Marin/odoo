@@ -131,8 +131,8 @@ class DateRangeType(models.Model):
         for rec in self.sudo():
             if not rec.company_id:
                 continue
-            foreign = rec.date_range_ids.filtered(
-                lambda r, drt=rec: r.company_id and r.company_id != drt.company_id
+            foreign = rec.date_range_ids.filtered_domain(
+                [("company_id", "!=", False), ("company_id", "!=", rec.company_id.id)]
             )
             if foreign:
                 raise ValidationError(

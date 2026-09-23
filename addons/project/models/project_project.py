@@ -1941,8 +1941,8 @@ class ProjectProject(models.Model):
                         if "company_id" not in vals
                         else [False, vals.get("company_id")]
                     )
-                    stage = stages.filtered(
-                        lambda s, d=stage_domain: s.company_id.id in d
+                    stage = stages.filtered_domain(
+                        [("company_id", "in", stage_domain)]
                     )[:1]
                     vals["phase_id"] = stage.id
                     dbg.logic.debug(

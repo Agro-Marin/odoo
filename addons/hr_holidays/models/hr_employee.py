@@ -337,9 +337,7 @@ class HrEmployee(models.Model):
                 pending=len(pending),
             )
             result.update(found)
-            pending = pending.filtered(
-                lambda employee, found=found: employee.id not in found
-            )
+            pending = pending.filtered_domain([("id", "not in", list(found))])
         return result
 
     @api.depends(
@@ -873,12 +871,14 @@ class HrEmployee(models.Model):
 
                     if (
                         leave.date_from.date() > target_date
-                        and sorted_leave_allocations.filtered(
-                            lambda a, leave=leave: (
-                                a.allocation_type == "accrual"
-                                and (not a.date_to or a.date_to >= target_date)
-                                and a.date_from <= leave.date_to.date()
-                            )
+                        and sorted_leave_allocations.filtered_domain(
+                            [
+                                ("allocation_type", "=", "accrual"),
+                                "|",
+                                ("date_to", "=", False),
+                                ("date_to", ">=", target_date),
+                                ("date_from", "<=", leave.date_to.date()),
+                            ]
                         )
                     ):
                         to_recheck_leaves_per_leave_type[employee][leave_type][

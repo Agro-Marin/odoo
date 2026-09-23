@@ -115,11 +115,11 @@ class AppointmentBookingLine(models.Model):
         for line in self:
             declined = (
                 line.appointment_type_id.schedule_based_on == "users"
-                and line.calendar_event_id.attendee_ids.filtered(
-                    lambda attendee, line=line: (
-                        attendee.partner_id == line.appointment_user_id.partner_id
-                        and attendee.state == "declined"
-                    )
+                and line.calendar_event_id.attendee_ids.filtered_domain(
+                    [
+                        ("partner_id", "=", line.appointment_user_id.partner_id.id),
+                        ("state", "=", "declined"),
+                    ]
                 )
             )
             if (

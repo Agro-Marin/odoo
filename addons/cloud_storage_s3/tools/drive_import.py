@@ -163,8 +163,8 @@ class DriveImport:
                 skipped.append(grant)
                 continue
             partner = user.partner_id
-            current = target.access_ids.filtered(
-                lambda access, partner=partner: access.partner_id == partner
+            current = target.access_ids.filtered_domain(
+                [("partner_id", "=", partner.id)]
             ).role
             if current != "edit":
                 target.action_update_access_rights(partners={partner: (role, None)})

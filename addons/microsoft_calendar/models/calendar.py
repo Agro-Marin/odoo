@@ -200,6 +200,9 @@ class CalendarEvent(models.Model):
                 )
             )
 
+    def _filtered_matching_timeslot(self, start, stop, allday):
+        return self.filtered(lambda e: e._is_matching_timeslot(start, stop, allday))
+
     def _is_matching_timeslot(self, start, stop, allday):
         """
         Check if an event matches with the provided timeslot

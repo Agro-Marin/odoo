@@ -1,6 +1,7 @@
 import logging
 from collections import defaultdict
 from datetime import date
+from functools import partial
 
 from babel.dates import format_date, get_date_format
 from dateutil.relativedelta import relativedelta
@@ -54,6 +55,10 @@ def remove_values_from_other_companies(records, vals_list, default):
                     company.id,
                 )
                 del vals[name]
+
+
+def _get_sorted_difference(values, excluded):
+    return sorted(set(values) - set(excluded))
 
 
 class HrVersion(models.Model):
@@ -565,11 +570,7 @@ class HrVersion(models.Model):
                 dbg.logic.debug(
                     "hr.version.create: template %s supplies %s (caller keys win)",
                     vals["contract_template_id"],
-                    dbg.lazy(
-                        lambda vals=vals, contract_vals=contract_vals: sorted(
-                            set(contract_vals) - set(vals)
-                        )
-                    ),
+                    dbg.lazy(partial(_get_sorted_difference, contract_vals, vals)),
                 )
                 vals.update({**contract_vals, **vals})
             if "resource_calendar_id" not in vals:

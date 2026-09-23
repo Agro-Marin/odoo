@@ -230,14 +230,14 @@ class ApprovalRule(models.Model):
         for rule in self:
             if rule.action_type not in auto_types or not rule.active:
                 continue
-            peers = (stored_peers | self).filtered(
-                lambda r, cur=rule: (
-                    r.id != cur.id
-                    and r.category_id == cur.category_id
-                    and r.condition_field == cur.condition_field
-                    and r.action_type in auto_types
-                    and r.active
-                ),
+            peers = (stored_peers | self).filtered_domain(
+                [
+                    ("id", "!=", rule.id),
+                    ("category_id", "=", rule.category_id.id),
+                    ("condition_field", "=", rule.condition_field),
+                    ("action_type", "in", list(auto_types)),
+                    ("active", "=", True),
+                ]
             )
             for other in peers:
                 if other.action_type == rule.action_type:
