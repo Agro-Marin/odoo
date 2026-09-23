@@ -1976,14 +1976,17 @@ class TestCompute(common.TransactionCase):
         f.model_id = self.env["ir.model"]._get("res.partner")
         f.state = "object_write"
         f.evaluation_type = "sequence"
-        self.assertEqual(f.warning, False)
+        missing = "Choose the sequence the value is drawn from."
+        self.assertEqual(f.warning, missing)
         f.update_path = "active"
         self.assertEqual(
-            f.warning, "A sequence must only be used with character fields."
+            f.warning,
+            f"A sequence must only be used with character fields.\n\n{missing}",
         )
         f.update_path = "ref"
-        self.assertEqual(f.warning, False)
+        self.assertEqual(f.warning, missing)
         f.sequence_id = test_sequence
+        self.assertEqual(f.warning, False)
 
         action = f.save()
         self.assertEqual(test_partner.ref, False)
