@@ -360,13 +360,9 @@ class ApprovalBinding(models.Model):
     def _get_button_flat_step(self, request, rows, decided, user, is_open):
         self.check_singleton()
         category = self.category_id.sudo()
-        if request:
-            asked = any(
-                row._get_effective_approver() == user and row not in decided
-                for row in rows
-            )
-        else:
-            asked = user in category.approver_ids.user_id
+        asked = any(
+            row._get_effective_approver() == user and row not in decided for row in rows
+        )
         trace.BUTTON.event(
             "flat_step_drawn",
             binding=self.id,
