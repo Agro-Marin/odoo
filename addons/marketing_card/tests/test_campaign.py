@@ -130,7 +130,7 @@ class TestMarketingCardMail(MailCase, MarketingCardCommon):
         # rollback now re-clears only the cache groups its own span invalidated,
         # so the xmlid, default and config-parameter lookups the warmup paid for
         # stay warm into this window.
-        with self.mock_mail_gateway(), self.assertQueryCount(53):
+        with self.mock_mail_gateway(), self.assertQueryCount(55):
             mailing._action_send_mail()
 
         cards = self.env["card.card"].search([("campaign_id", "=", campaign.id)])

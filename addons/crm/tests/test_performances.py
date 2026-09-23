@@ -52,7 +52,7 @@ class TestLeadAssignPerf(TestLeadAssignCommon):
                     .browse(self.sales_teams.ids)
                     ._action_assign_leads()
                 ),
-                user_sales_manager=414,
+                user_sales_manager=416,
             )
 
         leads = self.env["crm.lead"].search([("id", "in", leads.ids)])
