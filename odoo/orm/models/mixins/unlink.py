@@ -200,20 +200,13 @@ class UnlinkMixin(_ModelStubs):
                 field._invalidate_cache(env, keep_dirty=True)
             for field in fields_by_comodel.get(model_name, ()):
                 field._invalidate_cache(env, keep_dirty=True)
-        # a non-stored compute may read the deleted rows through a reference
-        # or a search that its dependencies do not name
-        computed = [
-            field
-            for field in env.core.iter_cached_fields()
-            if field.compute and not field.store
-        ]
-        for field in computed:
+        for field in registry.fields_reading_through_a_reference:
             field._invalidate_cache(env, keep_dirty=True)
         _debug.logic(
             "unlink.invalidated_models",
             model=self._name,
             models=len(gone),
-            computed_fields=len(computed),
+            reference_fields=len(registry.fields_reading_through_a_reference),
         )
         Reference.discard_verified_models(env, gone)
         self._invalidate_ref_cache(gone)

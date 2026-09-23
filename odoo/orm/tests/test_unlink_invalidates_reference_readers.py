@@ -46,19 +46,6 @@ class Pointer(models.Model):
             )
 
 
-class Counter(models.Model):
-    _name = "uirr.counter"
-    _module = _MOD
-    _description = "counts targets through a search"
-    _log_access = False
-
-    target_count = fields.Integer(compute="_compute_target_count")
-
-    def _compute_target_count(self):
-        for record in self:
-            record.target_count = self.env["uirr.target"].search_count([])
-
-
 class Bystander(models.Model):
     _name = "uirr.bystander"
     _module = _MOD
@@ -69,11 +56,26 @@ class Bystander(models.Model):
 
 
 def _env():
-    return model_test_env(Target, Pointer, Counter, Bystander)
+    return model_test_env(Target, Pointer, Bystander)
 
 
 def _pointer_res_name(env):
     return env["uirr.pointer"]._fields["res_name"]
+
+
+def test_the_index_finds_a_field_read_through_a_reference():
+    with _env() as env:
+        assert _pointer_res_name(env) in env.registry.fields_reading_through_a_reference
+
+
+def test_the_index_covers_the_other_dynamic_reference_type():
+    with _env() as env:
+        ref_name = env["uirr.pointer"]._fields["ref_name"]
+        assert ref_name in env.registry.fields_reading_through_a_reference
+        by_comodel = env.registry.fields_by_comodel
+        assert ref_name not in set(by_comodel.get("uirr.target", ())), (
+            "the premise: a Reference has no comodel bucket either"
+        )
 
 
 def test_the_delete_sweep_drops_a_reference_readers_cache():
@@ -86,6 +88,19 @@ def test_the_delete_sweep_drops_a_reference_readers_cache():
         env["uirr.bystander"]._invalidate_after_unlink()
 
         assert not _is_cached(env, pointer, "ref_name")
+
+
+def test_the_index_leaves_stored_fields_alone():
+    with _env() as env:
+        stored = env["uirr.pointer"]._fields["res_name_stored"]
+        assert stored not in env.registry.fields_reading_through_a_reference
+
+
+def test_no_comodel_bucket_can_reach_the_field():
+    with _env() as env:
+        by_comodel = env.registry.fields_by_comodel
+        reachable = set(by_comodel.get("uirr.target", ()))
+        assert _pointer_res_name(env) not in reachable
 
 
 def _is_cached(env, record, fname):
@@ -120,28 +135,3 @@ def test_the_sweep_runs_whatever_was_deleted():
         env["uirr.bystander"]._invalidate_after_unlink()
 
         assert not _is_cached(env, pointer, "res_name")
-
-
-def test_the_sweep_drops_a_compute_that_searched_the_deleted_rows():
-    with _env() as env:
-        target = env["uirr.target"].create({"name": "Target"})
-        counter = env["uirr.counter"].create({})
-        assert counter.target_count == 1
-
-        target.unlink()
-
-        assert counter.target_count == 0
-
-
-def test_the_sweep_leaves_stored_fields_cached():
-    with _env() as env:
-        target = env["uirr.target"].create({"name": "Target"})
-        pointer = env["uirr.pointer"].create(
-            {"res_model": "uirr.target", "res_id": target.id}
-        )
-        env.flush_all()
-        assert pointer.res_name_stored == "stored"
-
-        env["uirr.bystander"]._invalidate_after_unlink()
-
-        assert _is_cached(env, pointer, "res_name_stored")

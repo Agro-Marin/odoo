@@ -114,6 +114,26 @@ class _RegistryFieldsMixin(_RegistryStubs):
         return {name: tuple(fields) for name, fields in result.items()}
 
     @functools.cached_property
+    def fields_reading_through_a_reference(self) -> tuple[Field, ...]:
+        result: list[Field] = []
+        for model_cls in self.models.values():
+            fields = model_cls._fields
+            for field in fields.values():
+                if field.store or not field.compute:
+                    continue
+                if any(
+                    "." not in dep
+                    and (dep_field := fields.get(dep)) is not None
+                    and dep_field.type in ("many2one_reference", "reference")
+                    for dep in self.field_depends.get(field, ())
+                ):
+                    result.append(field)
+        _debug.perf.count(
+            "registry.fields_reading_through_a_reference", fields=len(result)
+        )
+        return tuple(result)
+
+    @functools.cached_property
     def models_cascading_from(self) -> dict[str, frozenset[str]]:
         result: defaultdict[str, set[str]] = defaultdict(set)
         for model_cls in self.models.values():
@@ -215,6 +235,7 @@ class _RegistryFieldsMixin(_RegistryStubs):
                 "order_key_inverses",
                 "field_computed",
                 "fields_by_comodel",
+                "fields_reading_through_a_reference",
                 "models_cascading_from",
                 "_prefetch_fields_by_model",
             ):
