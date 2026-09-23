@@ -637,13 +637,6 @@ test("activity view: activity widget", async () => {
 
 test("activity widget: cancel an activity from the widget", async () => {
     const [mailActivityId] = pyEnv["mail.activity"].search([["state", "=", "planned"]]);
-    const [mailActivityTypeId] = pyEnv["mail.activity.type"].search([
-        ["name", "=", "Email"],
-    ]);
-    pyEnv["res.users"].write([serverState.userId], {
-        activity_ids: [mailActivityId],
-        activity_type_id: mailActivityTypeId,
-    });
     onRpc("mail.activity", "unlink", ({ args, route }) => {
         expect(args).toEqual([[mailActivityId]]);
         expect(route).toInclude("mail.activity");
