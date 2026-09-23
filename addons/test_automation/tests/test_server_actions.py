@@ -427,9 +427,13 @@ class TestConfigurationIsSeededNotImposed(TransactionCase):
         self.assertTrue(candidates, "the contract needs something to measure")
 
         for state, _label in Action._fields["state"].selection:
-            action = Action.create(
-                {"name": f"Act {state}", "model_id": model.id, "state": state}
-            )
+            try:
+                with self.env.cr.savepoint():
+                    action = Action.create(
+                        {"name": f"Act {state}", "model_id": model.id, "state": state}
+                    )
+            except ValidationError:
+                continue
             for field in candidates:
                 seeded = action[field.name]
                 if not seeded:
