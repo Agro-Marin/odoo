@@ -1,6 +1,10 @@
-from odoo import SUPERUSER_ID
+from datetime import timedelta
+
+from odoo import SUPERUSER_ID, fields
 from odoo.exceptions import UserError, ValidationError
+from odoo.modules.module import get_module_path, load_script
 from odoo.tests import new_test_user, tagged
+from odoo.tools import SQL
 
 from odoo.addons.hr_expense.tests.common import TestExpenseCommon
 
@@ -348,3 +352,44 @@ class TestExpenseApprovalEngine(TestExpenseCommon):
         self.assertEqual(len(expense.activity_ids), 1)
         self.assertEqual(expense.activity_ids.approver_id.request_id, request)
         self.assertEqual(expense.review_state, "submitted")
+
+    # -- a silence reimburses nothing -----------------------------------------
+
+    def _consent_behind_the_form(self, hours):
+        self.env.cr.execute(
+            SQL(
+                "UPDATE approval_category SET consent_approval_hours = %s WHERE id = %s",
+                hours,
+                self.category.id,
+            )
+        )
+        self.category.invalidate_recordset(["consent_approval_hours"])
+
+    def test_consent_approval_is_refused_on_the_expense_category(self):
+        with self.assertRaises(ValidationError):
+            self.category.sudo().consent_approval_hours = 24
+
+    def test_the_cron_reimburses_no_expense_by_silence(self):
+        expense = self._submitted()
+        request = expense.sudo().approval_request_id
+        request.date_confirmed = fields.Datetime.now() - timedelta(hours=2)
+        self._consent_behind_the_form(1)
+
+        self.env["approval.request"].cron_consent_approval()
+
+        self.assertEqual(request.state, "pending")
+
+    def test_the_upgrade_clears_consent_on_the_expense_category(self):
+        script = load_script(
+            f"{get_module_path('hr_expense')}/migrations/2.6/post-migrate.py",
+            "hr_expense_2_6_post_migrate",
+        )
+        self._consent_behind_the_form(6)
+
+        with self.assertLogs(
+            "odoo.addons.approval.models.approval_category", "WARNING"
+        ) as logs:
+            script.migrate(self.env.cr, "19.0.2.5")
+
+        self.assertEqual(self.category.consent_approval_hours, 0)
+        self.assertIn("reimbursing an expense", "\n".join(logs.output))

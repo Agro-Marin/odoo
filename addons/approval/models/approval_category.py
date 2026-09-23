@@ -1,4 +1,5 @@
 import base64
+import logging
 from typing import Any
 
 from odoo import api, fields, models, tools
@@ -7,6 +8,8 @@ from odoo.fields import Command, Domain
 
 from . import approval_trace as trace
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
+
+_logger = logging.getLogger(__name__)
 
 ROUTES_BY_STEPS_CONTEXT = "approval_category_routes_by_steps"
 
@@ -289,6 +292,55 @@ class ApprovalCategory(models.Model):
                         "sequential approval. Disable one or the other.",
                     ),
                 )
+
+    @api.constrains("consent_approval_hours", "approval_type", "target_model")
+    def _constrains_consent_financial(self) -> None:
+        for category in self:
+            if not category.consent_approval_hours:
+                continue
+            if verb := category._get_financial_verb():
+                trace.REFUSAL.event(
+                    "consent_on_financial_verb",
+                    category=category.id,
+                    hours=category.consent_approval_hours,
+                )
+                raise ValidationError(
+                    self.env._(
+                        "%(category)s approves %(verb)s. Money is spent only on a "
+                        "person's decision, so Consent Approval must stay at 0.",
+                        category=category.display_name,
+                        verb=verb,
+                    ),
+                )
+
+    def _get_financial_verb(self) -> str:
+        """What money the category's approval commits, in words; empty for none.
+
+        A module whose category gates posting, paying or buying names it here,
+        and a category that names one is never approved by a silence.
+        """
+        self.check_singleton()
+        return ""
+
+    @api.model
+    def _clear_financial_consent(self) -> ApprovalCategory:
+        categories = (
+            self.sudo()
+            .with_context(active_test=False)
+            .search([("consent_approval_hours", "!=", 0)])
+            .filtered(lambda category: category._get_financial_verb())
+        )
+        for category in categories:
+            _logger.warning(
+                "Approval category %r (id %s) approved %s by consent after %s "
+                "hours without a decision; consent approval is cleared.",
+                category.display_name,
+                category.id,
+                category._get_financial_verb(),
+                category.consent_approval_hours,
+            )
+        categories.consent_approval_hours = 0
+        return categories
 
     @api.model
     def default_get(self, fields):

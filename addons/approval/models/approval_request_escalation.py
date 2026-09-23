@@ -563,7 +563,7 @@ class ApprovalRequestEscalation(models.Model):
 
     def _can_consent_approve(self) -> bool:
         self.check_singleton()
-        return True
+        return not self.category_id._get_financial_verb()
 
     def _get_escalation_manager(self, approver) -> Any:
         category = self.category_id

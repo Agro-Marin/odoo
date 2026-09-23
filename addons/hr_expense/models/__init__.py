@@ -12,3 +12,4 @@ from . import hr_expense_config
 from . import res_company
 from . import analytic
 from . import ir_actions_report
+from . import approval_category
