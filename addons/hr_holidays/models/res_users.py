@@ -13,6 +13,12 @@ class ResUsers(models.Model):
             "leave_date_to",
         ]
 
+    @api.depends(
+        "employee_ids.leave_ids.state",
+        "employee_ids.leave_ids.date_from",
+        "employee_ids.leave_ids.date_to",
+        "employee_ids.leave_ids.holiday_status_id.time_type_id.is_work",
+    )
     def _compute_im_status(self):
         super()._compute_im_status()
         on_leave_user_ids = self._get_on_leave_ids()

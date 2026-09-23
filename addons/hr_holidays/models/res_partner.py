@@ -13,6 +13,12 @@ class ResPartner(models.Model):
             dates = [date for date in partner.user_ids.mapped("leave_date_to") if date]
             partner.leave_date_to = min(dates) if dates else False
 
+    @api.depends(
+        "user_ids.employee_ids.leave_ids.state",
+        "user_ids.employee_ids.leave_ids.date_from",
+        "user_ids.employee_ids.leave_ids.date_to",
+        "user_ids.employee_ids.leave_ids.holiday_status_id.time_type_id.is_work",
+    )
     def _compute_presence(self):
         super()._compute_presence()
         absent_now = self._get_on_leave_ids()
