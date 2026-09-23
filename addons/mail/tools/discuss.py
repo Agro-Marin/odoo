@@ -493,8 +493,37 @@ class Store:
                         and (res_id := record["res_id"])
                         and res_model in record.env
                     ):
-                        target = record.env[res_model].browse(res_id)
+                        target = (
+                            record.env[res_model]
+                            .browse(res_id)
+                            .with_prefetch(
+                                tuple(
+                                    dict.fromkeys(
+                                        (
+                                            res_id,
+                                            *self._thread_ids(
+                                                record, res_model_field, res_model
+                                            ),
+                                        )
+                                    )
+                                )
+                            )
+                        )
             return self._copy_with_records(target, calling_record=record)
+
+        def _thread_ids(
+            self, record: models.Model, res_model_field: str, res_model: str
+        ) -> tuple[int, ...]:
+            # every thread of the model that the calling record's siblings point
+            # at, so a field computed on one thread is computed for all of them
+            memo = self.__dict__.get("_thread_ids_memo")
+            if memo is None or memo[0] is not record._prefetch_ids:
+                ids_by_model: defaultdict[str, list[int]] = defaultdict(list)
+                for sibling in record.browse(record._prefetch_ids):
+                    if (model := sibling[res_model_field]) and sibling["res_id"]:
+                        ids_by_model[model].append(sibling["res_id"])
+                memo = self._thread_ids_memo = (record._prefetch_ids, ids_by_model)
+            return tuple(memo[1][res_model])
 
         def _copy_with_records(
             self, records: models.Model | None, calling_record: models.Model

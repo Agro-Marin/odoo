@@ -1,4 +1,5 @@
 import contextlib
+from unittest.mock import patch
 
 from markupsafe import Markup
 
@@ -729,4 +730,62 @@ class TestMessageValues(MailCommon):
         )
         self.assertEqual(
             msg.message_type, "comment", "Message should be comments by default"
+        )
+
+
+@tagged("mail_message", "post_install", "-at_install")
+class TestInboxThreadBatching(MailCommon):
+    def test_the_inbox_counts_needaction_once_per_thread_model(self):
+        records = self.env["mail.test.simple"].create(
+            [{"name": f"Needaction {index}"} for index in range(3)]
+        )
+        for record in records:
+            record.message_post(
+                body="Ping",
+                message_type="comment",
+                partner_ids=self.partner_employee.ids,
+            )
+        env = self.env(user=self.user_employee)
+        messages = env["mail.message"].search(
+            [
+                ("needaction", "=", True),
+                ("model", "=", "mail.test.simple"),
+                ("res_id", "in", records.ids),
+            ]
+        )
+        self.assertEqual(len(messages), 3)
+        env.flush_all()
+        env.invalidate_all()
+
+        counted = []
+        execute = type(env.cr).execute
+
+        def spy(cr, query, *args, **kwargs):
+            if "INNER JOIN mail_notification rel" in str(getattr(query, "code", query)):
+                counted.append(query)
+            return execute(cr, query, *args, **kwargs)
+
+        with patch.object(type(env.cr), "execute", spy):
+            data = (
+                Store()
+                .add(
+                    messages,
+                    extra_fields=[
+                        Store.One(
+                            "thread",
+                            [Store.Attr("message_needaction_counter", sudo=True)],
+                            as_thread=True,
+                        )
+                    ],
+                )
+                .get_result()
+            )
+        self.assertEqual(len(counted), 1, "one needaction count for the three threads")
+        self.assertEqual(
+            {
+                thread["id"]: thread["message_needaction_counter"]
+                for thread in data["mixin.mail.thread"]
+                if thread["model"] == "mail.test.simple"
+            },
+            dict.fromkeys(records.ids, 1),
         )

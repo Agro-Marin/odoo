@@ -38,7 +38,7 @@ class TestInboxPerformance(HttpCase, MailCommon):
         #           - search res_users
         #           - fetch res_users
         #       - fetch rating_rating (_compute_rating_id)
-        #       4 _compute_message_needaction_stats: one per thread
+        #       2 _compute_message_needaction_stats: one per thread model
         #       - search mail_tracking_value
         #       - read group rating_rating (_rating_get_stats_per_record for slide.channel)
         #       - read group rating_rating (_compute_rating_stats for slide.channel)
@@ -59,5 +59,5 @@ class TestInboxPerformance(HttpCase, MailCommon):
                 rating_value="4",
             )
         self.authenticate(self.user_employee.login, self.user_employee.password)
-        with self.assertQueryCount(42):
+        with self.assertQueryCount(28):
             self.call_jsonrpc("/mail/inbox/messages")
