@@ -253,6 +253,14 @@ class DocumentComplianceReport(models.Model):
     def _get_fields_group_by(self) -> list:
         return ["edt.entity_type", "edt.entity_id", "edt.company_id"]
 
+    def _get_entity_name_column(self, model: str) -> str:
+        """SQL expression naming an entity on its own table.
+
+        A plain ``name`` column by default; a bridge whose entity has a
+        translated name returns the key to read from it.
+        """
+        return "name"
+
     def _get_entity_name_expression(self) -> str:
         model_map = self._get_entity_model_map()
 
@@ -268,7 +276,8 @@ class DocumentComplianceReport(models.Model):
                 # under a user's partner.
                 case_parts.append(
                     f"WHEN edt.entity_type = '{model}' THEN COALESCE("
-                    f"(SELECT name FROM {table} WHERE id = edt.entity_id LIMIT 1), "
+                    f"(SELECT {self._get_entity_name_column(model)} FROM {table} "
+                    f"WHERE id = edt.entity_id LIMIT 1), "
                     f"{fallback})"
                 )
 
