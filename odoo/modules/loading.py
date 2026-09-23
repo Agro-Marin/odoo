@@ -785,6 +785,10 @@ class _PackageLoader:
         )
 
     def run_post_init_hook(self) -> None:
+        if self.operation in ("install", "upgrade"):
+            # a configuration row read later by a request would be created on
+            # that request's cursor, which may be read-only
+            self.env["res.company"]._seed_configurations(self.name)
         if self.operation == "install":
             if post_init := self.package.manifest.get("post_init_hook"):
                 with _debug.perf(

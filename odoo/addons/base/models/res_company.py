@@ -533,6 +533,25 @@ class ResCompany(models.Model):
             and getattr(self.env[field.comodel_name], "_company_config", False)
         }
 
+    @api.model
+    def _seed_configurations(self, module: str) -> None:
+        declared = [
+            field.comodel_name
+            for field in self._config_link_fields().values()
+            if self.env[field.comodel_name]._original_module == module
+        ]
+        if not declared:
+            return
+        companies = self.sudo().with_context(active_test=False).search([])
+        for model_name in declared:
+            self.env[model_name].sudo()._for_each(companies)
+        _debug.lifecycle(
+            "configurations_seeded",
+            module=module,
+            models=declared,
+            companies=len(companies),
+        )
+
     def _config_link_of_field(self, fname: str) -> str | None:
         links = self._config_link_fields()
         field = self._fields.get(fname)

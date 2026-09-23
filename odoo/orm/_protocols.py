@@ -245,6 +245,8 @@ class ResCompanyProtocol(RecordsetProtocol, Protocol):
 
     def __int__(self) -> int: ...
 
+    def _seed_configurations(self, module: str) -> None: ...
+
 
 class ResCountryProtocol(RecordsetProtocol, Protocol):
     code: Any
