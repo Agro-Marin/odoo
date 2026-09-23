@@ -41,6 +41,33 @@ def foreign_server(cr, table: str) -> str | None:
     return row[0] if row else None
 
 
+def remote_table(cr, table: str) -> str:
+    """Qualified name of the table the foreign table reads on its server.
+
+    ``postgres_fdw`` defaults both options to the local names, so a foreign
+    table renamed locally keeps pointing at the old remote name.
+    """
+    cr.execute(
+        SQL(
+            """
+            SELECT ft.ftoptions
+              FROM pg_foreign_table ft
+              JOIN pg_class c ON c.oid = ft.ftrelid
+             WHERE c.relname = %s
+               AND c.relnamespace = current_schema::regnamespace
+            """,
+            table,
+        )
+    )
+    row = cr.fetchone()
+    return qualified_remote_name(table, row[0] if row else None)
+
+
+def qualified_remote_name(table: str, options: list[str] | None) -> str:
+    opts = dict(option.split("=", 1) for option in options or ())
+    return f"{opts.get('schema_name', 'public')}.{opts.get('table_name', table)}"
+
+
 def dblink_available(cr) -> bool:
     cr.execute("SELECT 1 FROM pg_extension WHERE extname = 'dblink'")
     return bool(cr.fetchone())
@@ -213,6 +240,31 @@ def drop_pointer_foreign_keys(cr, pointers: list[tuple[str, str]]) -> list[str]:
     return dropped
 
 
+def remote_schema_ddl(model, columns: list[tuple[str, str]], target: str) -> list[str]:
+    """DDL that brings the remote table in line with the model.
+
+    :param list columns: ``missing_columns`` output
+    :param str target: ``remote_table`` output, the table the DDL runs on
+    """
+    ddl = [
+        f"ALTER TABLE {target} ADD COLUMN IF NOT EXISTS {name} {coltype}"
+        for name, coltype in columns
+    ]
+    for obj in model._table_objects.values():
+        clause = getattr(obj, "_get_definition_clause", None)
+        if clause is None:
+            continue
+        definition = clause(model.pool)
+        if not definition:
+            continue
+        indexname = obj.get_full_name(model)
+        unique = "UNIQUE " if getattr(obj, "unique", False) else ""
+        ddl.append(
+            f"CREATE {unique}INDEX IF NOT EXISTS {indexname} ON {target} {definition}"
+        )
+    return ddl
+
+
 def sync_foreign_schema(model) -> None:
     """Bring the remote table and the local guards in line with the model.
 
@@ -229,24 +281,7 @@ def sync_foreign_schema(model) -> None:
     server = foreign_server(cr, table)
     existing = sql.get_table_columns(cr, table)
     columns = missing_columns(model, existing)
-
-    remote_ddl = [
-        f"ALTER TABLE public.{table} ADD COLUMN IF NOT EXISTS {name} {coltype}"
-        for name, coltype in columns
-    ]
-    for obj in model._table_objects.values():
-        clause = getattr(obj, "_get_definition_clause", None)
-        if clause is None:
-            continue
-        definition = clause(model.pool)
-        if not definition:
-            continue
-        indexname = obj.get_full_name(model)
-        unique = "UNIQUE " if getattr(obj, "unique", False) else ""
-        remote_ddl.append(
-            f"CREATE {unique}INDEX IF NOT EXISTS {indexname} "
-            f"ON public.{table} {definition}"
-        )
+    remote_ddl = remote_schema_ddl(model, columns, remote_table(cr, table))
 
     if remote_ddl and not dblink_available(cr):
         raise UserError(
