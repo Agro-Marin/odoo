@@ -604,15 +604,16 @@ class CreateMixin(_ModelStubs):
                 records=len(records),
                 fields=sorted(self._constrained_projection_names),
             )
-        records._check_fields(
-            chain(
-                (name for data in data_list for name in data["stored"]),
-                # a related field without a column is in no `stored` list, and a
-                # new record has a value for it as soon as its path is written
-                self._constrained_projection_names,
-            ),
-            {name for data in data_list for name in data["inversed"]},
-        )
+        with self.env.transaction.checking_inserted(self._name, records._ids):
+            records._check_fields(
+                chain(
+                    (name for data in data_list for name in data["stored"]),
+                    # a related field without a column is in no `stored` list, and a
+                    # new record has a value for it as soon as its path is written
+                    self._constrained_projection_names,
+                ),
+                {name for data in data_list for name in data["inversed"]},
+            )
         records.check_access("create")
 
         prof.stop("trigger")

@@ -87,6 +87,7 @@ class Transaction:
         "_cache_store",
         "_compute_engine",
         "_create_frames",
+        "_inserted_checks",
         "_last_env",
         "_recent_envs",
         "_ref_cache",
@@ -138,6 +139,7 @@ class Transaction:
         self.cache = Cache(self)
         self._ref_cache: dict[tuple[str, int], bool] = {}
         self._create_frames: list[dict[str, set[int]]] = []
+        self._inserted_checks: list[tuple[str, frozenset[int]]] = []
         self.prefetch_batch: tuple[str, tuple] | None = None
         self.access_memo = AccessMemo()
 
@@ -163,6 +165,21 @@ class Transaction:
 
     def is_being_created(self, model_name: str, id_: int) -> bool:
         return any(id_ in frame.get(model_name, ()) for frame in self._create_frames)
+
+    @contextmanager
+    def checking_inserted(
+        self, model_name: str, ids: typing.Iterable[int]
+    ) -> typing.Iterator[None]:
+        self._inserted_checks.append((model_name, frozenset(ids)))
+        try:
+            yield
+        finally:
+            self._inserted_checks.pop()
+
+    def is_checking_inserted(self, model_name: str, id_: int) -> bool:
+        return any(
+            model_name == name and id_ in ids for name, ids in self._inserted_checks
+        )
 
     def environment(
         self, cr: BaseCursor, uid: int | None, context: dict, su: bool = False

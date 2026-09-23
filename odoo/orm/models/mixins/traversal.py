@@ -629,7 +629,19 @@ class TraversalMixin(_ModelStubs):
                 f"Field must be a many2one or many2many relation on itself: {field_name!r}"
             )
 
-        if not self.ids:
+        ids = self.ids
+        if field.is_many2one:
+            # a row inserted a moment ago has no row pointing at it yet, so no
+            # cycle can pass through it until something is written; a
+            # many2many is left alone, because its inverse field on the same
+            # relation writes the edge back into the new row at create
+            transaction = self.env.transaction
+            ids = [
+                id_
+                for id_ in ids
+                if not transaction.is_checking_inserted(self._name, id_)
+            ]
+        if not ids:
             return False
 
         self.flush_model([field_name])
@@ -641,7 +653,7 @@ class TraversalMixin(_ModelStubs):
                 "id",
                 field_name,
             )
-        cyclic = self.env.backend.has_cycle(self, relation, column1, column2, self.ids)
+        cyclic = self.env.backend.has_cycle(self, relation, column1, column2, ids)
         _debug.perf.count(
             "traversal.cycle_checked",
             model=self._name,

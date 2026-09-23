@@ -339,7 +339,7 @@ class TestViewInheritance(ViewCase):
         )
         hit, miss = counter.hit, counter.miss
 
-        with self.assertQueryCount(9):
+        with self.assertQueryCount(8):
             base_view = self.assertValid("""
                 <form string="View">
                     <header>
@@ -353,7 +353,7 @@ class TestViewInheritance(ViewCase):
         self.assertEqual(counter.hit, hit)
         self.assertEqual(counter.miss, miss + 2)
 
-        with self.assertQueryCount(4):
+        with self.assertQueryCount(3):
             self.assertValid(
                 """
                 <field name="name" position="replace"/>
@@ -369,7 +369,7 @@ class TestViewInheritance(ViewCase):
         )
         hit, miss = counter.hit, counter.miss
 
-        with self.assertQueryCount(6):
+        with self.assertQueryCount(5):
             base_view = self.assertValid("""
                 <form string="View">
                     <field name="name" groups="base.group_system"/>
@@ -380,7 +380,7 @@ class TestViewInheritance(ViewCase):
         self.assertEqual(counter.hit, hit)
         self.assertEqual(counter.miss, miss)
 
-        with self.assertQueryCount(3):
+        with self.assertQueryCount(2):
             self.assertValid(
                 """
                 <field name="name" position="replace">

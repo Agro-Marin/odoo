@@ -1,4 +1,7 @@
-from odoo.fields import Domain
+from unittest.mock import patch
+
+from odoo.exceptions import UserError, ValidationError
+from odoo.fields import Command, Domain
 from odoo.tests.common import TransactionCase
 
 
@@ -318,3 +321,129 @@ class TestCycleDetection(TransactionCase):
             self.env["test_orm.discussion"].create({"name": "X"})._has_cycle(
                 "moderator"
             )
+
+
+class TestCycleCheckOnCreate(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Partner = cls.env["res.partner"]
+        cls.root = Partner.create({"name": "Cycle Root", "is_company": True})
+        cls.child = Partner.create({"name": "Cycle Child", "parent_id": cls.root.id})
+
+    def _create_under_child(self) -> int:
+        self.env.flush_all()
+        before = self.cr.sql_statement_count
+        self.env["res.partner"].create(
+            {"name": "Cycle Grandchild", "parent_id": self.child.id}
+        )
+        self.env.flush_all()
+        return self.cr.sql_statement_count - before
+
+    def test_a_create_under_a_valid_parent_runs_no_cycle_query(self):
+        self._create_under_child()
+        checked = self._create_under_child()
+        transaction = type(self.env.transaction)
+        with patch.object(transaction, "is_checking_inserted", return_value=False):
+            unchecked = self._create_under_child()
+        self.assertEqual(self._create_under_child(), checked)
+        self.assertEqual(unchecked, checked + 1)
+
+    def test_a_write_that_closes_a_cycle_is_refused(self):
+        grandchild = self.env["res.partner"].create(
+            {"name": "Cycle Grandchild", "parent_id": self.child.id}
+        )
+        with self.assertRaisesRegex(ValidationError, "recursive"):
+            self.root.parent_id = grandchild
+
+    def test_a_create_that_links_its_own_ancestor_as_a_child_is_refused(self):
+        with self.assertRaisesRegex(ValidationError, "recursive"):
+            self.env["res.partner"].create(
+                {
+                    "name": "Cycle Loop",
+                    "parent_id": self.child.id,
+                    "child_ids": [Command.link(self.root.id)],
+                }
+            )
+
+    def test_a_create_then_a_write_in_one_transaction_that_closes_a_cycle_is_refused(
+        self,
+    ):
+        Partner = self.env["res.partner"]
+        top = Partner.create({"name": "Cycle Top", "is_company": True})
+        middle = Partner.create({"name": "Cycle Middle", "parent_id": top.id})
+        bottom = Partner.create({"name": "Cycle Bottom", "parent_id": middle.id})
+        with self.assertRaisesRegex(ValidationError, "recursive"):
+            top.parent_id = bottom
+
+    def test_a_batch_create_whose_parent_is_created_in_the_same_call(self):
+        Partner = self.env["res.partner"]
+        first, second = Partner.create(
+            [
+                {
+                    "name": "Batch Parent",
+                    "is_company": True,
+                    "child_ids": [
+                        Command.create(
+                            {
+                                "name": "Batch Child",
+                                "child_ids": [Command.create({"name": "Batch Leaf"})],
+                            }
+                        )
+                    ],
+                },
+                {"name": "Batch Sibling", "parent_id": self.child.id},
+            ]
+        )
+        leaf = first.child_ids.child_ids
+        self.assertEqual(leaf.name, "Batch Leaf")
+        self.assertEqual(leaf.parent_id.parent_id, first)
+        self.assertEqual(second.parent_id, self.child)
+        self.assertFalse((first | first.child_ids | leaf | second)._has_cycle())
+        with self.assertRaisesRegex(ValidationError, "recursive"):
+            first.parent_id = leaf
+
+
+class TestCycleCheckOnParentStoreCreate(TransactionCase):
+    def test_a_parent_store_tree_created_in_one_call_keeps_its_paths(self):
+        Menu = self.env["ir.ui.menu"]
+        root = Menu.create(
+            {
+                "name": "Cycle Menu Root",
+                "child_id": [
+                    Command.create(
+                        {
+                            "name": "Cycle Menu Child",
+                            "child_id": [Command.create({"name": "Cycle Menu Leaf"})],
+                        }
+                    )
+                ],
+            }
+        )
+        child = root.child_id
+        leaf = child.child_id
+        self.env.flush_all()
+        self.assertEqual(child.parent_path, f"{root.id}/{child.id}/")
+        self.assertEqual(leaf.parent_path, f"{root.id}/{child.id}/{leaf.id}/")
+        self.assertFalse((root | child | leaf)._has_cycle())
+        # the parent_path update refuses it before the constraint gets to
+        with self.assertRaisesRegex(UserError, "Recursion"):
+            root.parent_id = leaf
+
+    def test_a_parent_store_create_under_a_valid_parent_runs_no_cycle_query(self):
+        Menu = self.env["ir.ui.menu"]
+        parent = Menu.create({"name": "Cycle Menu Parent"})
+
+        def create_child() -> int:
+            self.env.flush_all()
+            before = self.cr.sql_statement_count
+            Menu.create({"name": "Cycle Menu Child", "parent_id": parent.id})
+            self.env.flush_all()
+            return self.cr.sql_statement_count - before
+
+        create_child()
+        checked = create_child()
+        transaction = type(self.env.transaction)
+        with patch.object(transaction, "is_checking_inserted", return_value=False):
+            unchecked = create_child()
+        self.assertEqual(unchecked, checked + 1)
