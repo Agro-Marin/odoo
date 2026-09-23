@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 7.1
+:Version: 7.2
 :Date: 2026-09-23
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -2663,6 +2663,28 @@ the call runs against the wrong company.
 **Prefer recordset operations** -- ``filtered``, ``mapped``, ``sorted``,
 ``grouped`` -- over manual loops, and ``odoo.tools.groupby`` over
 ``itertools.groupby`` (it needs no pre-sorting).
+
+**A closure defined in a loop does not capture a loop variable**
+``[ruff B023]``. A lambda or nested ``def`` reads the variable when it runs, not
+when it is defined. ``# noqa: B023`` is not a fix, and neither is
+default-argument binding (``lambda r, x=x: ...``) or ``functools.partial`` over
+a lambda. In order of preference:
+
+* **an index built once, before the loop**, when the loop filters one recordset
+  per iteration by a key: ``grouped()`` or a dict, looked up inside (§11.1);
+* **``filtered_domain`` carrying the value as data**, when the predicate compares
+  stored fields. On a non-stored related field, or a field with a ``search``
+  method, the domain becomes a search under record rules: go through a stored
+  path instead;
+* **a named method that takes the loop value as a parameter**, when the
+  predicate is business logic (``_get_*``; ``_filtered_*`` when it narrows
+  ``self``, §2.4.22);
+* **a comprehension**, when none of these reads better.
+
+A callable the loop hands on -- a thread target, a precommit hook, a
+``re.sub`` replacement, a patch -- is a named function bound with
+``functools.partial`` or returned by a factory function that takes the value
+as a parameter.
 
 **Design for extension.** No hard-coded values that belong in configuration.
 Split methods so an override replaces one piece without copying the rest.
@@ -5361,6 +5383,12 @@ collisions, so an eighth fails and so does a renumbering.
    * - Version
      - Date
      - Summary
+   * - 7.2
+     - 2026-09-23
+     - §2.6: a closure defined in a loop does not capture a loop variable
+       ``[ruff B023]``; the fix is an index, a ``filtered_domain`` on stored
+       fields or a named method, never ``noqa``, default-argument binding or
+       ``partial`` over a lambda.
    * - 7.1
      - 2026-09-23
      - §2.4.8: a carrier is renamed by the type it holds. Every attribute,
