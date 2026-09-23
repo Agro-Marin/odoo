@@ -85,6 +85,7 @@ class L10nTWITestEdiPosOrder(L10nTWITestEdi, TestPoSCommon):
             invoice = order.account_move
             refund = self.env["pos.order"].browse(order.action_refund()["res_id"])
             with patch(CALL_API_METHOD, new=self._test_02_mock):
+                self.make_payment(refund, self.bank_pm1, refund.amount_total)
                 refund.action_pos_order_invoice()
 
             self.assertEqual(refund.account_move.reversed_entry_id, invoice)
