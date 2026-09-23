@@ -46,17 +46,22 @@ class ResourceCalendar(models.Model):
             tz=tz,
             compute_leaves=compute_leaves,
         )
+        # sudo: ``work_entry_type_id`` is behind hr.group_hr_user, and mrp,
+        # project and hr_calendar reach this method as ordinary users
+        attendances = self.env["resource.calendar.attendance"].union(
+            *(
+                interval[2]
+                for intervals in intervals_per_resource.values()
+                for interval in intervals
+            )
+        )
+        leave_ids = set(attendances.sudo().filtered("work_entry_type_id.is_leave").ids)
         return {
             resource_id: Intervals(
                 [
                     interval
                     for interval in intervals
-                    # sudo: ``work_entry_type_id`` is behind hr.group_hr_user,
-                    # and mrp, project and hr_calendar reach this method as
-                    # ordinary users. A flexible resource carries a dummy
-                    # attendance with no type at all, hence any() over a
-                    # possibly empty mapping rather than a direct read.
-                    if not any(interval[2].sudo().mapped("work_entry_type_id.is_leave"))
+                    if leave_ids.isdisjoint(interval[2].ids)
                 ],
                 keep_distinct=True,
             )
