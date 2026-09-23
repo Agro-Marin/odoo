@@ -187,12 +187,7 @@ class PortalShare(models.TransientModel):
         self.check_singleton()
         if partners is None:
             partners = self.partner_ids
-        signup_enabled = (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_param("auth_signup.invitation_scope")
-            == "b2c"
-        )
+        signup_enabled = self.env["res.users"]._get_signup_invitation_scope() == "b2c"
         if not signup_enabled:
             return partners
         return partners.filtered(lambda partner: partner.user_ids)

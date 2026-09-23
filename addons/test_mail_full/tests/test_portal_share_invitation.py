@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from markupsafe import Markup
 
 from odoo import Command
@@ -15,8 +17,12 @@ class TestPortalShareInvitation(MockEmail, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.env["ir.config_parameter"].sudo().set_param(
-            "auth_signup.invitation_scope", "b2c"
+        cls.startClassPatcher(
+            patch.object(
+                type(cls.env["res.users"]),
+                "_get_signup_invitation_scope",
+                lambda self: "b2c",
+            )
         )
         cls.record = cls.env["mail.test.portal"].create({"name": "Shared record"})
         cls.colleague = new_test_user(
