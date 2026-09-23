@@ -50,6 +50,14 @@ OPERATION_LETTER = {"create": "c", "read": "r", "write": "u", "unlink": "d"}
 # into the decision would turn into a recursion)
 ACCESS_OPERATOR_RE = re.compile(r"""['"]access['"]""")
 NON_STANDARD_MODULES = ("__export__", "__custom__", "studio_customization")
+INVALID_DOMAIN_ERRORS = (
+    SyntaxError,
+    TypeError,
+    ValueError,
+    NameError,
+    KeyError,
+    ZeroDivisionError,
+)
 GROUP_TESTS = frozenset(
     {
         "all_group_ids",
@@ -403,7 +411,7 @@ class IrAccess(models.Model):
                 domain = Domain(safe_eval(access.domain, eval_context))
                 list(access_edges(model, domain))
                 without_access_conditions(domain).check(model)
-            except Exception as e:
+            except INVALID_DOMAIN_ERRORS as e:
                 _debug.logic(
                     "access_domain_invalid",
                     access=access.id,
@@ -461,7 +469,7 @@ class IrAccess(models.Model):
                         eval_context = self._eval_context()
                     try:
                         domain = Domain(safe_eval(domain, eval_context))
-                    except Exception:
+                    except INVALID_DOMAIN_ERRORS:
                         _logger.warning(
                             "Access %s: its domain does not evaluate",
                             row.id,
@@ -759,7 +767,7 @@ class IrAccess(models.Model):
             return Domain.TRUE
         try:
             return Domain(safe_eval(row.domain, self._eval_context()))
-        except Exception:
+        except INVALID_DOMAIN_ERRORS:
             _logger.warning("Access %s: its domain does not evaluate", row.id)
             return Domain.TRUE
 

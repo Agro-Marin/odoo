@@ -8,6 +8,7 @@ from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
 
+from odoo.addons.base.models import ir_access
 from odoo.addons.base.tests.common import make_guard_row
 
 
@@ -339,6 +340,52 @@ class TestRules(TransactionCase):
         ]
         for domain in valid_domains:
             rule.domain = domain
+
+    def test_domain_constraint_lets_an_unexpected_error_through(self):
+        rule = make_guard_row(
+            self.env, "test_access_right.some_obj", "[]", name="Test record rule"
+        )
+        with (
+            patch.object(ir_access, "access_edges", side_effect=RuntimeError("boom")),
+            self.assertRaisesRegex(RuntimeError, "boom"),
+        ):
+            rule.domain = str([("val", "=", 12)])
+
+    def _row_with_access_condition(self):
+        text = "[('categ_id', 'access', 'read'), ('val', '=', user.id)]"
+        return ir_access.AccessInfo(
+            id=0,
+            group_id=0,
+            kind="guard",
+            guard_scope="everyone",
+            operation="r",
+            domain=text,
+            text=text,
+        )
+
+    @mute_logger("odoo.addons.base.models.ir_access")
+    def test_row_access_domain_lets_an_unexpected_error_through(self):
+        row = self._row_with_access_condition()
+        Access = self.env["ir.access"]
+        with patch.object(ir_access, "safe_eval", side_effect=ValueError("bad")):
+            self.assertEqual(Access._row_access_domain(row), ir_access.Domain.TRUE)
+        with (
+            patch.object(ir_access, "safe_eval", side_effect=RuntimeError("boom")),
+            self.assertRaisesRegex(RuntimeError, "boom"),
+        ):
+            Access._row_access_domain(row)
+
+    @mute_logger("odoo.addons.base.models.ir_access")
+    def test_access_cycle_lets_an_unexpected_error_through(self):
+        infos = {"test_access_right.some_obj": (self._row_with_access_condition(),)}
+        Access = self.env["ir.access"]
+        with patch.object(ir_access, "safe_eval", side_effect=ValueError("bad")):
+            self.assertIsNone(Access._access_cycle(infos))
+        with (
+            patch.object(ir_access, "safe_eval", side_effect=RuntimeError("boom")),
+            self.assertRaisesRegex(RuntimeError, "boom"),
+        ):
+            Access._access_cycle(infos)
 
     @mute_logger("odoo.addons.base.models.ir_access")
     def test_ir_rule_cache_after_error(self):
