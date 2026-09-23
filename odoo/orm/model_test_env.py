@@ -394,7 +394,7 @@ class ModelRegistry(_RegistryFieldsMixin, _RegistryModelsMixin, Mapping):
 
         self.has_trigram = False
 
-        self.has_unaccent = FunctionStatus.MISSING
+        self.unaccent_status = FunctionStatus.MISSING
 
         self._setup_registry(list(model_defs))
         self.modules = self._modules_of(model_defs)

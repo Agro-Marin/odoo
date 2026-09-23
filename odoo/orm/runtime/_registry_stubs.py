@@ -18,7 +18,7 @@ class _RegistryStubs:
         def init_phase(self) -> InitModelsPhase:
             pass
 
-        has_unaccent: FunctionStatus
+        unaccent_status: FunctionStatus
 
         has_trigram: bool
         unaccent: typing.Any

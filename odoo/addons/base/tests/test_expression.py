@@ -1295,7 +1295,7 @@ class TestExpression(SavepointCaseWithUserDemo, TransactionExpressionCase):
         )
 
     def test_accent(self):
-        if not self.registry.has_unaccent:
+        if not self.registry.unaccent_status:
             msg = "unaccent not enabled"
             raise unittest.SkipTest(msg)
 

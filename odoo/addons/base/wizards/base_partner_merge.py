@@ -441,7 +441,7 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
 
         left = SQL('left_partner."complete_name"')
         right = SQL('right_partner."complete_name"')
-        if registry.has_unaccent == FunctionStatus.INDEXABLE:
+        if registry.unaccent_status == FunctionStatus.INDEXABLE:
             left, right = registry.unaccent(left), registry.unaccent(right)
         query = SQL(
             """

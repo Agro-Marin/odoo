@@ -145,7 +145,7 @@ def _translate_python(x: str, table: dict[int, str]) -> str:
 class _RegistryCapabilitiesMixin(_RegistryStubs):
     __slots__ = ()
 
-    has_unaccent: FunctionStatus
+    unaccent_status: FunctionStatus
     has_trigram: bool
     unaccent: _Unaccent
 
@@ -154,21 +154,22 @@ class _RegistryCapabilitiesMixin(_RegistryStubs):
 
     def _probe_capabilities(self, cr: BaseCursor, db_name: str) -> None:
         self._ilike_folded = {}
-        self.has_unaccent = get_unaccent_status(cr)
+        self.unaccent_status = get_unaccent_status(cr)
         self.has_trigram = has_trigram(cr)
-        self.unaccent = _unaccent if self.has_unaccent else _identity
+        self.unaccent = _unaccent if self.unaccent_status else _identity
         # the character tables cost a scan of every code point; a process that
         # never filters records in memory with ilike never needs them
         cached = _TextTables.by_db.get(db_name)
         self._text_transforms = (
             cached
-            if cached is not None and cached.unaccent_enabled == bool(self.has_unaccent)
+            if cached is not None
+            and cached.unaccent_enabled == bool(self.unaccent_status)
             else None
         )
         _debug.lifecycle(
             "registry.capabilities_probed",
             db=db_name,
-            unaccent=self.has_unaccent.name,
+            unaccent=self.unaccent_status.name,
             trigram=self.has_trigram,
             text_transforms_cached=self._text_transforms is not None,
         )
@@ -176,7 +177,7 @@ class _RegistryCapabilitiesMixin(_RegistryStubs):
     def _get_text_transforms(self, cr: BaseCursor | None = None) -> _TextTransforms:
         transforms = self._text_transforms
         if transforms is None:
-            unaccent_enabled = bool(self.has_unaccent)
+            unaccent_enabled = bool(self.unaccent_status)
             if cr is not None:
                 transforms = _get_text_transforms(cr, self.db_name, unaccent_enabled)
             else:
@@ -189,7 +190,7 @@ class _RegistryCapabilitiesMixin(_RegistryStubs):
 
     @property
     def unaccent_python(self) -> typing.Callable[[str], str]:
-        if not self.has_unaccent:
+        if not self.unaccent_status:
             return _identity
         return partial(_translate_python, table=self._get_text_transforms().unaccent)
 

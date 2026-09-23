@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 7.0
-:Date: 2026-09-22
+:Version: 7.1
+:Date: 2026-09-23
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -1520,8 +1520,13 @@ acknowledgement is neither.
 returning anything but ``bool`` is lying, most dangerously when the value
 degrades to a correct truthiness (an ``Enum`` whose zero member is the negative).
 Name the value: ``has_unaccent -> FunctionStatus`` → ``get_unaccent_status``.
-Rename every carrier of the value together, attributes and wire keys included
-(§2.4.14).
+The claim binds every carrier, not only the producer: each attribute, local and
+wire key that holds the ``Enum`` takes the value's name in the same commit
+(``registry.has_unaccent`` → ``registry.unaccent_status``, §2.4.14). A carrier
+holding the ``bool(...)`` of it keeps the predicate, because there the prefix
+is true: the session key ``has_unaccent`` stays, and a ``bool`` named
+``*_status`` is the same lie in reverse. Decide each carrier by the type it
+holds, not by its spelling.
 
 **A predicate prefix over a body that returns nothing is a mutator**
 ``[review]``. The tell is the last statement (an assignment, ``add`` /
@@ -5356,6 +5361,13 @@ collisions, so an eighth fails and so does a renumbering.
    * - Version
      - Date
      - Summary
+   * - 7.1
+     - 2026-09-23
+     - §2.4.8: a carrier is renamed by the type it holds. Every attribute,
+       local and wire key holding the ``Enum`` takes the value's name
+       (``registry.has_unaccent`` → ``registry.unaccent_status``); one holding
+       its ``bool(...)`` keeps the predicate (the ``has_unaccent`` session key),
+       replacing "wire keys included", which renamed a truthful ``bool``.
    * - 7.0
      - 2026-09-22
      - Rewrite: narration, measurement histories and deleted-tooling

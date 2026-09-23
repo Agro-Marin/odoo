@@ -1142,7 +1142,7 @@ class TestBackendDifferential(TransactionCase):
         self.assertFalse(F.search([("name", "=", "temp")]))
 
     def test_divergence_ilike_unaccent(self):
-        if not self.env.registry.has_unaccent:
+        if not self.env.registry.unaccent_status:
             self.skipTest("unaccent extension not installed")
 
         def script(env):

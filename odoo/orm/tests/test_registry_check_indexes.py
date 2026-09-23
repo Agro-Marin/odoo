@@ -34,7 +34,7 @@ def _make_registry(*fields):
     reg = object.__new__(Registry)
     reg.models = {"fake.model": typing.cast("typing.Any", _Model)}
     reg.has_trigram = False
-    reg.has_unaccent = FunctionStatus.MISSING
+    reg.unaccent_status = FunctionStatus.MISSING
     return reg
 
 

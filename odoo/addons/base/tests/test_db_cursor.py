@@ -5386,7 +5386,7 @@ class TestSchemaCapabilityProbesAndDropIndex(BaseCase):
             "has_trigram gates every trigram index _auto_init would create",
         )
 
-    def test_has_unaccent_reports_indexability_not_just_presence(self):
+    def test_unaccent_status_reports_indexability_not_just_presence(self):
         status = sql_schema.get_unaccent_status(self.cr)
         self.assertIsInstance(status, sql_schema.FunctionStatus)
         if not self._catalog_has("unaccent"):

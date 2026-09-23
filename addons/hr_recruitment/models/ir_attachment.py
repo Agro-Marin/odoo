@@ -11,9 +11,9 @@ class IrAttachment(models.Model):
     def init(self):
         if self.env.registry.has_trigram:
             indexed_field = SQL("index_content")
-            if self.env.registry.has_unaccent == FunctionStatus.INDEXABLE:
+            if self.env.registry.unaccent_status == FunctionStatus.INDEXABLE:
                 indexed_field = SQL("UNACCENT(index_content)")
-            elif self.env.registry.has_unaccent:
+            elif self.env.registry.unaccent_status:
                 warnings.warn(
                     "PostgreSQL function 'unaccent' is present but not immutable, "
                     "therefore trigram indexes may not be effective.",

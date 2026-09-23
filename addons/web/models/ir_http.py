@@ -151,7 +151,7 @@ class IrHttp(models.AbstractModel):
             "test_mode": config["test_enable"],
             "cwv_sample_rate": cwv_sample_rate,
             "feature_flags": self._get_feature_flags(),
-            "has_unaccent": bool(self.env.registry.has_unaccent),
+            "has_unaccent": bool(self.env.registry.unaccent_status),
         }
         if request.session.debug:
             info["bundle_params"]["debug"] = request.session.debug

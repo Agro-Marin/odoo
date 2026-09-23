@@ -34,7 +34,7 @@ class TestUnaccentParity(TransactionCase):
         )
 
     def test_unaccent_rules_match_postgresql(self):
-        if not self.env.registry.has_unaccent:
+        if not self.env.registry.unaccent_status:
             self.skipTest("unaccent extension not installed")
         for _name, comparand in self.CASES:
             with self.subTest(comparand=comparand):
@@ -42,7 +42,7 @@ class TestUnaccentParity(TransactionCase):
                 self._assert_parity(Domain("name", "not ilike", comparand))
 
     def test_unaccent_is_folded_before_case(self):
-        if not self.env.registry.has_unaccent:
+        if not self.env.registry.unaccent_status:
             self.skipTest("unaccent extension not installed")
         record = self.env["res.partner"].create({"name": "₹ Rupee Store"})
         self.env.flush_all()
@@ -54,7 +54,7 @@ class TestUnaccentParity(TransactionCase):
                 self.assertIn(record.id, record.filtered_domain(domain).ids)
 
     def test_unaccent_python_matches_server_exactly(self):
-        if not self.env.registry.has_unaccent:
+        if not self.env.registry.unaccent_status:
             self.skipTest("unaccent extension not installed")
         unaccent_python = self.env.registry.unaccent_python
         chars = [chr(c) for c in range(0x20, 0x3000)]

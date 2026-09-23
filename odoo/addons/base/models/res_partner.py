@@ -114,7 +114,7 @@ def _complete_name_trgm_index_definition(registry) -> str:
         return ""
 
     expression = '"complete_name"'
-    if registry.has_unaccent == FunctionStatus.INDEXABLE:
+    if registry.unaccent_status == FunctionStatus.INDEXABLE:
         expression = registry.unaccent(expression)
     return f"USING gin ({expression} gin_trgm_ops)"
 
@@ -1338,7 +1338,7 @@ class ResPartner(models.Model):
         )
         stored = SQL('candidate."complete_name"')
         searched = SQL("source.name")
-        if self.env.registry.has_unaccent == FunctionStatus.INDEXABLE:
+        if self.env.registry.unaccent_status == FunctionStatus.INDEXABLE:
             stored = self.env.registry.unaccent(stored)
             searched = self.env.registry.unaccent(searched)
         sources = SQL(", ").join(

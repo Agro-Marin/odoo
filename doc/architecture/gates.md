@@ -163,7 +163,7 @@ same to `search()` (SQL) and `filtered_domain()` (the in-memory predicate),
 with a generative suite asserting the two evaluators agree *or both refuse*.
 No DB-free tier can see a SQL/predicate divergence.
 `TestBackendDifferential.test_divergence_ilike_unaccent` skips on
-`registry.has_unaccent`, since a bare `template0` database lacks the
+`registry.unaccent_status`, since a bare `template0` database lacks the
 extension every developer database inherits from `db_template`.
 
 `test_read_group` (123 test methods, the only coverage of the five

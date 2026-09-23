@@ -2945,7 +2945,7 @@ class PropertiesSearchCase(TransactionExpressionCase, TestPropertiesMixin):
         self.assertEqual(messages, self.message_3)
 
     def test_properties_field_search_unaccent(self):
-        if not self.registry.has_unaccent:
+        if not self.registry.unaccent_status:
             msg = "unaccent not enabled"
             raise unittest.SkipTest(msg)
 

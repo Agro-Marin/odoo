@@ -142,9 +142,9 @@ class _RegistrySchemaMixin(_RegistryStubs):
                 column_expression = (
                     f"""(jsonb_path_query_array({column_expression}, '$.*')::text)"""
                 )
-            if self.has_unaccent == FunctionStatus.INDEXABLE:
+            if self.unaccent_status == FunctionStatus.INDEXABLE:
                 column_expression = self.unaccent(column_expression)
-            elif self.has_unaccent:
+            elif self.unaccent_status:
                 warnings.warn(
                     "PostgreSQL function 'unaccent' is present but not immutable, "
                     "therefore trigram indexes may not be effective.",
