@@ -13,8 +13,8 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { deepEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
-import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 import { useProps } from "@web/core/utils/owl_bridge";
+import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 
 const log = makeLogger("mail.attachment_view");
 class AbstractAttachmentView extends Component {
@@ -119,7 +119,9 @@ function extractPopoutProps(props) {
     };
 }
 export function usePopoutAttachment() {
-    const componentProps = useProps();
+    const componentProps = /** @type {{threadId: number, threadModel: string}} */ (
+        useProps()
+    );
     const uiService = useService("ui");
     const mailPopoutService = useService("mail.popout");
 

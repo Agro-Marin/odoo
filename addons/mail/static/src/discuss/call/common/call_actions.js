@@ -477,6 +477,7 @@ class UseCallActions extends UseActions {
 
 /**
  * @param {Object} [params0={}]
+ * @param {Component} [params0.owner]
  * @param {Thread|(() => Thread)} [params0.thread]
  */
 export function useCallActions({ owner, thread } = {}) {

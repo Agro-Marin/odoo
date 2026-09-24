@@ -290,6 +290,7 @@ class UseMessageActions extends UseActions {
 
 /**
  * @param {Object} [param0={}]
+ * @param {MessageActionOwner} [param0.owner]
  * @param {Message|(() => Message)} [param0.message]
  * @param {Thread|(() => Thread)} [param0.thread]
  */

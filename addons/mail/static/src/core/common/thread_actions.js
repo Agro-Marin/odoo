@@ -238,6 +238,7 @@ class UseThreadActions extends UseActions {
 
 /**
  * @param {Object} [params0={}]
+ * @param {ThreadActionOwner} [params0.owner]
  * @param {Thread|(() => Thread)} [params0.thread]
  */
 export function useThreadActions({ owner, thread } = {}) {

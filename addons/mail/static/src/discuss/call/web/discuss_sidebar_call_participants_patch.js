@@ -15,7 +15,7 @@ patch(DiscussSidebarCallParticipants.prototype, {
     participantClass(session) {
         return {
             ...super.participantClass(session),
-            "o-active cursor-pointer rounded-4": session.persona?.main_user_id,
+            "o-active cursor-pointer rounded-4": session.partner_id?.main_user_id,
         };
     },
     /**

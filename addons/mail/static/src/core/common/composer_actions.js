@@ -264,6 +264,7 @@ class UseComposerActions extends UseActions {
 
 /**
  * @param {Object} [params0={}]
+ * @param {Component} [params0.owner]
  * @param {Composer|(() => Composer)} [params0.composer]
  */
 export function useComposerActions({ owner, composer } = {}) {
