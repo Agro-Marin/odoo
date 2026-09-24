@@ -111,6 +111,13 @@
         <field name="is_privilege" eval="True" />
     </record>
 
+    <record id="privilege_read_company_hierarchy" model="res.groups">
+        <field name="name">Read Company Hierarchy</field>
+        <field
+            name="comment">A root company's configuration reaches every branch below it, whether or not the writer can see those branches.</field>
+        <field name="is_privilege" eval="True" />
+    </record>
+
     <record id="privilege_read_access_exceptions" model="res.groups">
         <field name="name">Read Access Exceptions</field>
         <field

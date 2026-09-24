@@ -45,6 +45,7 @@ res_company_rule_erp_manager,company rule erp manager,model_res_company,group_er
 res_company_rule_public,company rule public,model_res_company,group_public,permission,r,"[('id','in', company_ids)]"
 res_company_rule_portal,company rule portal,model_res_company,group_portal,permission,r,"[('id','in', company_ids)]"
 res_company_rule_employee,company rule employee,model_res_company,group_user,permission,r,"[('id','in', company_ids)]"
+res_company_privilege_read_hierarchy,A root configuration finds the branches it reaches,model_res_company,privilege_read_company_hierarchy,permission,r,
 access_res_country_public,res_country group_user_all,model_res_country,group_public,permission,r,
 access_res_country_portal,res_country group_user_all,model_res_country,group_portal,permission,r,
 access_res_country_employee,res_country group_user_all,model_res_country,group_user,permission,r,

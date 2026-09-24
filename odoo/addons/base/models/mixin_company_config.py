@@ -126,14 +126,19 @@ class MixinCompanyConfig(models.AbstractModel):
         # res.company pushes its own delegated fields down to its branches; a
         # configuration written directly must do the same for its own, or the
         # branches keep the old value until a recompute re-checks them and
-        # _check_delegated_fields_match_root refuses the unrelated write
+        # _check_delegated_fields_match_root refuses the unrelated write. The
+        # branches are written as the writer: one who cannot reach a branch is
+        # refused rather than leaving it behind
         delegated = set(vals) & set(self._get_field_names_delegated_to_root())
         roots = self.filtered(lambda config: not config.company_id.parent_id)
         if not delegated or not roots:
             return
         branches = (
             self.env["res.company"]
-            .sudo()
+            .with_privilege(
+                "base.privilege_read_company_hierarchy",
+                reason="find the branches a root configuration's value reaches",
+            )
             .search(
                 [
                     ("id", "child_of", roots.company_id.ids),
@@ -149,7 +154,7 @@ class MixinCompanyConfig(models.AbstractModel):
             fields=sorted(delegated),
             branches=len(branches),
         )
-        self.sudo()._for_each(branches).write(
+        self._for_each(branches.with_env(self.env)).write(
             {fname: vals[fname] for fname in delegated}
         )
 
