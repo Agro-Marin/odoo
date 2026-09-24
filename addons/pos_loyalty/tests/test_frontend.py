@@ -3126,6 +3126,7 @@ class TestUi(TestPointOfSaleHttpCommon):
             }
         )
 
+        self.main_pos_config.current_session_id.close_session_from_ui()
         self.product_b.product_tmpl_id.active = False
         product_c.product_tmpl_id.active = False
 
@@ -3944,6 +3945,7 @@ class TestUi(TestPointOfSaleHttpCommon):
         Verify that the product screen remains empty when no regular products are available,
         ensuring that special products are hidden.
         """
+        self.env["loyalty.program"].search([]).write({"active": False})
         archive_products(self.env)
         self.env.ref("loyalty.gift_card_product_50").product_tmpl_id.write(
             {"active": True}
