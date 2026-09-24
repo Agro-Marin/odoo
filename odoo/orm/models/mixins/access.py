@@ -161,8 +161,14 @@ class AccessMixin(_ModelStubs):
         )
 
     def check_access(self, operation: str) -> None:
-        if not self.env.su and (result := self._check_access(operation)):
+        if self.env.su:
+            return
+        if result := self._check_access(operation):
             raise result[1]()  # noqa: RSE102  result[1] builds the exception, it is not the class
+        if self.env.privileges and operation != "read" and self._ids:
+            self.env.registry.access_policy.note_privileged(
+                self.env, self._name, operation, self._ids
+            )
 
     def has_access(self, operation: str) -> bool:
         return self.env.su or not self._check_access(operation)

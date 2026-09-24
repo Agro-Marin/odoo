@@ -65,6 +65,7 @@ class _ModelMetadataMixin(_ModelStubs):
     _inherits_sudo_fields: tuple[str, ...] = ()
     _inherits_rules: bool = True
     _access_anchors: frozendict[str, str] = frozendict()
+    _access_audit: bool = False
     _fold_name: str = "fold"
 
     _translate: bool = True

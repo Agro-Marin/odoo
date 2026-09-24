@@ -46,6 +46,15 @@ class AccessPolicy:
     def access_signature(self, env: Environment) -> tuple:
         return env["ir.access"]._policy_signature()
 
+    def privilege_ids(self, env: Environment, names: tuple[str, ...]) -> frozenset[int]:
+        return env["res.groups"]._privilege_ids(names)
+
+    def note_privileged(
+        self, env: Environment, model_name: str, operation: str, ids: tuple
+    ) -> None:
+        if "ir.access.log" in env.registry:
+            env["ir.access.log"]._record_privileged(model_name, operation, ids)
+
     def bound_access_rows(
         self, env: Environment, model_name: str, operation: str
     ) -> tuple[list[Domain], list[Domain]]:

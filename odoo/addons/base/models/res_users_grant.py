@@ -58,6 +58,7 @@ def projecting() -> bool:
 
 class ResUsersGrant(models.Model):
     _name = "res.users.grant"
+    _access_audit = True
     _description = "Group Grant"
     _order = "user_id, group_id, id"
     _rec_name = "group_id"
@@ -268,6 +269,14 @@ class ResUsersGrant(models.Model):
     def _check_scope(self) -> None:
         user_types = self.env["res.groups"].sudo()._get_user_type_groups()
         for grant in self.sudo():
+            if grant.group_id.is_privilege:
+                raise ValidationError(
+                    self.env._(
+                        "%(group)s is a privilege: only code holds it, through "
+                        "with_privilege(); it is never granted.",
+                        group=grant.group_id.full_name,
+                    )
+                )
             if not grant.company_ids:
                 continue
             if grant.group_id in user_types:

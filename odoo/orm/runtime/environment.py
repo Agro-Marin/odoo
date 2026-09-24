@@ -27,7 +27,7 @@ from odoo.tools.translate import (
 )
 
 from .registry import Registry
-from .transaction import Transaction
+from .transaction import NO_PRIVILEGES, Transaction
 
 if typing.TYPE_CHECKING:
     from datetime import tzinfo
@@ -110,10 +110,16 @@ class Environment(Mapping[str, "BaseModel"]):
     uid: int | None
     context: frozendict
     su: bool
+    privileges: frozenset[int]
     transaction: Transaction
 
     def __new__(  # noqa: PYI034  interned per transaction, not always an instance of cls
-        cls, cr: BaseCursor, uid: int | None, context: dict, su: bool = False
+        cls,
+        cr: BaseCursor,
+        uid: int | None,
+        context: dict,
+        su: bool = False,
+        privileges: frozenset[int] = NO_PRIVILEGES,
     ) -> Environment:
         if not isinstance(cr, BaseCursor):
             raise TypeError(
@@ -130,7 +136,7 @@ class Environment(Mapping[str, "BaseModel"]):
             _debug.lifecycle(
                 "environment.transaction_attached", db=cr.dbname, uid=uid, su=su
             )
-        return transaction.environment(cr, uid, context, su)
+        return transaction.environment(cr, uid, context, su, privileges)
 
     @classmethod
     def _interned(
@@ -140,9 +146,11 @@ class Environment(Mapping[str, "BaseModel"]):
         uid: int | None,
         context: frozendict,
         su: bool,
+        privileges: frozenset[int] = NO_PRIVILEGES,
     ) -> Environment:
         self = object.__new__(cls)
         self.cr, self.uid, self.su = cr, uid, su
+        self.privileges = privileges
         self.context = context
         self.transaction = transaction
         return self
@@ -303,6 +311,7 @@ class Environment(Mapping[str, "BaseModel"]):
         user: int | BaseModel | None = None,
         context: dict | None = None,
         su: bool | None = None,
+        privileges: frozenset[int] | None = None,
     ) -> Environment:
         cr = self.cr if cr is None else cr
         uid = self.uid if user is None else int(user)
@@ -320,7 +329,10 @@ class Environment(Mapping[str, "BaseModel"]):
                         keys=len(self.context) - len(context),
                     )
         su = (user is None and self.su) if su is None else su
-        return Environment(cr, uid, context, su)
+        if privileges is None:
+            # another user holds none of this one's privileges
+            privileges = self.privileges if user is None else NO_PRIVILEGES
+        return Environment(cr, uid, context, su, privileges)
 
     @typing.overload
     def ref(
@@ -424,11 +436,21 @@ class Environment(Mapping[str, "BaseModel"]):
     def _read_access_key(self) -> tuple:
         # what a read verdict depends on besides the data: the user, sudo and
         # the context values the access domains read
-        return (self.uid, self.su, self.registry.access_policy.rule_context(self))
+        return (
+            self.uid,
+            self.su,
+            self.privileges,
+            self.registry.access_policy.rule_context(self),
+        )
 
     def _access_scope(self) -> typing.Any:
         if self.su:
             return True
+        if self.privileges:
+            return (self._access_scope_of_user(), self.privileges)
+        return self._access_scope_of_user()
+
+    def _access_scope_of_user(self) -> typing.Any:
         if company_ids := self.context.get("allowed_company_ids"):
             _debug.logic(
                 "environment.access_scope.from_context",
@@ -555,7 +577,8 @@ class Environment(Mapping[str, "BaseModel"]):
             if key == "company":
                 return self.company.id
             elif key == "uid":
-                return self.uid if field.compute_sudo else (self.uid, self.su)
+                uid_key = self.uid if field.compute_sudo else (self.uid, self.su)
+                return (uid_key, self.privileges) if self.privileges else uid_key
             elif key == "access":
                 if field.compute and field.compute_sudo:
                     return None

@@ -265,6 +265,7 @@ def find_access_cycle(
 
 class IrAccess(models.Model):
     _name = "ir.access"
+    _access_audit = True
     _description = "Access"
     _order = "model_id, group_id, id"
     _allow_sudo_commands = False
@@ -909,7 +910,10 @@ class IrAccess(models.Model):
 
     def _group_names_with_access(self, model_name: str, operation: str) -> list[str]:
         # a group implying another group of the list adds nothing to read
-        groups = self._get_groups_with_access(model_name, operation)
+        # a privilege is code's, not a group anyone can be given
+        groups = self._get_groups_with_access(model_name, operation).filtered(
+            lambda group: not group.is_privilege
+        )
         shown = groups.filtered(
             lambda group: not ((group.all_implied_ids - group) & groups)
         )

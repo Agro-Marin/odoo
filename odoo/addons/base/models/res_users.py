@@ -127,6 +127,7 @@ def check_identity(
 
 class ResUsers(models.Model):
     _name = "res.users"
+    _access_audit = True
     _access_anchors = frozendict({"company": "company_ids"})
     _description = "User"
     _inherits = {"res.partner": "partner_id"}
@@ -310,15 +311,19 @@ class ResUsers(models.Model):
             state = self._compute_group_state(key)
         return state
 
-    def _grant_scope_key(self) -> tuple[int, ...] | None:
+    def _grant_scope_key(self) -> tuple:
+        # the companies in use, and the privileges the environment holds for
+        # its own user (another user's groups never include them)
         company_ids = self.env.context.get("allowed_company_ids")
-        return tuple(sorted(company_ids)) if company_ids else None
+        companies = tuple(sorted(company_ids)) if company_ids else None
+        privileges = self.env.privileges if self.id == self.env.uid else ()
+        return (companies, tuple(sorted(privileges)))
 
     @tools.ormcache("self.id", "key")
-    def _get_cached_group_state(self, key: tuple[int, ...] | None) -> GroupState:
+    def _get_cached_group_state(self, key: tuple) -> GroupState:
         return self._compute_group_state(key)
 
-    def _compute_group_state(self, key: tuple[int, ...] | None) -> GroupState:
+    def _compute_group_state(self, key: tuple) -> GroupState:
         # the groups of the user's live grants, each with the companies it is
         # limited to, and when that answer next changes
         grant_model = self.env["res.users.grant"].sudo()
@@ -380,12 +385,14 @@ class ResUsers(models.Model):
                     closure[implied_id] = scope
                 elif closure[implied_id] is not None:
                     closure[implied_id] |= scope
-        active = set(key) if key else None
+        companies, privileges = key
+        active = set(companies) if companies else None
         held = {
             group_id: scope
             for group_id, scope in closure.items()
             if scope is None or active is None or scope & active
         }
+        held.update(dict.fromkeys(privileges))
         group_ids = tuple(sorted(held))
         signature = (
             group_ids,

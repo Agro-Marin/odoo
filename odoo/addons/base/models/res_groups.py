@@ -15,6 +15,7 @@ _debug = DebugLog(__name__)
 
 class ResGroups(models.Model):
     _name = "res.groups"
+    _access_audit = True
     _description = "Access Groups"
     _rec_name = "full_name"
     _allow_sudo_commands = False
@@ -88,6 +89,17 @@ class ResGroups(models.Model):
         string="Group Name",
         compute="_compute_full_name",
         search="_search_full_name",
+    )
+    is_privilege = fields.Boolean(
+        string="Privilege",
+        help="A group only code holds, through with_privilege(): its accesses "
+        "say exactly what the elevation allows. It is never granted to a user "
+        "and never implied. (Unrelated to the privilege a group sits under in "
+        "the user form, which is its application.)",
+    )
+    audit_privilege = fields.Boolean(
+        help="Every create, write and delete made under this privilege is "
+        "recorded in the authorization log, whatever the model.",
     )
     share = fields.Boolean(
         string="Share Group",
@@ -172,6 +184,40 @@ class ResGroups(models.Model):
             views=len(self.view_access),
         )
         self.view_access._check_groups()
+
+    @api.constrains("is_privilege", "implied_ids", "user_ids")
+    def _check_privilege_is_held_by_code_only(self) -> None:
+        for group in self:
+            linked = group.implied_ids | group.implied_by_ids
+            if group.is_privilege and (group.user_ids or linked):
+                raise ValidationError(
+                    self.env._(
+                        "%(group)s is a privilege: only code holds it, so it has no "
+                        "users and neither implies nor is implied by a group.",
+                        group=group.full_name,
+                    )
+                )
+            if not group.is_privilege and linked.filtered("is_privilege"):
+                raise ValidationError(
+                    self.env._(
+                        "%(group)s cannot imply or be implied by a privilege.",
+                        group=group.full_name,
+                    )
+                )
+
+    @api.model
+    @tools.ormcache("names", cache="stable")
+    def _privilege_ids(self, names: tuple[str, ...]) -> frozenset[int]:
+        ids = set()
+        for name in names:
+            group = self.sudo().env.ref(name, raise_if_not_found=False)
+            if group is None or group._name != "res.groups" or not group.is_privilege:
+                raise ValueError(
+                    f"{name!r} names no privilege: declare it as a res.groups record "
+                    f"with is_privilege set, and give it its ir.access rows"
+                )
+            ids.add(group.id)
+        return frozenset(ids)
 
     @api.constrains("user_ids")
     def _check_user_disjoint_groups(self) -> None:
@@ -526,7 +572,7 @@ class ResGroups(models.Model):
                     "all_implied_ids": group.all_implied_ids.ids,
                     "all_implied_by_ids": group.all_implied_by_ids.ids,
                 }
-                for group in self.search([])
+                for group in self.search([("is_privilege", "=", False)])
             },
             "privileges": {
                 privilege.id: {

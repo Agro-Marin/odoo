@@ -38,6 +38,11 @@ def _is_new_id(record_id: object) -> bool:
     return isinstance(record_id, NewId)
 
 
+# the privileges an environment holds: the virtual groups only code grants
+# (BaseModel.with_privilege), part of the environment's identity
+NO_PRIVILEGES: frozenset[int] = frozenset()
+
+
 class _EnvironmentSet(WeakSet):
     __slots__ = ("_index",)
 
@@ -47,23 +52,33 @@ class _EnvironmentSet(WeakSet):
         self._index: WeakValueDictionary[tuple, Environment] = WeakValueDictionary()
 
     @staticmethod
-    def key(uid: typing.Any, su: bool, context: typing.Any) -> tuple:
-        return (uid, su, context)
+    def key(
+        uid: typing.Any,
+        su: bool,
+        context: typing.Any,
+        privileges: frozenset[int] = NO_PRIVILEGES,
+    ) -> tuple:
+        return (uid, su, context, privileges)
 
     @staticmethod
     def matches(
-        env: Environment, uid: typing.Any, su: bool, context: typing.Any
+        env: Environment,
+        uid: typing.Any,
+        su: bool,
+        context: typing.Any,
+        privileges: frozenset[int] = NO_PRIVILEGES,
     ) -> bool:
         return (
             env.uid == uid
             and env.su == su
+            and env.privileges == privileges
             and (env.context is context or env.context == context)
         )
 
     @typing.override
     def add(self, env: Environment) -> None:
         super().add(env)
-        self._index[self.key(env.uid, env.su, env.context)] = env
+        self._index[self.key(env.uid, env.su, env.context, env.privileges)] = env
 
     @typing.override
     def clear(self) -> None:
@@ -73,7 +88,7 @@ class _EnvironmentSet(WeakSet):
     @typing.override
     def discard(self, env: Environment) -> None:
         super().discard(env)
-        key = self.key(env.uid, env.su, env.context)
+        key = self.key(env.uid, env.su, env.context, env.privileges)
         if self._index.get(key) is env:
             del self._index[key]
 
@@ -216,25 +231,31 @@ class Transaction:
         )
 
     def environment(
-        self, cr: BaseCursor, uid: int | None, context: dict, su: bool = False
+        self,
+        cr: BaseCursor,
+        uid: int | None,
+        context: dict,
+        su: bool = False,
+        privileges: frozenset[int] = NO_PRIVILEGES,
     ) -> Environment:
         if uid == SUPERUSER_ID:
             su = True
         last_ref = self._last_env
         last = last_ref() if last_ref is not None else None
         envs = self.envs
-        if last is not None and envs.matches(last, uid, su, context):
+        if last is not None and envs.matches(last, uid, su, context, privileges):
             return last
         frozen_context = (
             context if isinstance(context, frozendict) else frozendict(context)
         )
-        env = envs.get_environment(envs.key(uid, su, frozen_context))
+        env = envs.get_environment(envs.key(uid, su, frozen_context, privileges))
         if env is None:
             from .environment import Environment
 
-            env = Environment._interned(self, cr, uid, frozen_context, su)
+            env = Environment._interned(self, cr, uid, frozen_context, su, privileges)
             envs.add(env)
-            self._adopt_default_env(env)
+            if not privileges:
+                self._adopt_default_env(env)
             _debug.lifecycle(
                 "transaction.environment_interned",
                 uid=uid,

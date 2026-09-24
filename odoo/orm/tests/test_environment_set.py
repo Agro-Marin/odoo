@@ -7,12 +7,13 @@ from odoo.orm.runtime.transaction import _EnvironmentSet
 
 
 class _FakeEnv:
-    __slots__ = ("__weakref__", "context", "su", "uid")
+    __slots__ = ("__weakref__", "context", "privileges", "su", "uid")
 
     def __init__(self, uid, su=False, context=()):
         self.uid = uid
         self.su = su
         self.context = context
+        self.privileges = frozenset()
 
 
 def _env(uid, su=False, context=()) -> Any:

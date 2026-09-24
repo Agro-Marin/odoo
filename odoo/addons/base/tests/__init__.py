@@ -148,3 +148,4 @@ from . import test_ir_access_migration
 from . import test_ir_access_shortfalls
 from . import test_mixin_recurrence_rrule
 from . import test_res_users_grant
+from . import test_with_privilege

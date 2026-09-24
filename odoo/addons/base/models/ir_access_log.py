@@ -10,6 +10,7 @@ ACCESS_LOG_EVENTS = [
     ("grant_revoked", "Grant revoked"),
     ("grant_expired", "Grant expired"),
     ("grant_migrated", "Memberships migrated"),
+    ("privilege_used", "Privilege used"),
 ]
 
 
@@ -53,6 +54,16 @@ class IrAccessLog(models.Model):
         readonly=True,
         ondelete="set null",
     )
+    model_name = fields.Char(
+        string="Model",
+        readonly=True,
+    )
+    operation = fields.Char(readonly=True)
+    res_ids = fields.Char(
+        string="Records",
+        readonly=True,
+        help="The ids the operation touched, the first hundred.",
+    )
     cause = fields.Char(readonly=True)
     cause_model = fields.Char(readonly=True)
     cause_res_id = fields.Many2oneReference(
@@ -72,6 +83,31 @@ class IrAccessLog(models.Model):
             return self.browse()
         actor = self.env.uid
         return self.sudo().create([{"actor_id": actor, **vals} for vals in vals_list])
+
+    @api.model
+    def _record_privileged(self, model_name: str, operation: str, ids: tuple) -> None:
+        # a create, write or delete made under a privilege, on a model that
+        # declares _access_audit or under a privilege that asks for it
+        privileges = self.env["res.groups"].sudo().browse(sorted(self.env.privileges))
+        audited = self.env.registry[model_name]._access_audit
+        privileges = privileges if audited else privileges.filtered("audit_privilege")
+        if not privileges:
+            return
+        record_ids = [id_ for id_ in ids if isinstance(id_, int)]
+        self._record(
+            [
+                {
+                    "event": "privilege_used",
+                    "subject_user_id": self.env.uid,
+                    "group_id": privilege.id,
+                    "model_name": model_name,
+                    "operation": operation,
+                    "res_ids": ",".join(map(str, record_ids[:100])),
+                    "reason": self.env.context.get("privilege_reason") or False,
+                }
+                for privilege in privileges
+            ]
+        )
 
     def write(self, vals: dict[str, Any]) -> bool:
         if not self:

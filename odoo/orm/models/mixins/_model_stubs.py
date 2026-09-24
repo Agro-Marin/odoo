@@ -69,6 +69,7 @@ class _ModelStubs:
         _inherits_sudo_fields: tuple[str, ...]
         _inherits_rules: bool
         _access_anchors: frozendict[str, str]
+        _access_audit: bool
         _table_objects: dict
         _table_inheritance_root: str
         _check_company_auto: bool
@@ -111,6 +112,7 @@ class _ModelStubs:
             self, ctx: dict[str, typing.Any] | None = None, /, **overrides: typing.Any
         ) -> Self: ...
         def with_user(self, user: typing.Any) -> Self: ...
+        def with_privilege(self, *names: str, reason: str | None = None) -> Self: ...
         def with_company(
             self, company: BaseModel | ResCompanyProtocol | int | None
         ) -> Self: ...

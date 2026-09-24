@@ -59,6 +59,16 @@ class EnvironmentMixin(_ModelStubs):
         return self.with_env(self.env(user=user, su=False))
 
     @api.private
+    def with_privilege(self, *names: str, reason: str | None = None) -> Self:
+        # a privilege is a group only code holds: it adds its ir.access rows to
+        # the user's, every guard still binds, and with_user() drops it
+        privileges = self.env.registry.access_policy.privilege_ids(self.env, names)
+        env = self.env(privileges=self.env.privileges | privileges)
+        if reason:
+            env = env(context={**env.context, "privilege_reason": reason})
+        return self.with_env(env)
+
+    @api.private
     def with_company(
         self, company: BaseModel | ResCompanyProtocol | int | None
     ) -> Self:
