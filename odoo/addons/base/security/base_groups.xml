@@ -104,4 +104,11 @@
         </record>
     </data>
 
+    <record id="privilege_read_access_exceptions" model="res.groups">
+        <field name="name">Read Access Exceptions</field>
+        <field
+            name="comment">Code that asks whether a strict rule lets someone through reads every exception, whoever runs it.</field>
+        <field name="is_privilege" eval="True" />
+    </record>
+
 </odoo>

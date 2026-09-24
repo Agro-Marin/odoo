@@ -47,6 +47,17 @@ class ApprovalRequest(models.Model):
         required=True,
         domain="[('company_ids', 'in', company_id)]",
     )
+    requester_id = fields.Many2one(
+        comodel_name="res.users",
+        string="Requested For",
+        index="btree_not_null",
+        copy=False,
+        readonly=True,
+        help="Whose request this is when the document names someone: its "
+        "salesperson, buyer or responsible. Like whoever asked, they may not decide "
+        "it unless the category allows self-approval or an access exception names "
+        "them.",
+    )
     partner_id = fields.Many2one(
         comodel_name="res.partner",
         index="btree_not_null",

@@ -10,9 +10,14 @@ class ApprovalTestGated(models.Model):
     _inherit = ["mixin.mail.thread", "mixin.approval.gate"]
     _operation_checkpoints = {"action_ship": "_check_ship"}
     _approval_operations = ("action_ship", "action_bill")
+    _approval_requester_field = "user_id"
 
     name = fields.Char(required=True)
     partner_id = fields.Many2one(comodel_name="res.partner")
+    user_id = fields.Many2one(
+        comodel_name="res.users",
+        help="Whom the document is for, when someone else asks for its approval",
+    )
     currency_id = fields.Many2one(
         comodel_name="res.currency",
         default=lambda self: self.env.company.currency_id,

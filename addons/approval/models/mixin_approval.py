@@ -20,6 +20,8 @@ class MixinApproval(models.AbstractModel):
     _inherit = ["mixin.approval.source"]
     _description = "Approval Mixin for Source Documents"
 
+    _approval_requester_field = None
+
     approval_request_id = fields.Many2one(
         comodel_name="approval.request",
         index=True,
@@ -765,6 +767,12 @@ class MixinApproval(models.AbstractModel):
     def _get_fields_approval_required(self) -> list[str]:
         return []
 
+    def _get_approval_requester(self):
+        self.check_singleton()
+        if not self._approval_requester_field:
+            return self.env["res.users"]
+        return self[self._approval_requester_field]
+
     def _prepare_approval_request_values(self, category: Any) -> dict[str, Any]:
         company_id = False
         if "company_id" in self._fields:
@@ -776,6 +784,7 @@ class MixinApproval(models.AbstractModel):
             "company_id": company_id or self.env.company.id,
             "res_model": self._name,
             "res_id": self.id,
+            "requester_id": self._get_approval_requester().id,
             "reason": self._get_approval_reason_html(),
         }
 

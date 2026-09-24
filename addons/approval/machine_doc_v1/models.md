@@ -206,6 +206,8 @@ so category names are unique per company, archived rows included.
 | `category_id` | Many2one(`approval.category`) | Yes | Yes | index, allowed-user/group domain |
 | `category_image` | Binary | No | No | related |
 | `request_owner_id` | Many2one(`res.users`) | Yes | Yes | default=env.user, check_company, index |
+| `requester_id` | Many2one(`res.users`) | Yes | No | readonly, copy=False. The document's declared requester (`_approval_requester_field`), frozen at raise; like the owner, excluded from deciding unless the category allows self-approval or an access exception names them |
+| `pending_user_ids` | Many2many(`res.users`) | Yes | No | compute (`approval_request_reach.py`), relation `approval_request_pending_user_rel`: users holding an undecided row of a pending request, and their delegates |
 | `partner_id` | Many2one(`res.partner`) | Yes | No | check_company, index=btree_not_null |
 | `name` | Char | Yes | No | tracking, copy=False. **Empty until `action_confirm` assigns the sequence consecutive**; drafts show a translated "New" placeholder via `display_name` only |
 | `priority` | Selection(0-3) | Yes | Yes | default="1", tracking, index (the escalation cron filters on `(state, priority)` every 4 hours) |
@@ -528,6 +530,7 @@ What the engine asks of any record a request is raised for, whichever adopter sh
 | `approval_user_ids` | Many2many(`res.users`) | No | No | related |
 | `approval_required` | Boolean | No | No | compute (memoised per domain+company) |
 | `can_request_approval` | Boolean | No | No | compute |
+| `approval_pending_user_ids` | Many2many(`res.users`) | No | No | compute + search: the request's `pending_user_ids`, searched as `approval_request_id IN (SELECT request_id FROM approval_request_pending_user_rel ...)`. The adopters' approver-reach read rows are written on it |
 
 ### Key Methods (Override Points)
 
@@ -1290,3 +1293,16 @@ closure with it. Read their fields in those modules.
 | File | `models/res_users.py` |
 |------|-----------------------|
 | Methods | `_is_approval_manager()` — the manager seam every access check goes through (`approval_utils.is_approval_manager`); `write()` — drops the delegation tz-bucket memo on a `tz` change, the escalation-manager memo on `group_ids`/`active`, and triggers the archive handover; `_approval_handover_on_archive()` — SM-7, reassigns the archived user's live `pending`/`waiting` rows (see architecture.md, *Departure Handover*) |
+
+### res.users.grant (extended)
+
+| File | `models/approval_request_reach.py` |
+|------|------------------------------------|
+| Field | `cause` gains `approval_step` and `approval_delegation` (selection_add) |
+| Methods | `_sync_decider_grants(users)` — grants `group_approval_decider` to a step member or a delegate of a pending row, revokes it from whoever is neither any more (grants whose cause is theirs or `migration`); `_cron_sync_decider_grants()` — the daily sweep |
+
+### ir.access.exception (extended)
+
+| File | `models/ir_access_exception.py` |
+|------|----------------------------------|
+| Field | `kind` gains `self_approval` (the owner deciding their own request) and `requester_exclusion` (the declared requester deciding a request made on their behalf), scoped to an `approval.category` |

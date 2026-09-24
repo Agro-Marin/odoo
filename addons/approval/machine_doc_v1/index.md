@@ -14,7 +14,7 @@ dashboards.
 | Key | Value |
 |-----|-------|
 | Technical name | `approval` |
-| Version | 19.0.2.11.0 (matches `__manifest__.py`) |
+| Version | 19.0.2.13.0 (matches `__manifest__.py`) |
 | Category | Human Resources/Approvals |
 | Dependencies | `mail`, and nothing else. `approval_automation` (which needs `automation`) and `approval_analytics` (which needs `mixin_report_sql`) were split out at 19.0.2.0.0 so that adopting `mixin.approval` costs one manifest row rather than nineteen prerequisites; both auto-install |
 | Conflicts | `approvals` (upstream module — the two cannot coexist, and NOTHING enforces it: this fork's loader reads no `excludes` manifest key, so the one that used to sit here was inert) |
@@ -42,6 +42,8 @@ dashboards.
 | `approval_request_routing.py` | extends `approval.request` | Who approves: `_sync_approvers`, `_get_desired_approvers` over the applicable steps, live rerouting, auto-action rules, category snapshot |
 | `approval_request_escalation.py` | extends `approval.request` | When: deadline, overdue, SLA (compute + search), the three crons, reminders and escalation |
 | `approval_request_prediction.py` | extends `approval.request` | On-demand outcome prediction (`action_predict_outcome`) |
+| `approval_request_reach.py` | extends `approval.request`, `approval.approver`, `approval.category.step.member`, `res.users.grant` | Approver reach: `pending_user_ids` (who holds an undecided row of a pending request, delegates included), the Decider group kept on step members and delegates through `res.users.grant` (`cause` `approval_step`/`approval_delegation`), revoked once they are in no pool, and its daily sweep |
+| `ir_access_exception.py` | extends `ir.access.exception` | The two approval `kind`s of an access exception: `self_approval` and `requester_exclusion` |
 | `approval_approver.py` | `approval.approver` | Individual approver: state, delegation, CRUD access control |
 | `approval_decision_log.py` | `approval.decision.log`, extends `approval.request` | The append-only decision ledger: one `verdict` per fact (approved, refused, withdrawn, granted, revoked, cancelled, reset) with the acting user, the `principal_id` a delegate acted for, the caller's elevation and the `state_after`. Written by every funnel through `_append_decision_log`; `write` and `unlink` refuse always. Read through `approval.request.decision_log_ids` |
 | `mixin_approval_source.py` | `mixin.approval.source` (Abstract) | What every record an approval request is raised for may answer: `_filter_approval_step_user_ids()` (who its own policy lets decide) and `_get_approval_activity_type()` (which activity asks them). Parent of both adopter shapes |
@@ -95,6 +97,7 @@ dashboards.
 | `test_activity_target.py` | Where approvers are asked: a document-target category asks on the document, the default on the request, a request without a document on itself; a document activity approves when done and goes with a cancel; a step chooses the activity type; asking again and reminders do not duplicate |
 | `test_approvals.py` | Core approval lifecycle, state transitions (`TestRequest`) |
 | `test_approver_computation.py` | _sync_approvers, category changes, steps applying and ceasing to apply |
+| `test_approver_reach.py` | A step member holds the Decider group while a member, reads through `pending_user_ids` while deciding; 2.12 grants the group to today's approvers |
 | `test_sequential_approval.py` | In-order steps: ordering, turns, refusal and withdrawal in a chain |
 | `test_delegation.py` | Delegation lifecycle, effective approver |
 | `test_decision_wizard.py` | Wizard refuse / request-change with reasons and notes |
@@ -184,7 +187,7 @@ into `test_approvals.py`).
 
 | File | Content |
 |------|---------|
-| `res_groups.xml` | 2 groups — `group_approval_approver`, `group_approval_manager` — under one `res.groups.privilege` (`res_groups_privilege_approvals`) |
+| `res_groups.xml` | 3 groups — `group_approval_approver`, `group_approval_manager` under one `res.groups.privilege` (`res_groups_privilege_approvals`), and `group_approval_decider`, which only carries the approver-reach rows the adopters ship |
 | `ir.access.csv` | Permissions and guards for every shipped model: multi-company, ownership, per-category `privacy_visibility` read audiences. The mixin's concrete test consumer is not one of them: `approval.test.document` lives in `test_approval`, which ships no row for it |
 
 ## Directory Structure
@@ -201,6 +204,8 @@ approval/
 |   +-- approval_request_lifecycle.py # The transitions
 |   +-- approval_request_routing.py   # Who approves
 |   +-- approval_request_prediction.py# Outcome prediction
+|   +-- approval_request_reach.py     # Approver reach and the Decider group
+|   +-- ir_access_exception.py        # Approval kinds of access exceptions
 |   +-- approval_request_escalation.py # Escalation + reminders (split file)
 |   +-- approval_approver.py          # Approver records
 |   +-- mixin_approval_source.py      # Hooks every approval source answers
@@ -229,8 +234,8 @@ approval/
 |   +-- approval_delegate_wizard.py   # Delegation setup
 +-- reports/
 |   +-- approval_request_report.xml   # QWeb PDF report action
-+-- migrations/                       # 32 script directories (1.0.1 .. 2.11)
-+-- tests/                            # 45 test modules + common.py
++-- migrations/                       # 34 script directories (1.0.1 .. 2.13)
++-- tests/                            # 46 test modules + common.py
 +-- views/                            # 10 XML view files
 +-- data/                             # 6 XML data files
 +-- security/                         # Groups, rules, ACL
@@ -242,7 +247,7 @@ approval/
 | Metric | Count |
 |--------|-------|
 | Python files (non-test, incl. `__init__`/`__manifest__`) | 44 |
-| Python test files | 45 (+ `common.py`) |
+| Python test files | 46 (+ `common.py`) |
 | XML files (non-static) | 28 |
 | XML files (static templates) | 4 |
 | JS files | 25 |
@@ -253,8 +258,8 @@ approval/
 | SQL view models | 2 |
 | Transient models | 2 |
 | Test-only models | 3 |
-| Cron jobs | 4 |
-| Migration script directories | 32 |
+| Cron jobs | 5 |
+| Migration script directories | 34 |
 
 Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/*'
 -not -path './migrations/*' -not -path '*__pycache__*' -not -path './machine_doc_v1/*'
@@ -282,6 +287,7 @@ Re-measure rather than trusting these: `find . -name '*.py' -not -path './tests/
 - `approval_request_lifecycle.py` -- Transitions, activities, locking
 - `approval_request_routing.py` -- Approver sync, rules, snapshot
 - `approval_request_prediction.py` -- Outcome prediction
+- `approval_request_reach.py` -- Approver reach, the Decider group
 - `approval_request_escalation.py` -- Escalation and reminders
 
 ### State Machine (since 19.0.1.0.7)

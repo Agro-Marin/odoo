@@ -686,10 +686,9 @@ class ApprovalRequestRouting(models.Model):
                     ),
                 }
 
-        owner_id = self.request_owner_id.id
-        if owner_id in approver_staging and not self._allows_self_approval():
-            del approver_staging[owner_id]
-            trace.ROUTING.event("owner_not_staged", request=self.id, owner=owner_id)
+        for user in self._get_excluded_approvers():
+            if approver_staging.pop(user.id, None):
+                trace.ROUTING.event("owner_not_staged", request=self.id, owner=user.id)
         trace.ROUTING.items(
             "staged_user",
             lambda: [

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_ir_access_exception_search" model="ir.ui.view">
+        <field name="model">ir.access.exception</field>
+        <field name="arch" type="xml">
+            <search string="Access Exceptions">
+                <field name="user_id" />
+                <field name="kind" />
+                <field name="reviewer_ids" />
+                <filter
+                    name="active_exceptions"
+                    string="Active"
+                    domain="[('state', 'in', ['active'])]" />
+                <filter
+                    name="expiring"
+                    string="Lapsing in 30 Days"
+                    domain="[('state', 'in', ['active']), ('date_to', '&lt;', (context_today() + relativedelta(days=30)).strftime('%Y-%m-%d'))]" />
+                <filter
+                    name="lapsed"
+                    string="Lapsed"
+                    domain="[('state', 'in', ['lapsed'])]" />
+                <filter
+                    name="revoked"
+                    string="Revoked"
+                    domain="[('state', 'in', ['revoked'])]" />
+                <group>
+                    <filter
+                        name="group_by_user"
+                        string="Person"
+                        context="{'group_by': 'user_id'}" />
+                    <filter
+                        name="group_by_kind"
+                        string="Rule"
+                        context="{'group_by': 'kind'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_ir_access_exception_list" model="ir.ui.view">
+        <field name="model">ir.access.exception</field>
+        <field name="arch" type="xml">
+            <list string="Access Exceptions">
+                <field name="user_id" />
+                <field name="kind" />
+                <field name="scope_name" />
+                <field name="reason" />
+                <field name="reviewer_ids" widget="many2many_tags" />
+                <field name="date_to" />
+                <field name="state" />
+                <field name="use_count" />
+                <field name="last_used" />
+            </list>
+        </field>
+    </record>
+
+    <record id="view_ir_access_exception_form" model="ir.ui.view">
+        <field name="model">ir.access.exception</field>
+        <field name="arch" type="xml">
+            <form string="Access Exception">
+                <header>
+                    <field name="state" widget="statusbar" />
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="user_id" />
+                            <field name="kind" />
+                            <field name="res_model" invisible="1" />
+                            <field name="res_id" invisible="1" />
+                            <field name="scope_name" />
+                            <field name="reviewer_ids" widget="many2many_tags" />
+                        </group>
+                        <group>
+                            <field name="date_from" />
+                            <field name="date_to" />
+                            <field name="use_count" />
+                            <field name="last_used" />
+                            <field name="granted_by_id" />
+                            <field name="revoked_at" invisible="not revoked_at" />
+                            <field name="revoked_by_id" invisible="not revoked_at" />
+                            <field name="revoke_reason" invisible="not revoked_at" />
+                        </group>
+                    </group>
+                    <field
+                        name="reason"
+                        placeholder="Why this person may pass the rule" />
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_ir_access_exception" model="ir.actions.act_window">
+        <field name="name">Access Exceptions</field>
+        <field name="res_model">ir.access.exception</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_active_exceptions': 1}</field>
+    </record>
+
+</odoo>

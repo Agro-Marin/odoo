@@ -12,6 +12,9 @@ access_ir_model_constraint_group_erp_manager,ir_model_constraint group_erp_manag
 access_ir_model_relation_group_erp_manager,ir_model_relation group_erp_manager,model_ir_model_relation,group_erp_manager,permission,crud,
 access_ir_model_inherit,ir_model_inherit nobody,model_ir_model_inherit,group_everyone,permission,r,"[(0, '=', 1)]"
 access_ir_access_group_erp_manager,ir_access group_erp_manager,model_ir_access,group_erp_manager,permission,crud,
+access_ir_access_exception_erp_manager,ir_access_exception group_erp_manager,model_ir_access_exception,group_erp_manager,permission,cru,
+access_ir_access_exception_own,Users read the exceptions naming them or that they review,model_ir_access_exception,group_user,permission,r,"['|', ('user_id', '=', user.id), ('reviewer_ids', 'in', [user.id])]"
+access_ir_access_exception_privilege_read,The strict rules read the exceptions they consult,model_ir_access_exception,privilege_read_access_exceptions,permission,r,
 access_ir_model_data_group_erp_manager,ir_model_data group_erp_manager,model_ir_model_data,group_erp_manager,permission,crud,
 access_ir_model_fields_group_erp_manager,ir_model_fields group_erp_manager,model_ir_model_fields,group_erp_manager,permission,crud,
 access_ir_model_fields_selection_group_erp_manager,ir_model_fields_selection group_erp_manager,model_ir_model_fields_selection,group_erp_manager,permission,crud,

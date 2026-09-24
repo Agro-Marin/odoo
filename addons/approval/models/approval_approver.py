@@ -278,7 +278,8 @@ class ApprovalApprover(models.Model):
                         "You cannot delegate an approval to yourself.",
                     ),
                 )
-            if delegate == approver.request_id.request_owner_id:
+            request = approver.request_id
+            if delegate in (request.request_owner_id | request._get_requester()):
                 trace.REFUSAL.event(
                     "delegate_is_request_owner",
                     approver=approver.id,

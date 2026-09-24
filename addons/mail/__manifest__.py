@@ -118,6 +118,7 @@ For more specific needs, you may also assign custom-defined actions
         "data/mail_activity_type_data.xml",
         "data/security_notifications_templates.xml",
         "data/ir_cron_data.xml",
+        "data/ir_access_exception_data.xml",
         "data/ir_actions_client.xml",
         "security/ir.access.csv",
         "views/discuss_public_templates.xml",

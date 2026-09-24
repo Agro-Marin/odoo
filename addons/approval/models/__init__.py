@@ -31,6 +31,7 @@ from . import (
     approval_utils,
     ir_actions_report,
     ir_actions_server,
+    ir_access_exception,
     ir_attachment,
     mail_activity,
     mail_activity_type,

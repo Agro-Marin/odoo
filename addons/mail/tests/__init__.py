@@ -1,3 +1,4 @@
+from . import test_access_exception_reminder
 from . import test_controller_contract
 from . import test_discuss_channel_expand
 from . import test_discuss_tools

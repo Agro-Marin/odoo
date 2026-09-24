@@ -364,6 +364,27 @@ about them.
 - `_record(vals_list)` — the one writer, as the superuser with the real actor
 - `_record_privileged(model_name, operation, ids)` — what the access policy calls for a privileged operation
 
+### models/ir_access_exception.py
+
+#### IrAccessException — `ir.access.exception` (`_name`)
+
+One named person let past one strict rule, for a reason, until a date: the
+only way through separation of duties (`kind` `sod`), deciding one's own
+approval request or one made on one's behalf (the approval kinds). Revoked,
+never deleted; every creation, use and revocation is an `ir.access.log` row,
+and `use_count`/`last_used` are read from it. mail adds the chatter and the
+reviewers' reminder seven days before `date_to`.
+
+**Fields:**
+- `user_id`, `granted_by_id`, `revoked_by_id` (Many2one → res.users), `reviewer_ids` (Many2many → res.users; never the subject)
+- `kind` (Selection), `res_model` (Char), `res_id` (Many2oneReference), `scope_name` (Char, computed)
+- `reason` (Text), `revoke_reason` (Char), `date_from`, `date_to`, `revoked_at` (Datetime)
+- `state` (Selection, computed and searchable: scheduled, active, lapsed, revoked), `use_count` (Integer), `last_used` (Datetime)
+
+**Key Methods:**
+- `_find(user, kind, scope)` — the live exception letting `user` past `kind` on `scope`, or none
+- `_record_use(reason)`, `action_revoke(reason)`, `_grant_for_upgrade(...)`
+
 ### models/res_users_grant.py
 
 #### ResUsersGrant — `res.users.grant` (`_name`)

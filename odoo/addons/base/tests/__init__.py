@@ -23,6 +23,7 @@ from . import test_install
 from . import test_avatar_mixin
 from . import test_catalog_mixin
 from . import test_init
+from . import test_ir_access_exception
 from . import test_ir_actions
 from . import test_ir_actions_audit
 from . import test_ir_actions_reach

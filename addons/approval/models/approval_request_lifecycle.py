@@ -1153,8 +1153,8 @@ class ApprovalRequestLifecycle(models.Model):
                         lambda row: not row.source_synced
                     ).user_id.ids
                 )
-                if not self._allows_self_approval() and not self.binding_id:
-                    pool.discard(self.request_owner_id.id)
+                if not self.binding_id:
+                    pool -= set(self._get_excluded_approvers().ids)
             if len(pool) < step.minimum:
                 candidates = step._get_candidate_user_ids(document, self)
                 unstaffed = bool(candidates) and not step._filter_company_user_ids(

@@ -297,6 +297,13 @@
         groups="base.group_no_one" />
 
     <menuitem
+        id="menu_action_ir_access_exception"
+        parent="menu_users"
+        action="action_ir_access_exception"
+        sequence="7"
+        groups="base.group_erp_manager" />
+
+    <menuitem
         id="menu_action_ir_access"
         parent="menu_security"
         action="action_ir_access"

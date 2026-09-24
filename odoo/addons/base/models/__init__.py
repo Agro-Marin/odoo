@@ -125,6 +125,7 @@ from . import res_users_login_cooldown
 from . import res_users
 from . import res_users_grant
 from . import ir_access_log
+from . import ir_access_exception
 from . import res_users_identitycheck
 from . import res_users_apikeys_scope
 from . import res_users_apikeys

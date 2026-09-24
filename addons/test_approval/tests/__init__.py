@@ -8,6 +8,7 @@ from . import (
     test_coverage_integrity,
     test_decision_attribution,
     test_document_is_not_reachable,
+    test_own_decision,
     test_rate_limit,
     test_source_document,
     test_state_sync,

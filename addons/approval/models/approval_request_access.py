@@ -1,13 +1,17 @@
 import contextlib
+import logging
 from collections import Counter
 from collections.abc import Iterator
 
 from odoo import api, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command
+from odoo.tools import SQL
 
 from . import approval_trace as trace
 from .approval_utils import is_approval_manager
+
+_logger = logging.getLogger(__name__)
 
 _PRODUCING_REQUESTS = "approval.producing_request_ids"
 
@@ -636,36 +640,206 @@ class ApprovalRequestAccess(models.Model):
 
         Checked before the superuser early return on purpose: it is not a
         question of who is calling but of whose decision would be recorded. A
-        row whose effective approver is the request's owner cannot carry a
-        decision unless the category says so, whatever elevation the call runs
-        under -- otherwise a `sudo()` in any adopter reopens the hole the
-        routing closes.
+        row carries no decision from the one who asked, nor from the one the
+        document names as its requester, whether they decide it themselves or a
+        delegate decides it for them, unless the category allows self-approval
+        or an access exception names that person -- otherwise a `sudo()` in any
+        adopter reopens the hole the routing closes.
         """
         self.check_singleton()
-        if self._allows_self_approval():
-            return
+        own_users = self.request_owner_id | self._get_requester()
         own = approver.filtered(
-            lambda a: a._get_effective_approver() == self.request_owner_id
+            lambda a: (a._get_effective_approver() | a.user_id) & own_users
         )
-        if own:
+        if not own:
+            return
+        excluded = self._get_excluded_approvers()
+        refused = own.filtered(
+            lambda a: (a._get_effective_approver() | a.user_id) & excluded
+        )
+        if refused:
+            person = (refused[0]._get_effective_approver() | refused[0].user_id) & (
+                excluded
+            )
             trace.REFUSAL.event(
                 "decision_on_own_request",
                 request=self.id,
                 owner=self.request_owner_id.id,
-                rows=own.ids,
+                requester=self._get_requester().id,
+                rows=refused.ids,
             )
             raise AccessError(
                 self.env._(
-                    "%(owner)s asked for %(name)s and cannot also approve or "
-                    "refuse it. Its category does not allow self-approval.",
-                    owner=self.request_owner_id.name,
+                    "%(person)s cannot approve or refuse %(name)s: it was asked by "
+                    "them or on their behalf, and its category does not allow "
+                    "self-approval.",
+                    person=person[:1].name,
                     name=self.display_name,
                 )
             )
+        if self.category_id.allow_self_approval:
+            return
+        users = own_users.filtered(
+            lambda user: any(
+                user in (row._get_effective_approver() | row.user_id) for row in own
+            )
+        )
+        for user in users:
+            self._get_own_decision_exception(user)._record_use(self.display_name)
 
-    def _allows_self_approval(self) -> bool:
+    def _get_requester(self):
+        """Whom the request is for, when the document names someone: frozen at
+        raise, and filled in for older requests by each adopter's upgrade."""
         self.check_singleton()
-        return bool(self.category_id.allow_self_approval)
+        return self.requester_id
+
+    def _get_own_decision_exception(self, user):
+        self.check_singleton()
+        kind = (
+            "self_approval" if user == self.request_owner_id else "requester_exclusion"
+        )
+        return self.env["ir.access.exception"]._find(user, kind, self.category_id)
+
+    def _get_excluded_approvers(self):
+        """Who may not decide this request: whoever asked and whom it is for,
+        unless the category allows self-approval or an exception names them."""
+        self.check_singleton()
+        excluded = self.env["res.users"]
+        if self.category_id.allow_self_approval:
+            return excluded
+        for user in self.request_owner_id | self._get_requester():
+            if not self._get_own_decision_exception(user):
+                excluded |= user
+        return excluded
+
+    @api.model
+    def _grant_upgrade_exceptions(self, rows, kind: str, reason: str) -> None:
+        """Let each (user, category, count) of `rows` keep deciding as they did
+        for 90 days, and say so in the log: the rule turns strict on the upgrade
+        and nothing a person relied on the day before changes that day."""
+        Exceptions = self.env["ir.access.exception"]
+        Users = self.env["res.users"].with_context(active_test=False)
+        Categories = self.env["approval.category"].with_context(active_test=False)
+        for user_id, category_id, count in rows:
+            user, category = Users.browse(user_id), Categories.browse(category_id)
+            if Exceptions._find(user, kind, category):
+                continue
+            exception = Exceptions._grant_for_upgrade(
+                user, kind, category, reason % {"count": count}
+            )
+            _logger.info(
+                "Access exception granted: %s (%s) may still %s on %s (%s) until "
+                "%s, %s request(s) in the last 12 months.",
+                user.login,
+                user.id,
+                "decide their own requests"
+                if kind == "self_approval"
+                else "approve requests made on their behalf",
+                category.display_name,
+                category.id,
+                exception.date_to,
+                count,
+            )
+
+    @api.model
+    def _grant_upgrade_self_approval_exceptions(self) -> None:
+        self.env.flush_all()
+        rows = self.env.execute_query(
+            SQL(
+                """
+                SELECT request.request_owner_id, request.category_id,
+                       count(DISTINCT request.id)
+                  FROM approval_decision_log log
+                  JOIN approval_request request ON request.id = log.request_id
+                  JOIN approval_category category ON category.id = request.category_id
+                 WHERE log.verdict = 'approved'
+                   AND category.active
+                   AND log.date >= (now() AT TIME ZONE 'UTC') - INTERVAL '12 months'
+                   AND request.request_owner_id IN (log.user_id, log.principal_id)
+                   AND NOT EXISTS (
+                       SELECT 1 FROM approval_decision_log other
+                        WHERE other.request_id = request.id
+                          AND other.verdict = 'approved'
+                          AND other.user_id <> request.request_owner_id
+                          AND COALESCE(other.principal_id, other.user_id)
+                              <> request.request_owner_id)
+                 GROUP BY 1, 2
+                 ORDER BY 1, 2
+                """
+            )
+        )
+        self._grant_upgrade_exceptions(
+            rows,
+            "self_approval",
+            "Approved %(count)s of their own requests alone in the 12 months before "
+            "self-approval was turned off; kept while the category is reviewed.",
+        )
+
+    @api.model
+    def _upgrade_declared_requester(
+        self, model_name: str, requester_field: str
+    ) -> None:
+        """Name the declared requester on the requests raised before it was
+        frozen, and keep deciding whoever relied on deciding them."""
+        table = self.env[model_name]._table
+        self.env.flush_all()
+        self.env.cr.execute(
+            SQL(
+                """
+                UPDATE approval_request request
+                   SET requester_id = document.%(field)s
+                  FROM %(table)s document
+                 WHERE request.res_model = %(model)s
+                   AND document.id = request.res_id
+                   AND request.requester_id IS NULL
+                   AND document.%(field)s IS NOT NULL
+                """,
+                field=SQL.identifier(requester_field),
+                table=SQL.identifier(table),
+                model=model_name,
+            )
+        )
+        _logger.info(
+            "%s requests on %s name their declared requester (%s) now.",
+            self.env.cr.rowcount,
+            model_name,
+            requester_field,
+        )
+        self.invalidate_model(["requester_id"])
+        rows = self.env.execute_query(
+            SQL(
+                """
+                SELECT document.%(field)s, request.category_id,
+                       count(DISTINCT request.id)
+                  FROM approval_request request
+                  JOIN %(table)s document ON document.id = request.res_id
+                  JOIN approval_category category ON category.id = request.category_id
+                 WHERE request.res_model = %(model)s
+                   AND category.active
+                   AND document.%(field)s <> request.request_owner_id
+                   AND EXISTS (
+                       SELECT 1 FROM approval_decision_log log
+                        WHERE log.request_id = request.id
+                          AND log.verdict = 'approved'
+                          AND COALESCE(log.principal_id, log.user_id)
+                              = document.%(field)s
+                          AND log.date
+                              >= (now() AT TIME ZONE 'UTC') - INTERVAL '12 months')
+                 GROUP BY 1, 2
+                 ORDER BY 1, 2
+                """,
+                field=SQL.identifier(requester_field),
+                table=SQL.identifier(table),
+                model=model_name,
+            )
+        )
+        self._grant_upgrade_exceptions(
+            rows,
+            "requester_exclusion",
+            "Approved %(count)s request(s) made on their behalf by someone else in "
+            "the 12 months before the requester was excluded; kept while the "
+            "category is reviewed.",
+        )
 
     @api.constrains("request_owner_id", "company_id", "res_model", "res_id")
     def _check_owner_company(self) -> None:
