@@ -1023,6 +1023,11 @@ patch(PosOrder.prototype, {
 
         this.uiState.couponPointChanges[couponId] = couponData;
     },
+    _getDiscountTaxKey(reward, line) {
+        return ["ewallet", "gift_card"].includes(reward.program_id.program_type)
+            ? line.tax_ids.map((t) => t.id)
+            : line.tax_ids.filter((t) => t.amount_type !== "fixed").map((t) => t.id);
+    },
     /**
      * @param {loyalty.reward} reward
      * @returns the discountable and discountable per tax for this discount on order reward.
@@ -1034,13 +1039,7 @@ patch(PosOrder.prototype, {
             if (!line.getQuantity()) {
                 continue;
             }
-            const taxKey = ["ewallet", "gift_card"].includes(
-                reward.program_id.program_type,
-            )
-                ? line.tax_ids.map((t) => t.id)
-                : line.tax_ids
-                      .filter((t) => t.amount_type !== "fixed")
-                      .map((t) => t.id);
+            const taxKey = this._getDiscountTaxKey(reward, line);
             discountable += line.prices.total_included;
             if (!discountablePerTax[taxKey]) {
                 discountablePerTax[taxKey] = 0;
@@ -1077,13 +1076,20 @@ patch(PosOrder.prototype, {
         if (!cheapestLine) {
             return { discountable: 0, discountablePerTax: {} };
         }
-        const taxKey = cheapestLine.tax_ids.map((t) => t.id);
-        return {
-            discountable: cheapestLine.comboTotalPriceWithoutTax,
-            discountablePerTax: Object.fromEntries([
-                [taxKey, cheapestLine.comboTotalPriceWithoutTax],
-            ]),
-        };
+        const pricedLines = cheapestLine.combo_line_ids.length
+            ? cheapestLine
+                  .getAllLinesInCombo()
+                  .filter((line) => !line.combo_line_ids.length)
+            : [cheapestLine];
+        let discountable = 0;
+        const discountablePerTax = {};
+        for (const line of pricedLines) {
+            const taxKey = this._getDiscountTaxKey(reward, line);
+            discountable += line.prices.total_included / cheapestLine.qty;
+            discountablePerTax[taxKey] =
+                (discountablePerTax[taxKey] || 0) + line.basePrice / cheapestLine.qty;
+        }
+        return { discountable, discountablePerTax };
     },
     /**
      * @param {loyalty.reward} reward
