@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillRender, toRaw, useRef, useState } from "@odoo/owl";
+import { Component, toRaw, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -187,29 +187,14 @@ export class SelectMenu extends Component {
         /** @type {any[]} */
         this._choiceSignature = [];
         this.choicesRevision = 0;
-        /** @type {any | any[] | undefined} */
-        this.selectedChoice = undefined;
         /** @type {WeakMap<any[], { revision: number, sorted: any[] }>} */
         this._sortedChoicesCache = new WeakMap();
         /** @type {{ revision: number, byValue: Map<any, any> } | null} */
         this._choiceIndex = null;
         /** @type {string | null} */
         this._derivedKey = null;
-        /** @type {Set<any> | null} */
+        /** @type {{ values: any[], set: Set<any> } | null} */
         this._selectedValueSet = null;
-
-        onWillRender(() => {
-            this._selectedValueSet = null;
-            this.syncChoicesRevision();
-            this.selectedChoice = this.getSelectedChoice(this.props);
-            if (this.dropdownState.isOpen && this._derivedKey !== this.derivationKey) {
-                this.filterOptions(this.state.appliedSearch);
-            }
-            this.filtered.displayed = this.filtered.choices.slice(
-                0,
-                this.displayedCount,
-            );
-        });
 
         const self = this;
         this.navigationOptions = {
@@ -396,7 +381,7 @@ export class SelectMenu extends Component {
         return {
             searchValue: this.search.value,
             appliedSearch: this.state.appliedSearch,
-            choices: this.filtered.choices,
+            choices: this.filteredView.choices,
             displayedOptions: this.filtered.displayed,
             isFocused: this.state.isFocused,
         };
@@ -404,8 +389,38 @@ export class SelectMenu extends Component {
 
     /** @returns {Set<any>} */
     get selectedValueSet() {
-        this._selectedValueSet ??= new Set(this.selectedValues);
-        return this._selectedValueSet;
+        const values = this.selectedValues;
+        const memo = this._selectedValueSet;
+        if (
+            memo &&
+            memo.values.length === values.length &&
+            memo.values.every((value, index) => value === values[index])
+        ) {
+            return memo.set;
+        }
+        const set = new Set(values);
+        this._selectedValueSet = { values: [...values], set };
+        return set;
+    }
+
+    /** @returns {any | any[] | undefined} */
+    get selectedChoice() {
+        this.syncChoicesRevision();
+        return this.getSelectedChoice(this.props);
+    }
+
+    /** @returns {{ choices: any[], displayed: any[] }} */
+    get filteredView() {
+        this.syncChoicesRevision();
+        if (this.dropdownState.isOpen && this._derivedKey !== this.derivationKey) {
+            log.logic("refilter", () => ({
+                search: this.state.appliedSearch,
+                revision: this.choicesRevision,
+            }));
+            this.filterOptions(this.state.appliedSearch);
+        }
+        this.filtered.displayed = this.filtered.choices.slice(0, this.displayedCount);
+        return this.filtered;
     }
 
     isOptionSelected(choice) {

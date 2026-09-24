@@ -79,12 +79,12 @@
                             <t t-call="web.SelectMenu.search" />
                         </t>
                     </div>
-                    <t t-if="this.filtered.choices.length === 0">
+                    <t t-if="this.filteredView.choices.length === 0">
                         <p class="text-muted fst-italic mx-4 my-1" role="status">No results</p>
                     </t>
                     <div t-att-id="this.listboxId" role="listbox"
                          t-att-aria-multiselectable="this.props.multiSelect ? 'true' : undefined">
-                        <t t-foreach="this.filtered.displayed" t-as="choice" t-key="choice_index">
+                        <t t-foreach="this.filteredView.displayed" t-as="choice" t-key="choice_index">
                             <t t-call="{{ this.constructor.choiceItemTemplate }}"
                                 choice="choice"
                                 choice_index="choice_index"/>

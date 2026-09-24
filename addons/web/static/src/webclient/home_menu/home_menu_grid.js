@@ -46,10 +46,24 @@ export class HomeMenuGrid {
         this.menus = menus;
         /** @type {Map<string, any>} */
         this.derived = new Map();
+        /** @type {unknown[] | null} */
+        this.inputs = null;
     }
 
     clear() {
         this.derived.clear();
+        this.inputs = null;
+    }
+
+    /** @returns {unknown[]} */
+    readInputs() {
+        return [
+            this.apps(),
+            this.query(),
+            this.editing(),
+            this.badges(),
+            JSON.stringify(this.layout.config),
+        ];
     }
 
     /**
@@ -59,6 +73,15 @@ export class HomeMenuGrid {
      * @returns {T}
      */
     _memo(key, compute) {
+        const inputs = this.readInputs();
+        if (
+            !this.inputs ||
+            inputs.some((value, index) => value !== this.inputs?.[index])
+        ) {
+            log.logic("inputs changed", () => ({ cached: this.derived.size }));
+            this.derived.clear();
+            this.inputs = inputs;
+        }
         if (!this.derived.has(key)) {
             const end = log.perf(key);
             const value = compute.call(this);

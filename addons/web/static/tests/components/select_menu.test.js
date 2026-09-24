@@ -1156,7 +1156,7 @@ test("SelectMenu group items only after being opened", async () => {
 
     await open();
     expect(".o_select_menu_menu").toHaveText("Option A\nGroup A\nOption B\nOption C");
-    expect.verifySteps(["filterOptions", "filterOptions"]);
+    expect.verifySteps(["filterOptions"]);
 
     await editInput("option d");
 

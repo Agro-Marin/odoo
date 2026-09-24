@@ -4,7 +4,6 @@
 import {
     Component,
     onMounted,
-    onWillRender,
     onWillUnmount,
     onWillUpdateProps,
     useRef,
@@ -144,7 +143,6 @@ export class HomeMenu extends Component {
             layout: this.layout,
             menus: this.menus,
         });
-        onWillRender(() => this.grid.clear());
 
         this.keyboard = useHomeMenuKeyboard({
             rows: () => this.keyboardRows,
