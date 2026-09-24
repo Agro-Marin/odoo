@@ -9,7 +9,7 @@ from typing import Any, Self
 from odoo import api, fields, models, tools
 from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
-from odoo.fields import Domain, DomainCondition
+from odoo.fields import ACCEPTED_CONDITION_OPERATORS, Domain, DomainCondition
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, frozendict
 from odoo.tools.safe_eval import safe_eval, time
@@ -46,6 +46,7 @@ CRUD_SELECTION = {
     "d": "Delete",
 }
 OPERATION_LETTER = {"create": "c", "read": "r", "write": "u", "unlink": "d"}
+ANY_OPERATORS = frozenset({"any", "not any", "any!", "not any!"})
 # a domain that can hold an 'access' condition: only those are parsed for the
 # cycle check (an unrelated text is not evaluated, which a rule calling back
 # into the decision would turn into a recursion)
@@ -251,6 +252,42 @@ def without_access_conditions(domain: Domain) -> Domain:
         return condition
 
     return domain.map_conditions(skip)
+
+
+def missing_fields(model: models.BaseModel, text: str) -> Iterator[str]:
+    # read from the text rather than evaluated: every stored path is a
+    # literal, and evaluating each row per load costs ten times the walk
+    try:
+        tree = ast.parse(text, mode="eval")
+    except SyntaxError:
+        return
+    yield from _missing_fields(model, tree)
+
+
+def _missing_fields(model: models.BaseModel, node: ast.AST) -> Iterator[str]:
+    if (
+        isinstance(node, (ast.Tuple, ast.List))
+        and len(node.elts) == 3
+        and isinstance(path := node.elts[0], ast.Constant)
+        and isinstance(path.value, str)
+        and isinstance(operator := node.elts[1], ast.Constant)
+        and operator.value in ACCEPTED_CONDITION_OPERATORS
+    ):
+        target = model
+        for name in path.value.split("."):
+            field = target._fields.get(name)
+            if field is None:
+                yield f"{target._name}.{name}"
+                return
+            if not field.relational:
+                # what follows names a property or a date part
+                return
+            target = model.env[field.comodel_name]
+        if operator.value in ANY_OPERATORS:
+            yield from _missing_fields(target, node.elts[2])
+        return
+    for child in ast.iter_child_nodes(node):
+        yield from _missing_fields(model, child)
 
 
 def find_access_cycle(
@@ -484,6 +521,49 @@ class IrAccess(models.Model):
         # a new cycle goes through a written row's 'access' condition
         if any("access" in (access.domain or "") for access in self):
             self._check_access_graph()
+
+    @api.model
+    def _unresolved_domains(self) -> list[tuple[Self, str]]:
+        # a stored row keeps its text when a module drops a field it names
+        # (a noupdate row is never reloaded), and every read of its model
+        # then raises for the users it binds
+        accesses = self.with_context(active_test=False).search_fetch(
+            Domain("active", "=", True)
+            & Domain("domain", "!=", False)
+            & unloaded_module_domain(self.env, self._name),
+            ["model_id", "domain", "name"],
+            order="id",
+        )
+        registry = self.env.registry
+        return [
+            (access, missing)
+            for access in accesses
+            if access.model_id.model in registry
+            for missing in missing_fields(
+                self.env[access.model_id.model], access.domain
+            )
+        ]
+
+    @api.model
+    def _log_unresolved_domains(self) -> None:
+        unresolved = self._unresolved_domains()
+        if not unresolved:
+            return
+        xmlids = self.browse(
+            access.id for access, _missing in unresolved
+        ).get_external_id()
+        for access, missing in unresolved:
+            _logger.error(
+                "Access %s (%s, %r) on %s: its domain names %s, which does not "
+                "exist, so checking %s's access raises for every principal the "
+                "row binds until the domain is corrected",
+                access.id,
+                xmlids.get(access.id) or "no external id",
+                access.name,
+                access.model_id.model,
+                missing,
+                access.model_id.model,
+            )
 
     def _check_access_graph(self) -> None:
         rows = (

@@ -1795,6 +1795,13 @@ class _ModuleLoader:
                     _logger.warning("invalid custom view(s) for model %s: %s", model, e)
             span.set(custom=len(custom_views), invalid=invalid)
 
+    def log_unresolved_access_domains(self) -> None:
+        # a stored row loses a field only when a module's schema changes
+        if not self.update_module or "ir.access" not in self.registry:
+            return
+        with _debug.perf("modules.access_domains_check", cr=self.cr):
+            self.env["ir.access"]._log_unresolved_domains()
+
     def log_assertion_report(self) -> None:
         report = self.report
         if not report or report.wasSuccessful():
@@ -1917,6 +1924,7 @@ def load_modules(
         loader.collect_models_with_manual_fields()
         loader.reinit_models_to_check()
         loader.warn_invalid_custom_views()
+        loader.log_unresolved_access_domains()
         loader.log_assertion_report()
         loader.register_model_hooks()
         loader.check_null_constraints()
