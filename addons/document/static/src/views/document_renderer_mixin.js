@@ -10,7 +10,6 @@ import {
     preprocessX2manyChanges,
 } from "@web/model/relational_model";
 import {
-    onWillRender,
     onWillUnmount,
     onWillUpdateProps,
     useExternalListener,
@@ -86,7 +85,6 @@ export const DocumentsRendererMixin = (component) =>
                 true,
             );
             this.rightPanelState = useState(this.documentService.rightPanelReactive);
-            this.refreshFocus = false;
 
             onWillUnmount(() => this.documentService.stopRightPanelScrollObserver());
 
@@ -123,14 +121,11 @@ export const DocumentsRendererMixin = (component) =>
 
             onWillUpdateProps((nextProps) => {
                 if (nextProps.list !== this.props.list) {
-                    this.refreshFocus = true;
-                }
-            });
-            onWillRender(() => {
-                if (this.refreshFocus) {
-                    this.refreshFocus = false;
+                    const selection = nextProps.list
+                        ? nextProps.list.selection
+                        : nextProps.records.filter((r) => r.selected);
                     this.documentService.focusRecord(
-                        this.selection?.[0] || this.getContainerRecord(),
+                        selection?.[0] || this.getContainerRecord(),
                     );
                 }
             });

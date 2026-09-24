@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { onWillDestroy, onWillRender, useSubEnv } from "@odoo/owl";
+import { onWillDestroy, useEffect, useSubEnv } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
@@ -72,7 +72,7 @@ export class BankRecKanbanController extends KanbanController {
             bypassEditableProtection: true,
             withOverlay: () => this.rootRef.el.querySelector(".bank-chatter-btn"),
         });
-        onWillRender(() => {
+        useEffect(() => {
             user.updateContext({ from_bank_reco: true });
         });
         onWillDestroy(() => {

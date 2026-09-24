@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { onWillRender, useRef } from "@odoo/owl";
+import { onWillRender, useRef, useState } from "@odoo/owl";
 import { WarningDialog } from "@web/components/errors";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -31,16 +31,14 @@ export class AccountReportListRenderer extends ListRenderer {
         const key = this.createViewKey();
         this.keyOptionalFields = `optional_fields,${key}`;
         this.keyDebugOpenView = `debug_open_view,${key}`;
-        this.opt = useListOptionalFields(
-            this.keyOptionalFields,
-            this.keyDebugOpenView,
-            {
+        this.opt = useState(
+            useListOptionalFields(this.keyOptionalFields, this.keyDebugOpenView, {
                 getAllColumns: () => this.allColumns,
                 getOptionalActiveFields: () => this.optionalActiveFields,
                 onSave: () => this.saveOptionalActiveFields(),
-            },
+            }),
         );
-        this.optionalActiveFields = this.computeOptionalActiveFields();
+        this.optionalActiveFields = useState(this.computeOptionalActiveFields());
         this.columns = this.getActiveColumns();
         this.visibleOptionalColumns = this.getVisibleOptionalColumns();
 

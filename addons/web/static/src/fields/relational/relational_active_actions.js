@@ -1,7 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillRender } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
 import { useProps } from "@web/core/utils/owl_bridge";
 
@@ -111,10 +110,12 @@ export function useActiveActions({
     };
 
     const props = useProps();
-    const activeActions = compute(props);
-    onWillRender(() => {
-        Object.assign(activeActions, compute(props));
-    });
-
+    const activeActions = /** @type {RelationalActiveActions} */ ({});
+    for (const key of Object.keys(compute(props))) {
+        Object.defineProperty(activeActions, key, {
+            enumerable: true,
+            get: () => compute(props)[key],
+        });
+    }
     return activeActions;
 }

@@ -12,7 +12,7 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { omit } from "@web/core/utils/collections/objects";
 import { prepareStaticActionMenuItems } from "@web/views/view_utils";
-import { onWillDestroy, onWillRender, useRef, useState, useSubEnv } from "@odoo/owl";
+import { onWillDestroy, useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
 
 export const DocumentsControllerMixin = (component) =>
     class extends component {
@@ -51,7 +51,7 @@ export const DocumentsControllerMixin = (component) =>
                 }
             });
 
-            onWillRender(() => this.openInitialPreview());
+            useEffect(() => this.openInitialPreview());
         }
 
         get hasSelectedRecords() {

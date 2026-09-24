@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { onWillRender, useState } from "@odoo/owl";
 import { SelectionPopup } from "@point_of_sale/app/components/popups/selection_popup/selection_popup";
 import { TextInputPopup } from "@point_of_sale/app/components/popups/text_input_popup/text_input_popup";
 import { ControlButtons } from "@point_of_sale/app/screens/product_screen/control_buttons/control_buttons";
@@ -8,15 +7,8 @@ import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { AlertDialog } from "@web/ui/dialog";
 patch(ControlButtons.prototype, {
-    setup() {
-        super.setup(...arguments);
-        this.state = useState({
-            nbrRewards: 0,
-        });
-
-        onWillRender(() => {
-            this.state.nbrRewards = this.getPotentialRewards().length;
-        });
+    get nbrRewards() {
+        return this.getPotentialRewards().length;
     },
     _getEWalletRewards(order) {
         const claimableRewards = order.getClaimableRewards();

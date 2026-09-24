@@ -2,8 +2,8 @@
 import {
     Component,
     onMounted,
-    onWillRender,
     onWillUnmount,
+    useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -98,7 +98,7 @@ export class AddSnippetDialog extends Component {
             this.state.showIframe = true;
         });
 
-        onWillRender(() => {
+        useEffect(() => {
             if (
                 !this.props.snippetModel.hasCustomGroup &&
                 this.state.groupSelected === "custom"

@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { Component, onWillRender, useEffect } from "@odoo/owl";
+import { Component, useEffect } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { x2ManyCommands } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useComputed } from "@web/core/utils/computed";
 import { CharField } from "@web/fields/basic/char/char_field";
 import { ListTextField, TextField } from "@web/fields/basic/text/text_field";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
@@ -36,6 +37,31 @@ const DISABLED_MOVE_DOWN_ITEM_TOOLTIP = _t(
 
 const log = makeLogger("account.section_and_note");
 
+/**
+ * @param {any[]} records
+ * @param {<S extends object>(source: S) => S} track
+ * @returns {Map<string, any>}
+ */
+function buildParentSectionMap(records, track) {
+    const map = new Map();
+    let lastSection = null;
+    let lastSubSection = null;
+    for (const record of records) {
+        const displayType = track(record.data).display_type;
+        if (displayType === DISPLAY_TYPES.SECTION) {
+            lastSection = record;
+            lastSubSection = null;
+            map.set(record.id, null);
+        } else if (displayType === DISPLAY_TYPES.SUBSECTION) {
+            lastSubSection = record;
+            map.set(record.id, lastSection);
+        } else {
+            map.set(record.id, lastSubSection ?? lastSection);
+        }
+    }
+    return map;
+}
+
 export class SectionAndNoteListRenderer extends ListRenderer {
     static template = "account.SectionAndNoteListRenderer";
     static recordRowTemplate = "account.SectionAndNoteListRenderer.RecordRow";
@@ -54,14 +80,14 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         this.titleField = "name";
         this.priceColumns = [...this.props.aggregatedFields, "price_unit"];
         this.copyFields = ["display_type", "collapse_composition", "collapse_prices"];
-        this.parentSectionMap = new Map();
+        this.parentSections = useComputed(
+            (track) => buildParentSectionMap(track(this.props.list).records, track),
+            () => [this.props.list],
+        );
         useEffect(
             (editedRecord) => this.focusToName(editedRecord),
             () => [this.editedRecord],
         );
-        onWillRender(() => {
-            this.buildParentSectionMap();
-        });
     }
 
     get disabledMoveDownItemTooltip() {
@@ -137,23 +163,9 @@ export class SectionAndNoteListRenderer extends ListRenderer {
         return this.shouldCollapse(record, "collapse_composition");
     }
 
-    buildParentSectionMap() {
-        this.parentSectionMap.clear();
-        let lastSection = null;
-        let lastSubSection = null;
-
-        for (const record of this.props.list.records) {
-            if (record.data.display_type === DISPLAY_TYPES.SECTION) {
-                lastSection = record;
-                lastSubSection = null;
-                this.parentSectionMap.set(record.id, null);
-            } else if (record.data.display_type === DISPLAY_TYPES.SUBSECTION) {
-                lastSubSection = record;
-                this.parentSectionMap.set(record.id, lastSection);
-            } else {
-                this.parentSectionMap.set(record.id, lastSubSection ?? lastSection);
-            }
-        }
+    /** @returns {Map<string, any>} */
+    get parentSectionMap() {
+        return this.parentSections();
     }
 
     async toggleCollapse(record, fieldName) {

@@ -5,7 +5,7 @@ import {
     Many2OneField,
     Many2One,
 } from "@web/fields/relational/many2one";
-import { Component, onWillRender, onWillUpdateProps, useState } from "@odoo/owl";
+import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 
 export class WorkEntryType extends Component {
     static template = "hr_work_entry.WorkEntryType";
@@ -64,14 +64,11 @@ export class Many2OneWorkEntryTypeField extends Many2OneField {
 
     setup() {
         super.setup();
-        this.state = useState({ data: this.props.record.data });
-        onWillRender(() => {
-            if (this.props.record.data?.work_entry_type_id.color) {
-                this.state.data = this.props.record.data.work_entry_type_id;
-            } else {
-                this.state.data = this.props.record.data;
-            }
-        });
+    }
+
+    get workEntryType() {
+        const data = this.props.record.data;
+        return data?.work_entry_type_id.color ? data.work_entry_type_id : data;
     }
 
     get m2oProps() {

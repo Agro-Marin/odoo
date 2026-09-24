@@ -26,7 +26,7 @@
             <t t-if="this.pos.models['loyalty.program'].length and !this.pos.cashierIsMinimal">
                 <button class="control-button"
                     t-att-class="this.buttonClass"
-                    t-attf-class="{{this.state.nbrRewards ? 'highlight' : 'disabled'}}"
+                    t-attf-class="{{this.nbrRewards ? 'highlight' : 'disabled'}}"
                     t-on-click="() => this.clickRewards()">
                     <i class="fa-solid fa-star me-1 text-favorite"/>Reward
                 </button>
@@ -41,7 +41,7 @@
             </t>
         </xpath>
         <xpath expr="//button[hasclass('more-btn')]" position="attributes">
-            <attribute name="t-attf-class">{{ this.state.nbrRewards ? 'active text-action' : '' }}</attribute>
+            <attribute name="t-attf-class">{{ this.nbrRewards ? 'active text-action' : '' }}</attribute>
         </xpath>
     </t>
 </templates>

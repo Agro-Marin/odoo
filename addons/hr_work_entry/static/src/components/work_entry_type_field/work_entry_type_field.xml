@@ -3,7 +3,7 @@
     <t t-name="hr_work_entry.Many2OneWorkEntryTypeField">
         <div class="d-flex align-items-center gap-1">
             <t t-if="this.m2oProps.value !== false">
-                <WorkEntryType data="this.state.data"/>
+                <WorkEntryType data="this.workEntryType"/>
             </t>
             <Many2One t-props="this.m2oProps" cssClass="'w-100'">
                 <t t-set-slot="autoCompleteItem" t-slot-scope="autoCompleteItemScope">

@@ -1,23 +1,7 @@
 /** @odoo-module native */
-import { Component, onWillRender, xml } from "@odoo/owl";
-import { zip } from "@web/core/utils/collections/arrays";
+import { Component, xml } from "@odoo/owl";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
-function parseParams(matches, paramSpecs) {
-    return Object.fromEntries(
-        zip(matches, paramSpecs).map(([match, paramSpec]) => {
-            const { type, name } = paramSpec;
-            switch (type) {
-                case "int":
-                    return [name, parseInt(match)];
-                case "string":
-                    return [name, match];
-                default:
-                    throw new Error(`Unknown type ${type}`);
-            }
-        }),
-    );
-}
 
 export class Router extends Component {
     static props = { slots: Object, pos_config_id: Number };
@@ -25,8 +9,6 @@ export class Router extends Component {
 
     setup() {
         this.router = useService("router");
-        this.activeSlot = "default";
-        this.slotProps = {};
         this.routes = {};
         const lgPrefixRegex = "^(?:/([a-zA-Z]{2}(?:_[a-zA-Z]{2})?))?"; // optional language code: e.g. fr/ or fr_be/
 
@@ -59,27 +41,13 @@ export class Router extends Component {
         }
 
         this.router.registerRoutes(this.routes);
-
-        onWillRender(() => {
-            this.matchURL();
-        });
     }
 
-    matchURL() {
-        const path = this.router.path;
+    get activeSlot() {
+        return this.router.activeSlot || "default";
+    }
 
-        for (const [routeName, { paramSpecs, regex }] of Object.entries(this.routes)) {
-            const match = path.match(regex);
-            if (match) {
-                const parsedParams = parseParams(match.slice(2), paramSpecs);
-                this.router.activeSlot = routeName;
-                this.activeSlot = routeName;
-                this.slotProps = parsedParams;
-                return;
-            }
-        }
-
-        this.router.activeSlot = "default";
-        this.router.navigate("default");
+    get slotProps() {
+        return this.router.slotParams;
     }
 }

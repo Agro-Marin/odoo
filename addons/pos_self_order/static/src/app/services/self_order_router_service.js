@@ -1,7 +1,24 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
+import { zip } from "@web/core/utils/collections/arrays";
 import { SignalStore } from "@web/core/utils/reactive";
+function parseParams(matches, paramSpecs) {
+    return Object.fromEntries(
+        zip(matches, paramSpecs).map(([match, paramSpec]) => {
+            const { type, name } = paramSpec;
+            switch (type) {
+                case "int":
+                    return [name, parseInt(match)];
+                case "string":
+                    return [name, match];
+                default:
+                    throw new Error(`Unknown type ${type}`);
+            }
+        }),
+    );
+}
+
 export class SelfOrderRouter extends SignalStore {
     static serviceDependencies = [];
 
@@ -11,10 +28,11 @@ export class SelfOrderRouter extends SignalStore {
     }
 
     setup(env) {
-        this.path = window.location.pathname;
         this.registeredRoutes = {};
         this.historyPage = "";
         this.activeSlot = null;
+        this.slotParams = {};
+        this.path = window.location.pathname;
         window.addEventListener("popstate", (event) => {
             this.path = window.location.pathname;
         });
@@ -64,8 +82,44 @@ export class SelfOrderRouter extends SignalStore {
         this.historyPage = this.path;
     }
 
+    get path() {
+        return this._path;
+    }
+
+    set path(path) {
+        this._path = path;
+        this.syncRoute();
+    }
+
     registerRoutes(routes) {
         Object.assign(this.registeredRoutes, routes);
+        this.syncRoute();
+    }
+
+    syncRoute() {
+        for (const [routeName, { paramSpecs, regex }] of Object.entries(
+            this.registeredRoutes,
+        )) {
+            const match = regex && this._path.match(regex);
+            if (match) {
+                this.activeSlot = routeName;
+                this.slotParams = parseParams(match.slice(2), paramSpecs);
+                return;
+            }
+        }
+        if (!Object.keys(this.registeredRoutes).length) {
+            return;
+        }
+        this.activeSlot = "default";
+        this.slotParams = {};
+        if (this.registeredRoutes.default && !this._redirecting) {
+            this._redirecting = true;
+            try {
+                this.navigate("default");
+            } finally {
+                this._redirecting = false;
+            }
+        }
     }
 
     // If the url isn't a valid URL, we assume it's a relative path

@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { formatNumber, useNewAllocationRequest } from "@hr_holidays/views/hooks";
-import { Component, onWillRender } from "@odoo/owl";
+import { Component } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
@@ -124,41 +124,50 @@ export class TimeOffCard extends Component {
         this.lang = user.lang;
         this.formatNumber = formatNumber;
         this.updateWarning();
-
-        onWillRender(this.updateWarning);
     }
 
-    updateWarning() {
+    get warning() {
+        return this.computeWarning().warning;
+    }
+
+    computeWarning() {
         const { data } = this.props;
         const excess = Object.values(data.virtual_excess_data);
-        this.errorLeaves = excess.map((entry) => entry.leave_id);
-        this.errorLeavesDuration = excess.reduce((acc, entry) => acc + entry.amount, 0);
+        const errorLeaves = excess.map((entry) => entry.leave_id);
+        const errorLeavesDuration = excess.reduce(
+            (acc, entry) => acc + entry.amount,
+            0,
+        );
         const errorLeavesSignificant = data.allows_negative
-            ? this.errorLeavesDuration > data.max_allowed_negative
-            : this.errorLeavesDuration > 0;
+            ? errorLeavesDuration > data.max_allowed_negative
+            : errorLeavesDuration > 0;
         const accrualExcess = this.getAccrualExcess(data);
         const closeExpire =
             data.closest_allocation_duration &&
             data.closest_allocation_duration < data.virtual_remaining_leaves;
-        this.warning = errorLeavesSignificant || accrualExcess || closeExpire;
+        return {
+            errorLeaves,
+            warning: errorLeavesSignificant || accrualExcess || closeExpire,
+        };
     }
 
     onClickInfo(ev) {
         const { data, holidayStatusId, employeeId } = this.props;
+        const { warning, errorLeaves } = this.computeWarning();
         this.popover.open(ev.target, {
             allocated: formatNumber(this.lang, data.max_leaves),
             accrual_bonus: formatNumber(this.lang, data.accrual_bonus),
             approved: formatNumber(this.lang, data.leaves_approved),
             planned: formatNumber(this.lang, data.leaves_requested),
             left: formatNumber(this.lang, data.virtual_remaining_leaves),
-            warning: this.warning,
+            warning,
             closest: data.closest_allocation_duration,
             request_unit: data.request_unit,
             exceeding_duration: data.exceeding_duration,
             allows_negative: data.allows_negative,
             max_allowed_negative: data.max_allowed_negative,
             onClickNewAllocationRequest: this.newAllocationRequestFrom.bind(this),
-            errorLeaves: this.errorLeaves,
+            errorLeaves,
             accrualExcess: this.getAccrualExcess(data),
             timeOffType: holidayStatusId,
             employeeId: employeeId,
