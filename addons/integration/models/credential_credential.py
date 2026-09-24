@@ -5,6 +5,7 @@ from time import monotonic
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 
 from ..tools.session_cache import (
@@ -106,7 +107,7 @@ class CredentialCredential(models.Model):
     }
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict[str, Any]]) -> Self:
+    def create(self, vals_list: list[ValuesType]) -> Self:
         for vals in vals_list:
             if vals.get("category_id") or not vals.get("endpoint_id"):
                 continue
@@ -170,7 +171,7 @@ class CredentialCredential(models.Model):
             extras["field_accessed"] = ",".join(written)
         return extras
 
-    def write(self, vals: dict[str, Any]) -> bool:
+    def write(self, vals: ValuesType) -> bool:
         storage_fields = {
             "credential_data",
             "credential_value",
