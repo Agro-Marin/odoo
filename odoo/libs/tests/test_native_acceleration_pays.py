@@ -1,6 +1,8 @@
 import copy
 import time
+from collections.abc import Callable
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -92,7 +94,9 @@ def _shared(*args):
 
 # a case is (name, prepare, call): prepare builds the call's arguments, outside
 # the timing, fresh for every call since some implementations mutate them
-CASES = (
+type Case = tuple[str, Callable[[], tuple[Any, ...]], Callable[[Any, Any], Any]]
+
+CASES: tuple[Case, ...] = (
     (
         "batch_cache_get",
         _shared(_CACHE, _IDS, _PENDING, _NONE_VAL),
