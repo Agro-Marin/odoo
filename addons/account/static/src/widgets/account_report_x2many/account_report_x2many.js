@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { onWillRender, useRef, useState } from "@odoo/owl";
+import { useRef, useState } from "@odoo/owl";
 import { WarningDialog } from "@web/components/errors";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -63,14 +63,15 @@ export class AccountReportListRenderer extends ListRenderer {
             onDrop: (ctx) => this.onDrop(ctx),
         });
 
-        onWillRender(() => {
+        this.prepareRender = () => {
             this.allColumns = processAllColumns(
                 this.props.archInfo.columns,
                 this.props.list,
             );
             this.columns = this.getActiveColumns();
             this.visibleOptionalColumns = this.getVisibleOptionalColumns();
-        });
+            return true;
+        };
     }
 
     //------------------------------------------------------------------------------------------------------------------

@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillRender, toRaw, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, toRaw, useEffect, useRef, useState } from "@odoo/owl";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { isX2ManyType } from "@web/core/field_types";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
@@ -17,6 +18,7 @@ import { FormArchParser } from "@web/views/form/form_arch_parser";
 
 import { MultiCreatePopover } from "./multi_create_popover.js";
 
+const log = makeLogger("web.views.multi_selection_buttons");
 export class MultiSelectionButtons extends Component {
     static template = "web.MultiSelectionButtons";
     static props = {
@@ -57,9 +59,14 @@ export class MultiSelectionButtons extends Component {
         this.viewService = useService("view");
         this.dialogService = useService("dialog");
         this.state = useState({ isReady: false });
-        onWillRender(() => {
-            if (this.props.reactive.visible && !this.state.isReady) {
-                this._loadViewProm ??= this.loadMultiCreateView()
+        this.ensureViewLoading = () => {
+            if (
+                this.props.reactive.visible &&
+                !this.state.isReady &&
+                !this._loadViewProm
+            ) {
+                log.logic("load multi-create view");
+                this._loadViewProm = this.loadMultiCreateView()
                     .then(() => {
                         this.state.isReady = true;
                     })
@@ -68,7 +75,8 @@ export class MultiSelectionButtons extends Component {
                         reportUncaught(error);
                     });
             }
-        });
+            return true;
+        };
 
         this.multiCreateValues = this.props.reactive.multiCreateValues;
         this.callbackRecorder = new CallbackRecorder();

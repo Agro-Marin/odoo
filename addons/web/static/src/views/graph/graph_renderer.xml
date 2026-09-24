@@ -30,6 +30,8 @@
     </t>
 
     <t t-name="web.GraphRenderer">
+
+        <t t-set="_modelEpoch" t-value="this.model.updateEpoch"/>
         <div t-att-class="'o_graph_renderer o_renderer h-100 d-flex flex-column border-top ' + this.props.class" t-ref="root">
             <t t-if="this.model.data.exceeds">
                 <div class="alert alert-info text-center o_graph_alert m-3 mb-2" role="status">

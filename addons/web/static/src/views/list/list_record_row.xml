@@ -2,6 +2,7 @@
 <templates xml:space="preserve">
 
  <t t-name="web.ListRecordRow">
+ <t t-set="_rowMarked" t-value="this.markRender()"/>
  <t t-call="{{ this.props.recordRowTemplate }}"/>
  </t>
 

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillRender } from "@odoo/owl";
+import { Component } from "@odoo/owl";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 
 /**
@@ -43,9 +43,11 @@ export class ListRecordRow extends Component {
 
     setup() {
         useRenderCounter("list.ListRecordRow");
-        onWillRender(() => {
-            this.props.api.markRowRender(String(this.props.record.id));
-        });
+    }
+
+    markRender() {
+        this.props.api.markRowRender(String(this.props.record.id));
+        return true;
     }
 
     get record() {

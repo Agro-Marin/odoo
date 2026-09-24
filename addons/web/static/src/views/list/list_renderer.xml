@@ -2,6 +2,7 @@
 <templates xml:space="preserve">
 
  <t t-name="web.ListRenderer">
+ <t t-set="_renderPrepared" t-value="this.prepareRender()"/>
  <t t-set="_canSelectRecord" t-value="this.canSelectRecord"/>
  <div
  class="o_list_renderer o_renderer table-responsive"

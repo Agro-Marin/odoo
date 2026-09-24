@@ -2,6 +2,8 @@
 <templates xml:space="preserve">
 
     <t t-name="web.PivotRenderer">
+
+        <t t-set="_modelEpoch" t-value="this.model.updateEpoch"/>
         <div>
             <t t-call="{{ this.props.buttonTemplate }}"/>
             <div t-if="this.model.hasData() and this.model.metaData.activeMeasures.length" t-att-class="this.env.isSmall ? 'table-responsive' : ''" class="o_pivot mx-3">

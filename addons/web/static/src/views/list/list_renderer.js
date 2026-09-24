@@ -7,7 +7,6 @@ import {
     onPatched,
     onWillDestroy,
     onWillPatch,
-    onWillRender,
     reactive,
     status,
     useExternalListener,
@@ -323,7 +322,10 @@ export class ListRenderer extends Component {
         this.columns = [];
         this.editedRecord = null;
         this.agg = useListAggregates(this.gridContext);
-        onWillRender(() => this.syncRenderState());
+        this.prepareRender = () => {
+            this.syncRenderState();
+            return true;
+        };
     }
 
     /** @returns {void} */

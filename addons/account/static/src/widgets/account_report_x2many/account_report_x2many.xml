@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates>
     <t t-name="account.AccountReportList">
+        <t t-set="_renderPrepared" t-value="this.prepareRender()"/>
         <div class="account_report_lines_list_x2many">
             <ul class="p-0" t-ref="root">
                 <!-- Header -->

@@ -3,7 +3,6 @@
 
 import {
     EventBus,
-    onWillRender,
     onWillStart,
     onWillUpdateProps,
     reactive,
@@ -124,9 +123,7 @@ export class Model extends SignalStore {
  * @returns {M}
  */
 export function useReactiveModel(model) {
-    const reactiveModel = useState(model);
-    onWillRender(() => void reactiveModel._updateEpoch);
-    return reactiveModel;
+    return useState(model);
 }
 
 /**

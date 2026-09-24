@@ -2,6 +2,8 @@
 <templates xml:space="preserve">
 
     <t t-name="web.CalendarCommonRenderer">
+
+        <t t-set="_modelEpoch" t-value="this.model.updateEpoch"/>
         <div class="o_calendar_widget" t-ref="fullCalendar" />
     </t>
 
