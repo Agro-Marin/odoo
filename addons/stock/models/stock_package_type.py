@@ -1,6 +1,7 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockPackageType(models.Model):
@@ -99,19 +100,18 @@ class StockPackageType(models.Model):
         "Max Weight must be positive",
     )
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model_create_multi
     def create(self, vals_list):
-        dbg.lifecycle.debug(
-            "stock.package.type.create: %d vals, keys=%s",
-            len(vals_list),
-            dbg.vals_keys(vals_list),
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                count=len(vals_list),
+                keys=sorted({key for vals in vals_list for key in vals}),
+            )
         for vals in vals_list:
             if not vals.get("sequence_id") and vals.get("sequence_code"):
-                dbg.lifecycle.debug(
-                    "create: sequence for package type code %s", vals["sequence_code"]
-                )
+                _debug.lifecycle("create_sequence", sequence_code=vals["sequence_code"])
                 vals["sequence_id"] = (
                     self.env["ir.sequence"]
                     .sudo()
@@ -130,11 +130,10 @@ class StockPackageType(models.Model):
                 )
         return super().create(vals_list)
 
-    @dbg.timed
+    @_debug.perf.timed
     def write(self, vals):
-        dbg.lifecycle.debug(
-            "stock.package.type.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle("write", package_types=self, keys=sorted(vals))
         seq_vals = {}
         if "sequence_code" in vals:
             code = vals["sequence_code"]
@@ -166,11 +165,12 @@ class StockPackageType(models.Model):
                     )
                     package_type.sequence_id = sequence
             if seq_to_todo_ids:
-                dbg.lifecycle.debug(
-                    "write: sequences %s get %s",
-                    sorted(seq_to_todo_ids),
-                    dbg.keys(seq_vals),
-                )
+                if _debug.lifecycle.enabled:
+                    _debug.lifecycle(
+                        "write_sequences",
+                        sequence_ids=sorted(seq_to_todo_ids),
+                        keys=sorted(seq_vals),
+                    )
                 self.env["ir.sequence"].browse(list(seq_to_todo_ids)).sudo().write(
                     seq_vals
                 )

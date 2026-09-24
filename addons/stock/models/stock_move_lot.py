@@ -5,12 +5,13 @@ from re import fullmatch as regex_fullmatch
 from odoo import api, models
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import OrderedSet
 
-from ..tools import debug_log as dbg
 from .stock_move import FIELD_DATA_IGNORED, GENERATED_LOT_VALS_MAX
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class StockMoveLot(models.Model):
@@ -41,9 +42,7 @@ class StockMoveLot(models.Model):
                 and all(ml.lot_id in move.lot_ids for ml in move.move_line_ids)
                 and move.move_line_ids.lot_id == move.lot_ids
             ):
-                dbg.logic.debug(
-                    "[move:%s] _inverse_lot_ids: lines already match", move.id
-                )
+                _debug.logic("lot_ids_inverse_match", move=move.id)
                 continue
             move._update_move_lines_for_lots()
         self.env.add_to_compute(self._fields["quantity"], self)
@@ -218,7 +217,7 @@ class StockMoveLot(models.Model):
             },
         }
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model
     def action_generate_lot_line_vals(
         self,
@@ -232,12 +231,12 @@ class StockMoveLot(models.Model):
         lot_names, lot_qties = self._prepare_lot_generation_names(
             default_vals, mode, first_lot, count, lot_text
         )
-        dbg.logic.debug(
-            "action_generate_lot_line_vals mode=%s first=%s count=%s -> %d names",
-            mode,
-            first_lot,
-            count,
-            len(lot_names),
+        _debug.logic(
+            "lot_line_vals_generated",
+            mode=mode,
+            first=first_lot,
+            count=count,
+            names=len(lot_names),
         )
         generator = self.with_context(
             exclude_sml_ids=set(context_data.get("exclude_sml_ids") or ()),
@@ -367,12 +366,12 @@ class StockMoveLot(models.Model):
         qty_array = [qty_per_lot] * line_count
         if uom.compare(leftover, 0) > 0:
             qty_array.append(leftover)
-        dbg.logic.debug(
-            "_prepare_lot_generation_split(%s, %s): %d full lots, leftover %s",
-            quantity,
-            qty_per_lot,
-            line_count,
-            leftover,
+        _debug.logic(
+            "lot_generation_split",
+            quantity=quantity,
+            qty_per_lot=qty_per_lot,
+            full_lots=line_count,
+            leftover=leftover,
         )
         return qty_array
 
@@ -459,11 +458,11 @@ class StockMoveLot(models.Model):
             final_number = first_number + increment + generated_count
         final_number = max(final_number, current_sequence.number_next_actual)
         if final_number != current_sequence.number_next_actual:
-            dbg.lifecycle.debug(
-                "_update_lot_sequence: product %s sequence %s -> %s",
-                product.id,
-                current_sequence.number_next_actual,
-                final_number,
+            _debug.lifecycle(
+                "lot_sequence_updated",
+                product=product.id,
+                sequence=current_sequence.number_next_actual,
+                final_number=final_number,
             )
             current_sequence.sudo().write({"number_next_actual": final_number})
 
@@ -487,16 +486,16 @@ class StockMoveLot(models.Model):
         ) = self._classify_move_lines_for_lots()
         is_reservation_bypass_required = self._is_reservation_bypass_required()
         extra_uom_qty = free_uom_qty - len(set(self.lot_ids.ids) - assigned_lot_ids)
-        dbg.logic.debug(
-            "[move:%s] _update_move_lines_for_lots: lots %s, assigned %s, free lines %s, "
-            "free qty %s, bypass=%s",
-            self.id,
-            self.lot_ids.ids,
-            sorted(assigned_lot_ids),
-            dbg.rec(available_move_lines),
-            free_uom_qty,
-            is_reservation_bypass_required,
-        )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "lot_lines_update",
+                move=self.id,
+                lot_ids=self.lot_ids.ids,
+                assigned=sorted(assigned_lot_ids),
+                free_lines=available_move_lines,
+                free_qty=free_uom_qty,
+                bypass=is_reservation_bypass_required,
+            )
         quants_by_lot = {}
         if not is_reservation_bypass_required:
             quants_by_lot = (
@@ -525,10 +524,8 @@ class StockMoveLot(models.Model):
                 available_move_lines,
                 extra_uom_qty,
             )
-        dbg.lifecycle.debug(
-            "[move:%s] _update_move_lines_for_lots: %d line commands",
-            self.id,
-            len(move_lines_commands),
+        _debug.lifecycle(
+            "lot_lines_commands", move=self.id, commands=len(move_lines_commands)
         )
         self.write({"move_line_ids": move_lines_commands})
 
@@ -589,11 +586,11 @@ class StockMoveLot(models.Model):
         lots_to_create_vals = [
             {"product_id": product_id, "name": lot_name} for lot_name in missing_names
         ]
-        dbg.lifecycle.debug(
-            "_create_lot_ids_from_move_line_vals: product %s, %d existing, creating %d",
-            product_id,
-            len(lot_ids),
-            len(lots_to_create_vals),
+        _debug.lifecycle(
+            "lots_from_line_vals",
+            product=product_id,
+            existing=len(lot_ids),
+            creating=len(lots_to_create_vals),
         )
         lot_ids |= self.env["stock.lot"].create(lots_to_create_vals)
 
@@ -759,11 +756,7 @@ class StockMoveLot(models.Model):
                     move_line_vals["lot_name"] = lot_text
                     break
             move_lines_vals.append(move_line_vals)
-        dbg.logic.debug(
-            "split_lots: %d lines -> %d move line vals",
-            len(split_lines),
-            len(move_lines_vals),
-        )
+        _debug.logic("split_lots", lines=len(split_lines), vals=len(move_lines_vals))
         return move_lines_vals
 
     def _is_lot_materialization_required(self, picking_type=None):
@@ -775,7 +768,7 @@ class StockMoveLot(models.Model):
         serial_moves = self.filtered(lambda m: m.product_id.tracking == "serial")
         if not serial_moves:
             return
-        dbg.logic.debug("_check_quantity on serial moves %s", dbg.rec(serial_moves))
+        _debug.logic("serial_quantity_check", moves=serial_moves)
         (
             self.env["stock.quant"]
             .sudo()

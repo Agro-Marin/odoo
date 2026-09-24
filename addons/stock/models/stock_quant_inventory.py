@@ -7,12 +7,13 @@ from markupsafe import escape
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from ..const import INVENTORY_REFERENCE_RELOCATED
-from ..tools import debug_log as dbg
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class StockQuantInventory(models.Model):
@@ -186,11 +187,7 @@ class StockQuantInventory(models.Model):
                 continue
             quant.inventory_quantity = quant.inventory_quantity_auto_apply
             quant_to_inventory |= quant
-        dbg.pipeline.debug(
-            "auto_apply inventory on %s of %s",
-            dbg.rec(quant_to_inventory),
-            dbg.rec(self),
-        )
+        _debug.pipeline("auto_apply_inventory", applied=quant_to_inventory, quants=self)
         quant_to_inventory.action_apply_inventory()
 
     @api.onchange("inventory_quantity")
@@ -253,10 +250,7 @@ class StockQuantInventory(models.Model):
         ctx["default_quant_ids"] = self.ids
         quants_outdated = self.filtered(lambda quant: quant.is_outdated)
         if quants_outdated:
-            dbg.logic.debug(
-                "action_apply_inventory: outdated %s, opening conflict wizard",
-                dbg.rec(quants_outdated),
-            )
+            _debug.logic("apply_inventory_outdated", quants=quants_outdated)
             ctx["default_quant_to_fix_ids"] = quants_outdated.ids
             return {
                 "name": self.env._("Conflict in Inventory Adjustment"),
@@ -329,10 +323,7 @@ class StockQuantInventory(models.Model):
     def action_set_inventory_quantity(self):
         quants_already_set = self.filtered(lambda quant: quant.inventory_quantity_set)
         if quants_already_set:
-            dbg.logic.debug(
-                "action_set_inventory_quantity: already set %s",
-                dbg.rec(quants_already_set),
-            )
+            _debug.logic("inventory_quantity_already_set", quants=quants_already_set)
             ctx = dict(self.env.context or {}, default_quant_ids=self.ids)
             view = self.env.ref("stock.inventory_warning_set_view", False)
             return {
@@ -411,14 +402,14 @@ class StockQuantInventory(models.Model):
             )
         )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _apply_inventory(self, date=None):
-        dbg.pipeline.debug("_apply_inventory start on %s date=%s", dbg.rec(self), date)
+        _debug.pipeline("apply_inventory_start", quants=self, date=date)
         if self.env.context.get("from_inverse_qty") and not any(
             quant.product_uom_id._compare_aggregate(quant.inventory_diff_quantity, 0)
             for quant in self
         ):
-            dbg.logic.debug("_apply_inventory: no diff from inverse, skipped")
+            _debug.logic("apply_inventory_no_diff")
             return
         self.inventory_quantity_set = True
         move_vals = []
@@ -437,9 +428,9 @@ class StockQuantInventory(models.Model):
             )
         )
         if quants_with_missing_loss_locations:
-            dbg.logic.debug(
-                "_apply_inventory: %s lack a product loss location, using company default",
-                dbg.rec(quants_with_missing_loss_locations),
+            _debug.logic(
+                "apply_inventory_default_loss_location",
+                quants=quants_with_missing_loss_locations,
             )
             for company in quants_with_missing_loss_locations.mapped("company_id"):
                 loss_location_id = (
@@ -474,18 +465,17 @@ class StockQuantInventory(models.Model):
                 )
             applied = quant.inventory_diff_quantity
             intended = quant.inventory_quantity - quant.quantity
-            if not math.isclose(
+            if _debug.logic.enabled and not math.isclose(
                 quant.quantity + applied, quant.inventory_quantity, rel_tol=1e-12
             ):
-                dbg.logic.debug(
-                    "[quant:%s] _apply_inventory: counted %s against %s, moving %s "
-                    "not %s -- will land on %s",
-                    quant.id,
-                    quant.inventory_quantity,
-                    quant.quantity,
-                    applied,
-                    intended,
-                    quant.quantity + applied,
+                _debug.logic(
+                    "apply_inventory_mismatch",
+                    quant=quant.id,
+                    counted=quant.inventory_quantity,
+                    quantity=quant.quantity,
+                    applied=applied,
+                    intended=intended,
+                    result=quant.quantity + applied,
                 )
             if (
                 quant.product_uom_id._compare_aggregate(
@@ -510,11 +500,7 @@ class StockQuantInventory(models.Model):
                         package_id=quant.package_id,
                     )
                 )
-        dbg.pipeline.debug(
-            "_apply_inventory -> %d inventory moves for %s",
-            len(move_vals),
-            dbg.rec(self),
-        )
+        _debug.pipeline("apply_inventory_moves", moves=len(move_vals), quants=self)
         moves = (
             self.env["stock.move"].with_context(inventory_mode=False).create(move_vals)
         )
@@ -606,12 +592,12 @@ class StockQuantInventory(models.Model):
         if not uom._compare_aggregate(uom.round(qty), qty):
             return uom, qty
         reference = uom._get_reference_uom()
-        dbg.logic.debug(
-            "[quant:%s] inventory move of %s %s is finer than the unit, expressed in %s",
-            self.id,
-            qty,
-            uom.name,
-            reference.name,
+        _debug.logic(
+            "inventory_move_finer_than_unit",
+            quant=self.id,
+            qty=qty,
+            uom=uom.name,
+            reference_uom=reference.name,
         )
         return reference, uom._get_quantity_in_unit(qty, reference, round=False)
 
@@ -727,13 +713,13 @@ class StockQuantInventory(models.Model):
             quant = quant.filtered(lambda q: q.lot_id)
         created = False
         if quant:
-            if len(quant) > 1:
-                dbg.logic.debug(
-                    "_create_inventory_quant: %d quants match product %s at %s, using %s",
-                    len(quant),
-                    product.id,
-                    location.id,
-                    quant[0].id,
+            if _debug.logic.enabled and len(quant) > 1:
+                _debug.logic(
+                    "inventory_quant_duplicates",
+                    matches=len(quant),
+                    product=product.id,
+                    location=location.id,
+                    quant=quant[0].id,
                 )
             quant = quant[0].sudo()
         else:
@@ -787,13 +773,13 @@ class StockQuantInventory(models.Model):
                     result_package_id,
                 )
             )
-        dbg.pipeline.debug(
-            "move_quants %s -> location %s package %s unpack=%s: %d moves",
-            dbg.rec(self),
-            getattr(location_dest_id, "id", location_dest_id),
-            getattr(package_dest_id, "id", package_dest_id),
-            unpack,
-            len(move_vals),
+        _debug.pipeline(
+            "move_quants",
+            quants=self,
+            location=getattr(location_dest_id, "id", location_dest_id),
+            package=getattr(package_dest_id, "id", package_dest_id),
+            unpack=unpack,
+            moves=len(move_vals),
         )
         moves = (
             self.env["stock.move"].with_context(inventory_mode=False).create(move_vals)

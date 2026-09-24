@@ -1,10 +1,12 @@
 from odoo import api, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import groupby
 
-from ..tools import debug_log as dbg
 from odoo.addons.web.controllers.utils import clean_action
+
+_debug = DebugLog(__name__)
 
 
 class StockMoveLinePackage(models.Model):
@@ -27,10 +29,10 @@ class StockMoveLinePackage(models.Model):
                 self.product_id, quantity=quantity, package=self.result_package_id
             )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _apply_putaway_strategy(self):
         if self.env.context.get("avoid_putaway_rules"):
-            dbg.logic.debug("_apply_putaway_strategy skipped (avoid_putaway_rules)")
+            _debug.logic("putaway_skipped")
             return
         for package, smls in groupby(
             self,
@@ -39,12 +41,12 @@ class StockMoveLinePackage(models.Model):
             smls = self.env["stock.move.line"].concat(*smls)
             locations = smls.move_id.location_dest_id.child_internal_location_ids
             excluded_smls = set(smls.ids)
-            dbg.logic.debug(
-                "_apply_putaway_strategy: %s package=%s type=%s over %d candidate locations",
-                dbg.rec(smls),
-                package.id,
-                package.package_type_id.id,
-                len(locations),
+            _debug.logic(
+                "putaway_strategy",
+                move_lines=smls,
+                package=package.id,
+                package_type=package.package_type_id.id,
+                locations=len(locations),
             )
             if package.package_type_id:
                 smls._apply_putaway_by_package_type(package, locations, excluded_smls)
@@ -79,11 +81,7 @@ class StockMoveLinePackage(models.Model):
             excluded_smls.discard(sml.id)
             used_locations.add(sml.location_dest_id)
         if len(used_locations) > 1:
-            dbg.logic.debug(
-                "_apply_putaway_keeping_package_together: %d locations, falling back "
-                "to move destinations",
-                len(used_locations),
-            )
+            _debug.logic("putaway_package_fallback", locations=len(used_locations))
             for move, grouped_smls in self.grouped("move_id").items():
                 grouped_smls.location_dest_id = move.location_dest_id
 
@@ -97,11 +95,11 @@ class StockMoveLinePackage(models.Model):
                 packaging=sml.move_id.packaging_uom_id,
             )
             if putaway_location != sml.location_dest_id:
-                dbg.logic.debug(
-                    "[line:%s] putaway %s -> %s",
-                    sml.id,
-                    sml.location_dest_id.id,
-                    putaway_location.id,
+                _debug.logic(
+                    "putaway_line",
+                    line=sml.id,
+                    location=sml.location_dest_id.id,
+                    putaway_location=putaway_location.id,
                 )
                 sml.location_dest_id = putaway_location
             excluded_smls.discard(sml.id)
@@ -126,13 +124,13 @@ class StockMoveLinePackage(models.Model):
                 picked_first=not force_move_lines
             )
         )
-        dbg.pipeline.debug(
-            "action_put_in_pack on %s: lines %s, packages %s, package_id=%s type=%s",
-            dbg.rec(self),
-            dbg.rec(move_lines_to_pack),
-            dbg.rec(packages_to_pack),
-            package_id,
-            package_type_id,
+        _debug.pipeline(
+            "put_in_pack_start",
+            move_lines=self,
+            lines_to_pack=move_lines_to_pack,
+            packages=packages_to_pack,
+            package_id=package_id,
+            package_type_id=package_type_id,
         )
         done_pack = False
         package = self.env["stock.package"]
@@ -145,7 +143,7 @@ class StockMoveLinePackage(models.Model):
                 self.env.context.get("from_package_wizard"),
             )
             if action:
-                dbg.pipeline.debug("action_put_in_pack: pre hook returned an action")
+                _debug.pipeline("put_in_pack_hook_action")
                 return action
 
             package = move_lines_to_pack._put_in_pack(
@@ -219,11 +217,11 @@ class StockMoveLinePackage(models.Model):
                 quantity=self.quantity_product_uom,
                 package=package,
             )
-        dbg.lifecycle.debug(
-            "_put_in_pack: %s -> package %s (%s)",
-            dbg.rec(self),
-            package.id,
-            "existing" if package_id else "new",
+        _debug.lifecycle(
+            "put_in_pack",
+            move_lines=self,
+            package=package.id,
+            package_origin="existing" if package_id else "new",
         )
         self.write({"result_package_id": package.id})
         return package
@@ -295,8 +293,8 @@ class StockMoveLinePackage(models.Model):
                     ).ids
                 )
 
-        if ids_to_update:
-            dbg.logic.debug("_get_lines_not_entire_pack: %s", sorted(ids_to_update))
+        if _debug.logic.enabled and ids_to_update:
+            _debug.logic("lines_not_entire_pack", line_ids=sorted(ids_to_update))
         return self.env["stock.move.line"].browse(ids_to_update)
 
     def _is_put_in_pack_wizard_required(

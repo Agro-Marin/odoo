@@ -1,7 +1,8 @@
 from odoo import fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class UomUom(models.Model):
@@ -36,11 +37,7 @@ class UomUom(models.Model):
                     .with_context(active_test=False)
                     .search([("id", "child_of", changed.ids)])
                 )
-                dbg.logic.debug(
-                    "uom.write: ratio change on %s rescales %s, checking stock usage",
-                    dbg.rec(changed),
-                    dbg.rec(rescaled),
-                )
+                _debug.logic("write_ratio_change", changed=changed, rescaled=rescaled)
                 if rescaled._is_used_in_stock():
                     raise UserError(
                         self.env._(
@@ -75,17 +72,15 @@ class UomUom(models.Model):
     def _get_procurement_qty_and_uom(self, qty, quant_uom):
         get_param = self.env["ir.config_parameter"].sudo().get_param
         if get_param("stock.propagate_uom") == "1":
-            dbg.logic.debug(
-                "_get_procurement_qty_and_uom: propagate_uom keeps %s", self.id
-            )
+            _debug.logic("procurement_uom_propagated", uom=self.id)
             return (qty, self)
         computed_qty = self._get_quantity_stored(qty, quant_uom)
         if qty and quant_uom.is_zero(computed_qty):
-            dbg.logic.debug(
-                "_get_procurement_qty_and_uom: %s %s rounds to zero in %s, kept",
-                qty,
-                self.id,
-                quant_uom.id,
+            _debug.logic(
+                "procurement_qty_rounds_to_zero",
+                qty=qty,
+                uom=self.id,
+                quant_uom=quant_uom.id,
             )
             return (qty, self)
         return (computed_qty, quant_uom)

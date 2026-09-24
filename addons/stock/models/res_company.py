@@ -1,11 +1,11 @@
 from collections import defaultdict
 
 from odoo import api, fields, models, modules
-
-from ..tools import debug_log as dbg
+from odoo.libs.debug_log import DebugLog
 
 SCRAP_LOCATION_XMLID = "stock.stock_location_scrap_company_%s"
 SCRAP_LOCATION_NAME = "Scrap"
+_debug = DebugLog(__name__)
 
 
 class ResCompany(models.Model):
@@ -27,18 +27,16 @@ class ResCompany(models.Model):
         for company in self:
             company.stock_config_id = by_company.get(company.id, False)
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model_create_multi
     def create(self, vals_list):
         companies = super().create(vals_list)
-        dbg.lifecycle.debug(
-            "res.company.create: stock setup for %s", dbg.rec(companies)
-        )
+        _debug.lifecycle("create_stock_setup", companies=companies)
         inter_company_location = self.env.ref("stock.stock_location_inter_company")
         if not inter_company_location.active:
             inter_company_location.sudo().write({"active": True})
         companies_sudo = companies.sudo()
-        with dbg.timer(self.env, "per-company stock data for %s", dbg.rec(companies)):
+        with _debug.perf("per_company_stock_data", cr=self.env.cr, companies=companies):
             companies_sudo._create_per_company_locations()
             companies_sudo._create_per_company_sequences()
             companies_sudo._create_per_company_picking_types()
@@ -47,7 +45,7 @@ class ResCompany(models.Model):
                 inter_company_location
             )
         if modules.module.current_test:
-            dbg.logic.debug("res.company.create: test mode, creating warehouses")
+            _debug.logic("create_test_mode_warehouses")
             companies_sudo._create_warehouse()
         return companies
 
@@ -83,8 +81,8 @@ class ResCompany(models.Model):
             ],
         )
         for company, location in zip(self, locations, strict=True):
-            dbg.lifecycle.debug(
-                "[company:%s] transit location %s", company.id, location.id
+            _debug.lifecycle(
+                "transit_location_created", company=company.id, location=location.id
             )
             company.stock_config_id.internal_transit_location_id = location.id
             company.partner_id.with_company(company)._update_stock_property_locations(
@@ -152,8 +150,8 @@ class ResCompany(models.Model):
         return locations
 
     def _designate_scrap_locations(self, locations):
-        dbg.lifecycle.debug(
-            "_designate_scrap_locations: %s -> %s", dbg.rec(self), dbg.rec(locations)
+        _debug.lifecycle(
+            "scrap_locations_designated", companies=self, locations=locations
         )
         self.env["ir.model.data"]._update_xmlids(
             [
@@ -192,10 +190,7 @@ class ResCompany(models.Model):
         companies_without = self.filtered(
             lambda company: company.id not in warehouse_by_company
         )
-        dbg.lifecycle.debug(
-            "_create_warehouse: companies without warehouse %s",
-            dbg.rec(companies_without),
-        )
+        _debug.lifecycle("warehouses_created", companies=companies_without)
         vals_list = []
         taken_names = defaultdict(set)
         taken_codes = defaultdict(set)
@@ -264,11 +259,12 @@ class ResCompany(models.Model):
         ):
             adoptable.setdefault(location.company_id, location)
         adopting = missing.filtered(lambda company: company in adoptable)
-        dbg.lifecycle.debug(
-            "create_missing_scrap_location: adopting for %s, creating for %s",
-            dbg.rec(adopting),
-            dbg.rec(missing - adopting),
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "scrap_locations_created",
+                adopting=adopting,
+                creating=missing - adopting,
+            )
         adopting._designate_scrap_locations(
             self.env["stock.location"].union(
                 *(adoptable[company] for company in adopting)
@@ -315,13 +311,13 @@ class ResCompany(models.Model):
 
     def _update_per_company_inter_company_locations(self, inter_company_location):
         if not self.env.user.has_group("base.group_multi_company"):
-            dbg.logic.debug("inter-company locations skipped: no multi-company group")
+            _debug.logic("inter_company_locations_skipped")
             return
         all_companies = self._get_all_companies()
-        dbg.performance.debug(
-            "_update_per_company_inter_company_locations: %d x %d company pairs",
-            len(self),
-            len(all_companies),
+        _debug.perf.count(
+            "inter_company_locations_update",
+            companies=len(self),
+            all_companies=len(all_companies),
         )
         for company in self:
             other_companies = all_companies - company

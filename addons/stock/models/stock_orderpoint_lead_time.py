@@ -5,10 +5,10 @@ from dateutil import relativedelta
 
 from odoo import api, fields, models
 from odoo.fields import Domain
-
-from ..tools import debug_log as dbg
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 _LEAD_TIME_STATS_QUERY = """
 WITH RECURSIVE receipt AS (
@@ -100,7 +100,7 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         "product_id.seller_ids.delay",
         "company_id.stock_config_id.horizon_days",
     )
-    @dbg.timed
+    @_debug.perf.timed
     def _compute_deadline_date(self):
         canonical = self._with_canonical_horizon()
         critical_orderpoints = canonical.filtered(
@@ -109,10 +109,10 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         for company, orderpoints in critical_orderpoints.grouped("company_id").items():
             orderpoints.deadline_date = self._get_company_today(company)
         orderpoints_to_compute = canonical - critical_orderpoints
-        dbg.logic.debug(
-            "_compute_deadline_date: critical %s, timeline for %s",
-            dbg.rec(critical_orderpoints),
-            dbg.rec(orderpoints_to_compute),
+        _debug.logic(
+            "deadline_date",
+            critical=critical_orderpoints,
+            to_compute=orderpoints_to_compute,
         )
         if not orderpoints_to_compute:
             return
@@ -182,12 +182,13 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                         qty,
                     ),
                 )
-        dbg.performance.debug(
-            "_read_pending_moves_by_product until %s: %d products, %d timeline rows",
-            horizon_date,
-            len(moves_by_product),
-            sum(len(rows) for rows in moves_by_product.values()),
-        )
+        if _debug.perf.enabled:
+            _debug.perf.count(
+                "pending_moves_by_product",
+                horizon=horizon_date,
+                products=len(moves_by_product),
+                rows=sum(len(rows) for rows in moves_by_product.values()),
+            )
         return moves_by_product
 
     def _get_deadline_from_timeline(self, timeline, horizon_date):
@@ -211,13 +212,13 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                 < 0
             ):
                 deadline = move_date - relativedelta.relativedelta(days=self.lead_days)
-                dbg.logic.debug(
-                    "[orderpoint:%s] below min on %s (%s), deadline %s (horizon %s)",
-                    self.id,
-                    move_date,
-                    qty_on_hand_at_date,
-                    deadline,
-                    horizon_date,
+                _debug.logic(
+                    "below_min",
+                    orderpoint=self.id,
+                    date=move_date,
+                    qty_on_hand=qty_on_hand_at_date,
+                    deadline=deadline,
+                    horizon=horizon_date,
                 )
                 return deadline if deadline < horizon_date else False
         return False
@@ -234,7 +235,7 @@ class StockWarehouseOrderpointLeadTime(models.Model):
             orderpoint.actual_lead_time_stddev = stddev
             orderpoint.lead_time_sample_count = count
 
-    @dbg.timed
+    @_debug.perf.timed
     def _read_lead_time_stats(self):
         self.env["stock.move"].flush_model()
         self.env["stock.picking"].flush_model()
@@ -271,10 +272,8 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                     max(stddev_lt, 0.0),
                     count,
                 )
-        dbg.performance.debug(
-            "_read_lead_time_stats: %d warehouses queried, %d (product, warehouse) rows",
-            len(wh_orderpoints),
-            len(result_map),
+        _debug.perf.count(
+            "lead_time_stats", warehouses=len(wh_orderpoints), rows=len(result_map)
         )
         return result_map
 
@@ -311,12 +310,12 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                 today_by_company[orderpoint.company_id] + lead_horizon
             )
             orderpoint.lead_days = lead_days["total_delay"]
-            dbg.logic.debug(
-                "[orderpoint:%s] lead days %s, horizon %s -> %s",
-                orderpoint.id,
-                lead_days["total_delay"],
-                lead_days["horizon_time"],
-                orderpoint.lead_horizon_date,
+            _debug.logic(
+                "lead_time",
+                orderpoint=orderpoint.id,
+                lead_days=lead_days["total_delay"],
+                horizon=lead_days["horizon_time"],
+                horizon_date=orderpoint.lead_horizon_date,
             )
         excluded = self - orderpoints_to_compute
         excluded.lead_horizon_date = False

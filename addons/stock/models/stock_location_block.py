@@ -6,6 +6,7 @@ from markupsafe import Markup
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
 from ..const import (
     BLOCK_GOVERNED_FIELDS,
@@ -20,7 +21,6 @@ from ..const import (
     OUTGOING_BLOCK_TYPES,
     is_internal_flag,
 )
-from ..tools import debug_log as dbg
 from .stock_location import (
     GROUP_FORCE_BLOCK_IN,
     GROUP_FORCE_BLOCK_OUT,
@@ -31,6 +31,7 @@ from .stock_location import (
 from odoo.addons.stock.tools.quantity import get_context_record_ids
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class StockLocationBlock(models.Model):
@@ -93,14 +94,18 @@ class StockLocationBlock(models.Model):
 
     def _is_operation_allowed(self, direction):
         allowed, reason = self._get_block_decision(direction)
-        if self.effective_block_type and self.effective_block_type != "none":
-            dbg.logic.debug(
-                "[location:%s] block %s operation %s -> allowed=%s reason=%s",
-                self.id,
-                self.effective_block_type,
-                direction,
-                allowed,
-                reason,
+        if (
+            _debug.logic.enabled
+            and self.effective_block_type
+            and self.effective_block_type != "none"
+        ):
+            _debug.logic(
+                "operation_allowed",
+                location=self.id,
+                block_type=self.effective_block_type,
+                direction=direction,
+                allowed=allowed,
+                reason=reason,
             )
         return allowed
 
@@ -179,11 +184,12 @@ class StockLocationBlock(models.Model):
             self.env.context, CONTEXT_BLOCK_SKIP_HOOKS
         ) or BLOCK_GOVERNED_FIELDS.isdisjoint(vals):
             return
-        dbg.logic.debug(
-            "_check_block_governance on %s for %s",
-            dbg.rec(self),
-            sorted(BLOCK_GOVERNED_FIELDS.intersection(vals)),
-        )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "block_governance_check",
+                locations=self,
+                fields=sorted(BLOCK_GOVERNED_FIELDS.intersection(vals)),
+            )
         self._check_block_governance(vals)
 
     def _filtered_block_type_transitioning(self, vals):
@@ -265,11 +271,12 @@ class StockLocationBlock(models.Model):
         if not self:
             return
         reserved_by_location = self._get_reserved_quantities_by_uom()
-        dbg.lifecycle.debug(
-            "_update_block_metadata on %s: reserved %s",
-            dbg.rec(self),
-            dbg.lazy(lambda: {k: dict(v) for k, v in reserved_by_location.items()}),
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "block_metadata_updated",
+                locations=self,
+                reserved={k: dict(v) for k, v in reserved_by_location.items()},
+            )
         now = fields.Datetime.now()
         by_total = defaultdict(list)
         for location in self:
@@ -340,7 +347,7 @@ class StockLocationBlock(models.Model):
     def _remove_block_metadata(self):
         if not self:
             return
-        dbg.lifecycle.debug("_remove_block_metadata on %s", dbg.rec(self))
+        _debug.lifecycle("block_metadata_removed", locations=self)
         self.with_context(
             **{CONTEXT_BLOCK_SKIP_HOOKS: INTERNAL_CONTEXT_FLAG},
         ).write(
@@ -412,11 +419,8 @@ class StockLocationBlock(models.Model):
         moves = move_lines.move_id
         line_count = len(move_lines)
         move_count = len(moves)
-        dbg.pipeline.debug(
-            "[location:%s] _unreserve_all_stock -> _unreserve %s (%d lines)",
-            self.id,
-            dbg.rec(moves),
-            line_count,
+        _debug.pipeline(
+            "unreserve_all_stock", location=self.id, moves=moves, lines=line_count
         )
         moves._unreserve()
 

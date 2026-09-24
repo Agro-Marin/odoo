@@ -7,12 +7,13 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_is_zero
 
-from ..tools import debug_log as dbg
 from .stock_procurement import Procurement, ProcurementException
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 RESUPPLY_ROLE = "resupply"
 
@@ -321,15 +322,15 @@ class StockRule(models.Model):
     def _get_push_new_date(self, move):
         return fields.Datetime.to_string(move.date + relativedelta(days=self.delay))
 
-    @dbg.timed
+    @_debug.perf.timed
     def _run_push(self, moves):
         self.check_singleton()
-        dbg.pipeline.debug(
-            "[rule:%s] _run_push auto=%s on %s -> %s",
-            self.id,
-            self.auto,
-            dbg.rec(moves),
-            self.location_dest_id.id,
+        _debug.pipeline(
+            "run_push",
+            rule=self.id,
+            auto=self.auto,
+            moves=moves,
+            destination=self.location_dest_id.id,
         )
         if self.auto == "transparent":
             return {move.id: self._run_push_in_place(move) for move in moves}
@@ -349,11 +350,11 @@ class StockRule(models.Model):
                 or move.location_dest_id
             )
         if self.location_dest_id != old_dest_location:
-            dbg.pipeline.debug(
-                "[move:%s] pushed in place %s -> %s, applying next push",
-                move.id,
-                old_dest_location.id,
-                self.location_dest_id.id,
+            _debug.pipeline(
+                "pushed_in_place",
+                move=move.id,
+                old_destination=old_dest_location.id,
+                destination=self.location_dest_id.id,
             )
             return move._push_apply()[:1]
         return self.env["stock.move"]
@@ -371,12 +372,7 @@ class StockRule(models.Model):
                 vals["move_orig_ids"] = [Command.link(move.id)]
             vals_list.append(vals)
         new_moves = self.env["stock.move"].sudo().create(vals_list)
-        dbg.pipeline.debug(
-            "[rule:%s] push copies %s -> %s",
-            self.id,
-            dbg.rec(moves),
-            dbg.rec(new_moves),
-        )
+        _debug.pipeline("push_copies", rule=self.id, moves=moves, new_moves=new_moves)
         self._update_pushed_moves(new_moves)
         return dict(zip(moves.ids, new_moves, strict=True))
 
@@ -389,11 +385,11 @@ class StockRule(models.Model):
         unreserved = new_moves.filtered(
             lambda move: move._is_reservation_bypass_required(),
         )
-        if moves_by_final_location or unreserved:
-            dbg.logic.debug(
-                "_update_pushed_moves: final locations %s, bypass -> mts %s",
-                dict(moves_by_final_location),
-                dbg.rec(unreserved),
+        if _debug.logic.enabled and (moves_by_final_location or unreserved):
+            _debug.logic(
+                "pushed_moves_updated",
+                final_locations=dict(moves_by_final_location),
+                to_mts=unreserved,
             )
         if unreserved:
             unreserved.procure_method = "make_to_stock"
@@ -441,10 +437,10 @@ class StockRule(models.Model):
             "procure_method": "make_to_order",
         }
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model
     def _run_pull(self, procurements):
-        dbg.pipeline.debug("_run_pull: %d procurements", len(procurements))
+        _debug.pipeline("run_pull", procurements=len(procurements))
         moves_values_by_company = defaultdict(list)
 
         source_errors = [
@@ -474,15 +470,15 @@ class StockRule(models.Model):
 
             move_values = rule._prepare_stock_move_vals(procurement)
             move_values["procure_method"] = procure_method
-            dbg.pipeline.debug(
-                "[procurement:%s] rule %s -> move vals product=%s qty=%s %s->%s %s",
-                procurement.origin,
-                rule.id,
-                procurement.product_id.id,
-                procurement.product_qty,
-                move_values.get("location_id"),
-                move_values.get("location_dest_id"),
-                procure_method,
+            _debug.pipeline(
+                "pull_move_vals",
+                procurement=procurement.origin,
+                rule=rule.id,
+                product=procurement.product_id.id,
+                qty=procurement.product_qty,
+                location=move_values.get("location_id"),
+                destination=move_values.get("location_dest_id"),
+                procure_method=procure_method,
             )
             moves_values_by_company[procurement.company_id.id].append(move_values)
         self._propagate_transit_partner(procurements)
@@ -494,11 +490,7 @@ class StockRule(models.Model):
                 .with_company(company_id)
                 .create(moves_values)
             )
-            dbg.pipeline.debug(
-                "_run_pull: company %s created %s -> _action_confirm",
-                company_id,
-                dbg.rec(moves),
-            )
+            _debug.pipeline("run_pull_confirm", company=company_id, moves=moves)
             moves._action_confirm()
         return True
 
@@ -603,11 +595,7 @@ class StockRule(models.Model):
             )
             moves_by_partner[partner.id] |= dest_moves
         for partner_id, moves in moves_by_partner.items():
-            dbg.logic.debug(
-                "_propagate_transit_partner: %s <- partner %s",
-                dbg.rec(moves),
-                partner_id,
-            )
+            _debug.logic("transit_partner", moves=moves, partner=partner_id)
             moves.partner_id = partner_id
 
     def _get_lead_days(self, product, **values):
@@ -639,12 +627,10 @@ class StockRule(models.Model):
                         self.env._("+ %d day(s)", global_horizon_days),
                     )
                 )
-        dbg.logic.debug(
-            "_get_lead_days product=%s rules=%s -> %s",
-            product.id,
-            dbg.rec(self),
-            dict(delays),
-        )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "lead_days", product=product.id, rules=self, delays=dict(delays)
+            )
         return delays, delay_description
 
     @api.model
@@ -664,19 +650,18 @@ class StockRule(models.Model):
             precision_rounding=procurement.product_uom_id.rounding,
         )
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model
     def run(self, procurements, raise_user_error=True):
-        dbg.pipeline.debug(
-            "stock.rule.run: %d procurements %s",
-            len(procurements),
-            dbg.lazy(
-                lambda: [
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "run",
+                count=len(procurements),
+                procurements=[
                     (p.origin, p.product_id.id, p.product_qty, p.location_id.id)
                     for p in procurements[:8]
-                ]
-            ),
-        )
+                ],
+            )
 
         def prepare_procurement_error(procurement_errors):
             if raise_user_error:
@@ -694,12 +679,13 @@ class StockRule(models.Model):
             if not self._is_nothing_to_procure(procurement)
         ]
         rules = self._get_rules_batch(valid_procurements)
-        dbg.logic.debug(
-            "run: %d of %d procurements need a rule, rules found %s",
-            len(valid_procurements),
-            len(procurements),
-            [rule.id if rule else None for rule in rules],
-        )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "run_rules",
+                valid=len(valid_procurements),
+                procurements=len(procurements),
+                rules=[rule.id if rule else None for rule in rules],
+            )
         for procurement, rule in zip(valid_procurements, rules, strict=True):
             if not rule:
                 error = self.env._(
@@ -741,18 +727,18 @@ class StockRule(models.Model):
                         )
                     )
                 continue
-            dbg.pipeline.debug(
-                "run -> %s for %d procurements",
-                runners[action],
-                len(action_procurements),
+            _debug.pipeline(
+                "run_action",
+                action=runners[action],
+                procurements=len(action_procurements),
             )
             try:
                 run_action(action_procurements)
             except ProcurementException as e:
-                dbg.logic.debug(
-                    "run: %s raised %d procurement errors",
-                    runners[action],
-                    len(e.procurement_exceptions),
+                _debug.logic(
+                    "run_action_errors",
+                    action=runners[action],
+                    errors=len(e.procurement_exceptions),
                 )
                 procurement_errors += e.procurement_exceptions
 

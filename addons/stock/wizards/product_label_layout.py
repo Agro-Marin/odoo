@@ -2,9 +2,10 @@ import base64
 from collections import defaultdict
 
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import file_open
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class ProductLabelLayout(models.TransientModel):
@@ -84,11 +85,12 @@ class ProductLabelLayout(models.TransientModel):
                 p: int(q) for p, q in quantities.items() if q
             }
             data["custom_barcodes"] = custom_barcodes
-        dbg.logic.debug(
-            "product label layout: format %s move_quantity %s -> report %s, %d products",
-            self.print_format,
-            self.move_quantity,
-            xml_id,
-            len(data.get("quantity_by_product") or ()),
-        )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "label_layout",
+                print_format=self.print_format,
+                move_quantity=self.move_quantity,
+                report=xml_id,
+                products=len(data.get("quantity_by_product") or ()),
+            )
         return xml_id, data

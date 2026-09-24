@@ -7,13 +7,14 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.libs.barcode import is_barcode_encoding_valid
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.mail import html2plaintext, is_html_empty
 from odoo.tools.translate import LazyTranslate
 
-from ..tools import debug_log as dbg
 from odoo.addons.stock.const import TEMPLATE_STOCK_FLAGS
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 _lt = LazyTranslate(__name__)
 
 QUANTITY_LABELS_BY_USAGE = {
@@ -188,13 +189,11 @@ class ProductProduct(models.Model):
         compute="_compute_count_lot_ids",
     )
 
-    @dbg.timed
+    @_debug.perf.timed
     def write(self, vals):
         flags = {name: vals[name] for name in TEMPLATE_STOCK_FLAGS if name in vals}
-        if flags:
-            dbg.lifecycle.debug(
-                "product.write on %s: stock flags %s", dbg.rec(self), dbg.keys(flags)
-            )
+        if _debug.lifecycle.enabled and flags:
+            _debug.lifecycle("write_stock_flags", products=self, flags=sorted(flags))
         if len(flags) > 1:
             vals = {name: value for name, value in vals.items() if name not in flags}
             self.product_tmpl_id.write(flags)
@@ -204,11 +203,11 @@ class ProductProduct(models.Model):
                 .with_context(active_test=False)
                 .orderpoint_ids
             )
-            if orderpoints:
-                dbg.lifecycle.debug(
-                    "product.write: active=%s cascades to orderpoints %s",
-                    vals["active"],
-                    dbg.rec(orderpoints),
+            if _debug.lifecycle.enabled and orderpoints:
+                _debug.lifecycle(
+                    "write_active_cascade",
+                    active=vals["active"],
+                    orderpoints=orderpoints,
                 )
             orderpoints.write({"active": vals["active"]})
         return super().write(vals)
@@ -507,32 +506,32 @@ class ProductProduct(models.Model):
                 ),
             )
         if not rule:
-            dbg.logic.debug(
-                "_get_rules_from_location: product %s at %s: chain ends, %s",
-                self.id,
-                location.id,
-                dbg.rec(seen_rules),
+            _debug.logic(
+                "rules_from_location_chain_end",
+                product=self.id,
+                location=location.id,
+                seen_rules=seen_rules,
             )
             return seen_rules
         if rule.procure_method == "make_to_stock" or rule.action not in (
             "pull_push",
             "pull",
         ):
-            dbg.logic.debug(
-                "_get_rules_from_location: product %s at %s: rule %s (%s) terminates chain",
-                self.id,
-                location.id,
-                rule.id,
-                rule.procure_method,
+            _debug.logic(
+                "rules_from_location_terminal",
+                product=self.id,
+                location=location.id,
+                rule=rule.id,
+                procure_method=rule.procure_method,
             )
             return seen_rules | rule
         else:
-            dbg.logic.debug(
-                "_get_rules_from_location: product %s at %s: rule %s -> follow to %s",
-                self.id,
-                location.id,
-                rule.id,
-                rule.location_src_id.id,
+            _debug.logic(
+                "rules_from_location_follow",
+                product=self.id,
+                location=location.id,
+                rule=rule.id,
+                next_location=rule.location_src_id.id,
             )
             return self._get_rules_from_location(
                 rule.location_src_id,
@@ -556,7 +555,7 @@ class ProductProduct(models.Model):
         return 0.0
 
     def _update_uom(self, to_uom_id):
-        dbg.lifecycle.debug("_update_uom on %s -> uom %s", dbg.rec(self), to_uom_id)
+        _debug.lifecycle("uom_updated", products=self, uom=to_uom_id)
         self._restamp_uom("stock.move", to_uom_id)
         self._restamp_uom("stock.move.line", to_uom_id)
         return super()._update_uom(to_uom_id)
@@ -571,10 +570,9 @@ class ProductProduct(models.Model):
             self.env["stock.move"]._read_group(domain, ["product_id"]),
         )
         linked_product_ids = {product.id for groups in grouped for [product] in groups}
-        if linked_product_ids:
-            dbg.logic.debug(
-                "_filtered_to_unlink: products %s have stock data, kept",
-                sorted(linked_product_ids),
+        if _debug.logic.enabled and linked_product_ids:
+            _debug.logic(
+                "unlink_kept_with_stock_data", product_ids=sorted(linked_product_ids)
             )
         return super(
             ProductProduct, self - self.browse(linked_product_ids)

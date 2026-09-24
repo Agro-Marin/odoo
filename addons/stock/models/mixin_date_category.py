@@ -2,12 +2,12 @@ from datetime import UTC, timedelta
 
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.translate import LazyTranslate
 
-from ..tools import debug_log as dbg
-
 _lt = LazyTranslate(__name__)
+_debug = DebugLog(__name__)
 
 
 class MixinDateCategory(models.AbstractModel):
@@ -142,12 +142,12 @@ class MixinDateCategory(models.AbstractModel):
         )
         for record_id, date_category, count in rows:
             counts_by_record[record_id][date_category] = count
-        dbg.performance.debug(
-            "_get_date_category_counts(%s.%s by %s): %d records, %d rows",
-            model_name,
-            date_field,
-            group_field,
-            len(self),
-            len(rows),
+        _debug.perf.count(
+            "date_category_counts",
+            model=model_name,
+            date_field=date_field,
+            group_field=group_field,
+            records=len(self),
+            rows=len(rows),
         )
         return counts_by_record

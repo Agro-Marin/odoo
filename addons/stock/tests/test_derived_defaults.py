@@ -1233,11 +1233,13 @@ class TestApplyingACountLandsOnIt(TransactionCase):
         quant of 0.0833..., and no adjustment can count it onto a round figure
         while moves carry display precision. Until that is decided, the only
         defensible position is that the drift must not be silent."""
-        with self.assertLogs("odoo.addons.stock.debug.logic", "DEBUG") as captured:
+        with self.assertLogs(
+            "odoo.debug.logic.stock.stock_quant_inventory", "DEBUG"
+        ) as captured:
             quant = self._count_and_apply(31.0 / 3.0, 11.0, "Uncountable")
         self.assertNotEqual(quant.quantity, 11.0)
         self.assertTrue(
-            any("_apply_inventory: counted" in line for line in captured.output),
+            any("event=apply_inventory_mismatch" in line for line in captured.output),
             "a count that will not land must be reported, and the guard for it "
             "cannot use compare(): the gap is under half an ulp by construction",
         )
@@ -1306,7 +1308,9 @@ class TestSplittingAMoveCannotAlwaysConserve(TransactionCase):
     def test_an_unrepresentable_remainder_is_reported(self):
         move = self._confirmed_dozen_move()
         before = move.product_qty
-        with self.assertLogs("odoo.addons.stock.debug.logic", "DEBUG") as captured:
+        with self.assertLogs(
+            "odoo.debug.logic.stock.stock_move_merge", "DEBUG"
+        ) as captured:
             new = self.env["stock.move"].create(move._split(4.0))
             self.env.flush_all()
         move.invalidate_recordset()
@@ -1318,7 +1322,7 @@ class TestSplittingAMoveCannotAlwaysConserve(TransactionCase):
             "test should be replaced rather than relaxed",
         )
         self.assertTrue(
-            any("does NOT conserve" in line for line in captured.output),
+            any("event=split_not_conserved" in line for line in captured.output),
             "a split that changes the total demanded must say so",
         )
 

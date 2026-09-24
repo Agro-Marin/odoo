@@ -1,11 +1,13 @@
 import math
 
 from odoo import api, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 
-from ..tools import debug_log as dbg
 from .stock_picking import DONE_CANCEL_STATES
 from odoo.addons.web.controllers.utils import clean_action
+
+_debug = DebugLog(__name__)
 
 
 class StockPickingReport(models.Model):
@@ -14,10 +16,10 @@ class StockPickingReport(models.Model):
     def action_print_picking(self):
         return self.env.ref("stock.action_report_picking").report_action(self)
 
-    @dbg.timed
+    @_debug.perf.timed
     def _attach_signed_delivery_slip(self):
         self.check_singleton()
-        dbg.pipeline.debug("[picking:%s] rendering signed delivery slip", self.name)
+        _debug.pipeline("signed_delivery_slip", picking=self)
         report = self.env["ir.actions.report"]._render_qweb_pdf(
             "stock.action_report_delivery",
             self.id,
@@ -158,7 +160,7 @@ class StockPickingReport(models.Model):
         )
         return [action] if action else []
 
-    @dbg.timed
+    @_debug.perf.timed
     def _prepare_actions_autoprint(self):
         actions = [
             *self._autoprint_delivery_slip(),
@@ -168,11 +170,15 @@ class StockPickingReport(models.Model):
             *self._autoprint_lot_labels(),
             *self._autoprint_package_report(),
         ]
-        dbg.logic.debug(
-            "_prepare_actions_autoprint on %s: %s",
-            dbg.rec(self),
-            [action.get("report_name") or action.get("name") for action in actions],
-        )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "autoprint_actions",
+                pickings=self,
+                reports=[
+                    action.get("report_name") or action.get("name")
+                    for action in actions
+                ],
+            )
         return actions
 
     def _get_packages_for_print(self):
@@ -194,7 +200,7 @@ class StockPickingReport(models.Model):
             or self.env.lang
         )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_reception_report_action(self):
         if not self.env.user.has_group("stock.group_reception_report"):
             return False
@@ -231,10 +237,7 @@ class StockPickingReport(models.Model):
                 limit=1,
             ):
                 has_allocatable_demand = True
-                dbg.logic.debug(
-                    "_get_reception_report_action: allocatable demand in warehouse %s",
-                    warehouse.id,
-                )
+                _debug.logic("reception_report_action", warehouse=warehouse.id)
                 break
         if not has_allocatable_demand:
             return False

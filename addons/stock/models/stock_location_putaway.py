@@ -4,12 +4,13 @@ from typing import NamedTuple
 
 from odoo import api, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_compare
 
 from ..const import CONTEXT_PUTAWAY_SCAN
-from ..tools import debug_log as dbg
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class PutawayCapacity(NamedTuple):
@@ -45,7 +46,7 @@ class StockLocationPutaway(models.Model):
     def _filtered_putaway_access(self):
         return self
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_putaway_strategy(
         self, product, quantity=0, package=None, packaging=None, additional_qty=None
     ):
@@ -110,29 +111,26 @@ class StockLocationPutaway(models.Model):
                 else destination
             )
 
-        dbg.logic.debug(
-            "[location:%s] putaway product=%s qty=%s package_type=%s: %d rules, "
-            "%d candidate locations -> %s (%s)",
-            self.id,
-            product.id,
-            quantity,
-            package_type.id,
-            len(putaway_rules),
-            len(locations),
-            putaway_location.id,
-            "rule" if from_rule else "default",
+        _debug.logic(
+            "putaway_strategy",
+            location=self.id,
+            product=product.id,
+            quantity=quantity,
+            package_type=package_type.id,
+            rules=len(putaway_rules),
+            candidate_locations=len(locations),
+            putaway_location=putaway_location.id,
+            source="rule" if from_rule else "default",
         )
         return putaway_location
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_putaway_strategy_batch(
         self, product, quantities, package=None, packaging=None, additional_qty=None
     ):
         self.check_singleton()
-        dbg.performance.debug(
-            "[location:%s] _get_putaway_strategy_batch: %d quantities",
-            self.id,
-            len(quantities),
+        _debug.perf.count(
+            "putaway_strategy_batch", location=self.id, quantities=len(quantities)
         )
         scan = PutawayScan(product, additional_qty)
         scanner = self.with_context(**{CONTEXT_PUTAWAY_SCAN: scan})
@@ -393,11 +391,11 @@ class StockLocationPutaway(models.Model):
         if capacity is None:
             capacity = self._get_putaway_capacity(product, package)
         if not self._can_store_new_product(product, package, capacity):
-            dbg.logic.debug(
-                "[location:%s] _can_be_used: refuses new product %s (policy %s)",
-                self.id,
-                product.id,
-                self.storage_category_id.allow_new_product,
+            _debug.logic(
+                "can_be_used_refuses_new_product",
+                location=self.id,
+                product=product.id,
+                allow_new_product=self.storage_category_id.allow_new_product,
             )
             return False
         forecast_weight = capacity.forecast_weight.get(self.id, 0.0)
@@ -409,14 +407,14 @@ class StockLocationPutaway(models.Model):
             usable = self._can_store_product(
                 product, quantity, location_qty, forecast_weight
             )
-        dbg.logic.debug(
-            "[location:%s] _can_be_used product=%s qty=%s at %s forecast_weight=%s -> %s",
-            self.id,
-            product.id,
-            quantity,
-            location_qty,
-            forecast_weight,
-            usable,
+        _debug.logic(
+            "can_be_used",
+            location=self.id,
+            product=product.id,
+            quantity=quantity,
+            location_qty=location_qty,
+            forecast_weight=forecast_weight,
+            usable=usable,
         )
         return usable
 
@@ -432,10 +430,7 @@ class StockLocationPutaway(models.Model):
             capacity = self._get_putaway_capacity(product, package)
         if policy == "empty":
             if self.id in capacity.inbound_ids:
-                dbg.logic.debug(
-                    "[location:%s] empty-only: goods already on their way in",
-                    self.id,
-                )
+                _debug.logic("empty_only_incoming", location=self.id)
                 return False
             return not positive_quant
         product = self._get_effective_product(product)

@@ -1,7 +1,8 @@
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockReturnPickingLine(models.TransientModel):
@@ -79,20 +80,20 @@ class StockReturnPickingLine(models.TransientModel):
                 )
                 vals["move_orig_ids"] = [Command.link(m.id) for m in move_orig_to_link]
                 vals["move_dest_ids"] = [Command.link(m.id) for m in move_dest_to_link]
-                dbg.pipeline.debug(
-                    "return line: move %s -> return move %s qty %s, orig %s dest %s",
-                    self.move_id.id,
-                    new_return_move.id,
-                    self.quantity,
-                    dbg.rec(move_orig_to_link),
-                    dbg.rec(move_dest_to_link),
+                _debug.pipeline(
+                    "return_line",
+                    move=self.move_id.id,
+                    return_move=new_return_move.id,
+                    quantity=self.quantity,
+                    orig=move_orig_to_link,
+                    dest=move_dest_to_link,
                 )
                 new_return_move.write(vals)
             else:
-                dbg.pipeline.debug(
-                    "return line without move: new move for product %s qty %s",
-                    self.product_id.id,
-                    self.quantity,
+                _debug.pipeline(
+                    "return_line_without_move",
+                    product=self.product_id.id,
+                    quantity=self.quantity,
                 )
                 self.env["stock.move"].create(vals)
             return True
@@ -199,12 +200,12 @@ class StockReturnPicking(models.TransientModel):
             "location_dest_id": location_dest.id,
         }
 
-    @dbg.timed
+    @_debug.perf.timed
     def _create_return(self):
-        dbg.pipeline.debug(
-            "_create_return from picking %s: %d lines",
-            self.picking_id.id,
-            len(self.product_return_moves),
+        _debug.pipeline(
+            "create_return",
+            picking=self.picking_id.id,
+            lines=len(self.product_return_moves),
         )
         if self.picking_id:
             for return_move in self.product_return_moves.move_id:
@@ -233,22 +234,20 @@ class StockReturnPicking(models.TransientModel):
                 self.env._("Please specify at least one non-zero quantity.")
             )
 
-        dbg.pipeline.debug(
-            "_create_return -> confirm + assign picking %s", new_picking.id
-        )
+        _debug.pipeline("return_confirm_assign", picking=new_picking.id)
         new_picking.action_confirm()
         new_picking.action_assign()
         return new_picking
 
-    @dbg.timed
+    @_debug.perf.timed
     def _create_exchange(self, return_picking):
         exchange_picking = return_picking.copy(
             self._prepare_picking_default_values_based_on(return_picking)
         )
-        dbg.pipeline.debug(
-            "_create_exchange: return %s -> exchange %s",
-            return_picking.id,
-            exchange_picking.id,
+        _debug.pipeline(
+            "exchange_created",
+            return_picking=return_picking.id,
+            exchange_picking=exchange_picking.id,
         )
         exchange_picking.user_id = False
         exchange_picking.message_post_with_source(
@@ -308,11 +307,7 @@ class StockReturnPicking(models.TransientModel):
                     round=False,
                 )
             quantity = max(stock_move.product_uom_id.round(quantity), 0)
-            dbg.logic.debug(
-                "action_create_returns_all: move %s returnable %s",
-                stock_move.id,
-                quantity,
-            )
+            _debug.logic("returnable_quantity", move=stock_move.id, quantity=quantity)
             return_move.quantity = quantity
         return self.action_create_returns()
 
@@ -341,10 +336,7 @@ class StockReturnPicking(models.TransientModel):
                 )
             )
         if proc_list:
-            dbg.pipeline.debug(
-                "action_create_exchanges -> stock.rule.run %d procurements",
-                len(proc_list),
-            )
+            _debug.pipeline("exchange_procurements", procurements=len(proc_list))
             self.env["stock.rule"].run(proc_list)
         return action
 

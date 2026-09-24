@@ -1,21 +1,21 @@
 from typing import NamedTuple
 
 from odoo import fields
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class ProcurementException(Exception):
     def __init__(self, procurement_exceptions):
-        dbg.logic.debug(
-            "ProcurementException raised for %d procurement(s): %s",
-            len(procurement_exceptions),
-            dbg.lazy(
-                lambda: " | ".join(
+        if _debug.logic.enabled:
+            _debug.logic(
+                "procurement_exception",
+                procurements=len(procurement_exceptions),
+                errors=" | ".join(
                     str(error) for _procurement, error in procurement_exceptions
                 ),
-            ),
-        )
+            )
         self.procurement_exceptions = procurement_exceptions
 
 

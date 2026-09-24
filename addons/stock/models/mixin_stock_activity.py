@@ -3,9 +3,10 @@ from dataclasses import dataclass
 from datetime import date
 
 from odoo import models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import groupby
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -83,21 +84,20 @@ class MixinStockActivity(models.AbstractModel):
                     self.env["stock.move"],
                 ),
             )
-            dbg.logic.debug(
-                "_get_log_activity_documents: %s for %s from %d origin(s) over %s",
-                dbg.rec(parent),
-                responsible.id,
-                len(documents[parent, responsible].changes),
-                dbg.rec(records),
-            )
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "log_activity_documents",
+                    parent=parent,
+                    responsible=responsible.id,
+                    origins=len(documents[parent, responsible].changes),
+                    records=records,
+                )
         return documents
 
     def _log_activity(self, render_method, documents):
         for (parent, responsible), document in documents.items():
-            dbg.lifecycle.debug(
-                "_log_activity: warning activity on %s for user %s",
-                dbg.rec(parent),
-                responsible.id,
+            _debug.lifecycle(
+                "log_activity_warning", parent=parent, responsible=responsible.id
             )
             note = render_method(document)
             parent.sudo().activity_schedule(

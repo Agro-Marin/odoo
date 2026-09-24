@@ -1,6 +1,7 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockPackageDestination(models.TransientModel):
@@ -27,10 +28,10 @@ class StockPackageDestination(models.TransientModel):
             wizard.filtered_location = wizard.move_line_ids.mapped("location_dest_id")
 
     def action_done(self):
-        dbg.pipeline.debug(
-            "package destination %s for %s -> put in pack",
-            self.location_dest_id.id,
-            dbg.rec(self.move_line_ids),
+        _debug.pipeline(
+            "package_destination",
+            location=self.location_dest_id.id,
+            move_lines=self.move_line_ids,
         )
         self.move_line_ids.location_dest_id = self.location_dest_id
         return self.move_line_ids.action_put_in_pack()

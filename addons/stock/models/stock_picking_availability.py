@@ -3,15 +3,17 @@ from collections import defaultdict
 
 from odoo import api, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import format_date, format_datetime
 
 from ..const import OPEN_PICKING_STATES
-from ..tools import debug_log as dbg
 from .stock_picking import (
     DONE_CANCEL_STATES,
     FORECAST_PICKING_CODES,
     UNRESERVED_MOVE_STATES,
 )
+
+_debug = DebugLog(__name__)
 
 
 class StockPickingAvailability(models.Model):
@@ -97,7 +99,7 @@ class StockPickingAvailability(models.Model):
             candidates_by_product[move.product_id.id].append(move)
         return candidates_by_product
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_show_allocation_map(self, excluded_pickings=None, stop_at_first=False):
         result = dict.fromkeys(self, False)
         base_excluded_ids = set(excluded_pickings.ids) if excluded_pickings else set()
@@ -117,13 +119,12 @@ class StockPickingAvailability(models.Model):
             )
             if not candidates_by_product:
                 continue
-            dbg.logic.debug(
-                "_get_show_allocation_map: view %s include_assigned=%s, %d pickings, "
-                "%d products with candidates",
-                view_location.id,
-                include_assigned,
-                len(members),
-                len(candidates_by_product),
+            _debug.logic(
+                "show_allocation_map",
+                view_location=view_location.id,
+                include_assigned=include_assigned,
+                pickings=len(members),
+                products=len(candidates_by_product),
             )
             for picking, lines in members.items():
                 excluded_ids = base_excluded_ids | {picking._origin.id}
@@ -153,7 +154,7 @@ class StockPickingAvailability(models.Model):
         "move_ids.forecast_availability",
         "move_ids.date_planned_forecast",
     )
-    @dbg.timed
+    @_debug.perf.timed
     @api.depends_context("lang")
     def _compute_availability_status(self):
         pickings = self.filtered(
@@ -174,11 +175,11 @@ class StockPickingAvailability(models.Model):
             state, forecast_date = picking.move_ids._get_availability(
                 picking.date_planned,
             )
-            dbg.logic.debug(
-                "[picking:%s] availability %s, forecast date %s",
-                picking.id,
-                state,
-                forecast_date,
+            _debug.logic(
+                "availability_computed",
+                picking=picking.id,
+                state=state,
+                forecast_date=forecast_date,
             )
             picking.products_availability_state = state
             if forecast_date:

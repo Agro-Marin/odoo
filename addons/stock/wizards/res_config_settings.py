@@ -1,7 +1,8 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class ResConfigSettings(models.TransientModel):
@@ -120,8 +121,8 @@ class ResConfigSettings(models.TransientModel):
     def _inverse_replenish_on_order(self):
         route = self.env.ref("stock.route_warehouse0_mto", raise_if_not_found=False)
         if route:
-            dbg.lifecycle.debug(
-                "MTO route %s active -> %s", route.id, self.replenish_on_order
+            _debug.lifecycle(
+                "mto_route_active", route=route.id, active=self.replenish_on_order
             )
             route.active = self.replenish_on_order
 
@@ -146,7 +147,7 @@ class ResConfigSettings(models.TransientModel):
         if self.group_stock_adv_location and not self.group_stock_multi_locations:
             self.group_stock_multi_locations = True
 
-    @dbg.timed
+    @_debug.perf.timed
     def set_values(self):
         warehouse_grp = self.env.ref("stock.group_stock_multi_warehouses")
         location_grp = self.env.ref("stock.group_stock_multi_locations")
@@ -178,10 +179,10 @@ class ResConfigSettings(models.TransientModel):
         warehouse_obj = self.env["stock.warehouse"]
         was_multi_location = previous_group.get("group_stock_multi_locations")
         if bool(self.group_stock_multi_locations) != bool(was_multi_location):
-            dbg.lifecycle.debug(
-                "settings: multi locations %s -> %s",
-                bool(was_multi_location),
-                bool(self.group_stock_multi_locations),
+            _debug.lifecycle(
+                "multi_locations_changed",
+                was=bool(was_multi_location),
+                now=bool(self.group_stock_multi_locations),
             )
             warehouse_obj._update_multi_location_defaults(
                 bool(self.group_stock_multi_locations)

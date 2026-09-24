@@ -1,8 +1,9 @@
 from collections import defaultdict
 
 from odoo import models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockMoveLineReport(models.Model):
@@ -34,19 +35,18 @@ class StockMoveLineReport(models.Model):
             properties["line_key"] += f"_{move_line.result_package_id.id}"
         return properties
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_aggregated_product_quantities(
         self, *, strict=False, except_package=False, **kwargs
     ):
         aggregated_move_lines = {}
         backorders = self._get_backorders()
-        dbg.logic.debug(
-            "_get_aggregated_product_quantities on %s strict=%s except_package=%s "
-            "backorders %s",
-            dbg.rec(self),
-            strict,
-            except_package,
-            dbg.rec(backorders),
+        _debug.logic(
+            "aggregated_quantities",
+            move_lines=self,
+            strict=strict,
+            except_package=except_package,
+            backorders=backorders,
         )
         base_key_by_move = {}
 
@@ -110,10 +110,7 @@ class StockMoveLineReport(models.Model):
         self._aggregate_empty_moves(
             aggregated_move_lines, agg_keys_by_base, self.picking_id | backorders
         )
-        dbg.logic.debug(
-            "_get_aggregated_product_quantities -> %d aggregated keys",
-            len(aggregated_move_lines),
-        )
+        _debug.logic("aggregated_quantities_done", keys=len(aggregated_move_lines))
         return aggregated_move_lines
 
     def _add_undelivered_quantities(
@@ -138,9 +135,7 @@ class StockMoveLineReport(models.Model):
             )
             if uom.is_zero(undelivered):
                 continue
-            dbg.logic.debug(
-                "[move:%s] undelivered %s added to ordered qty", move.id, undelivered
-            )
+            _debug.logic("undelivered_added", move=move.id, undelivered=undelivered)
             entry["qty_ordered"] += undelivered
             entry["packaging_qty_ordered"] += uom._get_quantity_in_unit(
                 undelivered, move.packaging_uom_id

@@ -2,9 +2,10 @@ from collections import deque
 
 from odoo import api, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import format_datetime
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockTraceabilityReport(models.TransientModel):
@@ -67,7 +68,7 @@ class StockTraceabilityReport(models.TransientModel):
             )
         return False
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model
     def get_lines(self, line_id=False, **kw):
         context = self.env.context
@@ -76,7 +77,7 @@ class StockTraceabilityReport(models.TransientModel):
         level = kw.get("level") or 1
         move_lines = self.env["stock.move.line"]
         if model and model not in self._get_models_allowed_line():
-            dbg.logic.debug("traceability get_lines: model %s not allowed", model)
+            _debug.logic("get_lines_model_refused", model=model)
             return []
         if rec_id and model == "stock.lot":
             move_lines = move_lines.search(
@@ -99,13 +100,13 @@ class StockTraceabilityReport(models.TransientModel):
                 move_lines = record.move_finished_ids.move_line_ids.filtered(
                     lambda m: m.state == "done"
                 )
-        dbg.logic.debug(
-            "traceability get_lines model=%s id=%s level=%s line_id=%s: %d move lines",
-            model,
-            rec_id,
-            level,
-            line_id,
-            len(move_lines),
+        _debug.logic(
+            "get_lines",
+            model=model,
+            rec_id=rec_id,
+            level=level,
+            line_id=line_id,
+            move_lines=len(move_lines),
         )
         vals = self._prepare_traceability_lines(
             line_id, model_id=rec_id, model=model, level=level, move_lines=move_lines

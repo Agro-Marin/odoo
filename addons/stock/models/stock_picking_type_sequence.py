@@ -1,8 +1,9 @@
 from odoo import api, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.sql import escape_psql
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockPickingTypeSequence(models.Model):
@@ -30,7 +31,7 @@ class StockPickingTypeSequence(models.Model):
             "company_id": self.company_id.id,
         }
 
-    @dbg.timed
+    @_debug.perf.timed
     def _update_reference_sequences(self, only=None):
         missing = self.browse()
         for picking_type in self:
@@ -50,17 +51,16 @@ class StockPickingTypeSequence(models.Model):
                 != value
             }
             if changed:
-                dbg.lifecycle.debug(
-                    "[picking_type:%s] sequence %s updated: %s",
-                    picking_type.id,
-                    sequence.id,
-                    dbg.keys(changed),
-                )
+                if _debug.lifecycle.enabled:
+                    _debug.lifecycle(
+                        "sequence_updated",
+                        picking_type=picking_type.id,
+                        sequence=sequence.id,
+                        keys=sorted(changed),
+                    )
                 sequence.write(changed)
         if missing:
-            dbg.lifecycle.debug(
-                "_update_reference_sequences: creating for %s", dbg.rec(missing)
-            )
+            _debug.lifecycle("reference_sequences_created", picking_types=missing)
             sequences = (
                 self.env["ir.sequence"]
                 .sudo()
@@ -80,11 +80,12 @@ class StockPickingTypeSequence(models.Model):
             .search([("sequence_id", "in", sequences.ids)])
             .sequence_id
         )
-        dbg.lifecycle.debug(
-            "_remove_orphaned_sequences: %s (kept %s)",
-            dbg.rec(sequences - still_referenced),
-            dbg.rec(still_referenced),
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "orphaned_sequences_removed",
+                removed=sequences - still_referenced,
+                kept=still_referenced,
+            )
         (sequences - still_referenced).sudo().unlink()
 
     def _get_domain_sequence_scope(self):

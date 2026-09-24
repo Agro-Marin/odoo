@@ -3,11 +3,13 @@ from datetime import UTC
 
 from odoo import api, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 from ..const import OPEN_PICKING_STATES
-from ..tools import debug_log as dbg
 from odoo.addons.base.models.ir_actions_actions import _eval_dict_or_default
+
+_debug = DebugLog(__name__)
 
 
 class StockPickingTypeDashboard(models.Model):
@@ -40,7 +42,7 @@ class StockPickingTypeDashboard(models.Model):
             ),
         }
 
-    @dbg.timed
+    @_debug.perf.timed
     def _compute_picking_count(self):
         picking = self.env["stock.picking"]
         query = picking._search(
@@ -62,11 +64,7 @@ class StockPickingTypeDashboard(models.Model):
                 )
             )
             counts = {row[0]: row[1:] for row in rows}
-            dbg.performance.debug(
-                "_compute_picking_count: one grouped query for %d types, %d rows",
-                len(self),
-                len(rows),
-            )
+            _debug.perf.count("picking_count", types=len(self), rows=len(rows))
         empty = (0,) * len(buckets)
         for record in self:
             for field_name, count in zip(
@@ -84,7 +82,7 @@ class StockPickingTypeDashboard(models.Model):
         for record in self:
             record.count_move_ready = count.get(record.id, 0)
 
-    @dbg.timed
+    @_debug.perf.timed
     def _compute_kanban_dashboard_graph(self):
         summaries = {}
         for (

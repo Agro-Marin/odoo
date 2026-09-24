@@ -1,7 +1,8 @@
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import clean_context
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class MixinStockPickingValidation(models.AbstractModel):
@@ -20,11 +21,11 @@ class MixinStockPickingValidation(models.AbstractModel):
         if not pickings:
             return True
         validate_kwargs = {**(self.validate_kwargs or {}), **decisions}
-        dbg.pipeline.debug(
-            "%s resumes validation of %s with %s",
-            self._name,
-            dbg.rec(pickings),
-            validate_kwargs,
+        _debug.pipeline(
+            "resume_validation",
+            wizard=self._name,
+            pickings=pickings,
+            kwargs=validate_kwargs,
         )
         return pickings.with_context(clean_context(self.env.context)).button_validate(
             **validate_kwargs

@@ -5,24 +5,23 @@ from dateutil import relativedelta
 
 from odoo import SUPERUSER_ID, api, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockReplenishmentReport(models.AbstractModel):
     _name = "stock.replenishment.report"
     _description = "Replenishment Shortage Scan"
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model
     def _create_missing_orderpoints(self, orderpoints):
         shortages = self._get_projected_shortages()
-        dbg.pipeline.debug(
-            "replenishment report: %d projected shortages", len(shortages)
-        )
+        _debug.pipeline("projected_shortages", shortages=len(shortages))
         shortages = self._get_net_shortages(shortages)
-        dbg.pipeline.debug("replenishment report: %d net shortages", len(shortages))
+        _debug.pipeline("net_shortages", shortages=len(shortages))
         return self._create_shortage_orderpoints(shortages, orderpoints)
 
     @api.model
@@ -90,17 +89,17 @@ class StockReplenishmentReport(models.AbstractModel):
                 net_qty[product, replenish_id] += qty
         return net_qty
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model
     def _get_projected_shortages(self):
         products = self._get_candidate_products()
         locations = self._get_replenish_locations()
         uncovered = self._get_uncovered_quantities(products, locations)
-        dbg.performance.debug(
-            "_get_projected_shortages: %d products x %d locations -> %d uncovered keys",
-            len(products),
-            len(locations),
-            len(uncovered),
+        _debug.perf.count(
+            "projected_shortages_scan",
+            products=len(products),
+            locations=len(locations),
+            uncovered=len(uncovered),
         )
 
         location_by_id = {location.id: location for location in locations}
@@ -129,10 +128,10 @@ class StockReplenishmentReport(models.AbstractModel):
             products_by_horizon[horizon, location].add(product.id)
 
         shortages = {}
-        dbg.performance.debug(
-            "_get_projected_shortages: %d (horizon, location) forecast reads, %d rule lookups",
-            len(products_by_horizon),
-            len(rules_cache),
+        _debug.perf.count(
+            "projected_shortages_reads",
+            forecast_reads=len(products_by_horizon),
+            rule_lookups=len(rules_cache),
         )
         for (horizon, location), product_ids in products_by_horizon.items():
             candidates = self.env["product.product"].browse(product_ids)
@@ -167,15 +166,12 @@ class StockReplenishmentReport(models.AbstractModel):
         for key, quantity in shortages.items():
             covered = in_progress.get(key) or 0.0
             remaining = quantity + covered
-            if float_compare(remaining, 0.0, precision_digits=precision_digits) < 0:
-                netted[key] = remaining
-            else:
-                dbg.logic.debug(
-                    "shortage %s of %s covered by in-progress %s",
-                    key,
-                    quantity,
-                    covered,
+            if float_compare(remaining, 0.0, precision_digits=precision_digits) >= 0:
+                _debug.logic(
+                    "shortage_covered", key=key, quantity=quantity, covered=covered
                 )
+                continue
+            netted[key] = remaining
         return netted
 
     @api.model
@@ -223,10 +219,10 @@ class StockReplenishmentReport(models.AbstractModel):
                 },
             )
             values_list.append(values)
-        dbg.lifecycle.debug(
-            "_create_shortage_orderpoints: %d new of %d shortages (%d existing)",
-            len(values_list),
-            len(shortages),
-            len(existing),
+        _debug.lifecycle(
+            "shortage_orderpoints_created",
+            created=len(values_list),
+            shortages=len(shortages),
+            existing=len(existing),
         )
         return Orderpoint.with_user(SUPERUSER_ID).create(values_list)

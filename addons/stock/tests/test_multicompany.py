@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from odoo import fields
 from odoo.exceptions import UserError, ValidationError
-from odoo.tests import Form, TransactionCase
+from odoo.fields import Command
+from odoo.tests import Form, TransactionCase, tagged
 
 
 class TestCompanyProvisioning(TransactionCase):
@@ -1097,4 +1100,178 @@ class TestMultiCompany(TransactionCase):
                         )
                     ]
                 }
+            )
+
+
+@tagged("post_install", "-at_install")
+class TestMultiCompanyProcurementEdgeCases(TransactionCase):
+    def test_deadline_date_other_company(self):
+        customer_location = self.env.ref("stock.stock_location_customers")
+        company_b = self.env["res.company"].create({"name": "Audit Deadline Co"})
+        warehouse_b = (
+            self.env["stock.warehouse"]
+            .sudo()
+            .search([("company_id", "=", company_b.id)], limit=1)
+        )
+        if not warehouse_b:
+            warehouse_b = company_b.sudo()._create_warehouse()
+        product = (
+            self.env["product.product"]
+            .sudo()
+            .create(
+                {
+                    "name": "Audit Deadline Product",
+                    "is_storable": True,
+                    "company_id": False,
+                },
+            )
+        )
+        self.env["stock.quant"].sudo()._update_available_quantity(
+            product,
+            warehouse_b.lot_stock_id,
+            10,
+        )
+        orderpoint = (
+            self.env["stock.warehouse.orderpoint"]
+            .sudo()
+            .with_company(company_b)
+            .create(
+                {
+                    "product_id": product.id,
+                    "company_id": company_b.id,
+                    "warehouse_id": warehouse_b.id,
+                    "location_id": warehouse_b.lot_stock_id.id,
+                    "product_min_qty": 5,
+                    "product_max_qty": 20,
+                },
+            )
+        )
+        out_move = (
+            self.env["stock.move"]
+            .sudo()
+            .with_company(company_b)
+            .create(
+                {
+                    "product_id": product.id,
+                    "product_uom_id": product.uom_id.id,
+                    "product_uom_qty": 8.0,
+                    "location_id": warehouse_b.lot_stock_id.id,
+                    "location_dest_id": customer_location.id,
+                    "company_id": company_b.id,
+                    "date": fields.Datetime.now() + timedelta(days=3),
+                },
+            )
+        )
+        out_move._action_confirm()
+
+        orderpoint_ambient = orderpoint.with_context(
+            allowed_company_ids=[self.env.company.id],
+        )
+        orderpoint_ambient._compute_deadline_date()
+        expected = (
+            fields.Date.today()
+            + timedelta(days=3)
+            - timedelta(days=int(orderpoint.lead_days))
+        )
+        self.assertEqual(
+            orderpoint.deadline_date,
+            expected,
+            "A company-B orderpoint must see company-B moves even when the "
+            "ambient companies don't include company B.",
+        )
+
+    def test_create_warehouse_idempotent_with_archived(self):
+        company = self.env["res.company"].create({"name": "Audit Dedup Co"})
+        warehouse = company.sudo()._create_warehouse()
+        self.assertTrue(warehouse)
+        warehouse.action_archive()
+        result = company.sudo()._create_warehouse()
+        self.assertEqual(
+            result,
+            warehouse,
+            "The archived warehouse must be reused, not shadowed by a "
+            "duplicate that violates unique(name, company_id).",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestMultiCompanyProductEdgeCases(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.warehouse = cls.env["stock.warehouse"].search(
+            [("company_id", "=", cls.env.company.id)],
+            limit=1,
+        )
+        cls.stock_location = cls.warehouse.lot_stock_id
+        cls.customer_location = cls.env.ref("stock.stock_location_customers")
+        cls.supplier_location = cls.env.ref("stock.stock_location_suppliers")
+        cls.product = cls.env["product.product"].create(
+            {"name": "Audit MC Product", "is_storable": True},
+        )
+        cls.company_b = cls.env["res.company"].create({"name": "Audit Co B"})
+        cls.env.user.company_ids |= cls.company_b
+        cls.env_b = cls.env(
+            context=dict(
+                cls.env.context,
+                allowed_company_ids=[cls.env.company.id, cls.company_b.id],
+            ),
+        )
+        cls.warehouse_b = cls.env_b["stock.warehouse"].search(
+            [("company_id", "=", cls.company_b.id)],
+            limit=1,
+        )
+
+    def test_reception_unassign_rejects_cross_company(self):
+        in_b = self.env_b["stock.move"].create(
+            {
+                "product_id": self.product.id,
+                "product_uom_id": self.product.uom_id.id,
+                "product_uom_qty": 2,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.warehouse_b.lot_stock_id.id,
+                "company_id": self.company_b.id,
+            },
+        )
+        out = self.env["stock.move"].create(
+            {
+                "product_id": self.product.id,
+                "product_uom_id": self.product.uom_id.id,
+                "product_uom_qty": 2,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+            },
+        )
+        out._action_confirm()
+        out.move_orig_ids = in_b
+        report = self.env_b["report.stock.report_reception"]
+        with self.assertRaises(UserError):
+            report.action_unassign(out.id, 2, in_b.ids)
+
+    def test_relocate_wizard_multi_company_raises(self):
+        Quant = self.env_b["stock.quant"]
+        Quant._update_available_quantity(
+            self.product,
+            self.stock_location,
+            quantity=5,
+        )
+        Quant._update_available_quantity(
+            self.product,
+            self.warehouse_b.lot_stock_id,
+            quantity=5,
+        )
+        quants = Quant.search(
+            [
+                ("product_id", "=", self.product.id),
+                (
+                    "location_id",
+                    "in",
+                    (self.stock_location | self.warehouse_b.lot_stock_id).ids,
+                ),
+            ],
+        )
+        self.assertEqual(len(quants.company_id), 2)
+        with self.assertRaises(UserError):
+            self.env_b["stock.quant.relocate"].create(
+                {"quant_ids": [Command.set(quants.ids)]},
             )

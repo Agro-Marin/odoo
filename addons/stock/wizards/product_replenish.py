@@ -1,8 +1,9 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import clean_context
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class ProductReplenish(models.TransientModel):
@@ -109,10 +110,8 @@ class ProductReplenish(models.TransientModel):
                 res["route_id"] = product_tmpl_id.route_ids.filtered(
                     lambda r: r.company_id == company or not r.company_id
                 )[:1].id
-            dbg.logic.debug(
-                "product.replenish default route for template %s: %s",
-                product_tmpl_id.id,
-                res["route_id"],
+            _debug.logic(
+                "default_route", template=product_tmpl_id.id, route=res["route_id"]
             )
         return res
 
@@ -121,17 +120,17 @@ class ProductReplenish(models.TransientModel):
         delay = sum(route.rule_ids.mapped("delay"))
         return fields.Datetime.add(now, days=delay)
 
-    @dbg.timed
+    @_debug.perf.timed
     def action_replenish(self):
         self.check_singleton()
         now = self.env.cr.now()
-        dbg.pipeline.debug(
-            "product.replenish: product %s qty %s route %s warehouse %s date %s",
-            self.product_id.id,
-            self.quantity,
-            self.route_id.id,
-            self.warehouse_id.id,
-            self.date_planned,
+        _debug.pipeline(
+            "replenish",
+            product=self.product_id.id,
+            quantity=self.quantity,
+            route=self.route_id.id,
+            warehouse=self.warehouse_id.id,
+            date=self.date_planned,
         )
         self.env["stock.rule"].with_context(clean_context(self.env.context)).run(
             [
@@ -148,7 +147,7 @@ class ProductReplenish(models.TransientModel):
             ]
         )
         move = self._get_record_to_notify(now)
-        dbg.logic.debug("product.replenish: record to notify %s", dbg.rec(move))
+        _debug.logic("replenish_notify", record=move)
         notification = self._prepare_action_replenishment_order_notification(move)
         act_window_close = {
             "type": "ir.actions.act_window_close",

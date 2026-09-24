@@ -5,9 +5,10 @@ from datetime import date
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet, format_date
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 @dataclass
@@ -221,7 +222,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             limit=1,
         ) or Warehouse.search([("active", "=", True)], limit=1)
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_report_data(self, product_template_ids=False, product_ids=False):
         if not product_template_ids and not product_ids:
             raise UserError(
@@ -230,11 +231,11 @@ class StockForecasted_Product_Product(models.AbstractModel):
         res = {}
 
         warehouse = self._get_warehouse()
-        dbg.pipeline.debug(
-            "forecasted report: templates %s products %s warehouse %s",
-            product_template_ids,
-            product_ids,
-            warehouse.id,
+        _debug.pipeline(
+            "forecasted_report",
+            template_ids=product_template_ids,
+            product_ids=product_ids,
+            warehouse=warehouse.id,
         )
         self = self.with_context(warehouse_id=warehouse.id)
         wh_location_ids = (
@@ -464,7 +465,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
             ctx.ins_per_product[product_id].remove(in_id)
         return demand
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_report_moves(self, product_template_ids, product_ids, wh_location_ids):
         in_domain, out_domain = self._get_domain_move_confirmed(
             product_template_ids, product_ids, wh_location_ids
@@ -487,12 +488,12 @@ class StockForecasted_Product_Product(models.AbstractModel):
         outs = past_outs | future_outs
 
         ins = self.env["stock.move"].search(in_domain, order="priority desc, date, id")
-        dbg.performance.debug(
-            "_get_report_moves: %d ins, %d outs (%d past, %d future)",
-            len(ins),
-            len(outs),
-            len(past_outs),
-            len(future_outs),
+        _debug.perf.count(
+            "report_moves",
+            ins=len(ins),
+            outs=len(outs),
+            past_outs=len(past_outs),
+            future_outs=len(future_outs),
         )
         outs._prefetch_rollup_move_origs()
         ins._prefetch_rollup_move_dests()
@@ -582,7 +583,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 )
         return moves_data
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_report_lines(
         self,
         product_template_ids,
@@ -619,7 +620,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 wh_location_ids,
                 ctx,
             )
-        dbg.logic.debug("_get_report_lines: %d lines (read=%s)", len(lines), read)
+        _debug.logic("report_lines", lines=len(lines), read=read)
         return lines
 
     def _get_product_report_lines(
@@ -748,11 +749,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         move_ids = move_id.browse(move_id._rollup_move_orig_ids()).filtered(
             lambda m: m.state not in ["draft", "cancel", "assigned", "done"]
         )
-        dbg.pipeline.debug(
-            "action_reserve_linked_picks from move %s -> %s",
-            move_id.id,
-            dbg.rec(move_ids),
-        )
+        _debug.pipeline("reserve_linked_picks", move=move_id.id, moves=move_ids)
         if move_ids:
             move_ids._action_assign()
         return move_ids
@@ -763,11 +760,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
         move_ids = move_id.browse(move_id._rollup_move_orig_ids()).filtered(
             lambda m: m.state not in ["draft", "cancel", "done"]
         )
-        dbg.pipeline.debug(
-            "action_unreserve_linked_picks from move %s -> %s",
-            move_id.id,
-            dbg.rec(move_ids),
-        )
+        _debug.pipeline("unreserve_linked_picks", move=move_id.id, moves=move_ids)
         if move_ids:
             move_ids._unreserve()
         return move_ids

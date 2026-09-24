@@ -4,12 +4,12 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.exceptions import RedirectWarning, UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import TransactionMemo
 from odoo.tools.translate import LazyTranslate
 
-from ..tools import debug_log as dbg
-
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 _lt = LazyTranslate(__name__)
 
 
@@ -341,14 +341,15 @@ class StockWarehouse(models.Model):
             ).id
         return self.browse(per_company[key])
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model_create_multi
     def create(self, vals_list):
-        dbg.lifecycle.debug(
-            "stock.warehouse.create: %d vals, keys=%s",
-            len(vals_list),
-            dbg.vals_keys(vals_list),
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                count=len(vals_list),
+                keys=sorted({key for vals in vals_list for key in vals}),
+            )
         taken = {}
         chosen = defaultdict(set)
         for vals in vals_list:
@@ -403,20 +404,20 @@ class StockWarehouse(models.Model):
             )
             for field_name, location in zip(sub_locations, sub_records, strict=True):
                 vals[field_name] = location.id
-            dbg.lifecycle.debug(
-                "create: warehouse %s/%s view location %s, sub locations %s",
-                vals["name"],
-                vals["code"],
-                vals["view_location_id"],
-                dbg.rec(sub_records),
+            _debug.lifecycle(
+                "create_locations",
+                name=vals["name"],
+                code=vals["code"],
+                view_location=vals["view_location_id"],
+                sub_locations=sub_records,
             )
 
         warehouses = super().create(vals_list)
-        dbg.lifecycle.debug("stock.warehouse.create: created %s", dbg.rec(warehouses))
+        _debug.lifecycle("created", warehouses=warehouses)
 
         for warehouse in warehouses:
-            with dbg.timer(
-                self.env, "warehouse %s picking types + routes", warehouse.id
+            with _debug.perf(
+                "picking_types_and_routes", cr=self.env.cr, warehouse=warehouse.id
             ):
                 new_vals = warehouse._create_or_update_picking_types()
                 warehouse.write(new_vals)
@@ -436,11 +437,10 @@ class StockWarehouse(models.Model):
 
         return warehouses
 
-    @dbg.timed
+    @_debug.perf.timed
     def write(self, vals):
-        dbg.lifecycle.debug(
-            "stock.warehouse.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle("write", warehouses=self, keys=sorted(vals))
         if vals.get("code"):
             vals = dict(vals, code=self._normalize_code(vals["code"]))
         self._check_company_unchanged(vals)
@@ -500,11 +500,11 @@ class StockWarehouse(models.Model):
             else warehouses.browse()
         )
 
-        if toggling or old_resupply_whs:
-            dbg.logic.debug(
-                "_pre_write_sync: toggling active on %s, old resupply %s",
-                dbg.rec(toggling),
-                {k: v.ids for k, v in old_resupply_whs.items()},
+        if _debug.logic.enabled and (toggling or old_resupply_whs):
+            _debug.logic(
+                "pre_write_sync",
+                toggling=toggling,
+                old_resupply={k: v.ids for k, v in old_resupply_whs.items()},
             )
         return PendingWrite(toggling=toggling, old_resupply_whs=old_resupply_whs)
 
@@ -523,12 +523,12 @@ class StockWarehouse(models.Model):
         refresh_global = not self.env.context.get("stock_no_global_route_refresh") and (
             not triggers.isdisjoint(changed) or not rule_fields.isdisjoint(changed)
         )
-        dbg.logic.debug(
-            "_post_write_refresh on %s: picking_types=%s routes=%s global=%s",
-            dbg.rec(warehouses),
-            refresh_picking_types,
-            refresh_routes,
-            refresh_global,
+        _debug.logic(
+            "post_write_refresh",
+            warehouses=warehouses,
+            refresh_picking_types=refresh_picking_types,
+            refresh_routes=refresh_routes,
+            refresh_global=refresh_global,
         )
 
         for warehouse in warehouses:
@@ -556,22 +556,20 @@ class StockWarehouse(models.Model):
         if "active" in vals:
             self._update_multiwarehouse_group()
 
-    @dbg.timed
+    @_debug.perf.timed
     def unlink(self):
-        dbg.lifecycle.debug("stock.warehouse.unlink %s", dbg.rec(self))
+        _debug.lifecycle("unlink", warehouses=self)
         if not self.env.context.get("_force_unlink"):
             self._unlink_except_in_use()
         leftovers = [warehouse._get_owned_records() for warehouse in self]
         for owned in leftovers:
-            dbg.lifecycle.debug(
-                "unlink: owned rules %s, picking types %s, routes %s, view %s",
-                dbg.rec(owned.rules),
-                dbg.rec(owned.picking_types),
-                dbg.rec(owned.routes),
-                dbg.rec(owned.view_location),
+            _debug.lifecycle(
+                "unlink_owned",
+                rules=owned.rules,
+                picking_types=owned.picking_types,
+                routes=owned.routes,
+                view_location=owned.view_location,
             )
-
-        for owned in leftovers:
             for records in owned.config:
                 records.unlink()
             owned.rules.unlink()
@@ -733,10 +731,10 @@ class StockWarehouse(models.Model):
             fields=["id", "name", "code"],
         )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _update_active(self, active, reactivate_depends):
         self.check_singleton()
-        dbg.lifecycle.debug("[warehouse:%s] active -> %s", self.id, active)
+        _debug.lifecycle("active_updated", warehouse=self.id, active=active)
         PickingType = self.env["stock.picking.type"]
         picking_types = PickingType.with_context(active_test=False).search(
             [("warehouse_id", "=", self.id)]
@@ -758,16 +756,10 @@ class StockWarehouse(models.Model):
         if active:
             dormant = resupply_routes.filtered(lambda route: not route.active)
             if dormant:
-                dbg.logic.debug(
-                    "_update_active: rules of dormant resupply routes %s stay archived",
-                    dbg.rec(dormant),
-                )
+                _debug.logic("dormant_resupply_rules", routes=dormant)
                 rules = rules.filtered(lambda rule: rule.route_id not in dormant)
-        dbg.lifecycle.debug(
-            "_update_active: picking types %s, rules %s -> active=%s",
-            dbg.rec(picking_types),
-            dbg.rec(rules),
-            active,
+        _debug.lifecycle(
+            "active_cascade", picking_types=picking_types, rules=rules, active=active
         )
         rules.write({"active": active})
 
@@ -852,9 +844,7 @@ class StockWarehouse(models.Model):
         )
         if several == (group_multi_warehouses in group_user.implied_ids):
             return
-        dbg.lifecycle.debug(
-            "_update_multiwarehouse_group: several=%s, toggling implied groups", several
-        )
+        _debug.lifecycle("multiwarehouse_group", several=several)
         if not several:
             group_user.sudo().write(
                 {"implied_ids": [fields.Command.unlink(group_multi_warehouses.id)]}

@@ -4,9 +4,8 @@ from collections import defaultdict
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import DOMAIN_PREDICATES, TransactionMemo, frozendict
-
-from ..tools import debug_log as dbg
 
 # the fields that decide which orderpoints a move's product and warehouses
 # reach; a write to any of them discards the transaction's memo
@@ -15,6 +14,7 @@ ORDERPOINTS_BY_SCOPE = TransactionMemo(
     "stock.warehouse.orderpoint.by_scope",
     invalidated_by={"stock.warehouse.orderpoint": ORDERPOINT_SCOPE_FIELDS},
 )
+_debug = DebugLog(__name__)
 
 _logger = logging.getLogger(__name__)
 
@@ -275,14 +275,15 @@ class StockWarehouseOrderpoint(models.Model):
             vals = dict(vals, qty_to_order_manual_set=True)
         return vals
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model_create_multi
     def create(self, vals_list):
-        dbg.lifecycle.debug(
-            "orderpoint.create: %d vals, keys=%s",
-            len(vals_list),
-            dbg.vals_keys(vals_list),
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                count=len(vals_list),
+                keys=sorted({key for vals in vals_list for key in vals}),
+            )
         vals_list = [self._update_vals_manual_qty_override(vals) for vals in vals_list]
         default_trigger = None
         if any(vals.get("snoozed_until") for vals in vals_list):
@@ -298,11 +299,10 @@ class StockWarehouseOrderpoint(models.Model):
             )
         return super().create(vals_list)
 
-    @dbg.timed
+    @_debug.perf.timed
     def write(self, vals):
-        dbg.lifecycle.debug(
-            "orderpoint.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle("write", orderpoints=self, keys=sorted(vals))
         vals = self._update_vals_manual_qty_override(vals)
         if "company_id" in vals:
             for orderpoint in self:
@@ -323,9 +323,7 @@ class StockWarehouseOrderpoint(models.Model):
                     ),
                 )
         if vals.get("trigger") == "auto" and "snoozed_until" not in vals:
-            dbg.logic.debug(
-                "write: trigger auto clears snoozed_until on %s", dbg.rec(self)
-            )
+            _debug.logic("write_unsnooze", orderpoints=self)
             vals = dict(vals, snoozed_until=False)
         return super().write(vals)
 
@@ -562,7 +560,7 @@ class StockWarehouseOrderpoint(models.Model):
             for orderpoint in self
         }
 
-    @dbg.timed
+    @_debug.perf.timed
     def _read_product_qty_by_context(self, field_names):
         result = {}
         orderpoints_by_context = defaultdict(self.browse)
@@ -570,11 +568,11 @@ class StockWarehouseOrderpoint(models.Model):
             orderpoints_by_context[
                 frozendict(orderpoint._prepare_product_context())
             ] |= orderpoint
-        dbg.performance.debug(
-            "_read_product_qty_by_context(%s): %d orderpoints in %d contexts",
-            field_names,
-            len(self),
-            len(orderpoints_by_context),
+        _debug.perf.count(
+            "product_qty_by_context",
+            fields=field_names,
+            orderpoints=len(self),
+            contexts=len(orderpoints_by_context),
         )
         for product_context, orderpoints in orderpoints_by_context.items():
             values_by_product = {
@@ -594,7 +592,7 @@ class StockWarehouseOrderpoint(models.Model):
         "product_id.qty_available_virtual",
         "product_id.seller_ids.delay",
     )
-    @dbg.timed
+    @_debug.perf.timed
     @api.depends_context("global_horizon_days")
     def _compute_qty(self):
         orderpoints_to_compute = self.filtered(
@@ -614,11 +612,11 @@ class StockWarehouseOrderpoint(models.Model):
                 "qty_available"
             ]
             orderpoint.qty_forecast = qty_forecast[orderpoint.id]
-            dbg.logic.debug(
-                "[orderpoint:%s] on hand %s, forecast %s",
-                orderpoint.id,
-                orderpoint.qty_on_hand,
-                orderpoint.qty_forecast,
+            _debug.logic(
+                "qty_computed",
+                orderpoint=orderpoint.id,
+                on_hand=orderpoint.qty_on_hand,
+                forecast=orderpoint.qty_forecast,
             )
 
     @api.depends(
@@ -662,7 +660,7 @@ class StockWarehouseOrderpoint(models.Model):
         "product_id.seller_ids.delay",
         "company_id.stock_config_id.horizon_days",
     )
-    @dbg.timed
+    @_debug.perf.timed
     def _compute_qty_to_order_computed(self):
         canonical = self._with_canonical_horizon()
         suggestions = canonical._get_qty_to_order_map()
@@ -684,10 +682,8 @@ class StockWarehouseOrderpoint(models.Model):
         by_quantity = defaultdict(self.browse)
         for orderpoint in overridden:
             by_quantity[orderpoint.qty_to_order] |= orderpoint
-        if overridden:
-            dbg.logic.debug(
-                "_inverse_qty_to_order: manual override on %s", dbg.rec(overridden)
-            )
+        if _debug.logic.enabled and overridden:
+            _debug.logic("qty_to_order_override", orderpoints=overridden)
         for quantity, group in by_quantity.items():
             group.write(
                 {"qty_to_order_manual_set": True, "qty_to_order_manual": quantity},
@@ -762,13 +758,13 @@ class StockWarehouseOrderpoint(models.Model):
             for orderpoint_id, quantity in what_if.items()
             if predicate(quantity, value)
         ]
-        dbg.logic.debug(
-            "_search_qty_to_order %s %s under horizon %s: %d of %d what-if rows match",
-            operator,
-            value,
-            self.env.context["global_horizon_days"],
-            len(matched_ids),
-            len(what_if),
+        _debug.logic(
+            "qty_to_order_search",
+            operator=operator,
+            value=value,
+            horizon=self.env.context["global_horizon_days"],
+            matched=len(matched_ids),
+            rows=len(what_if),
         )
         return (stored & Domain("id", "not in", list(what_if))) | Domain(
             "id", "in", matched_ids

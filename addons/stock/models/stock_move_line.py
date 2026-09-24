@@ -4,6 +4,7 @@ from typing import Any, NamedTuple
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 
 from ..const import (
@@ -12,7 +13,6 @@ from ..const import (
     OUTGOING_BLOCK_TYPES,
     is_internal_flag,
 )
-from ..tools import debug_log as dbg
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
 LOGGED_RELATIONS = [
@@ -23,6 +23,7 @@ LOGGED_RELATIONS = [
     ("result_package_id", "result_package_dest_name"),
     ("owner_id", "owner_name"),
 ]
+_debug = DebugLog(__name__)
 
 
 _KEEP = object()
@@ -322,41 +323,33 @@ class StockMoveLine(models.Model):
         if any(ml.product_uom_id.compare(ml.quantity, 0) < 0 for ml in self):
             raise ValidationError(self._get_negative_quantity_message())
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model_create_multi
     def create(self, vals_list):
-        dbg.lifecycle.debug(
-            "stock.move.line.create: %d vals, keys=%s",
-            len(vals_list),
-            dbg.vals_keys(vals_list),
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                count=len(vals_list),
+                keys=sorted({key for vals in vals_list for key in vals}),
+            )
         vals_list = self._prepare_create_vals(vals_list)
 
         mls = super().create(vals_list)
-        dbg.lifecycle.debug("stock.move.line.create: created %s", dbg.rec(mls))
+        _debug.lifecycle("created", move_lines=mls)
 
         created_moves = mls._link_or_create_moves()
-        if created_moves:
-            dbg.pipeline.debug(
-                "create: lines %s created moves %s",
-                dbg.rec(mls),
-                dbg.rec(created_moves),
-            )
+        if _debug.pipeline.enabled and created_moves:
+            _debug.pipeline("create_moves", move_lines=mls, moves=created_moves)
         mls._reserve_new_move_lines()
         created_moves._post_process_created_moves()
         done_lines = mls.filtered(lambda ml: ml.state == "done")
-        if done_lines:
-            dbg.pipeline.debug(
-                "create: done lines %s update quants directly", dbg.rec(done_lines)
-            )
+        if _debug.pipeline.enabled and done_lines:
+            _debug.pipeline("create_done_update_quants", move_lines=done_lines)
         for ml in done_lines.with_context(quants_cache=done_lines._get_quants_cache()):
             ml._update_quants_and_reservations()
 
         if next_moves := done_lines._get_pending_dest_moves():
-            dbg.pipeline.debug(
-                "create: done lines -> unreserve + assign dest moves %s",
-                dbg.rec(next_moves),
-            )
+            _debug.pipeline("create_done_assign_dests", moves=next_moves)
             next_moves._unreserve()
             next_moves._action_assign()
 
@@ -366,11 +359,10 @@ class StockMoveLine(models.Model):
         mls._check_blocked_outgoing()
         return mls
 
-    @dbg.timed
+    @_debug.perf.timed
     def write(self, vals):
-        dbg.lifecycle.debug(
-            "stock.move.line.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle("write", move_lines=self, keys=sorted(vals))
         plan = self._prepare_write(vals)
         res = super().write(plan.vals)
         self._apply_write_plan(plan)
@@ -415,17 +407,16 @@ class StockMoveLine(models.Model):
             vals = {**vals, "date": fields.Datetime.now()}
             progressed = self.browse()
 
-        if reservation_touched:
-            dbg.logic.debug(
-                "_prepare_write on %s: updates=%s restock=%s adjust=%s next_moves=%s "
-                "recompute=%s progressed=%s",
-                dbg.rec(self),
-                dbg.keys(updates),
-                dbg.rec(to_restock),
-                dbg.rec(to_adjust),
-                dbg.rec(next_moves),
-                dbg.rec(moves_to_recompute_state),
-                dbg.rec(progressed),
+        if _debug.logic.enabled and reservation_touched:
+            _debug.logic(
+                "write_plan",
+                move_lines=self,
+                updates=sorted(updates),
+                restock=to_restock,
+                adjust=to_adjust,
+                next_moves=next_moves,
+                recompute=moves_to_recompute_state,
+                progressed=progressed,
             )
         return WritePlan(
             vals=vals,
@@ -454,17 +445,11 @@ class StockMoveLine(models.Model):
         plan.packages_to_check._update_orphaned_package_dests()
         if plan.reservation_touched:
             if mls_to_update := survivors._get_lines_not_entire_pack():
-                dbg.logic.debug(
-                    "_apply_write_plan: %s no longer entire pack",
-                    dbg.rec(mls_to_update),
-                )
+                _debug.logic("not_entire_pack", move_lines=mls_to_update)
                 mls_to_update.write({"is_entire_pack": False})
 
-            if plan.next_moves:
-                dbg.pipeline.debug(
-                    "_apply_write_plan -> unreserve + assign %s",
-                    dbg.rec(plan.next_moves),
-                )
+            if _debug.pipeline.enabled and plan.next_moves:
+                _debug.pipeline("write_plan_assign", moves=plan.next_moves)
             plan.next_moves._unreserve()
             plan.next_moves._action_assign()
 
@@ -490,18 +475,16 @@ class StockMoveLine(models.Model):
                 and line.location_dest_id.usage not in DISPOSAL_DEST_USAGES
             ),
         )
-        if blocked:
-            dbg.logic.debug(
-                "_check_blocked_outgoing: %s leave blocked locations %s",
-                dbg.rec(blocked),
-                dbg.rec(blocked.location_id),
+        if _debug.logic.enabled and blocked:
+            _debug.logic(
+                "blocked_outgoing", move_lines=blocked, locations=blocked.location_id
             )
         for location in blocked.location_id:
             location._check_operation_allowed("out")
 
-    @dbg.timed
+    @_debug.perf.timed
     def unlink(self):
-        dbg.lifecycle.debug("stock.move.line.unlink %s", dbg.rec(self))
+        _debug.lifecycle("unlink", move_lines=self)
         # validate before the reservations are released, as the @api.ondelete
         # hook only runs after them -- and, like it, not while a module is
         # uninstalled, when done lines go too and hold no reservation
@@ -676,10 +659,10 @@ class StockMoveLine(models.Model):
                 )
             )
             if recommended_location:
-                dbg.logic.debug(
-                    "_onchange_serial_number: lot %s recommends location %s",
-                    self.lot_id.id,
-                    recommended_location.id,
+                _debug.logic(
+                    "serial_recommends_location",
+                    lot=self.lot_id.id,
+                    location=recommended_location.id,
                 )
                 self.location_id = recommended_location
         else:
@@ -738,17 +721,17 @@ class StockMoveLine(models.Model):
                     ),
                 )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _action_done(self):
-        dbg.pipeline.debug("stock.move.line._action_done start on %s", dbg.rec(self))
+        _debug.pipeline("action_done_start", move_lines=self)
         mls_to_delete, mls_needing_lot_check, mls_without_lot = (
             self._classify_done_lines()
         )
-        dbg.logic.debug(
-            "_action_done: delete=%s lot_check=%s without_lot=%s",
-            dbg.rec(mls_to_delete),
-            dbg.rec(mls_needing_lot_check),
-            dbg.rec(mls_without_lot),
+        _debug.logic(
+            "action_done_split",
+            delete=mls_to_delete,
+            lot_check=mls_needing_lot_check,
+            without_lot=mls_without_lot,
         )
         (
             mls_without_lot | mls_needing_lot_check._update_done_lots()
@@ -762,12 +745,10 @@ class StockMoveLine(models.Model):
         if not self.env.context.get("ignore_dest_packages"):
             package_history_vals = mls_todo._prepare_package_history_vals()
             if package_history_vals:
-                dbg.lifecycle.debug(
-                    "_action_done: %d package history rows", len(package_history_vals)
-                )
+                _debug.lifecycle("package_history_rows", rows=len(package_history_vals))
                 self.env["stock.package.history"].create(package_history_vals)
 
-        dbg.pipeline.debug("_action_done -> _update_quants_done %s", dbg.rec(mls_todo))
+        _debug.pipeline("action_done_update_quants", move_lines=mls_todo)
         mls_todo._update_quants_done()
 
         if not self.env.context.get("ignore_dest_packages"):
@@ -864,13 +845,13 @@ class StockMoveLine(models.Model):
 
         if blocked_by_archived:
             raise self._prepare_archived_lots_error(blocked_by_archived)
-        dbg.logic.debug(
-            "_update_done_lots: %d existing lots matched, create lots for %s, "
-            "still without lot %s",
-            sum(len(lots) for lots in lots_per_group.values()),
-            list(ml_ids_to_create_lot),
-            list(ml_ids_tracked_without_lot),
-        )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "done_lots",
+                matched=sum(len(lots) for lots in lots_per_group.values()),
+                create_lot_ids=list(ml_ids_to_create_lot),
+                without_lot_ids=list(ml_ids_tracked_without_lot),
+            )
         self.browse(ml_ids_to_create_lot)._create_production_lots()
         return self.browse(ml_ids_tracked_without_lot)
 
@@ -938,8 +919,8 @@ class StockMoveLine(models.Model):
                 new_qty = ml._get_new_quantity_product_uom(vals, updates)
                 if ml.product_uom_id.compare(ml.quantity_product_uom, new_qty) < 0:
                     progressed_ids.add(ml.id)
-        if progressed_ids:
-            dbg.logic.debug("_get_progressed_lines: %s", sorted(progressed_ids))
+        if _debug.logic.enabled and progressed_ids:
+            _debug.logic("progressed_lines", line_ids=sorted(progressed_ids))
         return self.browse(progressed_ids)
 
     def _create_production_lots(self):
@@ -951,11 +932,7 @@ class StockMoveLine(models.Model):
         lots = self.env["stock.lot"].create(
             [mls[0]._prepare_new_lot_vals() for mls in key_to_mls.values()]
         )
-        dbg.lifecycle.debug(
-            "_create_production_lots: %s for %d line groups",
-            dbg.rec(lots),
-            len(key_to_mls),
-        )
+        _debug.lifecycle("production_lots_created", lots=lots, groups=len(key_to_mls))
         for lot, mls in zip(lots, key_to_mls.values(), strict=True):
             mls.with_prefetch(self._prefetch_ids).write(
                 {"lot_id": lot.with_prefetch(lots._ids).id}
@@ -1060,14 +1037,10 @@ class StockMoveLine(models.Model):
             vals = {"move_id": move_id, "picking_id": picking_id}
             if picked:
                 vals["picked"] = True
-            dbg.pipeline.debug(
-                "_link_to_existing_moves: %s -> move %s", dbg.rec(lines), move_id
-            )
+            _debug.pipeline("linked_to_existing_move", move_lines=lines, move=move_id)
             lines.write(vals)
-        if unlinked:
-            dbg.logic.debug(
-                "_link_to_existing_moves: no linkable move for %s", dbg.rec(unlinked)
-            )
+        if _debug.logic.enabled and unlinked:
+            _debug.logic("no_linkable_move", move_lines=unlinked)
         return unlinked
 
     def _create_moves(self):
@@ -1091,9 +1064,7 @@ class StockMoveLine(models.Model):
 
         if not new_move_vals:
             return self.env["stock.move"]
-        dbg.pipeline.debug(
-            "_create_moves: %d moves for %d lines", len(new_move_vals), len(self)
-        )
+        _debug.pipeline("moves_created", moves=len(new_move_vals), lines=len(self))
         created_moves = self.env["stock.move"].create(new_move_vals)
         for new_move, lines in zip(created_moves, lines_per_new_move, strict=True):
             lines.move_id = new_move.id

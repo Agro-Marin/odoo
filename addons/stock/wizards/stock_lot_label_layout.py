@@ -1,8 +1,9 @@
 from collections import defaultdict
 
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class LotLabelLayout(models.TransientModel):
@@ -44,11 +45,11 @@ class LotLabelLayout(models.TransientModel):
             docids = []
             for lot_id, qty in quantity_by_lot.items():
                 docids.extend([lot_id] * qty)
-        dbg.logic.debug(
-            "lot labels: format %s quantity %s -> %d docids",
-            self.print_format,
-            self.label_quantity,
-            len(docids),
+        _debug.logic(
+            "lot_labels",
+            print_format=self.print_format,
+            quantity=self.label_quantity,
+            docids=len(docids),
         )
         report_action = self.env.ref(xml_id).report_action(docids, config=False)
         report_action.update({"close_on_report_download": True})

@@ -1,8 +1,10 @@
 from markupsafe import Markup
 
 from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.tests import tagged
 
 from .blocked_location_common import BlockedLocationCase
+from .common import LocationCase
 
 
 class TestBlockMetadata(BlockedLocationCase):
@@ -603,3 +605,25 @@ class TestReservedQuantityReporting(BlockedLocationCase):
         self.assertIn(
             "25.00 Units", self._messages(location, "Location Blocked")[0].body
         )
+
+
+@tagged("post_install", "-at_install")
+class TestTheReservedBreakdownIsKeyedByUnit(LocationCase):
+    def test_two_units_sharing_a_name_stay_separate(self):
+        reference = self.env["uom.uom"].search([], limit=1)
+        twin = self.env["uom.uom"].create(
+            {
+                "name": reference.name,
+                "relative_factor": 1.0,
+                "relative_uom_id": reference.id,
+            },
+        )
+        self.assertEqual(twin.name, reference.name)
+        self.assertNotEqual(twin, reference)
+        breakdown = {reference: 2.0, twin: 3.0}
+        self.assertEqual(len(breakdown), 2)
+        rendered = self.Location._format_reserved_quantities(breakdown)
+        self.assertEqual(rendered.count(reference.name), 2)
+
+    def test_a_location_with_no_reservation_renders_nothing(self):
+        self.assertEqual(self.Location._format_reserved_quantities({}), "")

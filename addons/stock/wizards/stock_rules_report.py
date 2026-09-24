@@ -1,6 +1,7 @@
 from odoo import Command, api, fields, models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockRulesReport(models.TransientModel):
@@ -54,7 +55,7 @@ class StockRulesReport(models.TransientModel):
     def action_print_rules_report(self):
         self.check_singleton()
         data = self._prepare_report_data()
-        dbg.pipeline.debug("stock rules report requested: %s", data)
+        _debug.pipeline("rules_report_requested", data=data)
         return self.env.ref("stock.action_report_stock_rule").report_action(
             None, data=data
         )

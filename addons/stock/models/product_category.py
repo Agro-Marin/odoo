@@ -1,7 +1,8 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class ProductCategory(models.Model):
@@ -60,7 +61,7 @@ class ProductCategory(models.Model):
         store=False,
     )
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.depends("parent_id", "parent_id.total_route_ids", "route_ids")
     def _compute_parent_route_ids(self):
         # The ancestry is walked over `route_ids`, a plain stored field, and
@@ -123,12 +124,12 @@ class ProductCategory(models.Model):
                     for category in candidates
                     if wanted & set(category.total_route_ids.ids)
                 ]
-                dbg.performance.debug(
-                    "_search_total_route_ids(%s): %d owners -> %d candidates, %d match",
-                    operator,
-                    len(owners),
-                    len(candidates),
-                    len(matched),
+                _debug.perf.count(
+                    "total_route_search",
+                    operator=operator,
+                    owners=len(owners),
+                    candidates=len(candidates),
+                    matched=len(matched),
                 )
         return [("id", "in" if operator == "in" else "not in", matched)]
 

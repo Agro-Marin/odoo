@@ -4,9 +4,11 @@ from typing import NamedTuple
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
 from ..const import PARTNER_LOCATION_USAGES, PARTNER_USAGE_BY_PICKING_CODE
-from ..tools import debug_log as dbg
+
+_debug = DebugLog(__name__)
 
 
 class GroupingCriterion(NamedTuple):
@@ -276,34 +278,32 @@ class StockPickingType(models.Model):
         "reference sequence, and its transfers cannot be numbered.",
     )
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model_create_multi
     def create(self, vals_list):
-        dbg.lifecycle.debug(
-            "stock.picking.type.create: %d vals, keys=%s",
-            len(vals_list),
-            dbg.vals_keys(vals_list),
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                count=len(vals_list),
+                keys=sorted({key for vals in vals_list for key in vals}),
+            )
         picking_types = super().create(vals_list)
-        dbg.lifecycle.debug(
-            "stock.picking.type.create: created %s", dbg.rec(picking_types)
-        )
+        _debug.lifecycle("created", picking_types=picking_types)
         picking_types._update_reference_sequences()
         return picking_types
 
-    @dbg.timed
+    @_debug.perf.timed
     def unlink(self):
-        dbg.lifecycle.debug("stock.picking.type.unlink %s", dbg.rec(self))
+        _debug.lifecycle("unlink", picking_types=self)
         sequences = self.sequence_id
         result = super().unlink()
         self._remove_orphaned_sequences(sequences)
         return result
 
-    @dbg.timed
+    @_debug.perf.timed
     def write(self, vals):
-        dbg.lifecycle.debug(
-            "stock.picking.type.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle("write", picking_types=self, keys=sorted(vals))
         self._check_company_change(vals)
         types_changing_warehouse = (
             self.filtered(
@@ -338,11 +338,9 @@ class StockPickingType(models.Model):
                 picking_type.warehouse_id.id != warehouse_before[picking_type.id]
             )
         )
-        if moved or types_changing_warehouse:
-            dbg.logic.debug(
-                "write: moved to another warehouse %s, changing warehouse %s",
-                dbg.rec(moved),
-                dbg.rec(types_changing_warehouse),
+        if _debug.logic.enabled and (moved or types_changing_warehouse):
+            _debug.logic(
+                "write_warehouse_change", moved=moved, changing=types_changing_warehouse
             )
         if "sequence_code" in vals:
             self._update_reference_sequences()
@@ -389,10 +387,7 @@ class StockPickingType(models.Model):
                 lambda pt: pt.reservation_method == "by_date"
             )
             if leaving_by_date:
-                dbg.logic.debug(
-                    "_update_move_reservation_dates: %s leave by_date, clearing dates",
-                    dbg.rec(leaving_by_date),
-                )
+                _debug.logic("reservation_dates_cleared", picking_types=leaving_by_date)
                 self.env["stock.move"].search(
                     [
                         ("picking_type_id", "in", leaving_by_date.ids),
@@ -431,12 +426,12 @@ class StockPickingType(models.Model):
                 "reservation_days_before_priority",
                 picking_type.reservation_days_before_priority,
             )
-            dbg.lifecycle.debug(
-                "[picking_type:%s] reservation dates on %s: %s/%s days",
-                picking_type.id,
-                dbg.rec(moves),
-                common_days,
-                priority_days,
+            _debug.lifecycle(
+                "reservation_dates",
+                picking_type=picking_type.id,
+                moves=moves,
+                common_days=common_days,
+                priority_days=priority_days,
             )
             moves._update_date_reservation_from_days(common_days, priority_days)
 
@@ -476,11 +471,12 @@ class StockPickingType(models.Model):
             if vals:
                 pickings_by_vals[tuple(sorted(vals.items()))] |= picking
         for vals, to_update in pickings_by_vals.items():
-            dbg.logic.debug(
-                "_propagate_default_locations_to_draft_pickings: %s <- %s",
-                dbg.rec(to_update),
-                dict(vals),
-            )
+            if _debug.logic.enabled:
+                _debug.logic(
+                    "default_locations_to_draft_pickings",
+                    pickings=to_update,
+                    vals=dict(vals),
+                )
             to_update.write(dict(vals))
 
     def _update_default_locations_for_warehouse(self, vals):
@@ -510,11 +506,11 @@ class StockPickingType(models.Model):
                     to_update.setdefault("default_location_dest_id", self.browse())
                     to_update["default_location_dest_id"] |= picking_type
         for field_name, picking_types in to_update.items():
-            dbg.logic.debug(
-                "_update_default_locations_for_warehouse: %s.%s -> %s",
-                dbg.rec(picking_types),
-                field_name,
-                stock_location.id,
+            _debug.logic(
+                "default_locations_for_warehouse",
+                picking_types=picking_types,
+                field=field_name,
+                location=stock_location.id,
             )
             picking_types.write({field_name: stock_location.id})
 
@@ -563,23 +559,23 @@ class StockPickingType(models.Model):
                 # the silent half of this gate used to be the one people ask
                 # about: "why did my operation type NOT pick up the new
                 # default?" produced nothing in any trace
-                dbg.logic.debug(
-                    "[picking_type:%s] %s: kept %s, still suitable for code=%s",
-                    picking_type.id,
-                    field_name,
-                    current.id,
-                    picking_type.code,
+                _debug.logic(
+                    "default_location_kept",
+                    picking_type=picking_type.id,
+                    field=field_name,
+                    location=current.id,
+                    code=picking_type.code,
                 )
                 continue
             location = derive(picking_type)
             if location:
-                dbg.logic.debug(
-                    "[picking_type:%s] %s: %s -> %s (code=%s)",
-                    picking_type.id,
-                    field_name,
-                    current.id,
-                    location.id,
-                    picking_type.code,
+                _debug.logic(
+                    "default_location_changed",
+                    picking_type=picking_type.id,
+                    field=field_name,
+                    old_location=current.id,
+                    location=location.id,
+                    code=picking_type.code,
                 )
                 picking_type[field_name] = location.id
             elif not current:

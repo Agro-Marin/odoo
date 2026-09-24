@@ -3,9 +3,11 @@ from collections import defaultdict
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
 from odoo.addons.stock.const import ADVANCED_STOCK_OPTION_GROUPS
+
+_debug = DebugLog(__name__)
 
 
 class ProductTemplate(models.Model):
@@ -273,22 +275,17 @@ class ProductTemplate(models.Model):
                     continue
                 template_ids.append(product_tmpl.id)
                 quantities.append(qty)
-            dbg.pipeline.debug(
-                "product.template.create: initial qty_available on %s", template_ids
-            )
+            _debug.pipeline("create_initial_qty", template_ids=template_ids)
             self.browse(template_ids)._update_qty_available(quantities)
         return product_templates
 
-    @dbg.timed
+    @_debug.perf.timed
     def write(self, vals):
         if vals.get("company_id"):
             products_changing_company = self.filtered(
                 lambda product: product.company_id.id != vals["company_id"],
             )
-            dbg.logic.debug(
-                "product.template.write: company change on %s, checking stock data",
-                dbg.rec(products_changing_company),
-            )
+            _debug.logic("write_company_change", products=products_changing_company)
             if products_changing_company:
                 variant_ids = products_changing_company.with_context(
                     active_test=False
@@ -341,11 +338,13 @@ class ProductTemplate(models.Model):
             lambda tmpl: was_storable[tmpl.id] and not tmpl.is_storable
         )
         Quant = self.env["stock.quant"].sudo()
-        if templates_to_reset or templates_losing_storage:
-            dbg.lifecycle.debug(
-                "product.template.write: became storable %s, lost storage %s",
-                dbg.rec(templates_to_reset),
-                dbg.rec(templates_losing_storage),
+        if _debug.lifecycle.enabled and (
+            templates_to_reset or templates_losing_storage
+        ):
+            _debug.lifecycle(
+                "write_storable_change",
+                became_storable=templates_to_reset,
+                lost_storage=templates_losing_storage,
             )
         if templates_to_reset:
             products = templates_to_reset.with_context(
@@ -665,7 +664,7 @@ class ProductTemplate(models.Model):
             )
         )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _apply_zero_inventory(self):
         variant_ids = self.with_context(active_test=False).product_variant_ids.ids
         move_line_domain = Domain(
@@ -705,11 +704,11 @@ class ProductTemplate(models.Model):
             ["quantity:sum"],
         ):
             inventory_ledger[product, location] -= on_hand
-        dbg.logic.debug(
-            "_apply_zero_inventory on %s: %d done lines -> %d (product, location) balances",
-            dbg.rec(self),
-            len(move_lines_to_match),
-            len(inventory_ledger),
+        _debug.logic(
+            "zero_inventory_applied",
+            templates=self,
+            done_lines=len(move_lines_to_match),
+            balances=len(inventory_ledger),
         )
         quants_to_reset = self.env["stock.quant"].create(
             [

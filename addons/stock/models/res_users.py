@@ -1,6 +1,7 @@
 from odoo import models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class ResUsers(models.Model):
@@ -10,9 +11,7 @@ class ResUsers(models.Model):
         warehouse = self.env["stock.warehouse"]._get_default_for_company(
             self.env.company
         )
-        dbg.logic.debug(
-            "_get_default_warehouse_id: company %s -> %s",
-            self.env.company.id,
-            warehouse.id,
+        _debug.logic(
+            "default_warehouse", company=self.env.company.id, warehouse=warehouse.id
         )
         return warehouse

@@ -1,6 +1,7 @@
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockPackageHistory(models.Model):
@@ -58,11 +59,7 @@ class StockPackageHistory(models.Model):
 
     def action_view_package(self):
         self.check_singleton()
-        dbg.lifecycle.debug(
-            "[package_history:%s] action_view_package -> package %s",
-            self.id,
-            self.package_id.id,
-        )
+        _debug.lifecycle("view_package", history=self.id, package=self.package_id.id)
         return {
             "type": "ir.actions.act_window",
             "view_mode": "form",
@@ -73,15 +70,8 @@ class StockPackageHistory(models.Model):
     def _get_complete_dest_name_except_outermost(self):
         self.check_singleton()
         if not self.parent_dest_id:
-            dbg.logic.debug(
-                "[package_history:%s] no destination container, complete name is empty",
-                self.id,
-            )
+            _debug.logic("complete_dest_name_empty", history=self.id)
             return ""
         name = " > ".join(self.package_name.split(" > ")[1:])
-        dbg.logic.debug(
-            "[package_history:%s] complete dest name below outermost: %s",
-            self.id,
-            name,
-        )
+        _debug.logic("complete_dest_name", history=self.id, name=name)
         return name

@@ -1,10 +1,12 @@
 from collections import defaultdict
 
 from odoo import api, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import clean_context
 
-from ..tools import debug_log as dbg
 from .stock_picking import DONE_CANCEL_STATES
+
+_debug = DebugLog(__name__)
 
 
 class StockPickingPackage(models.Model):
@@ -145,9 +147,7 @@ class StockPickingPackage(models.Model):
         if self.env.context.get("sml_specific_default"):
             self = self.with_context(clean_context(self.env.context))
         if self.state in DONE_CANCEL_STATES:
-            dbg.logic.debug(
-                "[picking:%s] action_put_in_pack on closed picking", self.id
-            )
+            _debug.logic("put_in_pack_closed", picking=self.id)
             return None
         if self.env.context.get("all_move_line_ids"):
             self = self.with_context(
@@ -175,11 +175,11 @@ class StockPickingPackage(models.Model):
                 lambda ml: ml.package_id.id in all_package_ids,
             ).unlink()
             move_line_vals = self._prepare_entire_pack_move_line_vals(all_packages)
-            dbg.pipeline.debug(
-                "[picking:%s] action_add_entire_packs %s -> %d lines",
-                self.id,
-                dbg.rec(all_packages),
-                len(move_line_vals),
+            _debug.pipeline(
+                "add_entire_packs",
+                picking=self.id,
+                packages=all_packages,
+                lines=len(move_line_vals),
             )
             pack_move_lines = self.env["stock.move.line"].create(move_line_vals)
             pack_move_lines._apply_putaway_strategy()
@@ -209,7 +209,7 @@ class StockPickingPackage(models.Model):
             for package_quant in packages.quant_ids
         ]
 
-    @dbg.timed
+    @_debug.perf.timed
     def _check_entire_pack(self):
         for package, package_move_lines in self.move_line_ids.grouped(
             "package_id"
@@ -225,11 +225,11 @@ class StockPickingPackage(models.Model):
                         not ml.result_package_id and ml.state not in DONE_CANCEL_STATES
                     ),
                 )
-                dbg.logic.debug(
-                    "_check_entire_pack: package %s entirely moved, %s keep it (%s)",
-                    package.id,
-                    dbg.rec(move_lines_to_pack),
-                    package.package_type_id.package_use,
+                _debug.logic(
+                    "entire_pack",
+                    package=package.id,
+                    move_lines=move_lines_to_pack,
+                    package_use=package.package_type_id.package_use,
                 )
                 if package.package_type_id.package_use != "reusable":
                     move_lines_to_pack.write(

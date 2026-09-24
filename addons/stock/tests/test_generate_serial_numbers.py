@@ -648,3 +648,17 @@ class StockGenerateCommon(TransactionCase):
             before,
             "import mode must not consume sequence numbers",
         )
+
+
+class TestNoDeadLotHelpers(TransactionCase):
+    def test_the_unused_lot_helpers_are_gone(self):
+        self.assertFalse(hasattr(self.env["stock.lot"], "_get_next_serial"))
+        self.assertFalse(hasattr(self.env["stock.lot"], "_parse_name"))
+
+    def test_the_generate_serials_dialog_previews_without_drawing(self):
+        product = self.env["product.product"].create(
+            {"name": "preview", "is_storable": True, "tracking": "serial"}
+        )
+        preview = product.get_next_lot_preview()
+        self.assertTrue(preview)
+        self.assertEqual(product.get_next_lot_preview(), preview)

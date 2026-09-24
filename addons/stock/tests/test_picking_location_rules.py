@@ -1,8 +1,10 @@
 from datetime import datetime
 
 from odoo import Command
-from odoo.tests import TransactionCase
+from odoo.tests import TransactionCase, tagged
 from odoo.tools import mute_logger
+
+from odoo.addons.stock.tests.common import PickingCase, WarehousePickingCase
 
 
 class TestPickingLocationRules(TransactionCase):
@@ -504,3 +506,201 @@ class TestPickingUserDependentFields(TransactionCase):
             "Ring the bell twice",
             picking.with_user(self.privileged).picking_warning_text,
         )
+
+
+class TestLocationPropagationIsGated(PickingCase):
+    def test_the_trigger_set_is_derived_from_the_registry(self):
+        picking = self.env["stock.picking"]
+        field_depends = self.env.registry.field_depends
+        expected = {"location_id", "location_dest_id"}
+        for name in ("location_id", "location_dest_id"):
+            expected.update(
+                dependency.split(".")[0]
+                for dependency in field_depends[picking._fields[name]]
+            )
+        self.assertEqual(
+            picking._get_location_trigger_fields(),
+            frozenset(expected),
+            "the gate must follow the registry, so an addon that adds a depends"
+            " to either location compute cannot leave it stale",
+        )
+
+    def test_the_trigger_set_holds_the_fields_that_move_a_location(self):
+        self.assertLessEqual(
+            {"location_id", "location_dest_id", "picking_type_id", "partner_id"},
+            self.env["stock.picking"]._get_location_trigger_fields(),
+        )
+
+    def test_a_write_that_cannot_move_a_location_takes_no_snapshot(self):
+        pickings = self.env["stock.picking"].concat(
+            *(self._picking() for _ in range(3)),
+        )
+        pickings.action_confirm()
+        snapshots = []
+        model = type(self.env["stock.picking"])
+        original = model._propagate_locations_to_moves
+
+        def counting_propagate(records, locations_before):
+            snapshots.append(len(locations_before))
+            return original(records, locations_before)
+
+        model._propagate_locations_to_moves = counting_propagate
+        try:
+            pickings.write({"is_locked": False})
+            irrelevant = list(snapshots)
+            snapshots.clear()
+            pickings.write({"location_id": self.warehouse.lot_stock_id.id})
+        finally:
+            model._propagate_locations_to_moves = original
+
+        self.assertEqual(irrelevant, [0], "is_locked cannot move a location")
+        self.assertEqual(snapshots, [3], "location_id still propagates to moves")
+
+    def test_renaming_on_a_type_change_adds_no_snapshot_work(self):
+        pickings = self.env["stock.picking"].concat(
+            *(self._picking() for _ in range(5)),
+        )
+        snapshots = []
+        model = type(self.env["stock.picking"])
+        original = model._propagate_locations_to_moves
+
+        def counting_propagate(records, locations_before):
+            snapshots.append(len(locations_before))
+            return original(records, locations_before)
+
+        model._propagate_locations_to_moves = counting_propagate
+        try:
+            pickings.write({"picking_type_id": self.type_out.id})
+        finally:
+            model._propagate_locations_to_moves = original
+
+        self.assertEqual(
+            pickings.picking_type_id,
+            self.type_out,
+            "the write must really change the type, or this test proves nothing",
+        )
+        self.assertEqual(
+            sum(snapshots),
+            5,
+            "the batch is snapshotted once; the five nested name writes add none",
+        )
+        self.assertEqual(len(set(pickings.mapped("name"))), 5)
+
+    def test_a_source_location_write_still_reaches_the_moves(self):
+        picking = self._picking(picking_type=self.type_out)
+        picking.action_confirm()
+        shelf = self.env["stock.location"].create(
+            {
+                "name": "Audit shelf",
+                "usage": "internal",
+                "location_id": self.warehouse.lot_stock_id.id,
+            },
+        )
+        self.assertNotEqual(picking.move_ids.location_id, shelf)
+        picking.write({"location_id": shelf.id})
+        self.assertEqual(picking.move_ids.location_id, shelf)
+
+    def test_a_partner_write_that_moves_the_location_reaches_the_moves(self):
+        own_supplier = self.env["stock.location"].create(
+            {
+                "name": "Audit vendor location",
+                "usage": "supplier",
+                "location_id": self.env.ref("stock.stock_location_suppliers").id,
+            },
+        )
+        partner = self.env["res.partner"].create({"name": "Audit vendor"})
+        partner.property_stock_supplier = own_supplier
+        picking = self._picking()
+        picking.action_confirm()
+        self.assertNotEqual(picking.location_id, own_supplier)
+
+        picking.write({"partner_id": partner.id})
+
+        self.assertEqual(
+            picking.location_id,
+            own_supplier,
+            "writing partner_id must still recompute the source location",
+        )
+        self.assertEqual(picking.move_ids.location_id, own_supplier)
+
+
+@tagged("post_install", "-at_install")
+class TestConfigurationDoesNotRetargetOpenPickings(WarehousePickingCase):
+    def test_a_warehouse_step_change_leaves_open_pickings_where_they_reserved(self):
+        receipt = self._assigned(self.type_in)
+        delivery = self._assigned(self.type_out)
+        self.env.flush_all()
+
+        self.warehouse.write(
+            {"reception_steps": "two_steps", "delivery_steps": "pick_ship"}
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.assertNotEqual(self.type_in.default_location_dest_id, self.stock)
+        for record in (receipt, receipt.move_ids, receipt.move_line_ids):
+            self.assertEqual(record.location_dest_id, self.stock)
+        for record in (delivery, delivery.move_ids, delivery.move_line_ids):
+            self.assertEqual(record.location_id, self.stock)
+
+    def test_a_default_change_keeps_a_location_the_user_chose(self):
+        shelf = self.env["stock.location"].create(
+            {"name": "Chosen shelf", "location_id": self.stock.id}
+        )
+        other = self.env["stock.location"].create(
+            {"name": "New default", "location_id": self.stock.id}
+        )
+        self.env["stock.quant"]._update_available_quantity(self.product, shelf, 10)
+        delivery = self._assigned(self.type_out, location_id=shelf.id)
+        self.env.flush_all()
+
+        self.type_out.default_location_src_id = other
+        self.env.flush_all()
+
+        self.assertEqual(delivery.location_id, shelf)
+        self.assertEqual(delivery.move_ids.location_id, shelf)
+
+    def test_a_partner_location_change_leaves_open_deliveries_alone(self):
+        partner = self.env["res.partner"].create({"name": "Relocating customer"})
+        delivery = self._assigned(self.type_out, partner_id=partner.id)
+        destination = delivery.location_dest_id
+        own = self.env["stock.location"].create(
+            {
+                "name": "Customer own location",
+                "usage": "customer",
+                "location_id": self.env.ref("stock.stock_location_customers").id,
+            }
+        )
+        self.env.flush_all()
+
+        partner.property_stock_customer = own
+        self.env.flush_all()
+
+        for record in (delivery, delivery.move_ids, delivery.move_line_ids):
+            self.assertEqual(record.location_dest_id, destination)
+
+    def test_an_empty_draft_picking_still_follows_its_operation_type(self):
+        draft = self.env["stock.picking"].create({"picking_type_id": self.type_in.id})
+        relocated = self.env["stock.location"].create(
+            {"name": "Relocated receipt", "location_id": self.stock.id}
+        )
+        self.env.flush_all()
+
+        self.type_in.default_location_dest_id = relocated
+        self.env.flush_all()
+
+        self.assertEqual(draft.location_dest_id, relocated)
+
+    def test_a_draft_picking_with_moves_keeps_their_locations(self):
+        draft = self._picking(self.type_in)
+        destination = draft.location_dest_id
+        relocated = self.env["stock.location"].create(
+            {"name": "Relocated receipt 2", "location_id": self.stock.id}
+        )
+        self.env.flush_all()
+
+        self.type_in.default_location_dest_id = relocated
+        self.env.flush_all()
+
+        for record in (draft, draft.move_ids):
+            self.assertEqual(record.location_dest_id, destination)

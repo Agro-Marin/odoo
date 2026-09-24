@@ -1,6 +1,7 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class MixinStockWarnInsufficientQty(models.AbstractModel):
@@ -46,9 +47,7 @@ class MixinStockWarnInsufficientQty(models.AbstractModel):
                 ("location_id.usage", "=", "internal"),
             ]
         )
-        dbg.performance.debug(
-            "_compute_quant_ids: %d wizards, %d quants fetched", len(self), len(quants)
-        )
+        _debug.perf.count("quant_ids_computed", wizards=len(self), quants=len(quants))
         for quantity in self:
             company = company_per_record[quantity.id]
             quantity.quant_ids = quants.filtered_domain(

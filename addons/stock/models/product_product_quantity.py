@@ -7,9 +7,9 @@ from typing import NamedTuple
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import DOMAIN_PREDICATES
 
-from ..tools import debug_log as dbg
 from odoo.addons.stock.const import QUANTITY_FIELDS
 from odoo.addons.stock.tools.quantity import (
     QuantityFilters,
@@ -17,6 +17,7 @@ from odoo.addons.stock.tools.quantity import (
 )
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 TODO_STATES = ("waiting", "confirmed", "assigned", "partially_available")
 ON_HAND_FIELDS = frozenset({"qty_available", "qty_free", "qty_available_virtual"})
@@ -77,7 +78,7 @@ class ProductProductQuantity(models.Model):
         "stock_quant_ids.owner_id",
         "stock_quant_ids.package_id",
     )
-    @dbg.timed
+    @_debug.perf.timed
     def _compute_quantities(self):
         prefetch_fields = self.env.context.get("prefetch_fields", True)
         guarded = self.with_context(skip_qty_available_update=True)
@@ -89,10 +90,8 @@ class ProductProductQuantity(models.Model):
         services = guarded - products
         for field_name in QUANTITY_FIELDS:
             services[field_name] = 0.0
-        dbg.performance.debug(
-            "_compute_quantities: %d products (%d services)",
-            len(products),
-            len(services),
+        _debug.perf.count(
+            "quantities_computed", products=len(products), services=len(services)
         )
         if not products:
             return
@@ -190,10 +189,10 @@ class ProductProductQuantity(models.Model):
         if not vals_list:
             return
         self._net_out_stock_held_elsewhere(vals_list)
-        dbg.pipeline.debug(
-            "_update_qty_available: %d inventory quants (scoped location %s)",
-            len(vals_list),
-            scoped_location.id if scoped_location else None,
+        _debug.pipeline(
+            "inventory_qty_update",
+            quants=len(vals_list),
+            location=scoped_location.id if scoped_location else None,
         )
         quants = (
             self.env["stock.quant"]
@@ -243,15 +242,14 @@ class ProductProductQuantity(models.Model):
                     ),
                 )
             vals["inventory_quantity"] = requested - held_elsewhere
-        dbg.logic.debug(
-            "_net_out_stock_held_elsewhere: %s",
-            dbg.lazy(
-                lambda: [
+        if _debug.logic.enabled:
+            _debug.logic(
+                "net_out_stock_held_elsewhere",
+                quantities=[
                     (vals["product_id"], vals["inventory_quantity"])
                     for vals in vals_list
-                ]
-            ),
-        )
+                ],
+            )
 
     def _resolve_inventory_location(self):
         Location = self.env["stock.location"]
@@ -500,12 +498,12 @@ class ProductProductQuantity(models.Model):
             in_leaves, out_leaves = self._get_domains_quantity_leaves(filters)
             done_in_leaves = product_domain & in_leaves
             done_out_leaves = product_domain & out_leaves
-        dbg.logic.debug(
-            "_prepare_quantities_scope: %d products from=%s to=%s past=%s",
-            len(self),
-            from_date,
-            to_date,
-            dates_in_the_past,
+        _debug.logic(
+            "quantities_scope",
+            products=len(self),
+            from_date=from_date,
+            to_date=to_date,
+            past=dates_in_the_past,
         )
         return QuantityScope(
             quant=domain_quant,
@@ -607,12 +605,12 @@ class ProductProductQuantity(models.Model):
                 ["quantity_product_uom:sum"],
             )
         )
-        dbg.logic.debug(
-            "_read_done_quantities_after %s by %s: %d in, %d out",
-            to_date,
-            groupby,
-            len(moves_in),
-            len(moves_out),
+        _debug.logic(
+            "done_quantities_after",
+            to_date=to_date,
+            groupby=groupby,
+            moves_in=len(moves_in),
+            moves_out=len(moves_out),
         )
         return moves_in, moves_out
 
@@ -635,12 +633,12 @@ class ProductProductQuantity(models.Model):
                 reads.moves_out_past.get(pid, 0.0),
             )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _prepare_quantities_vals(self, filters, location_domains=None):
         scope = self._prepare_quantities_scope(
             filters, location_domains=location_domains
         )
-        with dbg.timer(self.env, "_read_quantities for %d products", len(self)):
+        with _debug.perf("read_quantities", cr=self.env.cr, products=len(self)):
             reads = self._read_quantities(scope)
         res = {}
 
@@ -713,12 +711,11 @@ class ProductProductQuantity(models.Model):
                     ["product_id"],
                 )
             }
-        dbg.performance.debug(
-            "_get_quantity_search_candidates(%s): %d products with stock data "
-            "(on hand %s, planned %s)",
-            field,
-            len(product_ids),
-            on_hand,
-            planned,
+        _debug.perf.count(
+            "quantity_search_candidates",
+            field=field,
+            products=len(product_ids),
+            on_hand=on_hand,
+            planned=planned,
         )
         return self.env["product.product"].browse(product_ids)

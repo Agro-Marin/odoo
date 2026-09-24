@@ -3,10 +3,10 @@ from itertools import batched
 
 from odoo import api, fields, models
 from odoo.fields import Domain
-
-from ..tools import debug_log as dbg
+from odoo.libs.debug_log import DebugLog
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class StockScheduler(models.AbstractModel):
@@ -15,20 +15,18 @@ class StockScheduler(models.AbstractModel):
 
     _BATCH_SIZE = 1000
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model
     def run(self, use_new_cursor=False, company_id=False):
-        dbg.lifecycle.debug(
-            "stock scheduler run start new_cursor=%s company=%s",
-            use_new_cursor,
-            company_id,
+        _debug.lifecycle(
+            "scheduler_start", new_cursor=use_new_cursor, company=company_id
         )
         try:
             self._run_tasks(use_new_cursor=use_new_cursor, company_id=company_id)
         except Exception:
             _logger.exception("Error during stock scheduler")
             raise
-        dbg.lifecycle.debug("stock scheduler run done")
+        _debug.lifecycle("scheduler_done")
 
     @api.model
     def _get_tasks(self):
@@ -44,7 +42,7 @@ class StockScheduler(models.AbstractModel):
         if use_new_cursor:
             Cron._commit_progress(remaining=self._get_tasks_to_do())
         for task in self._get_tasks():
-            with dbg.timer(self.env, "scheduler task %s", task):
+            with _debug.perf("scheduler_task", cr=self.env.cr, task=task):
                 getattr(self, task)(
                     use_new_cursor=use_new_cursor,
                     company_id=company_id,
@@ -60,9 +58,7 @@ class StockScheduler(models.AbstractModel):
         )
         for batch_ids in batched(orderpoints.ids, self._BATCH_SIZE, strict=False):
             batch = Orderpoint.browse(batch_ids).sudo()
-            dbg.pipeline.debug(
-                "scheduler -> _update_stored_values on %s", dbg.rec(batch)
-            )
+            _debug.pipeline("scheduler_update_orderpoints", orderpoints=batch)
             batch._update_stored_values()
             if use_new_cursor:
                 self.env["ir.cron"]._commit_progress()
@@ -72,9 +68,7 @@ class StockScheduler(models.AbstractModel):
         orderpoints = self.env["stock.warehouse.orderpoint"].search(
             self._get_domain_orderpoint(company_id=company_id),
         )
-        dbg.pipeline.debug(
-            "scheduler -> _procure_orderpoint_confirm %s", dbg.rec(orderpoints)
-        )
+        _debug.pipeline("scheduler_replenish", orderpoints=orderpoints)
         orderpoints.sudo()._procure_orderpoint_confirm(
             use_new_cursor=use_new_cursor,
             company_id=company_id,
@@ -88,9 +82,7 @@ class StockScheduler(models.AbstractModel):
             self._get_domain_moves_to_assign(company_id),
             order="date_reservation, priority desc, date asc, id asc",
         )
-        dbg.pipeline.debug(
-            "scheduler -> _reserve_due_moves: %d moves due", len(moves_to_assign)
-        )
+        _debug.pipeline("scheduler_reserve_due_moves", moves=len(moves_to_assign))
         for moves_chunk in batched(moves_to_assign.ids, self._BATCH_SIZE, strict=False):
             self.env["stock.move"].browse(moves_chunk).sudo()._action_assign()
             if not use_new_cursor:

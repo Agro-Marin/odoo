@@ -5,7 +5,7 @@ from psycopg.errors import UniqueViolation
 
 from odoo import Command
 from odoo.exceptions import UserError, ValidationError
-from odoo.tests import Form
+from odoo.tests import Form, TransactionCase
 from odoo.tests.common import new_test_user
 
 from odoo.addons.stock.tests.common import TestStockCommon
@@ -2530,4 +2530,172 @@ class TestWarehouse(TestStockCommon):
                 ]
             ),
             1,
+        )
+
+
+class TestWarehouseTopologyEdgeCases(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.warehouse = cls.env["stock.warehouse"].search(
+            [("company_id", "=", cls.env.company.id)],
+            limit=1,
+        )
+
+    def test_archive_ancestor_of_warehouse_stock_blocked(self):
+        warehouse = self.env["stock.warehouse"].create(
+            {"name": "Audit Zone WH", "code": "AZWH"},
+        )
+        zone = self.env["stock.location"].create(
+            {
+                "name": "Audit Zone",
+                "usage": "view",
+                "location_id": warehouse.view_location_id.id,
+            },
+        )
+        warehouse.lot_stock_id.location_id = zone
+        with self.assertRaises(UserError):
+            zone.action_archive()
+        self.assertTrue(warehouse.lot_stock_id.active)
+
+    def test_unlink_location_with_descendants_guarded(self):
+        parent = self.env["stock.location"].create(
+            {
+                "name": "Audit Unlink Parent",
+                "usage": "internal",
+                "location_id": self.warehouse.lot_stock_id.id,
+            },
+        )
+        child = self.env["stock.location"].create(
+            {
+                "name": "Audit Unlink Child",
+                "usage": "internal",
+                "location_id": parent.id,
+            },
+        )
+        child.action_archive()
+        with self.assertRaises(UserError):
+            parent.unlink()
+        self.assertTrue(parent.exists())
+        self.assertTrue(child.exists())
+        parent.with_context(stock_unlink_subtree=True).unlink()
+        self.assertFalse(parent.exists())
+        self.assertFalse(child.exists())
+
+    def test_settings_compute_replenish_on_order_without_mto(self):
+        route = self.env.ref("stock.route_warehouse0_mto", raise_if_not_found=False)
+        if route:
+            route.sudo().unlink()
+        settings = self.env["res.config.settings"].new({})
+        self.assertFalse(settings.replenish_on_order)
+
+    def test_route_unarchive_realigns_resupply_legs(self):
+        supplier_wh = self.env["stock.warehouse"].create(
+            {
+                "name": "Audit Supplier WH",
+                "code": "ASWH",
+                "delivery_steps": "pick_ship",
+            },
+        )
+        supplied_wh = self.env["stock.warehouse"].create(
+            {
+                "name": "Audit Supplied WH",
+                "code": "ADWH",
+                "resupply_wh_ids": [Command.set(supplier_wh.ids)],
+            },
+        )
+        resupply_route = self.env["stock.route"].search(
+            [
+                ("supplied_wh_id", "=", supplied_wh.id),
+                ("supplier_wh_id", "=", supplier_wh.id),
+            ],
+        )
+        self.assertTrue(resupply_route)
+        pick_leg = (
+            self.env["stock.rule"]
+            .with_context(active_test=False)
+            .search(
+                [
+                    ("route_id", "=", resupply_route.id),
+                    ("action", "!=", "push"),
+                    (
+                        "location_dest_id",
+                        "=",
+                        supplier_wh.wh_output_stock_loc_id.id,
+                    ),
+                    ("picking_type_id", "=", supplier_wh.pick_type_id.id),
+                ],
+            )
+        )
+        self.assertTrue(pick_leg.active, "Multi-step delivery: pick leg active.")
+        supplier_wh.delivery_steps = "ship_only"
+        self.assertFalse(pick_leg.active)
+        resupply_route.action_archive()
+        resupply_route.action_unarchive()
+        self.assertFalse(
+            pick_leg.active,
+            "Unarchiving the resupply route must re-align the step-dependent "
+            "legs with the supplier's current (single-step) delivery config.",
+        )
+
+    def test_replenish_mixin_excludes_intercompany_routes(self):
+        inter_company_location = self.env.ref("stock.stock_location_inter_company")
+        supplier_location = self.env.ref("stock.stock_location_suppliers")
+        stock_location = self.warehouse.lot_stock_id
+
+        def create_route(name, extra_rule_vals=None):
+            route = self.env["stock.route"].create(
+                {"name": name, "product_selectable": True},
+            )
+            self.env["stock.rule"].create(
+                {
+                    "name": f"{name} pull",
+                    "route_id": route.id,
+                    "action": "pull",
+                    "location_src_id": supplier_location.id,
+                    "location_dest_id": stock_location.id,
+                    "procure_method": "make_to_stock",
+                    "picking_type_id": self.warehouse.in_type_id.id,
+                },
+            )
+            if extra_rule_vals:
+                self.env["stock.rule"].create(
+                    dict(
+                        {
+                            "name": f"{name} intercomp",
+                            "route_id": route.id,
+                            "action": "pull",
+                            "procure_method": "make_to_stock",
+                            "picking_type_id": self.warehouse.int_type_id.id,
+                        },
+                        **extra_rule_vals,
+                    ),
+                )
+            return route
+
+        clean_route = create_route("Audit Clean Route")
+        intercomp_route = create_route(
+            "Audit Intercomp Route",
+            {
+                "location_src_id": inter_company_location.id,
+                "location_dest_id": stock_location.id,
+            },
+        )
+        product = self.env["product.product"].create(
+            {"name": "Audit Mixin Product", "is_storable": True},
+        )
+        wizard = self.env["product.replenish"].new(
+            {
+                "product_id": product.id,
+                "product_tmpl_id": product.product_tmpl_id.id,
+                "warehouse_id": self.warehouse.id,
+            },
+        )
+        allowed = self.env["stock.route"].search(wizard._get_domain_allowed_route())
+        self.assertIn(clean_route, allowed)
+        self.assertNotIn(
+            intercomp_route,
+            allowed,
+            "A route with a rule sourcing from the inter-company location "
+            "must be excluded from the replenish wizard's allowed routes.",
         )

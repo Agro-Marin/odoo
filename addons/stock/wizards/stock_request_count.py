@@ -1,7 +1,8 @@
 from odoo import fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockRequestCount(models.TransientModel):
@@ -53,11 +54,11 @@ class StockRequestCount(models.TransientModel):
         for count_request in self:
             quants_to_count = count_request._get_quants_to_count()
             values = count_request._get_values_to_write()
-            dbg.pipeline.debug(
-                "action_request_count: %s (from %d selected) get %s",
-                dbg.rec(quants_to_count),
-                len(count_request.quant_ids),
-                values,
+            _debug.pipeline(
+                "request_count",
+                quants=quants_to_count,
+                selected=len(count_request.quant_ids),
+                values=values,
             )
             quants_to_count.with_context(inventory_mode=True).write(values)
 

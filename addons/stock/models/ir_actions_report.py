@@ -1,6 +1,7 @@
 from odoo import models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class IrActionsReport(models.Model):
@@ -19,9 +20,7 @@ class IrActionsReport(models.Model):
         data = super()._prepare_rendering_context(report, docids, data)
         if report.report_name == "stock.report_reception_report_label" and not docids:
             docids = data["docids"]
-            dbg.logic.debug(
-                "reception report label: docids taken from data (%d)", len(docids)
-            )
+            _debug.logic("reception_label_docids_from_data", docids=len(docids))
             docs = self.env[report.model].browse(docids)
             data.update(
                 {

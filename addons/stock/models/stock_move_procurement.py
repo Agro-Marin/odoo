@@ -5,27 +5,26 @@ from collections import defaultdict
 from odoo import api, models
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 
-from ..tools import debug_log as dbg
 from .stock_orderpoint import ORDERPOINTS_BY_SCOPE
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class StockMoveProcurement(models.Model):
     _inherit = "stock.move"
 
-    @dbg.timed
+    @_debug.perf.timed
     def _run_procurements(self, consumed_from_stock_dict):
         quantities = self.with_context(
             consumed_from_stock_dict=consumed_from_stock_dict,
         )._prepare_procurement_qty()
         # (quantity, unit) pairs: a remainder the move's unit cannot express
         # is procured in the product's unit
-        dbg.pipeline.debug(
-            "_run_procurements: %s -> quantities %s", dbg.rec(self), quantities[:8]
-        )
+        _debug.pipeline("run_procurements", moves=self, quantities=quantities[:8])
         procurement_requests = [
             self.env["stock.rule"].Procurement(
                 move.product_id,
@@ -58,10 +57,8 @@ class StockMoveProcurement(models.Model):
                 and move.location_dest_id != move.location_final_id
             ),
         )
-        dbg.logic.debug(
-            "_reverse_negative_demand: negative %s, to push %s",
-            dbg.rec(neg_r_moves),
-            dbg.rec(neg_to_push),
+        _debug.logic(
+            "negative_demand_reversed", negative=neg_r_moves, to_push=neg_to_push
         )
         new_push_moves = self.browse()
         if neg_to_push:
@@ -75,11 +72,7 @@ class StockMoveProcurement(models.Model):
         neg_push_moves = self.filtered(
             lambda sm: sm.product_uom_id.compare(sm.product_uom_qty, 0) < 0,
         )
-        dbg.pipeline.debug(
-            "_confirm_pushed_moves: %s (negative %s)",
-            dbg.rec(self),
-            dbg.rec(neg_push_moves),
-        )
+        _debug.pipeline("pushed_moves_confirm", moves=self, negative=neg_push_moves)
         (self - neg_push_moves).sudo()._action_confirm()
         neg_push_moves._action_confirm(
             merge_into=neg_push_moves.move_orig_ids.move_dest_ids,
@@ -122,9 +115,7 @@ class StockMoveProcurement(models.Model):
                     location = location.location_id
                 rule_cache[cache_key] = rule
             if not rule:
-                dbg.logic.debug(
-                    "[move:%s] _update_procure_method: no rule, make_to_stock", move.id
-                )
+                _debug.logic("procure_method_no_rule", move=move.id)
                 move.procure_method = "make_to_stock"
                 continue
 
@@ -133,17 +124,15 @@ class StockMoveProcurement(models.Model):
                 move.procure_method = rule.procure_method
             else:
                 move.procure_method = "make_to_stock"
-            dbg.logic.debug(
-                "[move:%s] _update_procure_method: rule %s (%s) -> %s",
-                move.id,
-                rule.id,
-                rule.procure_method,
-                move.procure_method,
+            _debug.logic(
+                "procure_method",
+                move=move.id,
+                rule=rule.id,
+                rule_procure_method=rule.procure_method,
+                procure_method=move.procure_method,
             )
-        dbg.performance.debug(
-            "_update_procure_method: %d moves, %d rule lookups",
-            len(self),
-            len(rule_cache),
+        _debug.perf.count(
+            "procure_method_updated", moves=len(self), rule_lookups=len(rule_cache)
         )
 
     def _prepare_procurement_origin(self):
@@ -205,13 +194,13 @@ class StockMoveProcurement(models.Model):
                 procured = (quantity, move.product_id.uom_id)
             else:
                 procured = (product_uom_qty, move.product_uom_id)
-            dbg.logic.debug(
-                "[move:%s] mts_else_mto: demand %s, free %s -> procure %s %s",
-                move.id,
-                move.product_qty,
-                qty_free,
-                procured[0],
-                procured[1].name,
+            _debug.logic(
+                "mts_else_mto",
+                move=move.id,
+                demand=move.product_qty,
+                free=qty_free,
+                procure_qty=procured[0],
+                procure_uom=procured[1].name,
             )
             quantities.append(procured)
             consumed_from_stock_dict[move.location_id, move.product_id.id] += min(
@@ -297,18 +286,17 @@ class StockMoveProcurement(models.Model):
             warehouse.id if warehouse else False,
             repr(values.get("domain")),
         )
+        _debug.perf.count("push_rule_lookup", move=self.id, cached=key in cache)
         if key not in cache:
             cache[key] = StockRule._get_push_rule(
                 self.product_id, self.location_dest_id, values
             )
-        else:
-            dbg.performance.debug("[move:%s] push rule cache hit", self.id)
         return cache[key]
 
-    @dbg.timed
+    @_debug.perf.timed
     def _push_apply(self):
         depth = self.env.context.get("_push_apply_depth", 0) + 1
-        dbg.pipeline.debug("_push_apply on %s at depth %d", dbg.rec(self), depth)
+        _debug.pipeline("push_apply", moves=self, depth=depth)
         if depth > self._MAX_PUSH_DEPTH:
             raise UserError(
                 self.env._(
@@ -325,10 +313,14 @@ class StockMoveProcurement(models.Model):
             if rule:
                 moves_by_rule[rule, foreign].append(move.id)
         pushed = {}
-        dbg.logic.debug(
-            "_push_apply: rules %s",
-            {rule.id: move_ids for (rule, _foreign), move_ids in moves_by_rule.items()},
-        )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "push_apply_rules",
+                rules={
+                    rule.id: move_ids
+                    for (rule, _foreign), move_ids in moves_by_rule.items()
+                },
+            )
         for (rule, foreign), move_ids in moves_by_rule.items():
             rule_moves = moves.browse(move_ids)
             if foreign:
@@ -343,7 +335,7 @@ class StockMoveProcurement(models.Model):
             new_move = pushed.get(move.id) or moves.browse()
             new_moves |= new_move
             move._update_move_dests_after_push(new_move)
-        dbg.pipeline.debug("_push_apply -> confirm pushed %s", dbg.rec(new_moves))
+        _debug.pipeline("push_apply_confirm", moves=new_moves)
         return new_moves.sudo()._action_confirm()
 
     def _plan_push(self):
@@ -377,9 +369,7 @@ class StockMoveProcurement(models.Model):
             and rule.push_domain
             and not move.filtered_domain(literal_eval(rule.push_domain))
         ):
-            dbg.logic.debug(
-                "[move:%s] push rule %s excluded by its push_domain", move.id, rule.id
-            )
+            _debug.logic("push_rule_excluded", move=move.id, rule=rule.id)
             excluded_rule_ids.append(rule.id)
             rule = move._get_push_rule_cached(
                 StockRule,
@@ -390,15 +380,13 @@ class StockMoveProcurement(models.Model):
             or move.origin_returned_move_id.location_dest_id.id
             != rule.location_dest_id.id
         ):
-            dbg.logic.debug(
-                "[move:%s] _plan_push: rule %s foreign=%s", move.id, rule.id, foreign
-            )
+            _debug.logic("push_planned", move=move.id, rule=rule.id, foreign=foreign)
             return move, rule, foreign
-        dbg.logic.debug(
-            "[move:%s] _plan_push: no push (rule %s, returned move %s)",
-            move.id,
-            rule.id,
-            move.origin_returned_move_id.id,
+        _debug.logic(
+            "push_skipped",
+            move=move.id,
+            rule=rule.id,
+            returned_move=move.origin_returned_move_id.id,
         )
         return move, StockRule.browse(), foreign
 
@@ -415,13 +403,13 @@ class StockMoveProcurement(models.Model):
                 move_to_propagate_ids.add(m.id)
             elif not m.location_id._is_child_of(self.location_dest_id):
                 move_to_mts_ids.add(m.id)
-        if move_to_mts_ids or move_to_propagate_ids:
-            dbg.logic.debug(
-                "[move:%s] after push %s: break mto on %s, propagate to %s",
-                self.id,
-                new_move.id,
-                sorted(move_to_mts_ids),
-                sorted(move_to_propagate_ids),
+        if _debug.logic.enabled and (move_to_mts_ids or move_to_propagate_ids):
+            _debug.logic(
+                "dests_after_push",
+                move=self.id,
+                new_move=new_move.id,
+                break_mto=sorted(move_to_mts_ids),
+                propagate=sorted(move_to_propagate_ids),
             )
         if move_to_mts_ids:
             self.browse(move_to_mts_ids)._break_mto_link(self)
@@ -443,12 +431,12 @@ class StockMoveProcurement(models.Model):
             )
         )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _trigger_scheduler(self):
         if not self or self.env["ir.config_parameter"].sudo().get_param(
             "stock.no_auto_scheduler",
         ):
-            dbg.logic.debug("_trigger_scheduler: skipped (empty or no_auto_scheduler)")
+            _debug.logic("trigger_scheduler_skipped")
             return
 
         seen_domain_keys = set()
@@ -477,11 +465,11 @@ class StockMoveProcurement(models.Model):
         candidates = self.env["stock.warehouse.orderpoint"].search(
             Domain("trigger", "=", "auto") & Domain.OR(candidate_domains),
         )
-        dbg.performance.debug(
-            "_trigger_scheduler: %d moves, %d domains, %d candidate orderpoints",
-            len(self),
-            len(candidate_domains),
-            len(candidates),
+        _debug.perf.count(
+            "trigger_scheduler",
+            moves=len(self),
+            domains=len(candidate_domains),
+            candidates=len(candidates),
         )
         candidates_by_key = defaultdict(list)
         for candidate in candidates:
@@ -525,10 +513,10 @@ class StockMoveProcurement(models.Model):
                     orderpoint.id
                 ] |= set(move.reference_ids.ids)
         for company, orderpoints in orderpoints_by_company.items():
-            dbg.pipeline.debug(
-                "_trigger_scheduler -> _procure_orderpoint_confirm %s for company %s",
-                dbg.rec(orderpoints),
-                company.id,
+            _debug.pipeline(
+                "trigger_scheduler_orderpoints",
+                orderpoints=orderpoints,
+                company=company.id,
             )
             orderpoints.with_context(
                 origins=orderpoints_context_by_company[company],
@@ -578,12 +566,8 @@ class StockMoveProcurement(models.Model):
     def _update_orderpoints(self, orderpoints=None):
         if orderpoints is None:
             orderpoints = self._get_orderpoints_to_update()
-        if orderpoints:
-            dbg.lifecycle.debug(
-                "_update_orderpoints from %s: recompute %s",
-                dbg.rec(self),
-                dbg.rec(orderpoints),
-            )
+        if _debug.lifecycle.enabled and orderpoints:
+            _debug.lifecycle("orderpoints_updated", moves=self, orderpoints=orderpoints)
         orderpoints.invalidate_recordset(["qty_to_order", "qty_forecast"])
         self.env.add_to_compute(
             self.env["stock.warehouse.orderpoint"]._fields["qty_to_order_computed"],
@@ -614,46 +598,36 @@ class StockMoveProcurement(models.Model):
             }
             if move.picking_type_id.return_picking_type_id:
                 vals["picking_type_id"] = move.picking_type_id.return_picking_type_id.id
-            dbg.logic.debug(
-                "[move:%s] _reverse_negative_moves: %s -> %s qty %s, orig %s dest %s",
-                move.id,
-                new_source.id,
-                new_dest.id,
-                vals["product_uom_qty"],
-                orig_move_ids,
-                dest_move_ids,
+            _debug.logic(
+                "negative_move_reversed",
+                move=move.id,
+                source=new_source.id,
+                destination=new_dest.id,
+                qty=vals["product_uom_qty"],
+                orig=orig_move_ids,
+                dest=dest_move_ids,
             )
             move.write(vals)
         if self:
             self._update_picking()
 
     def _break_mto_link(self, parent_move):
-        dbg.logic.debug(
-            "_break_mto_link: %s from parent %s", dbg.rec(self), parent_move.id
-        )
+        _debug.logic("mto_link_broken", moves=self, parent=parent_move.id)
         self.move_orig_ids = [Command.unlink(parent_move.id)]
         self.procure_method = "make_to_stock"
         self._recompute_state()
 
-    @dbg.timed
+    @_debug.perf.timed
     def _push_and_assign_downstream(self):
         moves_to_push = self.filtered(lambda m: not m._is_excluded_from_push())
-        dbg.pipeline.debug(
-            "_push_and_assign_downstream on %s: push %s",
-            dbg.rec(self),
-            dbg.rec(moves_to_push),
-        )
+        _debug.pipeline("push_and_assign_downstream", moves=self, push=moves_to_push)
         if moves_to_push:
             moves_to_push._push_apply()
         move_dests_per_company = defaultdict(lambda: self.env["stock.move"])
         for move_dest in self.sudo().move_dest_ids:
             move_dests_per_company[move_dest.company_id.id] |= move_dest
         for company_id, move_dests in move_dests_per_company.items():
-            dbg.pipeline.debug(
-                "_push_and_assign_downstream -> _action_assign %s (company %s)",
-                dbg.rec(move_dests),
-                company_id,
-            )
+            _debug.pipeline("downstream_assign", moves=move_dests, company=company_id)
             move_dests.sudo().with_company(company_id)._action_assign()
 
     @api.model

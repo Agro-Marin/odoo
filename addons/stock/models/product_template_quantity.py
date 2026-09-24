@@ -2,11 +2,13 @@ from collections import defaultdict
 
 from odoo import api, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import DOMAIN_PREDICATES
 
-from ..tools import debug_log as dbg
 from odoo.addons.stock.const import TEMPLATE_QUANTITY_FIELDS
 from odoo.addons.stock.tools.quantity import get_domain_quantity_in_python
+
+_debug = DebugLog(__name__)
 
 
 class ProductTemplateQuantity(models.Model):
@@ -39,13 +41,13 @@ class ProductTemplateQuantity(models.Model):
         for template in self.with_context(skip_qty_available_update=True):
             template.update(res[template.id])
 
-    @dbg.timed
+    @_debug.perf.timed
     def _aggregate_variant_quantities(self):
         self.product_variant_ids._origin.fetch(TEMPLATE_QUANTITY_FIELDS)
-        dbg.performance.debug(
-            "_aggregate_variant_quantities: %d templates, %d variants",
-            len(self),
-            len(self.product_variant_ids),
+        _debug.perf.count(
+            "variant_quantities_aggregated",
+            templates=len(self),
+            variants=len(self.product_variant_ids),
         )
         prod_available = {}
         for template in self:
@@ -148,9 +150,6 @@ class ProductTemplateQuantity(models.Model):
         if not template_ids:
             return
         templates_to_apply = self.browse(template_ids)
-        dbg.pipeline.debug(
-            "template _update_qty_available -> variants of %s",
-            dbg.rec(templates_to_apply),
-        )
+        _debug.pipeline("qty_available_to_variants", templates=templates_to_apply)
         templates_to_apply._check_qty_available_update(quantities_to_apply)
         templates_to_apply.product_variant_id._update_qty_available(quantities_to_apply)

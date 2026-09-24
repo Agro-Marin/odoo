@@ -1,0 +1,186 @@
+from collections import defaultdict
+
+from odoo.exceptions import UserError
+from odoo.fields import Command
+from odoo.tests import TransactionCase
+from odoo.tools import OrderedSet
+
+from odoo.addons.stock.reports.stock_forecasted import ReplenishmentContext
+from odoo.addons.stock.tests.common import DoneMoveCase
+
+
+class TestForecastReceptionEdgeCases(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.warehouse = cls.env["stock.warehouse"].search(
+            [("company_id", "=", cls.env.company.id)], limit=1
+        )
+        cls.stock_location = cls.warehouse.lot_stock_id
+        cls.customer_location = cls.env.ref("stock.stock_location_customers")
+        cls.supplier_location = cls.env.ref("stock.stock_location_suppliers")
+        cls.product = cls.env["product.product"].create(
+            {"name": "Report Fix Product", "is_storable": True}
+        )
+
+    def _create_move(self, qty, location, location_dest, **extra_vals):
+        return self.env["stock.move"].create(
+            {
+                "product_id": self.product.id,
+                "product_uom_id": self.product.uom_id.id,
+                "product_uom_qty": qty,
+                "location_id": location.id,
+                "location_dest_id": location_dest.id,
+                **extra_vals,
+            }
+        )
+
+    def test_reception_assign_partially_linked_in_move(self):
+        report = self.env["report.stock.report_reception"]
+        out_pre = self._create_move(3, self.stock_location, self.customer_location)
+        out = self._create_move(10, self.stock_location, self.customer_location)
+        in_one = self._create_move(10, self.supplier_location, self.stock_location)
+        in_two = self._create_move(5, self.supplier_location, self.stock_location)
+        (out_pre | out | in_one | in_two).write({"state": "confirmed"})
+        in_one.move_dest_ids = [Command.link(out_pre.id)]
+
+        report.action_assign([out.id], [10.0], [[in_two.id, in_one.id]])
+
+        self.assertEqual(
+            out.move_orig_ids,
+            in_one | in_two,
+            "The out must be covered by both ins: 7 remaining on the partially"
+            " linked one, then 3 from the next one.",
+        )
+        self.assertEqual(out.procure_method, "make_to_order")
+        self.assertEqual(in_one.move_dest_ids, out_pre | out)
+
+    def test_reception_assign_length_mismatch(self):
+        report = self.env["report.stock.report_reception"]
+        out = self._create_move(1, self.stock_location, self.customer_location)
+        with self.assertRaises(UserError):
+            report.action_assign([out.id], [1.0, 2.0], [[]])
+
+    def test_forecasted_reserved_capped_by_remaining_demand(self):
+        report = self.env["stock.forecasted_product_product"]
+        out = self._create_move(10, self.stock_location, self.customer_location)
+        picks = self.env["stock.move"]
+        for __ in range(2):
+            pick = self._create_move(8, self.stock_location, self.customer_location)
+            pick.quantity = 8.0
+            pick.state = "assigned"
+            picks |= pick
+        ctx = ReplenishmentContext(
+            wh_stock_location=self.stock_location,
+            wh_stock_sub_location_ids=set(),
+            read=True,
+            currents=defaultdict(float),
+            in_id_to_in_data={},
+            ins_per_product=defaultdict(OrderedSet),
+            dest_ids_to_in_ids=defaultdict(OrderedSet),
+        )
+
+        data = report._get_out_reserved(out, picks, defaultdict(float), ctx)
+
+        self.assertEqual(data["reserved"], 10.0)
+        self.assertEqual(
+            ctx.currents[self.product.id, self.stock_location.id],
+            -10.0,
+            "The on-hand ledger must be decremented by the capped reserved"
+            " quantity only.",
+        )
+
+    def test_reception_assigned_lines_conserve_quantity(self):
+        report = self.env["report.stock.report_reception"]
+        outs = self.env["stock.move"]
+        for __ in range(2):
+            picking = self.env["stock.picking"].create(
+                {
+                    "picking_type_id": self.warehouse.out_type_id.id,
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.customer_location.id,
+                }
+            )
+            outs |= self._create_move(
+                10,
+                self.stock_location,
+                self.customer_location,
+                picking_id=picking.id,
+            )
+        in_move = self._create_move(10, self.supplier_location, self.stock_location)
+        (outs | in_move).write({"state": "confirmed"})
+        in_move.move_dest_ids = [Command.set(outs.ids)]
+
+        sources_to_lines = defaultdict(list)
+        report._add_assigned_lines(
+            sources_to_lines, {self.product: [10.0, [in_move.id]]}
+        )
+
+        lines = [line for lines in sources_to_lines.values() for line in lines]
+        self.assertEqual(
+            sum(line["quantity"] for line in lines),
+            10.0,
+            "Assigned lines must never total more than the received quantity.",
+        )
+        self.assertTrue(all(line["is_assigned"] for line in lines))
+
+    def test_return_wizard_no_returnable_moves(self):
+        inventory_location = self.env["stock.location"].search(
+            [
+                ("usage", "=", "inventory"),
+                ("company_id", "=", self.env.company.id),
+            ],
+            limit=1,
+        )
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.warehouse.int_type_id.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": inventory_location.id,
+            }
+        )
+        move = self._create_move(
+            5,
+            self.stock_location,
+            inventory_location,
+            picking_id=picking.id,
+        )
+        picking.action_confirm()
+        move.quantity = 5.0
+        move.picked = True
+        picking.button_validate()
+        self.assertEqual(picking.state, "done")
+
+        with self.assertRaises(UserError):
+            self.env["stock.return.picking"].with_context(
+                active_id=picking.id,
+                active_ids=picking.ids,
+                active_model="stock.picking",
+            ).create({})
+
+
+class TestForecastSharesTheQuantityScope(DoneMoveCase):
+    def test_an_incoming_move_through_transit_is_a_report_line(self):
+        transit = self.Location.create({"name": "Forecast transit", "usage": "transit"})
+        product = self.Product.create({"name": "Forecast final", "is_storable": True})
+        move = self.env["stock.move"].create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": 7,
+                "location_id": self.supplier.id,
+                "location_dest_id": transit.id,
+                "location_final_id": self.stock.id,
+            }
+        )
+        move._action_confirm()
+        report = self.env["stock.forecasted_product_product"].with_context(
+            warehouse_id=self.warehouse.id
+        )
+        data = report._get_report_data(product_ids=product.ids)
+        self.assertEqual(data["product"][product.id]["qty_incoming"], 7.0)
+        incoming = [line for line in data["lines"] if line["move_in"]]
+        self.assertEqual(
+            [line["quantity"] for line in incoming],
+            [7.0],
+            "the header counts it incoming, so the lines must show it",
+        )

@@ -5,8 +5,9 @@ from collections.abc import Iterable
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockLotName(models.Model):
@@ -32,11 +33,11 @@ class StockLotName(models.Model):
             if sequence
             else self.env["ir.sequence"].next_by_code("stock.lot.serial")
         )
-        dbg.logic.debug(
-            "_get_next_sequence_value: product %s sequence %s -> %r",
-            product.id,
-            sequence.id or "stock.lot.serial",
-            value,
+        _debug.logic(
+            "next_sequence_value",
+            product=product.id,
+            sequence=sequence.id or "stock.lot.serial",
+            value=value,
         )
         if not value:
             raise UserError(
@@ -111,14 +112,13 @@ class StockLotName(models.Model):
             )
             for candidate in candidates:
                 if candidate not in taken:
-                    if rounds > 1 or candidate != first_name:
-                        dbg.logic.debug(
-                            "_get_free_lot_name: %r taken for product %s, using %r "
-                            "after %d rounds",
-                            first_name,
-                            product.id,
-                            candidate,
-                            rounds,
+                    if _debug.logic.enabled and (rounds > 1 or candidate != first_name):
+                        _debug.logic(
+                            "free_lot_name",
+                            taken=first_name,
+                            product=product.id,
+                            name=candidate,
+                            rounds=rounds,
                         )
                     return candidate
             following = self.prepare_lot_names(candidates[-1], batch + 1)
@@ -185,7 +185,7 @@ class StockLotName(models.Model):
             ]
         )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_delivery_ids_by_lot(self):
         all_lot_ids = set(self.ids)
         barren_lines = defaultdict(set)
@@ -221,12 +221,12 @@ class StockLotName(models.Model):
                 all_lot_ids.update(next_lots)
                 queue.extend(next_lots)
 
-        dbg.performance.debug(
-            "_get_delivery_ids_by_lot: %d lots -> %d in tree after %d rounds, %d parents",
-            len(self),
-            len(all_lot_ids),
-            depth,
-            len(parent_map),
+        _debug.perf.count(
+            "delivery_ids_by_lot",
+            lots=len(self),
+            tree_lots=len(all_lot_ids),
+            rounds=depth,
+            parents=len(parent_map),
         )
         lots_to_propagate = set()
         delivery_by_lot = {lot_id: set() for lot_id in all_lot_ids}

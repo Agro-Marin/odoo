@@ -5,11 +5,11 @@ from datetime import timedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import OrderedSet
 
-from ..tools import debug_log as dbg
-
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class StockMoveForecast(models.Model):
@@ -25,7 +25,7 @@ class StockMoveForecast(models.Model):
         "product_uom_qty",
         "location_id",
     )
-    @dbg.timed
+    @_debug.perf.timed
     def _compute_forecast_information(self):
         self.forecast_availability = False
         self.date_planned_forecast = False
@@ -84,15 +84,16 @@ class StockMoveForecast(models.Model):
                     forecast_availability += move.product_qty
                 move.forecast_availability = forecast_availability
 
-        dbg.logic.debug(
-            "_compute_forecast_information: %d moves, %d storable, outgoing per warehouse %s",
-            len(self),
-            len(product_moves),
-            {
-                wh.id: len(ids)
-                for wh, ids in outgoing_unreserved_moves_per_warehouse.items()
-            },
-        )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "forecast_information",
+                moves=len(self),
+                storable=len(product_moves),
+                outgoing_by_warehouse={
+                    wh.id: len(ids)
+                    for wh, ids in outgoing_unreserved_moves_per_warehouse.items()
+                },
+            )
         self._update_forecast_availability_outgoing(
             outgoing_unreserved_moves_per_warehouse
         )
@@ -139,9 +140,8 @@ class StockMoveForecast(models.Model):
                 res["id"]: (res["qty_available_virtual"], res["qty_free"])
                 for res in read_res
             }
-        dbg.performance.debug(
-            "_get_forecast_virtual_available: %d (warehouse, date) contexts read",
-            len(prefetch_virtual_available),
+        _debug.perf.count(
+            "forecast_virtual_available", contexts=len(prefetch_virtual_available)
         )
         return virtual_available_dict
 
@@ -162,7 +162,7 @@ class StockMoveForecast(models.Model):
                         forecast_info[move]
                     )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_forecast_availability_outgoing(self, warehouse, location_id=False):
         wh_location_query = self.env["stock.location"]._search(
             [("id", "child_of", warehouse.view_location_id.id)],
@@ -194,11 +194,11 @@ class StockMoveForecast(models.Model):
                 )
             result[move_out] = (qty_expected, date_expected)
 
-        dbg.logic.debug(
-            "_get_forecast_availability_outgoing warehouse=%s: %d report lines, %d moves resolved",
-            warehouse.id,
-            len(forecast_lines),
-            len(result),
+        _debug.logic(
+            "forecast_availability_outgoing",
+            warehouse=warehouse.id,
+            report_lines=len(forecast_lines),
+            moves=len(result),
         )
         return result
 
@@ -297,11 +297,8 @@ class StockMoveForecast(models.Model):
         )
         if not live_origins:
             return set()
-        dbg.logic.debug(
-            "[move:%s] _walk_upstream_documents depth %d -> %s",
-            self.id,
-            depth,
-            dbg.rec(live_origins),
+        _debug.logic(
+            "upstream_documents", move=self.id, depth=depth, origins=live_origins
         )
         walk["visited"] |= self
         return set(
@@ -355,11 +352,11 @@ class StockMoveForecast(models.Model):
         deadlines = self._plan_date_deadline(new_deadline, visited)
         if not deadlines:
             return
-        dbg.pipeline.debug(
-            "_propagate_date_deadline from %s to %s: %d chained moves",
-            dbg.rec(self),
-            new_deadline,
-            len(deadlines),
+        _debug.pipeline(
+            "date_deadline_propagated",
+            moves=self,
+            deadline=new_deadline,
+            chained=len(deadlines),
         )
         by_value = defaultdict(OrderedSet)
         for move_id, value in deadlines.items():

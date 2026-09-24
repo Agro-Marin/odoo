@@ -1,13 +1,15 @@
 from odoo import api, models
+from odoo.libs.debug_log import DebugLog
 
 from ..const import OPEN_PICKING_STATES
-from ..tools import debug_log as dbg
+
+_debug = DebugLog(__name__)
 
 
 class HomeMenuBadge(models.AbstractModel):
     _inherit = "home.menu.badge"
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model
     def _get_badges(self) -> dict[str, int]:
         return {

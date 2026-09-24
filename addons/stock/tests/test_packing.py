@@ -1,8 +1,11 @@
 import odoo.tests
 from odoo import Command
 from odoo.exceptions import UserError
-from odoo.tests import Form
+from odoo.tests import Form, tagged
 from odoo.tests.common import TransactionCase
+
+from odoo.addons.stock.tests.common import PickingCase, TestStockCommon
+from odoo.addons.stock.tests.test_move_line_write import MoveLineCase
 
 
 class TestPackingCommon(TransactionCase):
@@ -2941,3 +2944,159 @@ class TestPackagePropagation(TestPackingCommon):
         self.assertFalse(pack2.quant_ids)
         self.assertEqual(pack2.location_id, self.stock_location)
         self.assertEqual(pack2.company_id, self.stock_location.company_id)
+
+
+@tagged("post_install", "-at_install")
+class TestMoveLinePutInPack(TestStockCommon):
+    def test_put_in_pack_without_a_label_format(self):
+        picking_type = self.env["stock.picking.type"].search(
+            [("code", "=", "outgoing"), ("company_id", "=", self.env.company.id)],
+            limit=1,
+        )
+        picking_type.write(
+            {"auto_print_package_label": True, "package_label_to_print": False}
+        )
+        product = self.env["product.product"].create(
+            {"name": "pack-nolabel", "is_storable": True, "type": "consu"}
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            product, self.stock_location, 10.0
+        )
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": picking_type.id,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.customer_location.id,
+                "move_ids": [
+                    (
+                        0,
+                        0,
+                        {
+                            "product_id": product.id,
+                            "product_uom_qty": 1.0,
+                            "product_uom_id": product.uom_id.id,
+                            "location_id": self.stock_location.id,
+                            "location_dest_id": self.customer_location.id,
+                        },
+                    )
+                ],
+            }
+        )
+        picking.action_confirm()
+        picking.action_assign()
+        package = self.env["stock.package"].create({"name": "PACK-NOLABEL"})
+        self.assertEqual(
+            picking.move_line_ids[:1]._post_put_in_pack_hook(package), package
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestPutInPackScopeIsBounded(MoveLineCase):
+    def _picked_picking(self, name):
+        product = self._product(f"Pack {name}")
+        self._stock(product, self.src, 20.0)
+        picking = self._outgoing(product, 5.0)
+        for line in picking.move_line_ids:
+            line.quantity = 5.0
+            line.picked = True
+        return picking
+
+    def test_the_wizard_round_trip_still_widens(self):
+        picking = self._picked_picking("RoundTrip")
+        extra = self.env["stock.move.line"].create(
+            {
+                "picking_id": picking.id,
+                "move_id": picking.move_ids[0].id,
+                "product_id": picking.move_ids[0].product_id.id,
+                "product_uom_id": picking.move_ids[0].product_uom_id.id,
+                "quantity": 1.0,
+                "location_id": self.src.id,
+                "location_dest_id": self.customer.id,
+            }
+        )
+        one_line = picking.move_line_ids[0]
+        scope = one_line.with_context(
+            all_move_line_ids=picking.move_line_ids.ids
+        )._get_lines_in_pack_scope()
+        self.assertIn(extra.id, scope.ids, "same-picking lines must still widen")
+        self.assertEqual(scope, picking.move_line_ids)
+
+    def test_a_forged_id_from_another_transfer_is_ignored(self):
+        mine = self._picked_picking("Mine")
+        theirs = self._picked_picking("Theirs")
+        forged = mine.move_line_ids.ids + theirs.move_line_ids.ids
+
+        scope = mine.move_line_ids.with_context(
+            all_move_line_ids=forged
+        )._get_lines_in_pack_scope()
+
+        self.assertEqual(scope, mine.move_line_ids)
+        self.assertFalse(
+            scope & theirs.move_line_ids,
+            "a caller must not reach lines of a transfer it did not name",
+        )
+
+    def test_without_the_context_key_the_recordset_is_unchanged(self):
+        picking = self._picked_picking("Plain")
+        line = picking.move_line_ids[0]
+        self.assertEqual(line._get_lines_in_pack_scope(), line)
+
+    def test_packing_a_forged_scope_packs_only_the_callers_lines(self):
+        mine = self._picked_picking("PackMine")
+        theirs = self._picked_picking("PackTheirs")
+        mine.move_line_ids.with_context(
+            force_move_lines=True,
+            all_move_line_ids=(mine.move_line_ids | theirs.move_line_ids).ids,
+        ).action_put_in_pack()
+
+        self.assertTrue(mine.move_line_ids.result_package_id)
+        self.assertFalse(
+            theirs.move_line_ids.result_package_id,
+            "the other transfer's lines must not have been packed",
+        )
+
+
+class TestPutInPackStaysOnItsOwnTransfer(PickingCase):
+    def _ready(self):
+        picking = self._picking(quantity=4.0)
+        picking.action_confirm()
+        picking.move_ids.quantity = 4.0
+        self.env.flush_all()
+        return picking
+
+    def test_a_context_cannot_redirect_the_pack_to_another_transfer(self):
+        mine, theirs = self._ready(), self._ready()
+        self.assertFalse(theirs.move_line_ids.result_package_id)
+
+        mine.with_context(
+            all_move_line_ids=theirs.move_line_ids.ids,
+        ).action_put_in_pack()
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        self.assertFalse(
+            theirs.move_line_ids.result_package_id,
+            "action_put_in_pack declares check_singleton and guards on self.state,"
+            " so a context key must not make it pack another transfer's lines",
+        )
+        self.assertTrue(
+            mine.move_line_ids.result_package_id,
+            "it must still pack the transfer it was actually called on",
+        )
+
+    def test_the_widening_within_one_transfer_is_untouched(self):
+        picking = self._ready()
+        picking.with_context(
+            all_move_line_ids=picking.move_line_ids.ids,
+        ).action_put_in_pack()
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.assertTrue(picking.move_line_ids.result_package_id)
+
+    def test_a_done_transfer_is_still_refused(self):
+        picking = self._ready()
+        picking.move_ids.picked = True
+        picking.button_validate(skip_backorder=True)
+        self.env.flush_all()
+        self.assertEqual(picking.state, "done")
+        self.assertIsNone(picking.action_put_in_pack())

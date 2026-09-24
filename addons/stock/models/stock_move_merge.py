@@ -5,14 +5,15 @@ from collections import defaultdict
 from odoo import models
 from odoo.exceptions import UserError
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_round
 from odoo.tools.misc import groupby
 
 from ..const import INTERNAL_CONTEXT_FLAG
-from ..tools import debug_log as dbg
 from .stock_move import CONTEXT_SPLIT_DEMAND
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class StockMoveMerge(models.Model):
@@ -81,7 +82,7 @@ class StockMoveMerge(models.Model):
             )
         )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _merge_moves(self, merge_into=False):
         candidate_moves_set = set()
         if not merge_into:
@@ -111,15 +112,14 @@ class StockMoveMerge(models.Model):
         )
         merged_moves |= absorbed_moves
         moves_to_unlink |= neg_to_unlink
-        dbg.logic.debug(
-            "_merge_moves on %s: %d candidate sets, negative %s, merged %s, unlink %s, "
-            "cancel %s",
-            dbg.rec(self),
-            len(candidate_moves_set),
-            dbg.rec(neg_qty_moves),
-            dbg.rec(merged_moves),
-            dbg.rec(moves_to_unlink),
-            dbg.rec(moves_to_cancel),
+        _debug.logic(
+            "merge_moves",
+            moves=self,
+            candidate_sets=len(candidate_moves_set),
+            negative=neg_qty_moves,
+            merged=merged_moves,
+            unlink=moves_to_unlink,
+            cancel=moves_to_cancel,
         )
 
         (moves_to_unlink | moves_to_cancel)._update_merged_moves()
@@ -164,10 +164,8 @@ class StockMoveMerge(models.Model):
             for __, g in groupby(candidate_moves, key=merge_key):
                 moves = self.env["stock.move"].concat(*g)
                 if len(moves) > 1:
-                    dbg.logic.debug(
-                        "_merge_positive_moves: %s into move %s",
-                        dbg.rec(moves[1:]),
-                        moves[0].id,
+                    _debug.logic(
+                        "positive_moves_merged", moves=moves[1:], into=moves[0].id
                     )
                     moves.mapped("move_line_ids").write({"move_id": moves[0].id})
                     moves[0].write(moves._prepare_merge_moves_vals())
@@ -227,11 +225,11 @@ class StockMoveMerge(models.Model):
                     )
                     merged_moves |= pos_move
                     moves_to_unlink |= neg_move
-                    dbg.logic.debug(
-                        "negative move %s absorbed by %s, demand now %s",
-                        neg_move.id,
-                        pos_move.id,
-                        pos_move.product_uom_qty,
+                    _debug.logic(
+                        "negative_absorbed",
+                        negative=neg_move.id,
+                        positive=pos_move.id,
+                        demand=pos_move.product_uom_qty,
                     )
                     if pos_move.product_uom_id.is_zero(pos_move.product_uom_qty):
                         moves_to_cancel |= pos_move
@@ -247,11 +245,11 @@ class StockMoveMerge(models.Model):
                         ),
                     },
                 )
-                dbg.logic.debug(
-                    "negative move %s consumes positive %s entirely, remaining %s",
-                    neg_move.id,
-                    pos_move.id,
-                    neg_move.product_uom_qty,
+                _debug.logic(
+                    "negative_consumes_positive",
+                    negative=neg_move.id,
+                    positive=pos_move.id,
+                    remaining=neg_move.product_uom_qty,
                 )
                 pos_move.product_uom_qty = 0
                 moves_to_cancel |= pos_move
@@ -308,7 +306,7 @@ class StockMoveMerge(models.Model):
             )
 
         if self.product_uom_id._is_zero_stored(qty, self.product_id.uom_id):
-            dbg.logic.debug("[move:%s] _split(%s): zero, nothing split", self.id, qty)
+            _debug.logic("split_zero", move=self.id, qty=qty)
             return []
 
         uom_qty = self._get_uom_quantity_if_faithful(qty, self.product_uom_id)
@@ -347,26 +345,27 @@ class StockMoveMerge(models.Model):
         kept_back = self.product_uom_id._get_quantity_in_unit(
             new_product_qty, self.product_id.uom_id, round=False
         )
-        if not math.isclose(kept_back + split_back, self.product_qty, rel_tol=1e-12):
-            dbg.logic.debug(
-                "[move:%s] _split(%s): does NOT conserve -- %s in, %s kept + %s "
-                "split = %s, residual %s (remainder not representable in %s)",
-                self.id,
-                qty,
-                self.product_qty,
-                kept_back,
-                split_back,
-                kept_back + split_back,
-                kept_back + split_back - self.product_qty,
-                self.product_uom_id.name,
+        if _debug.logic.enabled and not math.isclose(
+            kept_back + split_back, self.product_qty, rel_tol=1e-12
+        ):
+            _debug.logic(
+                "split_not_conserved",
+                move=self.id,
+                qty=qty,
+                product_qty=self.product_qty,
+                kept=kept_back,
+                split=split_back,
+                total=kept_back + split_back,
+                residual=kept_back + split_back - self.product_qty,
+                uom=self.product_uom_id.name,
             )
-        dbg.logic.debug(
-            "[move:%s] _split(%s): keeps %s, new move gets %s (faithful uom=%s)",
-            self.id,
-            qty,
-            new_product_qty,
-            defaults["product_uom_qty"],
-            uom_qty is not None,
+        _debug.logic(
+            "split",
+            move=self.id,
+            qty=qty,
+            kept=new_product_qty,
+            split_qty=defaults["product_uom_qty"],
+            faithful_uom=uom_qty is not None,
         )
         self.with_context(
             do_not_unreserve=True,
@@ -422,7 +421,7 @@ class StockMoveMerge(models.Model):
             round=False,
         )
 
-    @dbg.timed
+    @_debug.perf.timed
     def _create_backorder(self):
         backorder_moves_vals = []
         for move in self:
@@ -440,17 +439,15 @@ class StockMoveMerge(models.Model):
                     move.move_line_ids.mapped("quantity_product_uom")
                 )
                 if move.product_id.uom_id.compare(qty_split, 0) <= 0:
-                    dbg.logic.debug(
-                        "[move:%s] _create_backorder: lines cover %s, nothing split",
-                        move.id,
-                        move.product_qty,
+                    _debug.logic(
+                        "backorder_not_split", move=move.id, covered=move.product_qty
                     )
                     continue
                 new_move_vals = move._split(qty_split)
                 backorder_moves_vals += new_move_vals
         backorder_moves = self.env["stock.move"].create(backorder_moves_vals)
-        dbg.pipeline.debug(
-            "_create_backorder from %s: %s", dbg.rec(self), dbg.rec(backorder_moves)
+        _debug.pipeline(
+            "backorder_created", moves=self, backorder_moves=backorder_moves
         )
         backorder_moves.with_context(bypass_entire_pack=True)._action_confirm(
             merge=False,

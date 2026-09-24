@@ -2,9 +2,11 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.barcode import is_barcode_encoding_valid
+from odoo.libs.debug_log import DebugLog
 
 from ..const import INVENTORY_REFERENCE_PACKAGE_RELOCATED
-from ..tools import debug_log as dbg
+
+_debug = DebugLog(__name__)
 
 
 class StockPackage(models.Model):
@@ -149,14 +151,15 @@ class StockPackage(models.Model):
         compute="_compute_json_popover",
     )
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model_create_multi
     def create(self, vals_list):
-        dbg.lifecycle.debug(
-            "stock.package.create: %d vals, keys=%s",
-            len(vals_list),
-            dbg.vals_keys(vals_list),
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                count=len(vals_list),
+                keys=sorted({key for vals in vals_list for key in vals}),
+            )
         new_vals_list = []
         for vals in vals_list:
             vals = dict(vals)
@@ -171,11 +174,10 @@ class StockPackage(models.Model):
 
         return super().create(new_vals_list)
 
-    @dbg.timed
+    @_debug.perf.timed
     def write(self, vals):
-        dbg.lifecycle.debug(
-            "stock.package.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle("write", packages=self, keys=sorted(vals))
         if "name" in vals and not vals.get("name"):
             vals = {key: value for key, value in vals.items() if key != "name"}
             for package in self:
@@ -198,11 +200,11 @@ class StockPackage(models.Model):
                 quant_to_move = self.contained_quant_ids.filtered(
                     lambda q: q.product_uom_id.compare(q.quantity, 0) > 0
                 )
-                dbg.pipeline.debug(
-                    "package relocation %s -> location %s: moving %s",
-                    dbg.rec(self),
-                    vals["location_id"],
-                    dbg.rec(quant_to_move),
+                _debug.pipeline(
+                    "relocation",
+                    packages=self,
+                    location=vals["location_id"],
+                    quants=quant_to_move,
                 )
                 quant_to_move.move_quants(
                     location_dest_id,
@@ -213,10 +215,7 @@ class StockPackage(models.Model):
                     lambda q: q.product_uom_id.compare(q.quantity, 0) < 0
                 )
                 if negative_quants:
-                    dbg.logic.debug(
-                        "package relocation: negative quants %s moved by inventory moves",
-                        dbg.rec(negative_quants),
-                    )
+                    _debug.logic("relocation_negative_quants", quants=negative_quants)
                     message = INVENTORY_REFERENCE_PACKAGE_RELOCATED
                     moves = self.env["stock.move"].create(
                         [
@@ -357,12 +356,13 @@ class StockPackage(models.Model):
                 else:
                     move_line_ids_to_update.add(line.id)
 
-        dbg.logic.debug(
-            "action_remove_package %s: unlink lines %s, clear result on %s",
-            dbg.rec(self),
-            sorted(move_line_ids_to_unlink),
-            sorted(move_line_ids_to_update),
-        )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "package_removed",
+                packages=self,
+                unlink_line_ids=sorted(move_line_ids_to_unlink),
+                clear_line_ids=sorted(move_line_ids_to_update),
+            )
         self.env["stock.move.line"].browse(move_line_ids_to_unlink).unlink()
         self.env["stock.move.line"].browse(move_line_ids_to_update).write(
             {"result_package_id": False}
@@ -402,11 +402,11 @@ class StockPackage(models.Model):
         return action
 
     def action_unpack(self):
-        dbg.pipeline.debug(
-            "action_unpack %s: children %s, quants %s",
-            dbg.rec(self),
-            dbg.rec(self.child_package_ids),
-            dbg.rec(self.quant_ids),
+        _debug.pipeline(
+            "unpack",
+            packages=self,
+            children=self.child_package_ids,
+            quants=self.quant_ids,
         )
         self.child_package_ids.parent_package_id = False
         quants = self.quant_ids

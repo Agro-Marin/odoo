@@ -1,7 +1,8 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class ReportStockQuantity(models.Model):
@@ -199,15 +200,12 @@ WITH
         try:
             return int(report_period)
         except ValueError:
-            dbg.logic.debug(
-                "report_stock_quantity_period %r is not an int, using 3", report_period
-            )
+            _debug.logic("period_not_int", period=report_period)
             return 3
 
     def init(self):
-        dbg.lifecycle.debug(
-            "report_stock_quantity view rebuilt (period %s)", self._get_report_period()
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle("view_rebuilt", period=self._get_report_period())
         drop_view_if_exists(self.env.cr, "report_stock_quantity")
         query = f"""
 CREATE or REPLACE VIEW report_stock_quantity AS (

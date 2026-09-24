@@ -2,17 +2,17 @@ import logging
 
 from odoo import api, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import OrderedSet, groupby
 
-from ..tools import debug_log as dbg
-
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class StockMovePicking(models.Model):
     _inherit = "stock.move"
 
-    @dbg.timed
+    @_debug.perf.timed
     def _update_picking(self):
         grouped_moves = [
             self.env["stock.move"].concat(*moves)
@@ -31,11 +31,7 @@ class StockMovePicking(models.Model):
                 vals = moves._prepare_picking_vals(picking)
                 if vals:
                     picking.write(vals)
-                dbg.pipeline.debug(
-                    "_update_picking: %s -> existing picking %s",
-                    dbg.rec(moves),
-                    picking.id,
-                )
+                _debug.pipeline("picking_existing", moves=moves, picking=picking.id)
                 moves.write({"picking_id": picking.id})
                 attached |= moves
             else:
@@ -43,7 +39,7 @@ class StockMovePicking(models.Model):
                     lambda m: m.product_uom_id.compare(m.product_uom_qty, 0.0) >= 0,
                 )
                 if not moves:
-                    dbg.logic.debug("_update_picking: only negative moves, no picking")
+                    _debug.logic("picking_negative_only")
                     continue
                 orphans.append(moves)
         if attached:
@@ -72,9 +68,7 @@ class StockMovePicking(models.Model):
                 [moves._prepare_new_picking_vals() for moves in pending]
             )
             for moves, picking in zip(pending, new_pickings, strict=True):
-                dbg.pipeline.debug(
-                    "_update_picking: %s -> new picking %s", dbg.rec(moves), picking.id
-                )
+                _debug.pipeline("picking_new", moves=moves, picking=picking.id)
                 moves.write({"picking_id": picking.id})
             created |= new_pickings
             pending.clear()
@@ -96,10 +90,8 @@ class StockMovePicking(models.Model):
                     vals = moves._prepare_picking_vals(picking)
                     if vals:
                         picking.write(vals)
-                    dbg.pipeline.debug(
-                        "_update_picking: %s joins picking %s created by this call",
-                        dbg.rec(moves),
-                        picking.id,
+                    _debug.pipeline(
+                        "picking_joined_new", moves=moves, picking=picking.id
                     )
                     moves.write({"picking_id": picking.id})
                     continue
@@ -198,29 +190,21 @@ class StockMovePicking(models.Model):
         for picking in candidates:
             picking_set = set(picking.reference_ids.ids)
             if picking_set == reference_set:
-                dbg.logic.debug(
-                    "[move:%s] picking %s matches references exactly",
-                    self.id,
-                    picking.id,
+                _debug.logic(
+                    "picking_references_match", move=self.id, picking=picking.id
                 )
                 return picking
             if not covered_picking and picking_set <= reference_set:
                 covered_picking = picking
-        dbg.logic.debug(
-            "[move:%s] _get_picking_for_assignation: covered picking %s",
-            self.id,
-            covered_picking.id,
-        )
+        _debug.logic("covered_picking", move=self.id, picking=covered_picking.id)
         return covered_picking
 
     def _update_references(self):
         to_set = self.filtered(lambda m: not m.reference_ids and m.picking_id)
         for picking, moves in to_set.grouped("picking_id").items():
             if picking.reference_ids:
-                dbg.lifecycle.debug(
-                    "_update_references: %s inherit references of picking %s",
-                    dbg.rec(moves),
-                    picking.id,
+                _debug.lifecycle(
+                    "references_inherited", moves=moves, picking=picking.id
                 )
                 moves.reference_ids = picking.reference_ids
 

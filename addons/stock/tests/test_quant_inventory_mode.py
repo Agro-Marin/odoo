@@ -1,7 +1,8 @@
 from odoo.exceptions import AccessError, UserError
-from odoo.tests import Form, TransactionCase
+from odoo.tests import Form, TransactionCase, tagged
 
 from odoo.addons.mail.tests.common import mail_new_test_user
+from odoo.addons.stock.tests.common import TestStockCommon
 
 
 class TestEditableQuant(TransactionCase):
@@ -406,3 +407,201 @@ class TestEditableQuant(TransactionCase):
             0,
             "After revert multi inventory adjustment qty is not zero",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestQuantCreateContract(TestStockCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Quant = cls.env["stock.quant"]
+        cls.loc = cls.stock_location
+        cls.env.user.group_ids = [
+            (4, cls.env.ref("stock.group_stock_user").id),
+            (4, cls.env.ref("stock.group_stock_manager").id),
+        ]
+
+    def test_create_returns_one_record_per_vals(self):
+        product = self.env["product.product"].create(
+            {"name": "qaud-contract", "is_storable": True}
+        )
+        vals_list = [
+            {
+                "product_id": product.id,
+                "location_id": self.loc.id,
+                "inventory_quantity": 3,
+            },
+            {
+                "product_id": product.id,
+                "location_id": self.env["stock.location"]
+                .create(
+                    {
+                        "name": "qaud-contract-loc",
+                        "usage": "internal",
+                        "location_id": self.loc.id,
+                    }
+                )
+                .id,
+                "inventory_quantity": 4,
+            },
+        ]
+        quants = self.Quant.with_context(inventory_mode=True).create(vals_list)
+        self.assertEqual(
+            len(quants),
+            len(vals_list),
+            "create() must return one record per vals, positionally aligned",
+        )
+
+    def test_two_counted_lines_for_one_quant_are_refused(self):
+        product = self.env["product.product"].create(
+            {"name": "qaud-dup", "is_storable": True}
+        )
+        vals_list = [
+            {
+                "product_id": product.id,
+                "location_id": self.loc.id,
+                "inventory_quantity": 3,
+            },
+            {
+                "product_id": product.id,
+                "location_id": self.loc.id,
+                "inventory_quantity": 4,
+            },
+        ]
+        with self.assertRaises(UserError):
+            self.Quant.with_context(inventory_mode=True).create(vals_list)
+
+    def test_a_data_file_collision_names_itself(self):
+        product = self.env["product.product"].create(
+            {"name": "qaud-load", "is_storable": True}
+        )
+        data = [
+            {
+                "xml_id": "stock.qaud_load_a",
+                "values": {
+                    "product_id": product.id,
+                    "location_id": self.loc.id,
+                    "inventory_quantity": 3,
+                },
+            },
+            {
+                "xml_id": "stock.qaud_load_b",
+                "values": {
+                    "product_id": product.id,
+                    "location_id": self.loc.id,
+                    "inventory_quantity": 4,
+                },
+            },
+        ]
+        with self.assertRaises(UserError):
+            self.Quant._load_records(data)
+
+    def test_the_web_importer_still_creates_a_row_per_line(self):
+        product = self.env["product.product"].create(
+            {"name": "qaud-import", "is_storable": True}
+        )
+        vals_list = [
+            {
+                "product_id": product.id,
+                "location_id": self.loc.id,
+                "inventory_quantity": 3,
+            },
+            {
+                "product_id": product.id,
+                "location_id": self.loc.id,
+                "inventory_quantity": 4,
+            },
+        ]
+        quants = self.Quant.with_context(inventory_mode=True, import_file=True).create(
+            vals_list
+        )
+        self.assertEqual(len(quants), 2)
+
+    def test_name_create_refuses_with_a_reason(self):
+        with self.assertRaises(UserError):
+            self.env["stock.quant"].name_create("anything")
+
+
+@tagged("post_install", "-at_install")
+class TestQuantInventoryWrite(TestStockCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Quant = cls.env["stock.quant"]
+        cls.inventory_loc = cls.env["stock.location"].search(
+            [("usage", "=", "inventory")], limit=1
+        )
+        cls.product = cls.env["product.product"].create(
+            {"name": "qiw-product", "is_storable": True}
+        )
+        cls.quant = cls.Quant.create(
+            {
+                "product_id": cls.product.id,
+                "location_id": cls.inventory_loc.id,
+                "quantity": 3.0,
+            }
+        )
+        cls.env.user.group_ids = [(4, cls.env.ref("stock.group_stock_user").id)]
+
+    def test_a_forbidden_field_does_not_take_the_permitted_ones_with_it(self):
+        self.quant.with_context(inventory_mode=True).write(
+            {"inventory_quantity": 99.0, "product_id": self.product.id}
+        )
+        self.env.flush_all()
+        self.quant.invalidate_recordset()
+        self.assertEqual(
+            self.quant.inventory_quantity,
+            99.0,
+            "the counted quantity is the one thing inventory mode exists to"
+            " set; a rejected product_id beside it must not discard it",
+        )
+
+    def test_the_forbidden_field_is_still_refused(self):
+        other = self.env["product.product"].create(
+            {"name": "qiw-other", "is_storable": True}
+        )
+        self.quant.with_context(inventory_mode=True).write(
+            {"inventory_quantity": 5.0, "product_id": other.id}
+        )
+        self.env.flush_all()
+        self.quant.invalidate_recordset()
+        self.assertEqual(self.quant.product_id, self.product)
+
+    def test_a_forbidden_only_write_is_still_a_silent_no_op(self):
+        owner = self.env["res.partner"].create({"name": "qiw-owner"})
+        self.assertTrue(
+            self.quant.with_context(inventory_mode=True).write({"owner_id": owner.id})
+        )
+        self.env.invalidate_all()
+        self.assertFalse(self.quant.owner_id)
+
+    def test_the_import_path_no_longer_discards_the_count(self):
+        self.quant._load_records_write(
+            {"inventory_quantity": 42.0, "location_id": self.inventory_loc.id}
+        )
+        self.env.flush_all()
+        self.quant.invalidate_recordset()
+        self.assertEqual(
+            self.quant.inventory_quantity,
+            42.0,
+            "_load_records_write forces inventory_mode, so a data file that"
+            " names the location alongside the count lost the count",
+        )
+
+    def test_an_internal_location_still_raises(self):
+        loc = (
+            self.env["stock.warehouse"]
+            .search([("company_id", "=", self.env.company.id)], limit=1)
+            .lot_stock_id
+        )
+        quant = self.Quant.create(
+            {
+                "product_id": self.product.id,
+                "location_id": loc.id,
+                "quantity": 1.0,
+            }
+        )
+        with self.assertRaises(UserError):
+            quant.with_context(inventory_mode=True).write(
+                {"product_id": self.product.id}
+            )

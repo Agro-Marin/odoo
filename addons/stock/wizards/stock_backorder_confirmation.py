@@ -1,6 +1,7 @@
 from odoo import Command, api, fields, models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockBackorderConfirmationLine(models.TransientModel):
@@ -51,11 +52,12 @@ class StockBackorderConfirmation(models.TransientModel):
                 if move.product_uom_id.compare(move.product_uom_qty, picked_qty) > 0:
                     moves_to_log[move] = (picked_qty, move.product_uom_qty)
             if moves_to_log:
-                dbg.logic.debug(
-                    "[picking:%s] less than expected on moves %s",
-                    pick_id.id,
-                    [move.id for move in moves_to_log],
-                )
+                if _debug.logic.enabled:
+                    _debug.logic(
+                        "less_than_expected",
+                        picking=pick_id.id,
+                        move_ids=[move.id for move in moves_to_log],
+                    )
                 pick_id._log_less_quantities_than_expected(moves_to_log)
 
     def process(self):
@@ -67,11 +69,11 @@ class StockBackorderConfirmation(models.TransientModel):
             else:
                 pickings_not_to_do |= line.picking_id
 
-        dbg.pipeline.debug(
-            "backorder wizard process: backorder %s, no backorder %s, validate %s",
-            dbg.rec(pickings_to_do),
-            dbg.rec(pickings_not_to_do),
-            self.validate_picking_ids,
+        _debug.pipeline(
+            "backorder_wizard_process",
+            backorder=pickings_to_do,
+            no_backorder=pickings_not_to_do,
+            validate=self.validate_picking_ids,
         )
         if pickings_not_to_do and self._get_pickings_to_validate():
             self._check_less_quantities_than_expected(pickings_not_to_do)
@@ -82,10 +84,10 @@ class StockBackorderConfirmation(models.TransientModel):
 
     def action_cancel_backorder(self):
         pickings_to_validate = self._get_pickings_to_validate()
-        dbg.pipeline.debug(
-            "backorder wizard cancel: no backorder for %s, validate %s",
-            dbg.rec(self.pick_ids),
-            dbg.rec(pickings_to_validate),
+        _debug.pipeline(
+            "backorder_wizard_cancel",
+            no_backorder=self.pick_ids,
+            validate=pickings_to_validate,
         )
         if pickings_to_validate:
             self._check_less_quantities_than_expected(pickings_to_validate)

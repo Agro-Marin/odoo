@@ -4,13 +4,15 @@ from collections.abc import Iterable
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import DOMAIN_PREDICATES
 
-from ..tools import debug_log as dbg
 from odoo.addons.stock.tools.quantity import (
     QuantityFilters,
     get_domain_quantity_in_python,
 )
+
+_debug = DebugLog(__name__)
 
 
 class StockLot(models.Model):
@@ -186,14 +188,15 @@ class StockLot(models.Model):
                 }
             )
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model_create_multi
     def create(self, vals_list):
-        dbg.lifecycle.debug(
-            "stock.lot.create: %d vals, keys=%s",
-            len(vals_list),
-            dbg.vals_keys(vals_list),
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "create",
+                count=len(vals_list),
+                keys=sorted({key for vals in vals_list for key in vals}),
+            )
         lot_product_ids = {
             product_id
             for product_id in (
@@ -215,16 +218,15 @@ class StockLot(models.Model):
             vals_list
         )
 
-    @dbg.timed
+    @_debug.perf.timed
     def write(self, vals):
-        dbg.lifecycle.debug(
-            "stock.lot.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle("write", lots=self, keys=sorted(vals))
         identity_changed = any(
             field in vals for field in ("name", "product_id", "company_id")
         )
         if identity_changed:
-            dbg.logic.debug("stock.lot.write: identity change, checking duplicates")
+            _debug.logic("write_identity_change")
             self._check_lots_allowed(
                 {vals.get("product_id"), *self.product_id.ids} - {None, False}
             )
@@ -366,13 +368,14 @@ class StockLot(models.Model):
                 continue
             message = self.env._("Lot/Serial Number Relocated")
             breaking = quants._filtered_breaking_a_package()
-            dbg.pipeline.debug(
-                "[lot:%s] relocate to %s: breaking packages %s, intact %s",
-                lot.id,
-                lot.location_id.id,
-                dbg.rec(breaking),
-                dbg.rec(quants - breaking),
-            )
+            if _debug.pipeline.enabled:
+                _debug.pipeline(
+                    "lot_relocated",
+                    lot=lot.id,
+                    location=lot.location_id.id,
+                    breaking=breaking,
+                    intact=quants - breaking,
+                )
             if breaking:
                 breaking.move_quants(
                     location_dest_id=lot.location_id,
@@ -416,7 +419,7 @@ class StockLot(models.Model):
         warehouses = self.env["stock.warehouse"].search([])
         return partner_locations + warehouses.lot_stock_id
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_product_qty_by_lot(self, lot_domain):
         Product = self.env["product.product"]
         filters = QuantityFilters(

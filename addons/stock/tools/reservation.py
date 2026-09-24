@@ -3,9 +3,10 @@ import math
 import typing
 from collections import defaultdict
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare, float_is_zero, float_round
 
-from . import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class LeastPackagesPriorityQueue:
@@ -144,10 +145,9 @@ def distribute_reservation(candidates, quantity, precision_rounding, whole_units
         slack = cand.on_hand - cand.reserved
         if float_compare(slack, 0, precision_rounding=precision_rounding) < 0:
             negative_available[cand.key] += slack
-    if negative_available:
-        dbg.logic.debug(
-            "distribute_reservation: negative availability on %d places absorbs first",
-            len(negative_available),
+    if _debug.logic.enabled and negative_available:
+        _debug.logic(
+            "distribute_reservation_negative_first", places=len(negative_available)
         )
 
     for cand in candidates:
@@ -175,12 +175,12 @@ def distribute_reservation(candidates, quantity, precision_rounding, whole_units
 
         if float_is_zero(quantity, precision_rounding=precision_rounding):
             break
-    dbg.logic.debug(
-        "distribute_reservation over %d candidates whole_units=%s: %d taken, %s unserved",
-        len(candidates),
-        whole_units,
-        len(reserved),
-        quantity,
+    _debug.logic(
+        "distribute_reservation",
+        candidates=len(candidates),
+        whole_units=whole_units,
+        taken=len(reserved),
+        unserved=quantity,
     )
     return reserved
 
@@ -251,14 +251,10 @@ class QuantsCache:
 
     def is_covering(self, product_id, location_id, lot_id=None):
         if product_id.id not in self._product_ids:
-            dbg.performance.debug(
-                "quants cache miss: product %s not loaded", product_id.id
-            )
+            _debug.perf.count("quants_cache_miss_product", product=product_id.id)
             return False
         path = location_id.parent_path or ""
         if not any(path.startswith(root) for root in self._location_paths):
-            dbg.performance.debug(
-                "quants cache miss: location %s not loaded", location_id.id
-            )
+            _debug.perf.count("quants_cache_miss_location", location=location_id.id)
             return False
         return self._lot_scope is None or not lot_id or lot_id.id in self._lot_scope

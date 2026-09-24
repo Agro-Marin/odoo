@@ -5,10 +5,11 @@ from collections.abc import Iterable
 from odoo import api, models
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_is_zero, float_round
 from odoo.tools import format_list
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockPackageContent(models.Model):
@@ -73,9 +74,7 @@ class StockPackageContent(models.Model):
         # a list pays its own read_group and line read.
         saved = self.filtered("id")
         if len(saved) > 1:
-            dbg.performance.debug(
-                "_prefetch_move_line_ids: one batch for %d packages", len(saved)
-            )
+            _debug.perf.count("move_lines_prefetched", packages=len(saved))
             saved._fields["move_line_ids"].compute_value(saved)
 
     @api.depends("move_line_ids", "move_line_ids.location_dest_id")
@@ -113,7 +112,7 @@ class StockPackageContent(models.Model):
         "child_package_dest_ids",
         "child_package_dest_ids.move_line_ids",
     )
-    @dbg.timed
+    @_debug.perf.timed
     def _compute_move_line_ids(self):
         children_by_dest_pack, all_pack_ids = self._get_all_children_package_dest_ids()
         groups = self.env["stock.move.line"]._read_group(
@@ -283,7 +282,7 @@ class StockPackageContent(models.Model):
             res[package] = weight
         return res
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_weight_by_picking(self, picking_ids, pairs=None):
         picking_ids = list(picking_ids)
         if pairs is None:
@@ -351,11 +350,11 @@ class StockPackageContent(models.Model):
                 all_children_by_pack[package] = list(descendants)
                 all_children_ids.update(descendants)
 
-        dbg.performance.debug(
-            "_get_all_children_package_dest_ids: %d packages -> %d with descendants, %d total",
-            len(self),
-            len(all_children_by_pack),
-            len(all_children_ids),
+        _debug.perf.count(
+            "children_package_dest_ids",
+            packages=len(self),
+            with_descendants=len(all_children_by_pack),
+            total=len(all_children_ids),
         )
         return all_children_by_pack, all_children_ids
 
@@ -373,8 +372,8 @@ class StockPackageContent(models.Model):
         orphaned = self.filtered(
             lambda package: package.package_dest_id and not package.picking_ids
         )
-        if orphaned:
-            dbg.lifecycle.debug("_update_orphaned_package_dests: %s", dbg.rec(orphaned))
+        if _debug.lifecycle.enabled and orphaned:
+            _debug.lifecycle("orphaned_package_dests_updated", packages=orphaned)
         orphaned.package_dest_id = False
 
     def _get_all_package_dest_ids(self):
@@ -386,10 +385,10 @@ class StockPackageContent(models.Model):
         packages_todo = self.filtered(lambda p: p.id not in processed_package_ids)
         packs_by_container = packages_todo.grouped("package_dest_id")
         for container_package, packages in packs_by_container.items():
-            dbg.lifecycle.debug(
-                "_update_parent_packages_from_dest: %s -> container %s",
-                dbg.rec(packages),
-                container_package.id,
+            _debug.lifecycle(
+                "parent_packages_from_dest",
+                packages=packages,
+                container=container_package.id,
             )
             if not container_package:
                 packages.write({"parent_package_id": False})
@@ -443,10 +442,8 @@ class StockPackageContent(models.Model):
             ):
                 if allowed_package_ids and container.id not in allowed_package_ids:
                     continue
-                dbg.logic.debug(
-                    "_update_package_dest_for_entire_packs: %s travel with container %s",
-                    dbg.rec(packages),
-                    container.id,
+                _debug.logic(
+                    "entire_pack_dest", packages=packages, container=container.id
                 )
                 packages.package_dest_id = container
         if self.package_dest_id:

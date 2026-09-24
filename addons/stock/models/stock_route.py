@@ -1,11 +1,11 @@
 from odoo import Command, api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import TransactionMemo
-
-from ..tools import debug_log as dbg
 
 ROUTE_RULE_ACTIONS = TransactionMemo(
     "stock.route.rule_actions", invalidated_by=("stock.rule",)
 )
+_debug = DebugLog(__name__)
 
 
 class StockRoute(models.Model):
@@ -112,18 +112,15 @@ class StockRoute(models.Model):
     def _check_company_consistency(self):
         self.filtered("company_id").rule_ids._check_company_consistency()
 
-    @dbg.timed
+    @_debug.perf.timed
     def write(self, vals):
-        dbg.lifecycle.debug(
-            "stock.route.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle("write", routes=self, keys=sorted(vals))
         if "active" in vals:
             toggled = self.filtered(lambda route: route.active != bool(vals["active"]))
             all_rules = toggled.with_context(active_test=False).rule_ids.sudo()
-            dbg.lifecycle.debug(
-                "stock.route.write: active=%s cascades to rules %s",
-                vals["active"],
-                dbg.rec(all_rules),
+            _debug.lifecycle(
+                "write_active_cascade", active=vals["active"], rules=all_rules
             )
             if vals["active"]:
                 all_rules.filtered(

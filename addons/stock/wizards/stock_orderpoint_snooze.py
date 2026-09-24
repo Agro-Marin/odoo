@@ -1,7 +1,8 @@
 from odoo import api, fields, models
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.date_utils import add
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockOrderpointSnooze(models.TransientModel):
@@ -32,7 +33,7 @@ class StockOrderpointSnooze(models.TransientModel):
             self.snoozed_until = add(today, months=1)
 
     def action_snooze(self):
-        dbg.lifecycle.debug(
-            "snooze %s until %s", dbg.rec(self.orderpoint_ids), self.snoozed_until
+        _debug.lifecycle(
+            "snooze", orderpoints=self.orderpoint_ids, until=self.snoozed_until
         )
         self.orderpoint_ids.write({"snoozed_until": self.snoozed_until})

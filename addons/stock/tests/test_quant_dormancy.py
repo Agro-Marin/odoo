@@ -1,7 +1,9 @@
+from datetime import datetime, timedelta
 from operator import ge, gt, le, lt
 
 from odoo import fields
 from odoo.tests import tagged
+from odoo.tools import DOMAIN_PREDICATES
 
 from odoo.addons.stock.tests.common import TestStockCommon
 
@@ -478,4 +480,180 @@ class TestQuantDormancy(TestStockCommon):
         self.assertTrue(last_count[packed.id], "the package quant is what was counted")
         self.assertFalse(
             last_count[loose.id], "nobody counted the loose stock beside it"
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestQuantSearchShape(TestStockCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Quant = cls.env["stock.quant"]
+        cls.loc = cls.stock_location
+
+    def test_dormancy_search_does_not_materialise_every_id(self):
+        product = self.env["product.product"].create(
+            {"name": "qaud-subq", "is_storable": True}
+        )
+        self.Quant._update_available_quantity(
+            product,
+            self.loc,
+            quantity=5,
+            in_date=datetime.now() - timedelta(days=400),
+        )
+        self.env.flush_all()
+        for operator, value in ((">=", 100), ("<", 100)):
+            domain = self.Quant._search_days_since_last_movement(operator, value)
+            self.assertFalse(
+                isinstance(domain[0][2], list),
+                "the dormancy search must hand the planner a subquery, not one "
+                "id per dormant quant in the database",
+            )
+
+    def test_is_outdated_search_does_not_materialise_every_id(self):
+        domain = self.Quant._search_is_outdated("in", [True])
+        self.assertFalse(isinstance(domain[0][2], list))
+
+    def test_dormancy_search_still_matches_the_compute(self):
+        product = self.env["product.product"].create(
+            {"name": "qaud-agree", "is_storable": True}
+        )
+        for days in (5, 400):
+            location = self.env["stock.location"].create(
+                {
+                    "name": f"qaud-agree-{days}",
+                    "usage": "internal",
+                    "location_id": self.loc.id,
+                }
+            )
+            self.Quant._update_available_quantity(
+                product,
+                location,
+                quantity=5,
+                in_date=datetime.now() - timedelta(days=days),
+            )
+        self.env.flush_all()
+        self.env.invalidate_all()
+        quants = self.Quant.search([("product_id", "=", product.id)])
+        checks = {
+            ">=": lambda days, t: days >= t,
+            ">": lambda days, t: days > t,
+            "<": lambda days, t: days < t,
+            "<=": lambda days, t: days <= t,
+        }
+        for threshold in (10, 100, 500):
+            for operator, predicate in checks.items():
+                found = self.Quant.search(
+                    [
+                        ("product_id", "=", product.id),
+                        ("days_since_last_movement", operator, threshold),
+                    ]
+                )
+                expected = _filtered_dormancy(quants, predicate, threshold)
+                self.assertEqual(
+                    set(found.ids),
+                    set(expected.ids),
+                    f"search and compute must agree on {operator} {threshold}; "
+                    "the '<' and '<=' branches are the negated-subquery path",
+                )
+
+    def test_the_zero_sweep_keeps_its_rounding_tolerance(self):
+        product = self.env["product.product"].create(
+            {"name": "qaud-eps", "is_storable": True}
+        )
+        quant = self.Quant.create(
+            {"product_id": product.id, "location_id": self.loc.id, "quantity": 0}
+        )
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE stock_quant SET quantity = 1e-9 WHERE id = %s", [quant.id]
+        )
+        self.env.invalidate_all()
+        self.Quant._remove_zero_quants(products=product, locations=self.loc)
+        self.assertFalse(
+            quant.exists(),
+            "a residue below the rounding precision is still a zero quant",
+        )
+
+    def test_the_zero_sweep_keeps_real_stock(self):
+        product = self.env["product.product"].create(
+            {"name": "qaud-eps-keep", "is_storable": True}
+        )
+        quant = self.Quant.create(
+            {"product_id": product.id, "location_id": self.loc.id, "quantity": 0.01}
+        )
+        self.env.flush_all()
+        self.Quant._remove_zero_quants(products=product, locations=self.loc)
+        self.assertTrue(quant.exists())
+
+
+@tagged("post_install", "-at_install")
+class TestQuantDormancyBounds(TestStockCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Quant = cls.env["stock.quant"]
+        cls.loc = (
+            cls.env["stock.warehouse"]
+            .search([("company_id", "=", cls.env.company.id)], limit=1)
+            .lot_stock_id
+        )
+
+    def _quant_aged(self, **delta):
+        product = self.env["product.product"].create(
+            {"name": "qdb-%s" % len(delta), "is_storable": True}
+        )
+        quant = self.Quant.create(
+            {"product_id": product.id, "location_id": self.loc.id, "quantity": 1.0}
+        )
+        self.env.flush_all()
+        quant.sudo().write({"in_date": fields.Datetime.now() - timedelta(**delta)})
+        self.env.flush_all()
+        quant.invalidate_recordset()
+        return quant
+
+    def test_a_fractional_bound_snaps_the_way_the_comparison_does(self):
+        quant = self._quant_aged(days=1, hours=2)
+        self.assertEqual(quant.days_since_last_movement, 1)
+        for bound in (1, 1.5, 2):
+            with self.subTest(bound=bound):
+                matched = quant in self.Quant.search(
+                    [
+                        ("id", "=", quant.id),
+                        ("days_since_last_movement", ">=", bound),
+                    ]
+                )
+                self.assertEqual(
+                    matched,
+                    quant.days_since_last_movement >= bound,
+                    "the search must agree with the compute; int() truncation"
+                    " made >= 1.5 match a quant sitting at 1 day",
+                )
+
+    def test_an_integer_bound_is_unchanged_on_every_operator(self):
+        quant = self._quant_aged(days=5, hours=1)
+        self.assertEqual(quant.days_since_last_movement, 5)
+        for operator in (">=", ">", "<=", "<"):
+            for bound in (4, 5, 6):
+                with self.subTest(operator=operator, bound=bound):
+                    matched = quant in self.Quant.search(
+                        [
+                            ("id", "=", quant.id),
+                            ("days_since_last_movement", operator, bound),
+                        ]
+                    )
+                    self.assertEqual(
+                        matched,
+                        DOMAIN_PREDICATES[operator](
+                            quant.days_since_last_movement, bound
+                        ),
+                    )
+
+    def test_elapsed_days_never_run_backwards(self):
+        quant = self._quant_aged(days=-10)
+        self.assertGreaterEqual(
+            quant.days_since_last_movement,
+            0,
+            "an in_date ahead of now reported a negative duration on a field"
+            " whose name and help both promise elapsed time",
         )

@@ -1,8 +1,9 @@
 from odoo import fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import format_datetime
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockQuantityHistory(models.TransientModel):
@@ -30,11 +31,7 @@ class StockQuantityHistory(models.TransientModel):
             scope = f"template {product_tmpl_id}"
         else:
             scope = "all storable products"
-        dbg.logic.debug(
-            "stock valuation at %s scoped to %s",
-            self.inventory_datetime,
-            scope,
-        )
+        _debug.logic("valuation_at_date", datetime=self.inventory_datetime, scope=scope)
         return {
             "type": "ir.actions.act_window",
             "views": [(tree_view_id, "list"), (form_view_id, "form")],

@@ -3,8 +3,9 @@ from collections import defaultdict
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockPutawayRule(models.Model):
@@ -181,15 +182,15 @@ class StockPutawayRule(models.Model):
             )
             .location_dest_id
         )
-        dbg.logic.debug(
-            "[putaway_rule:%s] last used location for product %s: %s",
-            self.id,
-            product.id,
-            location.id,
+        _debug.logic(
+            "last_used_location",
+            putaway_rule=self.id,
+            product=product.id,
+            location=location.id,
         )
         return location
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_putaway_location(
         self,
         product,
@@ -219,10 +220,10 @@ class StockPutawayRule(models.Model):
                 if location_out._can_be_used(
                     product, quantity, package, qty_by_location[location_out.id]
                 ):
-                    dbg.logic.debug(
-                        "[putaway_rule:%s] direct location %s",
-                        putaway_rule.id,
-                        location_out.id,
+                    _debug.logic(
+                        "direct_location",
+                        putaway_rule=putaway_rule.id,
+                        location=location_out.id,
                     )
                     return location_out
                 checked_locations.add(location_out)
@@ -230,12 +231,12 @@ class StockPutawayRule(models.Model):
             child_locations = location_out.child_internal_location_ids.filtered_domain(
                 [("storage_category_id", "=", putaway_rule.storage_category_id.id)]
             )
-            dbg.logic.debug(
-                "[putaway_rule:%s] storage category %s: %d candidate locations under %s",
-                putaway_rule.id,
-                putaway_rule.storage_category_id.id,
-                len(child_locations),
-                location_out.id,
+            _debug.logic(
+                "storage_category_candidates",
+                putaway_rule=putaway_rule.id,
+                storage_category=putaway_rule.storage_category_id.id,
+                locations=len(child_locations),
+                parent_location=location_out.id,
             )
 
             capacity = child_locations._get_putaway_capacity(product, package)
@@ -281,18 +282,18 @@ class StockPutawayRule(models.Model):
                     qty_by_location[location.id],
                     capacity=capacity,
                 ):
-                    dbg.logic.debug(
-                        "[putaway_rule:%s] first free location %s",
-                        putaway_rule.id,
-                        location.id,
+                    _debug.logic(
+                        "first_free_location",
+                        putaway_rule=putaway_rule.id,
+                        location=location.id,
                     )
                     return location
                 checked_locations.add(location)
 
-        dbg.logic.debug(
-            "_get_putaway_location: no rule of %s fits product %s (%d locations checked)",
-            dbg.rec(self),
-            product.id,
-            len(checked_locations),
+        _debug.logic(
+            "no_fitting_rule",
+            putaway_rules=self,
+            product=product.id,
+            checked_locations=len(checked_locations),
         )
         return None

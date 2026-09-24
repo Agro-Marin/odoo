@@ -4,11 +4,11 @@ from functools import partial
 
 from odoo import api, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import TransactionMemo
 
-from ..tools import debug_log as dbg
-
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 RULE_IDS_BY_ROUTE = TransactionMemo(
     "stock.rule.ids_by_route", invalidated_by=("stock.rule",)
@@ -138,11 +138,8 @@ class StockRuleSelection(models.Model):
                     )
                 if candidates:
                     best = self._sorted_by_precedence(candidates, warehouse_id)[:1]
-                    dbg.logic.debug(
-                        "_get_best_rule: route %s -> rule %s of %s",
-                        route.id,
-                        best.id,
-                        dbg.rec(candidates),
+                    _debug.logic(
+                        "best_rule", route=route.id, rule=best.id, candidates=candidates
                     )
                     return best
         return self.env["stock.rule"]
@@ -191,7 +188,7 @@ class StockRuleSelection(models.Model):
         warehouse = values.get("warehouse_id", default)
         if isinstance(warehouse, models.BaseModel):
             return warehouse
-        dbg.logic.debug("_get_procurement_warehouse: coercing %r", warehouse)
+        _debug.logic("procurement_warehouse_coerced", warehouse=warehouse)
         return self.env["stock.warehouse"].browse(warehouse or ())
 
     @api.model
@@ -228,22 +225,18 @@ class StockRuleSelection(models.Model):
                     warehouse_id,
                 )
                 if rule:
-                    dbg.logic.debug(
-                        "_get_rule_from_hierarchy: product %s at %s (warehouse %s) -> rule %s",
-                        product_id.id,
-                        candidate_location.id,
-                        warehouse_id.id,
-                        rule.id,
+                    _debug.logic(
+                        "rule_from_hierarchy",
+                        product=product_id.id,
+                        location=candidate_location.id,
+                        warehouse=warehouse_id.id,
+                        rule=rule.id,
                     )
                     return rule
-        dbg.logic.debug(
-            "_get_rule_from_hierarchy: no rule for product %s in %s",
-            product_id.id,
-            dbg.rec(locations),
-        )
+        _debug.logic("no_rule_in_hierarchy", product=product_id.id, locations=locations)
         return self.env["stock.rule"]
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model
     def _get_rule(self, product_id, location_id, values):
         Rule = self.env["stock.rule"]
@@ -264,7 +257,7 @@ class StockRuleSelection(models.Model):
         )
         return self._get_rule_from_hierarchy(candidates, product_id, locations, values)
 
-    @dbg.timed
+    @_debug.perf.timed
     @api.model
     def _get_rules_batch(self, procurements):
         Rule = self.env["stock.rule"]
@@ -291,10 +284,8 @@ class StockRuleSelection(models.Model):
                 frozenset(valid_route_ids),
             )
             groups[key].append((index, procurement, locations, valid_route_ids))
-        dbg.performance.debug(
-            "_get_rules_batch: %d procurements in %d candidate groups",
-            len(procurements),
-            len(groups),
+        _debug.perf.count(
+            "rules_batch", procurements=len(procurements), groups=len(groups)
         )
         for group in groups.values():
             group_locations = self.env["stock.location"].union(
@@ -379,10 +370,10 @@ class StockRuleSelection(models.Model):
                 domain,
             )
             location = location.location_id
-        dbg.logic.debug(
-            "_get_push_rule product=%s dest=%s -> %s",
-            product_id.id,
-            location_dest_id.id,
-            found_rule.id,
+        _debug.logic(
+            "push_rule",
+            product=product_id.id,
+            destination=location_dest_id.id,
+            rule=found_rule.id,
         )
         return found_rule

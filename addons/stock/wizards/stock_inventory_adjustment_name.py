@@ -1,6 +1,7 @@
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class StockInventoryAdjustmentName(models.TransientModel):
@@ -25,11 +26,11 @@ class StockInventoryAdjustmentName(models.TransientModel):
 
     def action_apply(self):
         quants = self.quant_ids.filtered("inventory_quantity_set")
-        dbg.pipeline.debug(
-            "inventory adjustment %r: applying %s of %d",
-            self.inventory_adjustment_name,
-            dbg.rec(quants),
-            len(self.quant_ids),
+        _debug.pipeline(
+            "inventory_adjustment",
+            name=self.inventory_adjustment_name,
+            quants=quants,
+            selected=len(self.quant_ids),
         )
         return quants.with_context(
             self._prepare_quants_context()

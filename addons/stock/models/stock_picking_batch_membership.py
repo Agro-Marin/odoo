@@ -1,7 +1,9 @@
 from odoo import models
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
 from .stock_picking import DONE_CANCEL_STATES
+
+_debug = DebugLog(__name__)
 
 
 class StockPickingBatchMembership(models.Model):
@@ -9,9 +11,7 @@ class StockPickingBatchMembership(models.Model):
 
     def update_batch_user(self, user_id):
         pickings = self.filtered(lambda p: p.user_id.id != user_id)
-        dbg.lifecycle.debug(
-            "update_batch_user: %s -> user %s", dbg.rec(pickings), user_id
-        )
+        _debug.lifecycle("batch_user_updated", pickings=pickings, user=user_id)
         pickings.write({"user_id": user_id})
         for pick in pickings:
             if user_id:
@@ -37,11 +37,7 @@ class StockPickingBatchMembership(models.Model):
     def _detach_unvalidated_from_batch(self, batch):
         detached = self._get_pickings_detached_from_batch(batch)
         if detached:
-            dbg.pipeline.debug(
-                "_detach_unvalidated_from_batch: %s leave %s",
-                dbg.rec(detached),
-                dbg.rec(batch),
-            )
+            _debug.pipeline("detach_unvalidated", pickings=detached, batch=batch)
             detached.batch_id = False
             detached.move_ids.filtered(lambda m: not m.quantity).picked = False
         return detached
@@ -54,9 +50,7 @@ class StockPickingBatchMembership(models.Model):
             ):
                 picking.batch_id = False
             to_rebatch |= picking.backorder_ids
-        dbg.pipeline.debug(
-            "_detach_from_batches_after_validation: to rebatch %s", dbg.rec(to_rebatch)
-        )
+        _debug.pipeline("rebatch", pickings=to_rebatch)
         return to_rebatch
 
     def _rebatch_after_validation(self, excluded_batches=None):
@@ -71,8 +65,5 @@ class StockPickingBatchMembership(models.Model):
             )
         )
         if leaving:
-            dbg.pipeline.debug(
-                "_detach_from_batch_before_backorder: %s leave their batch",
-                dbg.rec(leaving),
-            )
+            _debug.pipeline("detach_before_backorder", pickings=leaving)
             leaving.batch_id = False

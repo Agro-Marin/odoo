@@ -10,23 +10,22 @@ from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import RedirectWarning, UserError
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
+from odoo.libs.debug_log import DebugLog
 from odoo.modules.registry import Registry
 from odoo.tools import format_date
 
-from ..tools import debug_log as dbg
 from odoo.addons.stock.models.stock_procurement import ProcurementException
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class StockWarehouseOrderpointReplenish(models.Model):
     _inherit = "stock.warehouse.orderpoint"
 
-    @dbg.timed
+    @_debug.perf.timed
     def action_replenish(self, force_to_max=False):
-        dbg.pipeline.debug(
-            "action_replenish on %s force_to_max=%s", dbg.rec(self), force_to_max
-        )
+        _debug.pipeline("action_replenish", orderpoints=self, force_to_max=force_to_max)
         now = self.env.cr.now()
         forced_quantities = None
         if force_to_max:
@@ -125,7 +124,7 @@ class StockWarehouseOrderpointReplenish(models.Model):
     def _get_replenishment_multiple_alternative_map(self, qty_by_orderpoint):
         return dict.fromkeys(self.ids, False)
 
-    @dbg.timed
+    @_debug.perf.timed
     def _get_qty_to_order_map(self):
         orderpoints_to_compute = self.filtered(
             lambda orderpoint: orderpoint.product_id and orderpoint.location_id,
@@ -154,12 +153,12 @@ class StockWarehouseOrderpointReplenish(models.Model):
         )._get_multiple_rounded_qty_map(to_order)
         for orderpoint_id, qty_to_order in to_order.items():
             result[orderpoint_id] = rounded[orderpoint_id]
-            dbg.logic.debug(
-                "[orderpoint:%s] forecast %s < min: order %s (rounded %s)",
-                orderpoint_id,
-                forecast_by_orderpoint[orderpoint_id],
-                qty_to_order,
-                rounded[orderpoint_id],
+            _debug.logic(
+                "qty_to_order",
+                orderpoint=orderpoint_id,
+                forecast=forecast_by_orderpoint[orderpoint_id],
+                qty=qty_to_order,
+                rounded=rounded[orderpoint_id],
             )
         return result
 
@@ -313,10 +312,8 @@ class StockWarehouseOrderpointReplenish(models.Model):
         alternatives = self.filtered(
             lambda orderpoint: not orderpoint.replenishment_uom_id
         )._get_replenishment_multiple_alternative_map(qty_by_orderpoint)
-        dbg.performance.debug(
-            "_get_multiple_rounded_qty_map: %d orderpoints, %d alternatives",
-            len(self),
-            len(alternatives),
+        _debug.perf.count(
+            "rounded_qty_map", orderpoints=len(self), alternatives=len(alternatives)
         )
         return {
             orderpoint.id: orderpoint._round_to_multiple(
@@ -395,10 +392,8 @@ class StockWarehouseOrderpointReplenish(models.Model):
         for orderpoint in self:
             quantity = forced_quantities.get(orderpoint.id, orderpoint.qty_to_order)
             if orderpoint.product_uom_id.compare(quantity, 0.0) != 1:
-                dbg.logic.debug(
-                    "[orderpoint:%s] nothing to procure (qty %s)",
-                    orderpoint.id,
-                    quantity,
+                _debug.logic(
+                    "nothing_to_procure", orderpoint=orderpoint.id, qty=quantity
                 )
                 continue
             references = orderpoint._get_origin_references()
@@ -409,13 +404,13 @@ class StockWarehouseOrderpointReplenish(models.Model):
             else:
                 origin = orderpoint.name
             date = orderpoint._get_procurement_date()
-            dbg.pipeline.debug(
-                "[orderpoint:%s] procurement product=%s qty=%s date=%s origin=%s",
-                orderpoint.id,
-                orderpoint.product_id.id,
-                quantity,
-                date,
-                origin,
+            _debug.pipeline(
+                "procurement_prepared",
+                orderpoint=orderpoint.id,
+                product=orderpoint.product_id.id,
+                qty=quantity,
+                date=date,
+                origin=origin,
             )
             procurements.append(
                 self.env["stock.rule"].Procurement(
@@ -445,11 +440,11 @@ class StockWarehouseOrderpointReplenish(models.Model):
             if not orderpoints:
                 continue
             procurements = orderpoints._prepare_procurements(forced_quantities)
-            dbg.pipeline.debug(
-                "_run_procurement_batch: %d orderpoints -> %d procurements (retries left %d)",
-                len(orderpoints),
-                len(procurements),
-                remaining_retries,
+            _debug.pipeline(
+                "procurement_batch",
+                orderpoints=len(orderpoints),
+                procurements=len(procurements),
+                retries_left=remaining_retries,
             )
             try:
                 with self.env.cr.savepoint():
@@ -466,10 +461,10 @@ class StockWarehouseOrderpointReplenish(models.Model):
                     for procurement, error_msg in errors.procurement_exceptions
                 ]
                 failed = self.browse().concat(*[failure[0] for failure in attributed])
-                dbg.logic.debug(
-                    "_run_procurement_batch: %d failures, attributed to %s",
-                    len(attributed),
-                    dbg.rec(failed),
+                _debug.logic(
+                    "procurement_batch_failures",
+                    failures=len(attributed),
+                    failed=failed,
                 )
                 if failed:
                     failures += [failure for failure in attributed if failure[0]]
@@ -489,9 +484,8 @@ class StockWarehouseOrderpointReplenish(models.Model):
             except OperationalError as error:
                 if error.sqlstate not in ("40001", "40P01") or not can_retry:
                     raise
-                dbg.logic.debug(
-                    "_run_procurement_batch: serialization failure %s, rolling back",
-                    error.sqlstate,
+                _debug.logic(
+                    "procurement_batch_serialization_failure", sqlstate=error.sqlstate
                 )
                 self.env.cr.rollback()
                 remaining_retries -= 1
@@ -511,15 +505,10 @@ class StockWarehouseOrderpointReplenish(models.Model):
 
     def _split_failing_batch(self, error_msg):
         if len(self) == 1:
-            dbg.logic.debug(
-                "_run_procurement_batch: %s isolated as failing", dbg.rec(self)
-            )
+            _debug.logic("procurement_batch_failing", orderpoints=self)
             return [(self, error_msg)], []
         half = len(self) // 2
-        dbg.logic.debug(
-            "_run_procurement_batch: unattributed failure in %s, bisecting",
-            dbg.rec(self),
-        )
+        _debug.logic("procurement_batch_bisect", orderpoints=self)
         return [], [self[half:], self[:half]]
 
     def _schedule_procurement_failure_activities(self, failures):
@@ -555,7 +544,7 @@ class StockWarehouseOrderpointReplenish(models.Model):
             )
             notes_per_template[template.id].append(error_msg)
 
-    @dbg.timed
+    @_debug.perf.timed
     def _procure_orderpoint_confirm(
         self,
         use_new_cursor=False,
@@ -563,13 +552,14 @@ class StockWarehouseOrderpointReplenish(models.Model):
         raise_user_error=True,
         forced_quantities=None,
     ):
-        dbg.lifecycle.debug(
-            "_procure_orderpoint_confirm on %s new_cursor=%s company=%s forced=%d",
-            dbg.rec(self),
-            use_new_cursor,
-            getattr(company_id, "id", company_id),
-            len(forced_quantities or ()),
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "procure_orderpoint_confirm",
+                orderpoints=self,
+                new_cursor=use_new_cursor,
+                company=getattr(company_id, "id", company_id),
+                forced=len(forced_quantities or ()),
+            )
         scoped = self.with_company(company_id)
         forced_quantities = forced_quantities or {}
         dbname = self.env.cr.dbname
@@ -629,8 +619,8 @@ class StockWarehouseOrderpointReplenish(models.Model):
             .with_context(active_test=False)
             .search(domain)
         )
-        dbg.lifecycle.debug(
-            "_remove_processed_orderpoints: %s", dbg.rec(orderpoints_to_remove)
+        _debug.lifecycle(
+            "processed_orderpoints_removed", orderpoints=orderpoints_to_remove
         )
         orderpoints_to_remove.unlink()
         return orderpoints_to_remove

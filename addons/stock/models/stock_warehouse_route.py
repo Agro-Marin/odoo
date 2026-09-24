@@ -4,13 +4,14 @@ from collections import defaultdict
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import ormcache
 
-from ..tools import debug_log as dbg
 from .stock_rule import RESUPPLY_ROLE
 from .stock_warehouse import ROUTE_NAMES
 
 _logger = logging.getLogger(__name__)
+_debug = DebugLog(__name__)
 
 
 class StockWarehouseRoute(models.Model):
@@ -30,18 +31,18 @@ class StockWarehouseRoute(models.Model):
     def _get_global_rule_fields(self):
         return frozenset({"mto_pull_id"})
 
-    @dbg.timed
+    @_debug.perf.timed
     def _create_or_update_route(self):
         self.check_singleton()
         routes = []
         field_vals = {}
         rules_dict = self._prepare_rule_routings()
         for route_field, route_data in self._prepare_route_vals().items():
-            dbg.lifecycle.debug(
-                "[warehouse:%s] route %s: %s",
-                self.id,
-                route_field,
-                "update" if self[route_field] else "create",
+            _debug.lifecycle(
+                "route_sync",
+                warehouse=self.id,
+                route_field=route_field,
+                action="update" if self[route_field] else "create",
             )
             if self[route_field]:
                 route = self[route_field]
@@ -50,13 +51,14 @@ class StockWarehouseRoute(models.Model):
                 obsolete = route.rule_ids.filtered(
                     lambda rule, role=route_field: rule.warehouse_role == role
                 )
-                dbg.lifecycle.debug(
-                    "[warehouse:%s] route %s: archive generated %s, keep %s",
-                    self.id,
-                    route_field,
-                    dbg.rec(obsolete),
-                    dbg.rec(route.rule_ids - obsolete),
-                )
+                if _debug.lifecycle.enabled:
+                    _debug.lifecycle(
+                        "route_rules_archived",
+                        warehouse=self.id,
+                        route_field=route_field,
+                        archived=obsolete,
+                        kept=route.rule_ids - obsolete,
+                    )
                 obsolete.write({"active": False})
             else:
                 if "route_update_values" in route_data:
@@ -98,11 +100,8 @@ class StockWarehouseRoute(models.Model):
             field_vals["route_ids"] = [
                 fields.Command.link(route.id) for route in new_links
             ]
-        dbg.logic.debug(
-            "[warehouse:%s] _create_or_update_route writes %s",
-            self.id,
-            dbg.keys(field_vals),
-        )
+        if _debug.logic.enabled:
+            _debug.logic("route_write", warehouse=self.id, keys=sorted(field_vals))
         if field_vals:
             self.write(field_vals)
         return field_vals
@@ -186,8 +185,8 @@ class StockWarehouseRoute(models.Model):
                 values.update(rule_details["create_values"])
                 values.update({"warehouse_id": self.id})
                 new_rule_ids[rule_field] = self.env["stock.rule"].create(values).id
-        dbg.lifecycle.debug(
-            "[warehouse:%s] global route rules created: %s", self.id, new_rule_ids
+        _debug.lifecycle(
+            "global_route_rules_created", warehouse=self.id, rule_ids=new_rule_ids
         )
         if new_rule_ids:
             self.with_context(stock_no_global_route_refresh=True).write(new_rule_ids)
@@ -223,10 +222,8 @@ class StockWarehouseRoute(models.Model):
                     self.env._("Can't find any generic route %s.", route_name)
                 )
             if data_route and create:
-                dbg.lifecycle.debug(
-                    "_get_or_create_global_route: copying %s for company %s",
-                    xml_id,
-                    company.id,
+                _debug.lifecycle(
+                    "global_route_copied", xml_id=xml_id, company=company.id
                 )
                 route = data_route.copy(
                     {
@@ -460,15 +457,14 @@ class StockWarehouseRoute(models.Model):
                 and self._is_rule_value_different(rule, name, value)
             }
             if changed:
-                dbg.lifecycle.debug(
-                    "[rule:%s] _sync_rules updates %s", rule.id, dbg.keys(changed)
-                )
+                if _debug.lifecycle.enabled:
+                    _debug.lifecycle("rule_synced", rule=rule.id, keys=sorted(changed))
                 rule.write(changed)
-        dbg.logic.debug(
-            "_sync_rules: %d wanted, %d candidates, %d to create",
-            len(wanted),
-            len(candidates),
-            len(to_create),
+        _debug.logic(
+            "sync_rules",
+            wanted=len(wanted),
+            candidates=len(candidates),
+            to_create=len(to_create),
         )
         if to_create:
             Rule.create(to_create)
@@ -521,11 +517,12 @@ class StockWarehouseRoute(models.Model):
                 lambda rule: not rule.warehouse_role
             )
         marked[RESUPPLY_ROLE] |= self._get_unmarked_resupply_rules()
-        dbg.lifecycle.debug(
-            "_backfill_rule_roles on %s: %s",
-            dbg.rec(self),
-            {role: rules.ids for role, rules in marked.items()},
-        )
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "rule_roles_backfilled",
+                warehouses=self,
+                roles={role: rules.ids for role, rules in marked.items()},
+            )
         for role, rules in marked.items():
             rules.write({"warehouse_role": role})
 
@@ -639,11 +636,8 @@ class StockWarehouseRoute(models.Model):
         new_resupply_whs = self.resupply_wh_ids
         to_add = new_resupply_whs - previous_resupply_whs
         to_remove = previous_resupply_whs - new_resupply_whs
-        dbg.logic.debug(
-            "[warehouse:%s] _sync_resupply_routes: add %s remove %s",
-            self.id,
-            dbg.rec(to_add),
-            dbg.rec(to_remove),
+        _debug.logic(
+            "resupply_routes_sync", warehouse=self.id, add=to_add, remove=to_remove
         )
         if to_add:
             existing_routes = Route.search(
@@ -655,10 +649,10 @@ class StockWarehouseRoute(models.Model):
             )
             existing_routes.action_unarchive()
             remaining_to_add = to_add - existing_routes.supplier_wh_id
-            dbg.logic.debug(
-                "_sync_resupply_routes: unarchived %s, creating for %s",
-                dbg.rec(existing_routes),
-                dbg.rec(remaining_to_add),
+            _debug.logic(
+                "resupply_routes_unarchived",
+                unarchived=existing_routes,
+                to_create=remaining_to_add,
             )
             if remaining_to_add:
                 self._create_resupply_routes(remaining_to_add)
@@ -688,10 +682,10 @@ class StockWarehouseRoute(models.Model):
                 else external_transit_location
             )
             if not transit_location:
-                dbg.logic.debug(
-                    "[warehouse:%s] no transit location for supplier %s, skipped",
-                    self.id,
-                    supplier_wh.id,
+                _debug.logic(
+                    "resupply_no_transit",
+                    warehouse=self.id,
+                    supplier_warehouse=supplier_wh.id,
                 )
                 continue
             transit_location.active = True
@@ -709,12 +703,12 @@ class StockWarehouseRoute(models.Model):
             inter_wh_route = Route.create(
                 self._prepare_inter_warehouse_route_vals(supplier_wh)
             )
-            dbg.lifecycle.debug(
-                "[warehouse:%s] resupply route %s from %s via transit %s",
-                self.id,
-                inter_wh_route.id,
-                supplier_wh.id,
-                transit_location.id,
+            _debug.lifecycle(
+                "resupply_route_created",
+                warehouse=self.id,
+                route=inter_wh_route.id,
+                supplier_warehouse=supplier_wh.id,
+                transit_location=transit_location.id,
             )
 
             pull_rules_list = supplier_wh._prepare_supply_pull_rule_vals(
@@ -783,12 +777,12 @@ class StockWarehouseRoute(models.Model):
                 if delivery_new == "ship_only"
                 else warehouse.wh_output_stock_loc_id
             )
-            dbg.logic.debug(
-                "[warehouse:%s] delivery steps %s -> %s, resupply output %s",
-                warehouse.id,
-                warehouse.delivery_steps,
-                delivery_new,
-                output_loc.id,
+            _debug.logic(
+                "delivery_steps_resupply",
+                warehouse=warehouse.id,
+                old_steps=warehouse.delivery_steps,
+                new_steps=delivery_new,
+                output_location=output_loc.id,
             )
             warehouse._update_delivery_resupply(output_loc, change_to_multiple)
 
@@ -828,11 +822,11 @@ class StockWarehouseRoute(models.Model):
         routes = self._get_resupply_routes()
         if not routes:
             return
-        dbg.pipeline.debug(
-            "[warehouse:%s] _update_delivery_resupply on routes %s multi=%s",
-            self.id,
-            dbg.rec(routes),
-            change_to_multiple,
+        _debug.pipeline(
+            "delivery_resupply_update",
+            warehouse=self.id,
+            routes=routes,
+            multi=change_to_multiple,
         )
         transit_legs = Rule.search(
             [
@@ -883,10 +877,8 @@ class StockWarehouseRoute(models.Model):
             return
         if multi_step is None:
             multi_step = self.delivery_steps != "ship_only"
-        dbg.lifecycle.debug(
-            "[warehouse:%s] resupply rule activity: pick legs active=%s",
-            self.id,
-            multi_step,
+        _debug.lifecycle(
+            "resupply_rule_activity", warehouse=self.id, multi_step=multi_step
         )
         Rule.search(self._get_domain_resupply_pick_leg(routes)).write(
             {"active": multi_step}
@@ -919,11 +911,11 @@ class StockWarehouseRoute(models.Model):
                 and route.supplier_wh_id in route.supplied_wh_id.resupply_wh_ids
             )
         )
-        dbg.lifecycle.debug(
-            "[warehouse:%s] resupply routes %s: revivable %s",
-            self.id,
-            dbg.rec(routes),
-            dbg.rec(revivable),
+        _debug.lifecycle(
+            "resupply_route_activity",
+            warehouse=self.id,
+            routes=routes,
+            revivable=revivable,
         )
         if revivable:
             revivable.write({"active": True})
@@ -970,9 +962,7 @@ class StockWarehouseRoute(models.Model):
             if old_prefix and rule.name and rule.name.startswith(old_prefix):
                 by_new_name[new_prefix + rule.name[len(old_prefix) :]].append(rule.id)
         Rule = self.env["stock.rule"].with_context(active_test=False)
-        dbg.lifecycle.debug(
-            "_update_rule_names(%s): %d rules renamed", new_code, len(by_new_name)
-        )
+        _debug.lifecycle("rule_names_updated", code=new_code, renamed=len(by_new_name))
         for name, rule_ids in by_new_name.items():
             Rule.browse(rule_ids).write({"name": name})
 

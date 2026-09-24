@@ -1,7 +1,8 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 
-from ..tools import debug_log as dbg
+_debug = DebugLog(__name__)
 
 
 class MixinStockReplenish(models.AbstractModel):
@@ -27,11 +28,7 @@ class MixinStockReplenish(models.AbstractModel):
         routes = self.env["stock.route"].search(Domain.OR(domains.values()))
         for record, domain in domains.items():
             route_ids = routes.filtered_domain(domain)
-            dbg.logic.debug(
-                "_compute_allowed_route_ids on %s: %s",
-                dbg.rec(record),
-                dbg.rec(route_ids),
-            )
+            _debug.logic("allowed_routes_computed", record=record, routes=route_ids)
             record.allowed_route_ids = route_ids
 
     def _get_domain_allowed_route(self):
