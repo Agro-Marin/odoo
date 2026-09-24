@@ -22,6 +22,7 @@ class ResourceAsset(models.Model):
         inverse_name="asset_id",
         string="Bill Lines",
         export_string_translation=False,
+        groups="account.group_account_readonly",
     )
 
     @api.depends("account_move_line_ids.parent_state", "account_move_line_ids.move_id")

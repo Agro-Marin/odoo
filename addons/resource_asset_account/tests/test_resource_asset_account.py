@@ -1,5 +1,5 @@
 from odoo.exceptions import UserError
-from odoo.tests import tagged
+from odoo.tests import new_test_user, tagged
 
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 
@@ -85,6 +85,27 @@ class TestResourceAssetAccount(AccountTestInvoicingCommon):
             log.unlink()
         bill.invoice_line_ids.asset_id = False
         self.assertFalse(log.exists())
+
+    def test_an_employee_reads_the_asset_without_rights_on_its_bills(self):
+        # Every employee may read an asset; its bill lines answer to the same
+        # accounting readers as the bill count and the Bills button. They are
+        # left out of the asset instead of failing the whole read.
+        self._bill(self.service).action_post()
+        employee = new_test_user(
+            self.env, login="bills_employee", groups="base.group_user"
+        )
+        reader = new_test_user(
+            self.env,
+            login="bills_reader",
+            groups="base.group_user,account.group_account_readonly",
+        )
+
+        self.assertNotIn(
+            "account_move_line_ids", self.asset.with_user(employee).fields_get()
+        )
+        self.assertIn(
+            "account_move_line_ids", self.asset.with_user(reader).fields_get()
+        )
 
 
 @tagged("post_install", "-at_install")
