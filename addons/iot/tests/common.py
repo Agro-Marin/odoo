@@ -1,8 +1,10 @@
 import json
 from unittest.mock import patch
 
+import odoo.http
 from odoo.tests import HttpCase
 
+from odoo.addons.iot.controllers.main import IoTController
 from odoo.addons.iot.models.iot_channel import IotChannel
 
 
@@ -58,20 +60,21 @@ class IotCommonTest(HttpCase):
         def mock_send_message(iot_channel_record, message, message_type="iot_action"):
             self.iot_websocket_messages.append({message_type: message})
             if message_type == "iot_action" and answerable <= message.keys():
-                # call the websocket response controller to simulate the response from the IoT Box
+                answer = {
+                    "session_id": message["session_id"],
+                    "iot_box_identifier": message["iot_identifiers"][0],
+                    "device_identifier": message["device_identifiers"][0],
+                    "status": "success",
+                }
+                # Inside a request the box's answer runs in it: an HTTP call
+                # back to the server would need a second request thread, and
+                # a server sized to one serves it only after this one ends.
+                if odoo.http.request:
+                    return IoTController().iot_box_send_websocket(**answer)
                 return self.url_open(
                     "/iot/box/send_websocket",
                     headers={"Content-Type": "application/json"},
-                    data=json.dumps(
-                        {
-                            "params": {
-                                "session_id": message["session_id"],
-                                "iot_box_identifier": message["iot_identifiers"][0],
-                                "device_identifier": message["device_identifiers"][0],
-                                "status": "success",
-                            },
-                        }
-                    ),
+                    data=json.dumps({"params": answer}),
                 )
             return original_send_message(iot_channel_record, message, message_type)
 
