@@ -131,6 +131,7 @@ class IrAccessException(models.Model):
         "An exception ends after it starts.",
     )
 
+    @api.depends("res_model", "res_id")
     def _compute_scope_name(self) -> None:
         for exception in self:
             record = (
@@ -153,6 +154,7 @@ class IrAccessException(models.Model):
             ):
                 exception.reviewer_ids = managers - exception.user_id
 
+    @api.depends("date_from", "date_to", "revoked_at")
     def _compute_state(self) -> None:
         now = fields.Datetime.now()
         for exception in self:
