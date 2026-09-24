@@ -115,6 +115,19 @@ class IrModelAccessTest(TransactionCase):
 
         self.assertEqual(set(result), {"res.company", "base.language.export"})
 
+    def test_get_definitions_lists_every_inverse(self):
+        fields = self.env["ir.model"]._get_definitions(["res.company"])["res.company"][
+            "fields"
+        ]
+        self.assertEqual(
+            fields["parent_id"]["inverse_fnames_by_model_name"],
+            {"res.company": ["all_child_ids", "child_ids"]},
+        )
+        self.assertEqual(
+            fields["child_ids"]["inverse_fnames_by_model_name"],
+            {"res.company": ["parent_id"]},
+        )
+
 
 @tagged("web_unit", "web_model")
 class TestIrModel(TransactionCase):

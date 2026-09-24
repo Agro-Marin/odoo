@@ -1,7 +1,7 @@
 import logging
 
 from odoo import SUPERUSER_ID, api
-from odoo.db.schema import table_exists
+from odoo.db.schema import column_exists, table_exists
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
@@ -19,10 +19,16 @@ def migrate(cr, version):
         return
     env = api.Environment(cr, SUPERUSER_ID, {})
     Binding = env["approval.binding"].with_context(active_test=False)
+    # a database that skipped the version adding approval_gate.active never
+    # had a gate archived, so every one of its gates reads as active
+    active = (
+        SQL("active") if column_exists(cr, "approval_gate", "active") else SQL("TRUE")
+    )
     cr.execute(
         SQL(
-            "SELECT model_name, operation, enforced, active FROM approval_gate "
-            "ORDER BY model_name, operation"
+            "SELECT model_name, operation, enforced, %s FROM approval_gate "
+            "ORDER BY model_name, operation",
+            active,
         )
     )
     for model_name, operation, enforced, active in cr.fetchall():

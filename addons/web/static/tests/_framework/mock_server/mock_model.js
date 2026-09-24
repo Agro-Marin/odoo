@@ -1196,78 +1196,99 @@ function updateComodelRelationalFields(model, record, originalRecord) {
     for (const fname in record) {
         const field = model._fields[fname];
         const coModel = getRelation(field, record);
-        const inverseFieldName =
-            field.inverse_fname_by_model_name &&
-            field.inverse_fname_by_model_name[coModel?._name];
-        if (!inverseFieldName) {
-            continue;
-        }
-        const relatedRecordIds = ensureArray(record[fname]);
-        const comodelInverseField = coModel._fields[inverseFieldName];
-        if (record[fname]) {
-            for (const relatedRecordId of relatedRecordIds) {
-                /** @type {any} */
-                let inverseFieldNewValue = record.id;
-                const relatedRecord = coModel.find(
-                    (record) => record.id === relatedRecordId,
-                );
-                const relatedFieldValue =
-                    relatedRecord && relatedRecord[inverseFieldName];
-                if (
-                    relatedFieldValue === undefined ||
-                    relatedFieldValue === record.id ||
-                    (field.type !== "one2many" && relatedFieldValue.includes(record.id))
-                ) {
-                    continue;
-                }
-                if (Array.isArray(relatedFieldValue)) {
-                    inverseFieldNewValue = [...relatedFieldValue, record.id];
-                }
-                const data = /** @type {any} */ ({
-                    [inverseFieldName]: inverseFieldNewValue,
-                });
-                if (comodelInverseField.type === "many2one_reference") {
-                    data[comodelInverseField.model_name_ref_fname] = model._name;
-                }
-                /** @type {any} */ (coModel)._write(data, relatedRecordId);
-            }
-        } else if (field.type === "many2one_reference") {
-            const model_many2one_field =
-                comodelInverseField.inverse_fname_by_model_name[model._name];
-            /** @type {any} */ (model)._write(
-                { [model_many2one_field]: false },
-                record.id,
+        for (const inverseFieldName of field.inverse_fnames_by_model_name?.[
+            coModel?._name
+        ] || []) {
+            updateComodelInverseField(
+                model,
+                record,
+                originalRecord,
+                fname,
+                coModel,
+                inverseFieldName,
             );
         }
-        if (originalRecord) {
-            const originalRecordIds = ensureArray(originalRecord[fname]);
-            const removedRecordIds = originalRecordIds.filter(
-                (recordId) =>
-                    Number.isInteger(recordId) && !relatedRecordIds.includes(recordId),
+    }
+}
+
+/**
+ * @param {Model} model
+ * @param {ModelRecord} record
+ * @param {ModelRecord | undefined} originalRecord
+ * @param {string} fname
+ * @param {Model} coModel
+ * @param {string} inverseFieldName
+ */
+function updateComodelInverseField(
+    model,
+    record,
+    originalRecord,
+    fname,
+    coModel,
+    inverseFieldName,
+) {
+    const field = model._fields[fname];
+    const relatedRecordIds = ensureArray(record[fname]);
+    const comodelInverseField = coModel._fields[inverseFieldName];
+    if (record[fname]) {
+        for (const relatedRecordId of relatedRecordIds) {
+            /** @type {any} */
+            let inverseFieldNewValue = record.id;
+            const relatedRecord = coModel.find(
+                (record) => record.id === relatedRecordId,
             );
-            for (const removedRecordId of removedRecordIds) {
-                const removedRecord = coModel.find(
-                    (record) => record.id === removedRecordId,
-                );
-                if (!removedRecord) {
-                    continue;
-                }
-                /** @type {any} */
-                let inverseFieldNewValue = false;
-                if (Array.isArray(removedRecord[inverseFieldName])) {
-                    inverseFieldNewValue = removedRecord[inverseFieldName].filter(
-                        (id) => id !== record.id,
-                    );
-                }
-                /** @type {any} */ (coModel)._write(
-                    {
-                        [inverseFieldName]: inverseFieldNewValue.length
-                            ? inverseFieldNewValue
-                            : false,
-                    },
-                    removedRecordId,
+            const relatedFieldValue = relatedRecord && relatedRecord[inverseFieldName];
+            if (
+                relatedFieldValue === undefined ||
+                relatedFieldValue === record.id ||
+                (field.type !== "one2many" && relatedFieldValue.includes(record.id))
+            ) {
+                continue;
+            }
+            if (Array.isArray(relatedFieldValue)) {
+                inverseFieldNewValue = [...relatedFieldValue, record.id];
+            }
+            const data = /** @type {any} */ ({
+                [inverseFieldName]: inverseFieldNewValue,
+            });
+            if (comodelInverseField.type === "many2one_reference") {
+                data[comodelInverseField.model_name_ref_fname] = model._name;
+            }
+            /** @type {any} */ (coModel)._write(data, relatedRecordId);
+        }
+    } else if (field.type === "many2one_reference") {
+        const [model_many2one_field] =
+            comodelInverseField.inverse_fnames_by_model_name[model._name];
+        /** @type {any} */ (model)._write({ [model_many2one_field]: false }, record.id);
+    }
+    if (originalRecord) {
+        const originalRecordIds = ensureArray(originalRecord[fname]);
+        const removedRecordIds = originalRecordIds.filter(
+            (recordId) =>
+                Number.isInteger(recordId) && !relatedRecordIds.includes(recordId),
+        );
+        for (const removedRecordId of removedRecordIds) {
+            const removedRecord = coModel.find(
+                (record) => record.id === removedRecordId,
+            );
+            if (!removedRecord) {
+                continue;
+            }
+            /** @type {any} */
+            let inverseFieldNewValue = false;
+            if (Array.isArray(removedRecord[inverseFieldName])) {
+                inverseFieldNewValue = removedRecord[inverseFieldName].filter(
+                    (id) => id !== record.id,
                 );
             }
+            /** @type {any} */ (coModel)._write(
+                {
+                    [inverseFieldName]: inverseFieldNewValue.length
+                        ? inverseFieldNewValue
+                        : false,
+                },
+                removedRecordId,
+            );
         }
     }
 }
@@ -3939,8 +3960,8 @@ export class Model extends Array {
                     const coModel = getRelation(field, record);
                     if (command[0] === 0) {
                         const inverseData = command[2];
-                        const inverseFieldName =
-                            field.inverse_fname_by_model_name?.[coModel._name];
+                        const [inverseFieldName] =
+                            field.inverse_fnames_by_model_name?.[coModel._name] || [];
                         if (inverseFieldName) {
                             inverseData[inverseFieldName] =
                                 field.type === "many2many" ? [id] : id;

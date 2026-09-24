@@ -1,3 +1,4 @@
+from collections.abc import Collection
 from typing import Any
 
 from odoo import api, models
@@ -59,6 +60,17 @@ class IrModel(models.Model):
         ]
         return self._display_name_for(accessible_models)
 
+    def _get_inverse_fnames_by_model_name(
+        self, field, model_names: Collection[str]
+    ) -> dict[str, list[str]]:
+        inverse_fnames: dict[str, list[str]] = {}
+        for inverse in self.pool.field_inverses[field]:
+            if inverse.model_name in model_names and self.env[
+                inverse.model_name
+            ]._has_field_access(inverse, "read"):
+                inverse_fnames.setdefault(inverse.model_name, []).append(inverse.name)
+        return {name: sorted(fnames) for name, fnames in inverse_fnames.items()}
+
     def _get_definitions(self, model_names: list[str]) -> dict[str, dict[str, Any]]:
         model_names = [
             name
@@ -114,16 +126,11 @@ class IrModel(models.Model):
             }
             for fname, field_data in fields_data_by_fname.items():
                 if fname in model._fields:
-                    inverse_fields = [
-                        field
-                        for field in model.pool.field_inverses[model._fields[fname]]
-                        if field.model_name in model_names
-                        and model.env[field.model_name]._has_field_access(field, "read")
-                    ]
-                    if inverse_fields:
-                        field_data["inverse_fname_by_model_name"] = {
-                            field.model_name: field.name for field in inverse_fields
-                        }
+                    inverse_fnames = self._get_inverse_fnames_by_model_name(
+                        model._fields[fname], model_names
+                    )
+                    if inverse_fnames:
+                        field_data["inverse_fnames_by_model_name"] = inverse_fnames
                     if field_data["type"] == "many2one_reference":
                         field_data["model_name_ref_fname"] = model._fields[
                             fname

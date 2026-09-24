@@ -54,11 +54,11 @@ class Bar extends models.Model {
     many2one_field = fields.Many2one({ relation: "foo" });
     one2many_field = fields.One2many({
         relation: "foo",
-        inverse_fname_by_model_name: { foo: "many2one_field" },
+        inverse_fnames_by_model_name: { foo: ["many2one_field"] },
     });
     many2many_field = fields.Many2many({
         relation: "foo",
-        inverse_fname_by_model_name: { foo: "many2many_field" },
+        inverse_fnames_by_model_name: { foo: ["many2many_field"] },
     });
     partner_ref = fields.Reference({ selection: [["res.partner", "Partner"]] });
 
@@ -127,20 +127,20 @@ class Foo extends models.Model {
 
     one2many_field = fields.One2many({
         relation: "bar",
-        inverse_fname_by_model_name: { bar: "many2one_field" },
+        inverse_fnames_by_model_name: { bar: ["many2one_field"] },
     });
     many2one_field = fields.Many2one({
         relation: "bar",
-        inverse_fname_by_model_name: { bar: "one2many_field" },
+        inverse_fnames_by_model_name: { bar: ["one2many_field"] },
     });
     many2many_field = fields.Many2many({
         relation: "bar",
-        inverse_fname_by_model_name: { bar: "many2many_field" },
+        inverse_fnames_by_model_name: { bar: ["many2many_field"] },
     });
     many2one_reference = fields.Many2oneReference({
         model_field: "res_model",
         relation: "bar",
-        inverse_fname_by_model_name: { bar: "one2many_field" },
+        inverse_fnames_by_model_name: { bar: ["one2many_field"] },
         model_name_ref_fname: "res_model",
     });
     res_model = fields.Char();
