@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, markRaw, reactive, useChildSubEnv, xml } from "@odoo/owl";
+import { Component, markRaw, reactive, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { provideChildDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { warnUnknownOptions } from "@web/ui/overlay/presenter";
 
@@ -21,7 +22,7 @@ class DialogWrapper extends Component {
         subEnv: Object,
     };
     setup() {
-        useChildSubEnv({ dialogData: this.props.subEnv });
+        provideChildDialogContext({ dialogData: this.props.subEnv });
     }
 }
 

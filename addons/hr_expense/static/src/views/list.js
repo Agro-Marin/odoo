@@ -13,12 +13,14 @@ import { listView, ListController, ListRenderer } from "@web/views/list";
 
 import { onWillStart } from "@odoo/owl";
 import { useDebugMode } from "@web/core/debug/debug_context";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 
 export class ExpenseListController extends ExpenseDocumentUpload(ListController) {
     static template = `hr_expense.ListView`;
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
         this.orm = useService("orm");
         this.actionService = useService("action");

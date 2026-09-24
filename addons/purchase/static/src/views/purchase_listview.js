@@ -5,6 +5,7 @@ import { fileUploadListView } from "@account/views/file_upload_list/file_upload_
 import { PurchaseFileUploader } from "@purchase/components/purchase_file_uploader/purchase_file_uploader";
 import { PurchaseDashBoard } from "@purchase/views/purchase_dashboard";
 import { useDebugMode } from "@web/core/debug/debug_context";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 
@@ -27,6 +28,7 @@ export class PurchaseFileUploadListController extends FileUploadListController {
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
     }
 }

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { ListController } from "@web/views/list";
@@ -15,6 +16,7 @@ export class ProjectListController extends ListController {
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
         onWillStart(async () => {
             this.isProjectManager = await user.hasGroup(

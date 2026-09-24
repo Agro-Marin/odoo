@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { useDebugMode } from "@web/core/debug/debug_context";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { ListController, ListRenderer, listView } from "@web/views/list";
@@ -14,6 +15,7 @@ export class BankRecReconcileDialogListController extends ListController {
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
     }
 

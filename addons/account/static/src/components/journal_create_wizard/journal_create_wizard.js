@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, onWillStart } from "@odoo/owl";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
@@ -18,6 +19,7 @@ export class JournalCreateWizard extends Component {
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.orm = useService("orm");
         this.action = useService("action");
 
@@ -35,7 +37,7 @@ export class JournalCreateWizard extends Component {
             user.activeCompany.ids,
         );
         this.action.doAction(addBankAction);
-        this.env.dialogData.close();
+        this.dialogContext.dialogData.close();
     }
 
     openCreateJournalForm(type) {

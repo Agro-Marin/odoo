@@ -2,6 +2,7 @@
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets";
@@ -13,6 +14,7 @@ export class PosPaymentProviderCards extends Component {
     };
 
     setup() {
+        this.dialogContext = useDialogContext();
         this.orm = useService("orm");
         this.state = useState({
             providers: [],

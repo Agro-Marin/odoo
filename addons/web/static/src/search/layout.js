@@ -4,6 +4,7 @@
 import { Component, useRef } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
@@ -33,6 +34,7 @@ export class Layout extends Component {
         display: {},
     };
     setup() {
+        this.dialogContext = useDialogContext();
         this.config = useViewConfig();
         useLifecycleLog(log);
         this.components = extractLayoutComponents(this.config);
@@ -41,7 +43,7 @@ export class Layout extends Component {
     /** @returns {Record<string, any>} */
     get controlPanelSlots() {
         const slots = { ...this.props.slots };
-        if (this.env.inDialog) {
+        if (this.dialogContext.inDialog) {
             delete slots["layout-buttons"];
         }
         delete slots.default;

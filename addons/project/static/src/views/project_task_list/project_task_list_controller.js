@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { subTaskDeleteConfirmationMessage } from "@project/views/project_task_form/project_task_form_controller";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { useService } from "@web/core/utils/hooks";
 import { ListController } from "@web/views/list";
 
@@ -14,6 +15,7 @@ export class ProjectTaskListController extends ListController {
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
     }
 

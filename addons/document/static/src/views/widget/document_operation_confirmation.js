@@ -6,6 +6,7 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { DESTINATION_MAX_LENGTH, truncate } from "@document/views/widget/utils";
 import { AccessRightsUpdateConfirmationDialog } from "@document/owl/components/access_update_confirmation_dialog/access_update_confirmation_dialog";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 
 export class DocumentsOperationConfirmation extends Component {
     static template = "document.DocumentsOperationConfirmation";
@@ -13,6 +14,7 @@ export class DocumentsOperationConfirmation extends Component {
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.action = useService("action");
         this.dialog = useService("dialog");
         this.notification = useService("notification");
@@ -73,7 +75,7 @@ export class DocumentsOperationConfirmation extends Component {
             this.props.record.resId,
         ]);
         this.notifySuccess();
-        this.env.dialogData.close();
+        this.dialogContext.dialogData.close();
     }
 
     get needsConfirmation() {

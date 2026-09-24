@@ -1,16 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    Component,
-    onWillDestroy,
-    useChildSubEnv,
-    useExternalListener,
-    useState,
-} from "@odoo/owl";
+import { Component, onWillDestroy, useExternalListener, useState } from "@odoo/owl";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import {
+    provideChildDialogContext,
+    useDialogContext,
+} from "@web/core/dialog_context_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { uniqueId } from "@web/core/utils/functions";
@@ -99,11 +97,12 @@ export class Dialog extends Component {
     };
 
     setup() {
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
         useLifecycleLog(log);
         this.modalRef = useForwardRefToParent("modalRef");
         useActiveElement("modalRef");
-        this.data = useState(this.env.dialogData);
+        this.data = useState(this.dialogContext.dialogData);
         useHotkey("escape", () => this.onEscape());
         useHotkey(
             "control+enter",
@@ -120,7 +119,7 @@ export class Dialog extends Component {
             { bypassEditableProtection: true },
         );
         this.id = uniqueId("dialog_");
-        useChildSubEnv({ inDialog: true, dialogId: this.id });
+        provideChildDialogContext({ inDialog: true, dialogId: this.id });
         this.isMovable = this.props.header;
         if (this.isMovable) {
             this.position = useState({ left: 0, top: 0 });

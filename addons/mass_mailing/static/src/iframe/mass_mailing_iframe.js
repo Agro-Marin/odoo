@@ -16,6 +16,7 @@ import {
 } from "@odoo/owl";
 import { LazyComponent, loadBundle } from "@web/core/assets";
 import { isBrowserSafari } from "@web/core/browser/feature_detection";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -77,6 +78,7 @@ export class MassMailingIframe extends Component {
     };
 
     setup() {
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
         useOverlayServiceOffset();
         this.overlayRef = useChildRef();
@@ -144,7 +146,7 @@ export class MassMailingIframe extends Component {
             if (this.state.showFullscreen) {
                 sidebar.style.top = "0";
                 sidebar.style.height = "100%";
-            } else if (this.env.inDialog) {
+            } else if (this.dialogContext.inDialog) {
                 const scrollableY = closestScrollableY(sidebar);
                 if (scrollableY) {
                     const rect = scrollableY.getBoundingClientRect();

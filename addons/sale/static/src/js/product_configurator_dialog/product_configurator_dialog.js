@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState, useSubEnv } from "@odoo/owl";
 import { formatCurrency } from "@web/core/currency";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
@@ -70,8 +71,10 @@ export class ProductConfiguratorDialog extends Component {
     };
 
     setup() {
+        this.dialogContext = useDialogContext();
         this.title = _t("Configure your product");
-        this.env.dialogData.dismiss = !this.props.edit && this.props.discard.bind(this);
+        this.dialogContext.dialogData.dismiss =
+            !this.props.edit && this.props.discard.bind(this);
         this.state = useState({
             products: [],
             optionalProducts: [],

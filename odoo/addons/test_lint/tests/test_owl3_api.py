@@ -12,6 +12,7 @@ _COMMENT = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 _OWN_RENDER = re.compile(r"^\s+render\s*\([^)]*\)\s*\{", re.MULTILINE)
 _XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 ENV_KEYS = {
+    "owl_env_dialog_context": re.compile(r"\bthis\.env\.(?:inDialog|dialogId|dialogData)\b"),
     "owl_env_is_small": re.compile(r"\bthis\.env\.isSmall\b"),
     "owl_env_model": re.compile(r"\bthis\.env\.model\b"),
     "owl_env_mail_context": re.compile(
@@ -134,6 +135,16 @@ class TestOwl3Api(lint_case.LintCase):
             "useComponent()",
             "A hook takes what it needs as arguments or reads it through its "
             "own hooks; OWL 3 has no useComponent",
+        )
+
+    def test_no_env_dialog_context(self):
+        self.assert_ratchet(
+            _env_findings("owl_env_dialog_context"),
+            "owl_env_dialog_context",
+            "this.env.inDialog / dialogId / dialogData reads in static/src (JS and templates)",
+            "A component inside a dialog reads this.dialogContext = "
+            "useDialogContext() (@web/core/dialog_context_hooks) from setup; "
+            "OWL 3 components have no env",
         )
 
     def test_no_env_is_small(self):

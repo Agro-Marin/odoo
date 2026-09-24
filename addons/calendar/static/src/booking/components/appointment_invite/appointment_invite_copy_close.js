@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -16,6 +17,7 @@ export class AppointmentInviteCopyClose extends Component {
      * result to have an incorrect/empty link.
      */
     setup() {
+        this.dialogContext = useDialogContext();
         this.notification = useService("notification");
         this.action = useService("action");
     }
@@ -39,7 +41,7 @@ export class AppointmentInviteCopyClose extends Component {
         setTimeout(async () => {
             await browser.navigator.clipboard.writeText(bookUrl);
             this.notification.add(_t("Link copied to clipboard!"), { type: "success" });
-            this.env.dialogData.close();
+            this.dialogContext.dialogData.close();
             if (
                 this.action.currentController?.props?.resModel === "appointment.invite"
             ) {

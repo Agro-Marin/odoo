@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import {
     buildM2OFieldDescription,
@@ -12,6 +13,11 @@ export class ForcedPlaceholder extends Many2One {
     static template = "stock.ForcedPlaceholder";
     static components = { ...Many2One.components };
     static props = { ...Many2One.props };
+
+    setup() {
+        super.setup();
+        this.dialogContext = useDialogContext();
+    }
 }
 
 export class ForcedPlaceholderField extends Component {

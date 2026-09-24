@@ -4,6 +4,7 @@
 import { Component, useEffect, useEnv, useState } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { makeContext } from "@web/core/context";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { ModelEvent } from "@web/core/events";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
@@ -51,6 +52,7 @@ export class X2ManyFieldDialog extends Component {
     actionService;
 
     setup() {
+        this.dialogContext = useDialogContext();
         this.actionService = useAction();
         this.archInfo = this.props.archInfo;
         this.state = useState({
@@ -72,7 +74,7 @@ export class X2ManyFieldDialog extends Component {
             this.archInfo.xmlDoc,
         );
         provideViewConfig(this.props.config);
-        this.env.dialogData.dismiss = () => this.discard();
+        this.dialogContext.dialogData.dismiss = () => this.discard();
 
         this.modalRef = useChildRef();
 

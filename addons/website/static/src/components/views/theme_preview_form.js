@@ -2,6 +2,7 @@
 import { onMounted, useEnv, useSubEnv } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { useEventBus, useService } from "@web/core/utils/hooks";
 import { useViewConfig } from "@web/core/view_config_hooks";
@@ -72,6 +73,7 @@ class ThemePreviewFormController extends FormController {
      */
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.config = useViewConfig();
         useLifecycleLog(log);
         useLoaderOnClick();

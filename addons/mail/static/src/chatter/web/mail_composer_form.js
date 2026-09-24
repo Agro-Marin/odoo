@@ -7,6 +7,7 @@ import { provideMailContext } from "@mail/utils/common/mail_context";
 import { EventBus, toRaw, useEffect, useRef } from "@odoo/owl";
 import { useCustomDropzone } from "@web/components/dropzone";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
@@ -20,7 +21,8 @@ export class MailComposerFormController extends formView.Controller {
     };
     setup() {
         super.setup();
-        toRaw(this.env.dialogData).model = this.props.resModel;
+        this.dialogContext = useDialogContext();
+        toRaw(this.dialogContext.dialogData).model = this.props.resModel;
         this.fullComposerBus = this.props.fullComposerBus ?? new EventBus();
         provideMailContext({
             fullComposerBus: this.fullComposerBus,
@@ -170,11 +172,13 @@ export class MailComposerFormRenderer extends formView.Renderer {
     }
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.orm = useService("orm");
         this.root = useRef("compiled_view_root");
         this._setupReplyAllFocus();
         this._setupAttachmentDropzone();
-        this.env.dialogData.dismiss = () => this._syncRecipientsFromFullComposer();
+        this.dialogContext.dialogData.dismiss = () =>
+            this._syncRecipientsFromFullComposer();
     }
 }
 

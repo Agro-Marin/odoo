@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { useService } from "@web/core/utils/hooks";
 import { ListController } from "@web/views/list";
 
@@ -6,6 +7,7 @@ export default class SlideChannelPartnerListController extends ListController {
     static template = "website_slides.SlideChannelPartnerListView";
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
         this.action = useService("action");
         this.orm = useService("orm");

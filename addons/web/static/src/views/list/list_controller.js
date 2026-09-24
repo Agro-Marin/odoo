@@ -5,6 +5,7 @@ import { status, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { useService } from "@web/core/utils/hooks";
 import { useModelWithSampleData } from "@web/model/model";
@@ -63,6 +64,7 @@ export class ListController extends MultiRecordController {
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
     }
 
@@ -233,7 +235,7 @@ export class ListController extends MultiRecordController {
         const record = this.editedRecord;
         return handleBeforeUnload(ev, {
             record,
-            inDialog: this.env.inDialog,
+            inDialog: this.dialogContext.inDialog,
             useSendBeacon: this.model.useSendBeaconToSaveUrgently,
             urgentSave: () => record.urgentSave(),
         });

@@ -15,6 +15,7 @@ import { Notebook } from "@web/components/notebook/notebook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { mutate } from "@web/core/utils/dom/layout_batch";
 import { useService } from "@web/core/utils/hooks";
@@ -72,6 +73,7 @@ export class FormRenderer extends Component {
     uiService;
 
     setup() {
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
         useRenderCounter("form.FormRenderer");
         useLifecycleLog(log);
@@ -132,7 +134,7 @@ export class FormRenderer extends Component {
             );
         }
 
-        if (this.env.inDialog) {
+        if (this.dialogContext.inDialog) {
             const fieldNodeIds = new Set(Object.keys(this.props.archInfo.fieldNodes));
             const elementsByNodeIds = {};
             onMounted(() => {
@@ -176,7 +178,7 @@ export class FormRenderer extends Component {
                 const observer = new IntersectionObserver(
                     ([entry]) => {
                         this.state.isStatusbarStickyPinned =
-                            !this.env.inDialog &&
+                            !this.dialogContext.inDialog &&
                             !this.ui.isSmall &&
                             !entry.isIntersecting;
                     },

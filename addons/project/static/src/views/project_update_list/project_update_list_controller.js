@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { useService } from "@web/core/utils/hooks";
 import { ListController } from "@web/views/list";
 
@@ -12,6 +13,7 @@ export class ProjectUpdateListController extends ListController {
     };
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
     }
 

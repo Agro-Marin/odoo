@@ -4,6 +4,7 @@
 import { Component } from "@odoo/owl";
 import { CallbackRecorder } from "@web/core/action_hook";
 import { useAction } from "@web/core/action_port";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { useChildRef } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -48,10 +49,11 @@ export class FormViewDialog extends Component {
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
 
         this.actionService = useAction();
         this.modalRef = useChildRef();
-        this.env.dialogData.dismiss = () => this.discardRecord();
+        this.dialogContext.dialogData.dismiss = () => this.discardRecord();
 
         const buttonTemplate = this.props.isToMany
             ? "web.FormViewDialog.ToMany.buttons"

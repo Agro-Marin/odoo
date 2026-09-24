@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { useFocusTitle } from "@project/utils/project_utils";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { FormControllerWithHTMLExpander } from "@web/views/form_with_html_expander/form_controller_with_html_expander";
@@ -36,6 +37,7 @@ export class ProjectTaskFormController extends FormControllerWithHTMLExpander {
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.notifications = useService("notification");
 
         if (this.props.focusTitle) {

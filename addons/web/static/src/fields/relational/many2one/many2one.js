@@ -9,6 +9,7 @@ import { useAction } from "@web/core/action_port";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeContext } from "@web/core/context";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { shallowEqual } from "@web/core/utils/collections/objects";
@@ -226,6 +227,7 @@ export class Many2One extends Component {
     _activeActions = null;
 
     setup() {
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
         useRenderCounter("fields.web.Many2One");
         this.rootRef = useRef("root");

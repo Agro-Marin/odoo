@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { useChildSubEnv, useState } from "@odoo/owl";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useSearchModel } from "@web/search/search_model";
@@ -20,6 +21,7 @@ export class AttachmentPreviewListController extends ListController {
     }
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.searchModel = useSearchModel();
         /** @type {import("@mail/core/common/store_service").Store} */
         this.store = useService("mail.store");

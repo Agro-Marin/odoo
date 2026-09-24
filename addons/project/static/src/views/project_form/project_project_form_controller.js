@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
 import { useFocusTitle } from "@project/utils/project_utils";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { user } from "@web/core/user";
 import { FormControllerWithHTMLExpander } from "@web/views/form_with_html_expander/form_controller_with_html_expander";
 
@@ -26,6 +27,7 @@ export class ProjectProjectFormController extends FormControllerWithHTMLExpander
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         onWillStart(async () => {
             this.isProjectManager = await user.hasGroup(
                 "project.group_project_manager",

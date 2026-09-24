@@ -9,6 +9,7 @@ import { redirect } from "@web/core/utils/urls";
 import { session } from "@web/session";
 
 import { passkeyLib } from "@auth_passkey/passkey_lib";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 
 const log = makeLogger("auth_timeout.check_identity");
 
@@ -158,10 +159,11 @@ export class CheckIdentityDialog extends Component {
     };
 
     setup() {
+        this.dialogContext = useDialogContext();
         this.formProps = {
             close: this.props.close,
         };
-        this.env.dialogData.dismiss = () => {
+        this.dialogContext.dialogData.dismiss = () => {
             redirect("/web/session/logout");
         };
     }

@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
@@ -22,6 +23,7 @@ export const patchListRendererDesktop = () => ({
     /** @this {PromoteStudioListRenderer} */
     setup() {
         super.setup(...arguments);
+        this.dialogContext = useDialogContext();
         this.dialogService = useService("dialog");
         const list = this.props.list;
 
@@ -30,7 +32,7 @@ export const patchListRendererDesktop = () => ({
 
         const isPotentiallyEditable =
             !isMobileOS() &&
-            !this.env.inDialog &&
+            !this.dialogContext.inDialog &&
             user.isSystem &&
             list === list.model.root &&
             actionId &&

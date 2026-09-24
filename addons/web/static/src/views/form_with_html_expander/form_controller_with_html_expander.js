@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { FormController } from "@web/views/form";
 
 export class FormControllerWithHTMLExpander extends FormController {
@@ -11,6 +12,7 @@ export class FormControllerWithHTMLExpander extends FormController {
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.htmlExpanderState = useState({ reload: true });
         const oldOnNotebookPageChange = this.onNotebookPageChange;
         /**

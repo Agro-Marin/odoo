@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { Component, useState } from "@odoo/owl";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { _t } from "@web/core/translation";
 import { useChildRef } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -40,7 +41,8 @@ export class ConfirmationDialog extends Component {
     };
 
     setup() {
-        this.env.dialogData.dismiss = () => this.dismiss();
+        this.dialogContext = useDialogContext();
+        this.dialogContext.dialogData.dismiss = () => this.dismiss();
         /** @type {any} */
         this.modalRef = useChildRef();
         this.state = useState({ isProcess: false });

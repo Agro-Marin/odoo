@@ -6,7 +6,7 @@
                  t-as="provider"
                  t-key="provider.selection"
                  class="d-flex border rounded justify-content-between h-100 p-1 gap-1"
-                 t-att-class="this.env.inDialog ? 'col-12' : 'col-5 col-xl-5 col-xxl-4'">
+                 t-att-class="this.dialogContext.inDialog ? 'col-12' : 'col-5 col-xl-5 col-xxl-4'">
                 <div class="d-inline-block position-relative opacity-trigger-hover">
                     <img class="img" style="max-width: 65px;" t-att-alt="provider.provider" t-att-src="`/point_of_sale/static/img/providers/${provider.selection}.png`" />
                 </div>

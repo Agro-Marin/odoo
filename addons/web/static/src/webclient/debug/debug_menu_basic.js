@@ -5,6 +5,7 @@ import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useEnvDebugContext } from "@web/core/debug/debug_context";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { groupBy, sortBy } from "@web/core/utils/collections/arrays";
@@ -46,6 +47,7 @@ export class DebugMenuBasic extends Component {
     static props = {};
 
     setup() {
+        this.dialogContext = useDialogContext();
         /** @type {any} */
         this.debugContext = useEnvDebugContext();
     }

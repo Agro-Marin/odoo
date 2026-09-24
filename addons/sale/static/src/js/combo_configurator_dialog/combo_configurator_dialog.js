@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, useState, useSubEnv } from "@odoo/owl";
 import { formatCurrency } from "@web/core/currency";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
@@ -42,8 +43,10 @@ export class ComboConfiguratorDialog extends Component {
     };
 
     setup() {
+        this.dialogContext = useDialogContext();
         this.dialog = useService("dialog");
-        this.env.dialogData.dismiss = !this.props.edit && this.props.discard.bind(this);
+        this.dialogContext.dialogData.dismiss =
+            !this.props.edit && this.props.discard.bind(this);
         this.state = useState({
             selectedComboItems: new Map(),
             quantity: this.props.quantity,

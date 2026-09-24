@@ -4,6 +4,7 @@ import { ListContainer } from "@point_of_sale/app/components/list_container/list
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { useService } from "@web/core/utils/hooks";
 const log = makeLogger("pos.navbar.order_tabs");
 export class OrderTabs extends Component {
@@ -19,6 +20,7 @@ export class OrderTabs extends Component {
         class: "",
     };
     setup() {
+        this.dialogContext = useDialogContext();
         useLifecycleLog(log);
         this.pos = usePos();
         this.ui = useService("ui");

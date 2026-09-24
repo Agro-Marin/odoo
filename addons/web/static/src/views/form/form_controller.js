@@ -6,6 +6,7 @@ import { useSetupAction } from "@web/core/action_hook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { useDebugCategory } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { ModelEvent } from "@web/core/events";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
@@ -109,6 +110,7 @@ export class FormController extends ViewController {
     onNotebookPageChange;
 
     setup() {
+        this.dialogContext = useDialogContext();
         this.config = useViewConfig();
         this.setupControllerServices();
         this.setupModel();
@@ -130,7 +132,7 @@ export class FormController extends ViewController {
         this.duplicateId = false;
 
         this.display = { ...this.props.display };
-        if (this.env.inDialog) {
+        if (this.dialogContext.inDialog) {
             this.display.controlPanel = false;
         }
     }
@@ -189,7 +191,7 @@ export class FormController extends ViewController {
         onError((error) => {
             if (
                 this.multiCompanyRecovery.recoverFromLifecycleError(error, {
-                    inDialog: this.env.inDialog,
+                    inDialog: this.dialogContext.inDialog,
                     env: /** @type {import("@web/env").OdooEnv} */ (this.env),
                 })
             ) {
@@ -305,7 +307,7 @@ export class FormController extends ViewController {
             );
         }
 
-        if (this.env.inDialog) {
+        if (this.dialogContext.inDialog) {
             useFormViewInDialog();
         }
 
@@ -507,7 +509,7 @@ export class FormController extends ViewController {
     beforeUnload(ev) {
         return handleBeforeUnload(ev, {
             record: this.model.root,
-            inDialog: this.env.inDialog,
+            inDialog: this.dialogContext.inDialog,
             useSendBeacon: this.model.useSendBeaconToSaveUrgently,
             urgentSave: () => this.saveCoordinator.requestUrgentSave(),
         });
@@ -613,7 +615,7 @@ export class FormController extends ViewController {
                 });
             } else {
                 saved = await this.saveCoordinator.requestSave({
-                    reload: !(this.env.inDialog && clickParams.close),
+                    reload: !(this.dialogContext.inDialog && clickParams.close),
                     errorMode: "rethrow",
                 });
             }
@@ -682,8 +684,8 @@ export class FormController extends ViewController {
         if (this.props.onDiscard) {
             this.props.onDiscard(this.model.root);
         }
-        if (this.env.inDialog) {
-            await this.env.dialogData.close();
+        if (this.dialogContext.inDialog) {
+            await this.dialogContext.dialogData.close();
         } else if (this.model.root.isNew) {
             this.config.historyBack();
         }
@@ -694,7 +696,7 @@ export class FormController extends ViewController {
         const { size } = this.ui;
         if (size <= SIZES.XS) {
             result.o_xxs_form_view = true;
-        } else if (!this.env.inDialog && size === SIZES.XXL) {
+        } else if (!this.dialogContext.inDialog && size === SIZES.XXL) {
             result["o_xxl_form_view h-100"] = true;
         }
         if (this.props.className) {

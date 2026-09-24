@@ -10,7 +10,7 @@
                     </t>
 
                     <t t-set-slot="layout-buttons">
-                        <t t-if="this.env.inDialog">
+                        <t t-if="this.dialogContext.inDialog">
                             <t t-if="this.footerArchInfo">
                                 <t t-component="this.props.Renderer" record="this.model.root" Compiler="this.props.Compiler" archInfo="this.footerArchInfo">
                                     <t t-set-slot="default_buttons">

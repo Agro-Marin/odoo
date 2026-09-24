@@ -4,6 +4,7 @@ import { NumericInput } from "@point_of_sale/app/components/inputs/numeric_input
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
@@ -25,6 +26,7 @@ export class MoneyDetailsPopup extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.dialogContext = useDialogContext();
         this.utils = useService("contextual_utils_service");
         this.pos = usePos();
         this.ui = useService("ui");
@@ -36,7 +38,7 @@ export class MoneyDetailsPopup extends Component {
                       this.pos.models["pos.bill"].map((bill) => [bill.value, 0]),
                   ),
         });
-        this.env.dialogData.dismiss = () => {
+        this.dialogContext.dialogData.dismiss = () => {
             log.logic("dismiss", () => ({
                 context: this.props.context,
                 logCancel:

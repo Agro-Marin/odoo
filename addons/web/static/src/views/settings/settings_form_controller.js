@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { formView } from "@web/views/form/form_view";
@@ -19,6 +20,7 @@ export class SettingsFormController extends formView.Controller {
 
     setup() {
         super.setup();
+        this.dialogContext = useDialogContext();
         this.ui = useService("ui");
         useAutofocus();
         this.state = useState({ displayNoContent: false });
