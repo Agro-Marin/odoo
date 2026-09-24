@@ -7,6 +7,7 @@ from operator import attrgetter
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 
+from ..models.verbs import Verb, collect_verbs
 from ._registry_stubs import _RegistryStubs
 
 if typing.TYPE_CHECKING:
@@ -72,6 +73,28 @@ class _RegistryModelsMixin(_RegistryStubs):
             tables=len(by_table),
         )
         return by_table
+
+    @functools.cached_property
+    def model_verbs(self) -> dict[str, dict[str, Verb]]:
+        return {
+            name: verbs
+            for name, model_cls in self.models.items()
+            if not model_cls._abstract and (verbs := collect_verbs(model_cls))
+        }
+
+    @functools.cached_property
+    def verb_transitions(self) -> dict[str, dict[str, tuple[tuple[str, Verb], ...]]]:
+        transitions: dict[str, dict[str, list[tuple[str, Verb]]]] = {}
+        for model_name, verbs in self.model_verbs.items():
+            for name, verb in verbs.items():
+                if verb.transition is not None:
+                    transitions.setdefault(model_name, {}).setdefault(
+                        verb.transition[0], []
+                    ).append((name, verb))
+        return {
+            model_name: {fname: tuple(pairs) for fname, pairs in fields.items()}
+            for model_name, fields in transitions.items()
+        }
 
     @functools.cached_property
     def model_names_by_inheritance_root(self) -> dict[str, tuple[str, ...]]:

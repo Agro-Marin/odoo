@@ -48,7 +48,7 @@ def operation_findings(rows):
     return [
         f"{row.where()}: no operation"
         for row in rows
-        if row.creates and not row.operation
+        if row.creates and not row.operation and not row.verbs
     ]
 
 
@@ -264,7 +264,7 @@ class TestAccessRows(lint_case.LintCase):
             "access_rule_mode",
             "ir.access row(s) created without an operation",
             "A row that names no operation would apply to all four: write the "
-            "`operation` (a subset of crud) it is meant for.",
+            "`operation` (a subset of crud) or the `verbs` it is meant for.",
         )
 
     def test_every_shipped_domain_validates(self):
@@ -374,6 +374,7 @@ class TestAccessRowGatesSeeTheirFaults(lint_case.LintCase):
     def test_a_row_without_kind_or_operation(self):
         self.assertEqual(len(kind_findings([self._row(kind=None)])), 1)
         self.assertEqual(len(operation_findings([self._row(operation=None)])), 1)
+        self.assertFalse(operation_findings([self._row(operation=None, verbs="post")]))
         self.assertFalse(kind_findings([self._row(kind=None, creates=False)]))
         member_guard = self._row(kind="guard", group="x.group_restricted")
         self.assertEqual(len(kind_findings([member_guard])), 1)

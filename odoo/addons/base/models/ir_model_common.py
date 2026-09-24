@@ -84,6 +84,9 @@ ACCESS_ERROR_HEADER = {
         "You are not allowed to delete '%(document_kind)s' (%(document_model)s) records."
     ),
 }
+ACCESS_ERROR_VERB = _lt(
+    "You are not allowed to %(verb)s '%(document_kind)s' (%(document_model)s) records."
+)
 ACCESS_ERROR_GROUPS = _lt(
     "This operation is allowed for the following groups:\n%(groups_list)s"
 )

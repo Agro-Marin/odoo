@@ -283,6 +283,11 @@ class IrAccessLogProtocol(RecordsetProtocol, Protocol):
     ) -> None: ...
 
 
+class IrAccessObligationProtocol(RecordsetProtocol, Protocol):
+    def _at_door(self, records: Any, verb: str, call: Any) -> Any: ...
+    def _at_checkpoint(self, records: Any, verb: str) -> None: ...
+
+
 class ResUsersProtocol(RecordsetProtocol, Protocol):
     company_id: Any
     company_ids: Any
@@ -341,4 +346,5 @@ FRAMEWORK_MODEL_PROTOCOLS: dict[str, type] = {
     "res.users.apikeys.scope": ResUsersApikeysScopeProtocol,
     "res.groups": ResGroupsProtocol,
     "ir.access.log": IrAccessLogProtocol,
+    "ir.access.obligation": IrAccessObligationProtocol,
 }

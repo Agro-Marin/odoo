@@ -21,6 +21,7 @@ from odoo.orm.models import (
 )
 
 from odoo.orm.models.table_objects import Constraint, Index, UniqueIndex
+from odoo.orm.models.verbs import Verb
 
 from odoo.orm.registration import (
     add_field,
@@ -64,6 +65,7 @@ __all__ = [
     "TransientModel",
     "UniqueIndex",
     "ValuesType",
+    "Verb",
     "add_field",
     "add_model_to_registry",
     "check_column_name",

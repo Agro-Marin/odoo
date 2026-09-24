@@ -177,6 +177,8 @@ class WriteMixin(_ModelStubs):
             )
 
         self._write_check_field_access(vals)
+        if transitions := self.env.registry.verb_transitions.get(self._name):
+            self._check_verb_transitions(vals, transitions)
         prof.mark("acl")
         env = self.env
 

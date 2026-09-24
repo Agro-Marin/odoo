@@ -19,6 +19,7 @@ from .ir_model_common import (
     ACCESS_ERROR_HEADER,
     ACCESS_ERROR_NOGROUP,
     ACCESS_ERROR_RESOLUTION,
+    ACCESS_ERROR_VERB,
     ACCESS_MODES,
     unloaded_module_domain,
     unloaded_module_scope,
@@ -80,6 +81,17 @@ class AccessInfo(typing.NamedTuple):
     domain: Domain | str
     name: str = ""
     text: str = ""
+    verbs: frozenset[str] = frozenset()
+
+
+def covers(row: AccessInfo, operation: str) -> bool:
+    # a CRUD operation by its letter, a declared verb by its name
+    letter = OPERATION_LETTER.get(operation)
+    return letter in row.operation if letter else operation in row.verbs
+
+
+def parse_verbs(text: str | None) -> frozenset[str]:
+    return frozenset(filter(None, (verb.strip() for verb in (text or "").split(","))))
 
 
 def parse_access_domain(text: str | None) -> Domain | str:
@@ -304,8 +316,13 @@ class IrAccess(models.Model):
     )
     operation = fields.Selection(
         selection=list(CRUD_SELECTION.items()),
-        required=True,
         help="Which operation(s) this access applies to, a subset of 'crud'.",
+    )
+    verbs = fields.Char(
+        help="The verbs of the model this access applies to, comma-separated: "
+        "operations the model declares beside create, read, update and delete, "
+        "such as post or confirm. A verb's records are also within those of the "
+        "operation it requires.",
     )
     domain = fields.Char(
         help="The operations are allowed only on the records in this domain.",
@@ -341,6 +358,11 @@ class IrAccess(models.Model):
         help="Whether the access is defined by a module.",
     )
     note = fields.Html()
+
+    _operation_or_verbs = models.Constraint(
+        "CHECK (operation IS NOT NULL OR verbs IS NOT NULL)",
+        "An access applies to an operation, a verb, or both.",
+    )
 
     @api.depends("operation")
     def _compute_for_operations(self) -> None:
@@ -379,6 +401,30 @@ class IrAccess(models.Model):
         )
         positive = (True in value) == (operator == "in")
         return Domain("id", "in" if positive else "not in", standard)
+
+    @api.constrains("model_id", "verbs")
+    def _check_verbs(self) -> None:
+        for access in self:
+            declared = self.env.registry.model_verbs.get(access.model_id.model, {})
+            if unknown := sorted(parse_verbs(access.verbs) - declared.keys()):
+                raise ValidationError(
+                    self.env._(
+                        "Access %(access)s names %(verbs)s, which %(model)s does not "
+                        "declare.",
+                        access=access.name,
+                        verbs=", ".join(unknown),
+                        model=access.model_id.model,
+                    )
+                )
+
+    def _check_operation(self, model_name: str, operation: str) -> None:
+        if operation in OPERATION_LETTER:
+            return
+        if operation not in self.env.registry.model_verbs.get(model_name, {}):
+            raise ValueError(
+                f"Invalid access operation {operation!r} on {model_name}: expected "
+                f"one of {ACCESS_MODES} or a verb the model declares."
+            )
 
     @staticmethod
     def _operation_letter(operation: str) -> str:
@@ -654,10 +700,11 @@ class IrAccess(models.Model):
                     access.group_id.id,
                     access.kind,
                     access.guard_scope,
-                    access.operation,
+                    access.operation or "",
                     parse_access_domain(text),
                     access.name,
                     text,
+                    parse_verbs(access.verbs),
                 )
             )
         return {model_name: tuple(infos) for model_name, infos in result.items()}
@@ -704,13 +751,13 @@ class IrAccess(models.Model):
     ) -> tuple[list[Domain], list[Domain]]:
         # the domains of the permissions the principal's groups hold and of the
         # guards that bind it, for one model and operation
-        letter = self._operation_letter(operation)
+        self._check_operation(model_name, operation)
         scopes = self.env.user._get_group_scopes()
         permissions: list[Domain] = []
         guards: list[Domain] = []
         eval_context = None
         for row in self._get_all_access().get(model_name, ()):
-            if letter not in row.operation:
+            if not covers(row, operation):
                 continue
             binds = row.kind == "guard" and row.guard_scope == "everyone"
             if not binds and row.group_id not in scopes:
@@ -746,7 +793,7 @@ class IrAccess(models.Model):
     def _privilege_domain(self, model_name: str, operation: str) -> Domain:
         # what the environment's privileges alone allow on the model: the OR of
         # their own permission rows, the user's groups set aside
-        letter = self._operation_letter(operation)
+        self._check_operation(model_name, operation)
         privileges = self.env.privileges
         domains = [
             row.domain
@@ -755,7 +802,7 @@ class IrAccess(models.Model):
             for row in self._get_all_access().get(model_name, ())
             if row.kind == "permission"
             and row.group_id in privileges
-            and letter in row.operation
+            and covers(row, operation)
         ]
         return Domain.OR(domains) if domains else Domain.FALSE
 
@@ -764,14 +811,14 @@ class IrAccess(models.Model):
         # with the group that carries it and the companies that group is held
         # in, and a note where the model belongs to no company, so a grant
         # limited to some companies applies to all its records
-        letter = self._operation_letter(operation)
+        self._check_operation(model_name, operation)
         scopes = self.env.user._get_group_scopes()
         groups = self.env["res.groups"].sudo()
         companies = self.env["res.company"].sudo()
         anchor = self.env[model_name]._access_company_anchor()
         lines = []
         for row in self._get_all_access().get(model_name, ()):
-            if letter not in row.operation:
+            if not covers(row, operation):
                 continue
             if row.kind == "guard" and row.guard_scope == "everyone":
                 lines.append(self.env._("guard %(row)s, for everyone", row=row.name))
@@ -841,14 +888,14 @@ class IrAccess(models.Model):
 
     @tools.ormcache("model_name", "operation", cache="stable")
     def _group_ids_with_access(self, model_name: str, operation: str) -> frozenset[int]:
-        letter = self._operation_letter(operation)
+        self._check_operation(model_name, operation)
         implying = self._group_ids_implying()
         every_group = frozenset(implying)
         model = self.env[model_name].sudo()
         rows = [
             row
             for row in self._get_all_access().get(model_name, ())
-            if letter in row.operation
+            if covers(row, operation)
         ]
         groups: set[int] = set()
         for row in rows:
@@ -865,6 +912,10 @@ class IrAccess(models.Model):
                     allowed |= every_group - implying.get(row.group_id, frozenset())
                 groups &= allowed
         groups &= self._group_ids_satisfying(model, model._access_guard(operation))
+        if verb := self.env.registry.model_verbs.get(model_name, {}).get(operation):
+            return frozenset(groups) & self._group_ids_with_access(
+                model_name, verb.requires
+            )
         if model._inherits_rules:
             for parent_model_name, field_name in model._inherits.items():
                 if operation == "create" and not model._fields[field_name].store:
@@ -957,9 +1008,10 @@ class IrAccess(models.Model):
             self.env.uid,
             model_name,
         )
-        operation_error = str(ACCESS_ERROR_HEADER[operation]) % {
+        operation_error = str(ACCESS_ERROR_HEADER.get(operation, ACCESS_ERROR_VERB)) % {
             "document_kind": self.env["ir.model"]._get(model_name).name or model_name,
             "document_model": model_name,
+            "verb": operation,
         }
         groups = "\n".join(
             f"\t- {name}"
@@ -1103,7 +1155,8 @@ class IrAccess(models.Model):
         # the rows, the model's own guard and the delegated parents' rows that
         # refuse some of the records: permissions fail together (they add up),
         # each guard fails on its own
-        letter = self._operation_letter(operation)
+        self._check_operation(records._name, operation)
+        letter = OPERATION_LETTER.get(operation, "")
         user_model = records.browse()
         model = user_model.sudo().with_context(active_test=False)
         scopes = self.env.user._get_group_scopes()
@@ -1135,7 +1188,7 @@ class IrAccess(models.Model):
         rows = [
             row
             for row in self._get_all_access().get(model._name, ())
-            if letter in row.operation
+            if covers(row, operation)
         ]
         permissions = [row for row in rows if row.kind == "permission" and holds(row)]
         failing: list[AccessInfo] = []

@@ -23,6 +23,7 @@ from odoo.tools.constants import CACHES_BY_KEY
 from odoo.tools.translate import code_translations
 
 from .. import models, registration
+from ..models.verbs import install_verb_doors
 from ..primitives import SUPERUSER_ID
 from ._registry_capabilities import (
     _RegistryCapabilitiesMixin,
@@ -494,6 +495,8 @@ class Registry(
                 self.many2one_company_dependents.clear()
 
                 registration.setup_model_classes(env)
+                for model_name, verbs in self.model_verbs.items():
+                    install_verb_doors(self.models[model_name], verbs)
 
                 self._setup_field_depends(env, models_field_depends_done)
 

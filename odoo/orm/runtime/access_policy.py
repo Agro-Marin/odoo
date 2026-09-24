@@ -55,6 +55,22 @@ class AccessPolicy:
         if "ir.access.log" in env.registry:
             env["ir.access.log"]._record_privileged(model_name, operation, ids)
 
+    def verb_door(
+        self,
+        env: Environment,
+        records: ModelLike,
+        verb: str,
+        call: typing.Callable[..., typing.Any],
+    ) -> typing.Any:
+        if "ir.access.obligation" not in env.registry:
+            with env.transaction.admitting(records._name, verb, records._ids):
+                return call(records)
+        return env["ir.access.obligation"]._at_door(records, verb, call)
+
+    def verb_checkpoint(self, env: Environment, records: ModelLike, verb: str) -> None:
+        if "ir.access.obligation" in env.registry:
+            env["ir.access.obligation"]._at_checkpoint(records, verb)
+
     def bound_access_rows(
         self, env: Environment, model_name: str, operation: str
     ) -> tuple[list[Domain], list[Domain]]:

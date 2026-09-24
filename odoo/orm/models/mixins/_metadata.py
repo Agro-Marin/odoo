@@ -75,6 +75,7 @@ class _ModelMetadataMixin(_ModelStubs):
     _allow_sudo_commands: bool = True
 
     _depends: frozendict[str, Iterable[str]] = frozendict()
+    _access_verbs: typing.ClassVar[dict[str, typing.Any]] = {}
 
     @property
     def _table_sql(self) -> SQL:

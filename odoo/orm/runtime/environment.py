@@ -35,6 +35,7 @@ if typing.TYPE_CHECKING:
     from .._protocols import (
         DecimalPrecisionProtocol,
         IrAccessLogProtocol,
+        IrAccessObligationProtocol,
         IrAccessProtocol,
         IrAttachmentProtocol,
         IrConfigParameterProtocol,
@@ -292,6 +293,11 @@ class Environment(Mapping[str, "BaseModel"]):
     def __getitem__(  # type: ignore[overload-overlap]
         self, model_name: typing.Literal["ir.access.log"]
     ) -> IrAccessLogProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.access.obligation"]
+    ) -> IrAccessObligationProtocol: ...
 
     @typing.overload
     def __getitem__(self, model_name: str) -> BaseModel: ...

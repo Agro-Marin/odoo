@@ -57,4 +57,20 @@
         <field name="operation">crud</field>
     </record>
 
+    <record id="access_document_user" model="ir.access">
+        <field name="name">document: users</field>
+        <field name="model_id" ref="model_test_ir_access_document" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field name="operation">crud</field>
+    </record>
+
+    <record id="access_document_post" model="ir.access">
+        <field name="name">document: administrators post</field>
+        <field name="model_id" ref="model_test_ir_access_document" />
+        <field name="group_id" ref="base.group_system" />
+        <field name="kind">permission</field>
+        <field name="verbs">post</field>
+    </record>
+
 </odoo>

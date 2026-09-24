@@ -300,13 +300,23 @@ class AccessMixin(_ModelStubs):
         # ir.access: the OR of the permissions its groups hold, AND every guard
         # that binds it (all principals, or the members of the guard's group),
         # AND what each delegated parent allows through the delegate
-        if operation not in ACCESS_OPERATIONS:
-            raise ValueError(
-                f"Invalid access operation {operation!r}: expected one of "
-                f"{ACCESS_OPERATIONS}."
-            )
         env = self.env
         policy = env.registry.access_policy
+        if operation not in ACCESS_OPERATIONS:
+            verb = env.registry.model_verbs.get(self._name, {}).get(operation)
+            if verb is None:
+                raise ValueError(
+                    f"Invalid access operation {operation!r}: expected one of "
+                    f"{ACCESS_OPERATIONS} or a verb {self._name} declares."
+                )
+            permissions, guards = policy.bound_access_rows(env, self._name, operation)
+            if not permissions:
+                return Domain.FALSE
+            return (
+                Domain.OR(permissions)
+                & Domain.AND(guards)
+                & self._access_domain(verb.requires)
+            )
         parents: list[Domain] = []
         if self._inherits_rules:
             for parent_model_name, parent_field_name in self._inherits.items():
@@ -365,6 +375,61 @@ class AccessMixin(_ModelStubs):
             ):
                 return name
         return None
+
+    def _verb_door(self, verb: str, call: Callable[[Self], typing.Any]) -> typing.Any:
+        # a door of the verb: the principal must hold it, what it obliges is
+        # asked, and the call runs admitted for its records
+        self.check_access(verb)
+        return self.env.registry.access_policy.verb_door(self.env, self, verb, call)
+
+    def _verb_checkpoint(self, verb: str) -> None:
+        # a funnel every door of the verb passes: what no door admitted is
+        # checked here, and can be refused but never asked
+        env = self.env
+        admitted = env.transaction.admitted_ids(self._name, verb)
+        pending = self.browse([id_ for id_ in self._ids if id_ not in admitted])
+        if not pending:
+            return
+        pending.check_access(verb)
+        env.registry.access_policy.verb_checkpoint(env, pending, verb)
+
+    def _check_verb_transitions(
+        self, vals: dict[str, typing.Any], transitions: dict
+    ) -> None:
+        for fname, verbs in transitions.items():
+            if fname not in vals:
+                continue
+            field = self._fields[fname]
+            target = field.convert_to_cache(vals[fname], self, validate=False)
+            before = {
+                record.id: field.convert_to_cache(record[fname], record, validate=False)
+                for record in self
+            }
+            for name, verb in verbs:
+                moved = [
+                    id_ for id_, value in before.items() if verb.moves(value, target)
+                ]
+                if moved:
+                    self.browse(moved)._verb_checkpoint(name)
+
+    def _check_verb_creations(self, transitions: dict) -> None:
+        for fname, verbs in transitions.items():
+            field = self._fields[fname]
+            initial = field.convert_to_cache(
+                field.default(self) if field.default else False,
+                self,
+                validate=False,
+            )
+            after = {
+                record.id: field.convert_to_cache(record[fname], record, validate=False)
+                for record in self
+            }
+            for name, verb in verbs:
+                created = [
+                    id_ for id_, value in after.items() if verb.moves(initial, value)
+                ]
+                if created:
+                    self.browse(created)._verb_checkpoint(name)
 
     @api.model
     def _access_guard(self, operation: str) -> Domain:

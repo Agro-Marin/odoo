@@ -97,3 +97,48 @@ class TestIrAccessOwned(models.Model):
 
     name = fields.Char()
     item_id = fields.Many2one(comodel_name="test_ir_access.item")
+
+
+class TestIrAccessDocument(models.Model):
+    _name = "test_ir_access.document"
+    _description = "A document with a declared verb"
+    _access_verbs = {
+        "post": models.Verb(
+            methods=("action_post",),
+            checkpoints=("_check_postable",),
+            transition=("state", "*", "posted"),
+        ),
+    }
+
+    name = fields.Char()
+    state = fields.Selection(
+        selection=[("draft", "Draft"), ("posted", "Posted")],
+        default="draft",
+    )
+    audit = fields.Char()
+
+    def action_post(self):
+        self._check_postable()
+        self.write({"state": "posted"})
+        return True
+
+    def _check_postable(self):
+        return True
+
+
+class IrAccessObligation(models.AbstractModel):
+    _inherit = "ir.access.obligation"
+
+    def _at_door(self, records, verb, call):
+        if records._name == "test_ir_access.document":
+            records.env.context.get("verb_calls", []).append(
+                ("door", verb, records.ids)
+            )
+        return super()._at_door(records, verb, call)
+
+    def _at_checkpoint(self, records, verb):
+        if records._name == "test_ir_access.document":
+            records.env.context.get("verb_calls", []).append(
+                ("checkpoint", verb, records.ids)
+            )
+        return super()._at_checkpoint(records, verb)

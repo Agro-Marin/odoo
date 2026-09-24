@@ -96,6 +96,7 @@ class Row:
     domain: str | None
     creates: bool
     guard_scope: str | None = None
+    verbs: str | None = None
 
     def where(self) -> str:
         return f"{self.path}:{self.line} {self.xmlid}"
@@ -153,6 +154,7 @@ def _csv_rows(module: str, path: Path) -> list[Row]:
         "operation": column(("operation",)),
         "domain": column(("domain",)),
         "guard_scope": column(("guard_scope",)),
+        "verbs": column(("verbs",)),
     }
     rows = []
     for line, values in enumerate(reader, start=2):
@@ -174,6 +176,7 @@ def _csv_rows(module: str, path: Path) -> list[Row]:
                 domain=value("domain"),
                 creates=True,
                 guard_scope=value("guard_scope"),
+                verbs=value("verbs"),
             )
         )
     return rows
@@ -208,6 +211,7 @@ def _xml_rows(module: str, path: Path) -> list[Row]:
                 domain=values.get("domain"),
                 creates=xmlid.startswith(f"{module}.") and "model_id" in present,
                 guard_scope=values.get("guard_scope"),
+                verbs=values.get("verbs"),
             )
         )
     return rows
