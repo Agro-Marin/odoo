@@ -1,4 +1,4 @@
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 
@@ -44,6 +44,17 @@ class TestCompanyConfig(TransactionCase):
             [Config._table],
         )
         self.assertEqual(self.env.cr.fetchall(), [("c",)])
+
+    def test_a_root_configuration_carries_its_delegated_fields_to_its_branches(self):
+        Config = self.env["test_orm.company_config"]
+        root = self.env["res.company"].create({"name": "root co"})
+        branch = self.env["res.company"].create(
+            {"name": "branch co", "parent_id": root.id}
+        )
+        Config._for(root).shared_code = "R1"
+        self.assertEqual(Config._for(branch).shared_code, "R1")
+        with self.assertRaises(ValidationError):
+            Config._for(branch).shared_code = "B1"
 
     def _config_models(self):
         return [

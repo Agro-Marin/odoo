@@ -119,7 +119,39 @@ class MixinCompanyConfig(models.AbstractModel):
         if "company_id" in vals:
             self.env.registry.clear_cache()
         self._clear_registry_cache_for(vals)
+        self._propagate_delegated_fields_to_branches(vals)
         return result
+
+    def _propagate_delegated_fields_to_branches(self, vals: ValuesType) -> None:
+        # res.company pushes its own delegated fields down to its branches; a
+        # configuration written directly must do the same for its own, or the
+        # branches keep the old value until a recompute re-checks them and
+        # _check_delegated_fields_match_root refuses the unrelated write
+        delegated = set(vals) & set(self._get_field_names_delegated_to_root())
+        roots = self.filtered(lambda config: not config.company_id.parent_id)
+        if not delegated or not roots:
+            return
+        branches = (
+            self.env["res.company"]
+            .sudo()
+            .search(
+                [
+                    ("id", "child_of", roots.company_id.ids),
+                    ("id", "not in", roots.company_id.ids),
+                ]
+            )
+        )
+        if not branches:
+            return
+        _debug.logic(
+            "delegated_fields_propagated",
+            model=self._name,
+            fields=sorted(delegated),
+            branches=len(branches),
+        )
+        self.sudo()._for_each(branches).write(
+            {fname: vals[fname] for fname in delegated}
+        )
 
     def unlink(self) -> bool:
         result = super().unlink()

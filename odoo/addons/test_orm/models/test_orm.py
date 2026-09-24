@@ -3286,6 +3286,11 @@ class CompanyConfig(models.Model):
     _inherit = ["mixin.company.config"]
 
     limit = fields.Integer(default=3)
+    shared_code = fields.Char()
+
+    @api.model
+    def _get_field_names_delegated_to_root(self):
+        return super()._get_field_names_delegated_to_root() + ["shared_code"]
 
 
 class ResCompany(models.Model):
