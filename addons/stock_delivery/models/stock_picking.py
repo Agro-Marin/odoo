@@ -159,9 +159,9 @@ class StockPicking(models.Model):
                 move.weight for move in picking.move_ids if move.state != "cancel"
             )
 
-    def button_validate(self):
+    def button_validate(self, **validate_kwargs):
         _debug.pipeline("delivery_validate_enter", pickings=self)
-        res = super().button_validate()
+        res = super().button_validate(**validate_kwargs)
         if res is not True:
             return res
         for picking in self:

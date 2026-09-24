@@ -30,12 +30,12 @@ class StockWarehouseOrderpointReplenish(models.Model):
         now = self.env.cr.now()
         forced_quantities = None
         if force_to_max:
-            forced_quantities = {
-                orderpoint.id: orderpoint._get_multiple_rounded_qty(
-                    orderpoint.product_max_qty - orderpoint.qty_forecast,
-                )
-                for orderpoint in self
-            }
+            forced_quantities = self._get_multiple_rounded_qty_map(
+                {
+                    orderpoint.id: orderpoint.product_max_qty - orderpoint.qty_forecast
+                    for orderpoint in self
+                }
+            )
         try:
             self._procure_orderpoint_confirm(
                 company_id=self.env.company,
@@ -122,12 +122,6 @@ class StockWarehouseOrderpointReplenish(models.Model):
             )
         return result
 
-    def _get_replenishment_multiple_alternative(self, qty_to_order):
-        self.check_singleton()
-        return self._get_replenishment_multiple_alternative_map(
-            {self.id: qty_to_order},
-        ).get(self.id, False)
-
     def _get_replenishment_multiple_alternative_map(self, qty_by_orderpoint):
         return dict.fromkeys(self.ids, False)
 
@@ -140,6 +134,7 @@ class StockWarehouseOrderpointReplenish(models.Model):
         if not orderpoints_to_compute:
             return result
         forecast_by_orderpoint = orderpoints_to_compute._get_qty_forecast_map()
+        to_order = {}
         for orderpoint in orderpoints_to_compute:
             qty_forecast = forecast_by_orderpoint[orderpoint.id]
             if (
@@ -150,18 +145,21 @@ class StockWarehouseOrderpointReplenish(models.Model):
             ):
                 result[orderpoint.id] = 0.0
                 continue
-            qty_to_order = (
+            to_order[orderpoint.id] = (
                 max(orderpoint.product_min_qty, orderpoint.product_max_qty)
                 - qty_forecast
             )
-            result[orderpoint.id] = orderpoint._get_multiple_rounded_qty(qty_to_order)
+        rounded = orderpoints_to_compute.filtered(
+            lambda orderpoint: orderpoint.id in to_order
+        )._get_multiple_rounded_qty_map(to_order)
+        for orderpoint_id, qty_to_order in to_order.items():
+            result[orderpoint_id] = rounded[orderpoint_id]
             dbg.logic.debug(
-                "[orderpoint:%s] forecast %s < min %s: order %s (rounded %s)",
-                orderpoint.id,
-                qty_forecast,
-                orderpoint.product_min_qty,
+                "[orderpoint:%s] forecast %s < min: order %s (rounded %s)",
+                orderpoint_id,
+                forecast_by_orderpoint[orderpoint_id],
                 qty_to_order,
-                result[orderpoint.id],
+                rounded[orderpoint_id],
             )
         return result
 
@@ -311,11 +309,25 @@ class StockWarehouseOrderpointReplenish(models.Model):
         origin_ids = (self.env.context.get("origins") or {}).get(self.id)
         return self.env["stock.reference"].browse(sorted(origin_ids or ()))
 
-    def _get_multiple_rounded_qty(self, qty_to_order):
-        replenishment_multiple = (
-            self.replenishment_uom_id
-            or self._get_replenishment_multiple_alternative(qty_to_order)
+    def _get_multiple_rounded_qty_map(self, qty_by_orderpoint):
+        alternatives = self.filtered(
+            lambda orderpoint: not orderpoint.replenishment_uom_id
+        )._get_replenishment_multiple_alternative_map(qty_by_orderpoint)
+        dbg.performance.debug(
+            "_get_multiple_rounded_qty_map: %d orderpoints, %d alternatives",
+            len(self),
+            len(alternatives),
         )
+        return {
+            orderpoint.id: orderpoint._round_to_multiple(
+                qty_by_orderpoint[orderpoint.id],
+                orderpoint.replenishment_uom_id or alternatives.get(orderpoint.id),
+            )
+            for orderpoint in self
+        }
+
+    def _round_to_multiple(self, qty_to_order, replenishment_multiple):
+        self.check_singleton()
         if replenishment_multiple and self.product_id.uom_id._has_common_reference(
             replenishment_multiple
         ):

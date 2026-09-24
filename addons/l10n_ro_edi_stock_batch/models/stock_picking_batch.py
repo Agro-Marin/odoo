@@ -24,11 +24,11 @@ class StockPickingBatch(models.Model):
     # Validation methods
     ################################################################################
 
-    def action_done(self):
+    def action_done(self, **kwargs):
         # EXTENDS 'stock_picking_batch'
         self.check_singleton()
         if not self.l10n_ro_edi_stock_enable:
-            return super().action_done()
+            return super().action_done(**kwargs)
         self._check_company()
 
         self.picking_ids.with_context(
@@ -56,7 +56,7 @@ class StockPickingBatch(models.Model):
                 )
             )
 
-        return super().action_done()
+        return super().action_done(**kwargs)
 
     def _l10n_ro_edi_stock_get_fetch_data_errors(self, errors=None):
         if errors is None:

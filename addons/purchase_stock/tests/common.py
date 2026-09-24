@@ -28,7 +28,7 @@ class PurchaseTestCommon(TestStockValuationCommon):
         pickings = purchase_order.picking_ids.filtered(lambda p: p.state != "done")
         if quantity:
             pickings.move_ids.quantity = quantity
-        pickings.with_context(skip_backorder=True).button_validate()
+        pickings.button_validate(skip_backorder=True)
         return pickings.move_ids
 
     def _create_purchase(

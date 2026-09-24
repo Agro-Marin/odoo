@@ -687,7 +687,7 @@ class TestAngloSaxonFlow(TestAngloSaxonCommon):
         res_dict = current_session.picking_ids.button_validate()
         self.env["stock.backorder.confirmation"].with_context(
             res_dict["context"]
-        ).process()
+        ).create({}).process()
 
         out = self.product_1.categ_id.property_stock_valuation_account_id
         exp = self.product_1._get_product_accounts()["expense"]

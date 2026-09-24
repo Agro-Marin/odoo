@@ -229,23 +229,28 @@ class StockWarehouseOrderpoint(models.Model):
             StockWarehouseOrderpoint,
             self - bought,
         )._get_replenishment_multiple_alternative_map(qty_by_orderpoint)
-        for orderpoint in bought:
-            dates_info = orderpoint.product_id._get_dates_info(
-                orderpoint._get_procurement_date(),
-                orderpoint.location_id,
-                route_ids=orderpoint.route_id,
-                rules=orderpoint.rule_ids,
-            )
-            supplier = orderpoint.supplier_id or orderpoint.product_id.with_company(
-                orderpoint.company_id,
-            )._select_seller(
-                quantity=qty_by_orderpoint.get(orderpoint.id),
-                date=max(
-                    dates_info["date_order"].date(), orderpoint._get_company_today()
-                ),
-                uom_id=orderpoint.product_uom_id,
-            )
-            result[orderpoint.id] = supplier.product_uom_id
+        for company, orderpoints in bought.grouped("company_id").items():
+            today = orderpoints._get_company_today(company)
+            unpinned = orderpoints.filtered(lambda op: not op.supplier_id)
+            product_by_id = {
+                product.id: product
+                for product in unpinned.product_id.with_company(company)
+            }
+            for orderpoint in orderpoints:
+                supplier = orderpoint.supplier_id
+                if not supplier:
+                    dates_info = orderpoint.product_id._get_dates_info(
+                        orderpoint._get_procurement_date(),
+                        orderpoint.location_id,
+                        route_ids=orderpoint.route_id,
+                        rules=orderpoint.rule_ids,
+                    )
+                    supplier = product_by_id[orderpoint.product_id.id]._select_seller(
+                        quantity=qty_by_orderpoint.get(orderpoint.id),
+                        date=max(dates_info["date_order"].date(), today),
+                        uom_id=orderpoint.product_uom_id,
+                    )
+                result[orderpoint.id] = supplier.product_uom_id
         return result
 
     def _prepare_procurement_vals(self, date=False):

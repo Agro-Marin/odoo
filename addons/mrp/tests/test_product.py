@@ -288,6 +288,17 @@ class TestMrpProductActions(TestMrpCommon):
 
 @tagged("post_install", "-at_install")
 class TestMrpProductRoutes(TestMrpCommon):
+    def _rule_selection_routes(self, product):
+        warehouses = self.env["stock.warehouse"].search([])
+        warehouses.manufacture_to_resupply = True
+        key = self.env["stock.rule"]._get_rule_chain_key(
+            product,
+            warehouses[:1].lot_stock_id,
+            self.env["stock.route"],
+            warehouses,
+        )
+        return self.env["stock.route"].browse(key[-1])
+
     def test_manufacture_route_follows_the_variant_that_has_the_bom(self):
         attribute = self.env["product.attribute"].create(
             {
@@ -321,12 +332,11 @@ class TestMrpProductRoutes(TestMrpCommon):
                 "type": "normal",
             }
         )
-        routes = (small | large)._get_total_routes_by_product()
         manufacture = (
             self.env["stock.rule"].search([("action", "=", "manufacture")]).route_id
         )
-        self.assertTrue(manufacture & routes[small.id])
-        self.assertFalse(manufacture & routes[large.id])
+        self.assertTrue(manufacture & self._rule_selection_routes(small))
+        self.assertFalse(manufacture & self._rule_selection_routes(large))
 
     def test_a_kit_only_product_gets_no_manufacture_route(self):
         kit = self.env["product.product"].create({"name": "Kit", "is_storable": True})
@@ -346,7 +356,7 @@ class TestMrpProductRoutes(TestMrpCommon):
         manufacture = (
             self.env["stock.rule"].search([("action", "=", "manufacture")]).route_id
         )
-        self.assertFalse(manufacture & kit._get_total_routes_by_product()[kit.id])
+        self.assertFalse(manufacture & self._rule_selection_routes(kit))
 
     def test_rule_selection_agrees_with_the_manufacture_route_key(self):
         warehouse = self.env["stock.warehouse"].search(

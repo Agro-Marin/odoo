@@ -218,9 +218,9 @@ class TestProcurement(TestMrpCommon):
         picking_qc_to_stock.action_assign()
         self.assertEqual(picking_qc_to_stock.state, "assigned")
         picking_qc_to_stock.move_ids.write({"quantity": 3.0, "picked": True})
-        picking_qc_to_stock.with_context(
-            skip_backorder=True, picking_ids_not_to_backorder=picking_qc_to_stock.ids
-        ).button_validate()
+        picking_qc_to_stock.button_validate(
+            skip_backorder=True, cancel_backorder_ids=picking_qc_to_stock.ids
+        )
         self.assertEqual(picking_qc_to_stock.state, "done")
         mo.action_assign()
         self.assertEqual(mo.move_raw_ids.quantity, 3.0)

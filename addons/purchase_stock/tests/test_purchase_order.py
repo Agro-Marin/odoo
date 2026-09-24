@@ -456,7 +456,7 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
         res_dict = picking.button_validate()
         self.env["stock.backorder.confirmation"].with_context(
             res_dict["context"]
-        ).action_cancel_backorder()
+        ).create({}).action_cancel_backorder()
         expected_rate = (
             sum(picking.move_line_ids.mapped("quantity"))
             / sum(po.line_ids.mapped("product_qty"))
@@ -479,7 +479,7 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
         res_dict = picking.button_validate()
         self.env["stock.backorder.confirmation"].with_context(
             res_dict["context"]
-        ).action_cancel_backorder()
+        ).create({}).action_cancel_backorder()
         expected_rate = (
             sum(picking.move_line_ids.mapped("quantity"))
             / sum(po.line_ids.mapped("product_qty"))
@@ -763,7 +763,9 @@ class TestPurchaseOrder(ValuationReconciliationTestCommon):
         picking.move_line_ids.write({"quantity": 1})
         picking.move_ids.write({"picked": True})
         res_dict = picking.button_validate()
-        self.env[res_dict["res_model"]].with_context(res_dict["context"]).process()
+        self.env[res_dict["res_model"]].with_context(res_dict["context"]).create(
+            {}
+        ).process()
         backorder = picking.backorder_ids
         self.assertEqual(backorder.move_line_ids.location_dest_id.id, sub_loc_01.id)
 

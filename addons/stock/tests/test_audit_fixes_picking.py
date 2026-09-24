@@ -467,7 +467,7 @@ class TestAuditFixesPicking(TestStockCommon):
         cancelled_move._action_cancel()
         done_move = picking.move_ids - cancelled_move
         done_move.quantity = 2
-        picking.with_context(skip_backorder=True).button_validate()
+        picking.button_validate(skip_backorder=True)
         self.assertEqual(picking.state, "done")
 
         cancelled_date = cancelled_move.date

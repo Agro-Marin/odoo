@@ -182,9 +182,7 @@ class TestExpiryConfirmation(ExpiryAuditCommon):
     def _wizard_for(self, picking, action):
         return (
             self.env["expiry.picking.confirmation"]
-            .with_context(
-                **dict(action["context"], button_validate_picking_ids=picking.ids)
-            )
+            .with_context(**action["context"])
             .create({})
         )
 
@@ -289,7 +287,8 @@ class TestExpiryConfirmation(ExpiryAuditCommon):
             {"lot_ids": [Command.set(lot.ids)]}
         )
         picking = self._delivery(self._lot("AUDIT-CTX2", 30))
-        wizard.with_context(button_validate_picking_ids=picking.ids).process()
+        wizard.validate_picking_ids = picking.ids
+        wizard.process()
         self.assertEqual(picking.state, "done")
 
     def test_the_validation_context_drops_the_wizard_defaults(self):

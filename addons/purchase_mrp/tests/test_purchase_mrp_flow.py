@@ -1078,7 +1078,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         self.assertEqual(picking.move_line_ids.quantity_product_uom, 60 * 5 / 6)
 
         picking.move_line_ids.quantity = 25
-        picking.with_context(skip_backorder=True).button_validate()
+        picking.button_validate(skip_backorder=True)
         self.assertEqual(po.line_ids.qty_transferred, 25 / 5 * 6)
 
         stock_return_picking_form = Form(

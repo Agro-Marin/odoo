@@ -1,5 +1,6 @@
 from . import (
     mixin_product_variant_selector,
+    mixin_stock_picking_validation,
     product_label_layout,
     stock_picking_return,
     stock_inventory_conflict,

@@ -340,15 +340,6 @@ class ProductProduct(models.Model):
             qty_by_product_wh[(product.id, location.warehouse_id.id)] += product_qty
         return qty_by_product_location, qty_by_product_wh
 
-    def _get_total_routes_by_product(self):
-        result = super()._get_total_routes_by_product()
-        buy_routes = self.env["stock.rule"]._get_buy_routes()
-        if buy_routes:
-            for product in self:
-                if product.seller_ids:
-                    result[product.id] |= buy_routes
-        return result
-
     def _prepare_quantities_vals(self, filters, location_domains=None):
         if (
             self.env.context.get("suggest_based_on")

@@ -471,7 +471,7 @@ class StockPickingBatch(models.Model):
         return True
 
     @dbg.timed
-    def action_done(self):
+    def action_done(self, *, skip_backorder=False, cancel_backorder_ids=()):
         def has_no_quantity(picking):
             return all(
                 not m.picked or m.product_uom_id.is_zero(m.quantity)
@@ -506,19 +506,13 @@ class StockPickingBatch(models.Model):
         empty_pickings = pickings.filtered(has_no_quantity)
 
         pickings._check_before_validation()
-        context = {
-            "skip_validation_check": True,
-            "pickings_to_detach": empty_waiting_pickings.ids,
-            "batches_to_validate": self.ids,
-        }
         if empty_pickings != pickings:
             pickings -= empty_pickings
-            context["pickings_to_detach"] += empty_pickings.ids
         dbg.pipeline.debug(
             "[batch:%s] action_done: validate %s, detach %s",
             self.id,
             dbg.rec(pickings),
-            context["pickings_to_detach"],
+            dbg.rec(self.picking_ids - pickings),
         )
 
         for picking in pickings:
@@ -541,7 +535,11 @@ class StockPickingBatch(models.Model):
                 )
             )
 
-        return pickings.with_context(**context).button_validate()
+        return pickings.button_validate(
+            skip_backorder=skip_backorder,
+            cancel_backorder_ids=cancel_backorder_ids,
+            batch_id=self.id,
+        )
 
     def action_assign(self):
         self.check_singleton()

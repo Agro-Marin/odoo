@@ -375,19 +375,15 @@ class StockWarehouseOrderpoint(models.Model):
         orderpoints_to_compute = self.filtered(
             lambda orderpoint: orderpoint.product_id and orderpoint.location_id,
         )
+        Rule = self.env["stock.rule"]
+        warehouses = Rule._get_rule_chain_warehouses()
         rules_cache = {}
-        extra_routes = orderpoints_to_compute.product_id._get_total_routes_by_product()
         for orderpoint in orderpoints_to_compute:
-            all_product_routes = (
-                orderpoint.product_id.route_ids
-                | orderpoint.product_id.categ_id.total_route_ids
-                | extra_routes[orderpoint.product_id.id]
-            )
-            cache_key = (
+            cache_key = Rule._get_rule_chain_key(
+                orderpoint.product_id,
                 orderpoint.location_id,
                 orderpoint.route_id,
-                orderpoint.product_id.route_ids,
-                all_product_routes,
+                warehouses,
             )
             if cache_key in rules_cache:
                 rule_ids = rules_cache[cache_key]

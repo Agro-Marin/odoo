@@ -45,14 +45,14 @@ class Picking(models.Model):
     # Validation methods
     ################################################################################
 
-    def button_validate(self):
+    def button_validate(self, **validate_kwargs):
         # EXTENDS 'stock'
 
         # Validate the carrier first because it cannot be changed after the super call
         _debug.pipeline("etransport_picking_validate", pickings=self)
         self._l10n_ro_edi_stock_check_carrier()
 
-        return super().button_validate()
+        return super().button_validate(**validate_kwargs)
 
     def _l10n_ro_edi_stock_check_carrier(self):
         _debug.logic("etransport_validate_carrier", pickings=self)

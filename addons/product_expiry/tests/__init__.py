@@ -3,3 +3,4 @@ from . import test_stock_lot
 from . import test_expiry_extra
 from . import test_expiry_audit_2026_08
 from . import test_forecast_free_stock
+from . import test_expiry_validation_chain

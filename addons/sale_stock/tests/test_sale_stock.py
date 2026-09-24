@@ -3739,7 +3739,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         user = new_test_user(
             self.env,
             login="fgh",
-            groups="base.group_user,stock.group_stock_user, sale.group_sale_salesman",
+            groups="base.group_user,stock.group_stock_readonly,sale.group_sale_salesman",
         )
         self.new_product.tracking = "lot"
         lot = self.env["stock.lot"].create(
@@ -3789,8 +3789,9 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             )
         )
         sale_order_2.action_confirm()
-        sale_order_2.picking_ids.button_validate()
-        self.assertEqual(sale_order_2.picking_ids.state, "done")
+        delivery = sale_order_2.picking_ids.with_user(self.env.user)
+        delivery.button_validate()
+        self.assertEqual(delivery.state, "done")
         lot.invalidate_recordset()
         self.assertEqual(lot.with_user(user).sale_order_count, 1)
         self.assertEqual(lot.with_user(user).sale_order_ids, sale_order_2)
@@ -3850,7 +3851,7 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             ._get_log_activity_documents({sol: (10.0, 12.0)}, "move_ids", "UP")
         )
         self.assertEqual(
-            sum(len(rendering_context[0]) for rendering_context in documents.values()),
+            sum(len(document.records) for document in documents.values()),
             2,
         )
 
@@ -3861,3 +3862,28 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         self.assertEqual(len(activity), 1)
         self.assertEqual(activity.note.count("ordered instead of"), 1)
         self.assertEqual(activity.note.count("<li"), 1)
+
+    def test_short_delivery_note_lists_every_move_of_one_line(self):
+        so = self._get_new_sale_order(amount=10.0)
+        so.action_confirm()
+        picking = so.picking_ids
+        first = picking.move_ids
+        first.product_uom_qty = 8.0
+        second = first.copy(
+            {
+                "product_uom_qty": 2.0,
+                "picking_id": picking.id,
+                "sale_line_id": first.sale_line_id.id,
+            }
+        )
+
+        activities_before = so.activity_ids
+        picking._log_less_quantities_than_expected(
+            {first: (5.0, 8.0), second: (1.0, 2.0)}
+        )
+        activity = so.activity_ids - activities_before
+
+        self.assertEqual(len(activity), 1)
+        self.assertEqual(activity.note.count("<li"), 2, activity.note)
+        self.assertIn("instead of 8.0", activity.note)
+        self.assertIn("instead of 2.0", activity.note)

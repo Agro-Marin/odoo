@@ -8,8 +8,8 @@ _debug = DebugLog(__name__)
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
-    def button_validate(self):
-        res = super().button_validate()
+    def button_validate(self, **validate_kwargs):
+        res = super().button_validate(**validate_kwargs)
         if res is not True:
             return res
 

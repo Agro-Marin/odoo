@@ -105,19 +105,17 @@ class StockReplenishmentReport(models.AbstractModel):
 
         location_by_id = {location.id: location for location in locations}
         Orderpoint = self.env["stock.warehouse.orderpoint"]
-        extra_routes = products._get_total_routes_by_product()
+        Rule = self.env["stock.rule"]
+        warehouses = Rule._get_rule_chain_warehouses()
+        no_route = self.env["stock.route"]
         rules_cache = {}
         products_by_horizon = defaultdict(set)
         for (product, location_id), quantity in uncovered.items():
             if product.uom_id.compare(quantity, 0) >= 0:
                 continue
             location = location_by_id[location_id]
-            cache_key = (
-                location,
-                product.route_ids,
-                product.route_ids
-                | product.categ_id.total_route_ids
-                | extra_routes[product.id],
+            cache_key = Rule._get_rule_chain_key(
+                product, location, no_route, warehouses
             )
             rules = rules_cache.get(cache_key)
             if rules is None:

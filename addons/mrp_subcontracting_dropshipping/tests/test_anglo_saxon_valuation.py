@@ -285,7 +285,7 @@ class TestSubcontractingDropshippingValuation(ValuationReconciliationTestCommon)
         purchase_order.action_confirm()
         dropship_transfer = purchase_order.picking_ids[0]
         dropship_transfer.move_ids[0].quantity = 50
-        dropship_transfer.with_context(cancel_backorder=False)._action_done()
+        dropship_transfer._action_done(cancel_backorder=False)
         account_move_1 = sale_order._create_invoices()
         account_move_1.action_post()
         dropship_backorder = dropship_transfer.backorder_ids[0]

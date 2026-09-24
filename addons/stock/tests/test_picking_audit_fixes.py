@@ -168,7 +168,7 @@ class TestPickingAuditFixes(TestStockCommon):
         )
         picking = self._picking(product, qty=1)
         picking.move_ids.write({"quantity": 1, "picked": True})
-        picking.with_context(skip_backorder=True).button_validate()
+        picking.button_validate(skip_backorder=True)
         self.env.flush_all()
         self.assertEqual(picking.state, "done")
 
@@ -353,7 +353,7 @@ class TestPickingAuditFixes(TestStockCommon):
         picking.move_ids.filtered(lambda m: m.state != "cancel").write(
             {"quantity": 1, "picked": True},
         )
-        picking.with_context(skip_backorder=True).button_validate()
+        picking.button_validate(skip_backorder=True)
         self.env.flush_all()
         self.assertEqual(picking.state, "done")
         self.assertFalse(
@@ -447,7 +447,7 @@ class TestPickingAuditFixes(TestStockCommon):
         picking = self._picking(product, qty=2)
         picking.move_ids.quantity = 2
         picking.move_ids.picked = True
-        picking.with_context(skip_backorder=True).button_validate()
+        picking.button_validate(skip_backorder=True)
         self.env.flush_all()
         self.assertEqual(picking.state, "done")
 
@@ -464,7 +464,7 @@ class TestPickingAuditFixes(TestStockCommon):
         picking = self._picking(product, qty=2)
         picking.move_ids.quantity = 2
         picking.move_ids.picked = True
-        picking.with_context(skip_backorder=True).button_validate()
+        picking.button_validate(skip_backorder=True)
         self.env.flush_all()
         with self.assertRaises(UserError):
             picking.write({"picking_type_id": self.picking_type_in.id})
@@ -569,7 +569,7 @@ class TestPickingAuditFixes(TestStockCommon):
         picking = self._picking(product, qty=2)
         picking.move_ids.quantity = 2
         picking.move_ids.picked = True
-        picking.with_context(skip_backorder=True).button_validate()
+        picking.button_validate(skip_backorder=True)
         self.env.flush_all()
         self.assertFalse(picking.is_date_editable)
         picking.action_toggle_is_locked()

@@ -553,7 +553,12 @@ class TestProcRule(TransactionCase):
                 "replenishment_uom_id": pack_of_10.id,
             }
         )
-        _round = orderpoint._get_multiple_rounded_qty
+
+        def _round(qty):
+            return orderpoint._get_multiple_rounded_qty_map({orderpoint.id: qty})[
+                orderpoint.id
+            ]
+
         self.assertEqual(_round(10.0), 10.0)
         self.assertEqual(_round(11.0), 20.0)
         self.assertEqual(_round(1.0), 10.0)

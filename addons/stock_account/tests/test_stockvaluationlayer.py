@@ -155,7 +155,7 @@ class TestStockValuationStandard(TestStockValuationCommon):
         wizard = (
             self.env[(res_dict.get("res_model"))]
             .with_context(res_dict.get("context"))
-            .browse(res_dict.get("res_id"))
+            .create({})
         )
         wizard.process()
 

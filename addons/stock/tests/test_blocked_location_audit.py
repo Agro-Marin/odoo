@@ -527,10 +527,10 @@ class TestAuditAccuracy(BlockedLocationCase):
         for line in shipped.move_line_ids:
             line.quantity = line.quantity_product_uom
         shipped.picked = True
-        picking.with_user(self.normal_user).with_context(
+        picking.with_user(self.normal_user).button_validate(
             skip_backorder=True,
-            picking_ids_not_to_backorder=picking.ids,
-        ).button_validate()
+            cancel_backorder_ids=picking.ids,
+        )
 
         self.assertEqual(dropped.state, "cancel")
         self.assertEqual(self._on_hand(blocked), 100.0)

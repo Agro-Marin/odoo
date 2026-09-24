@@ -57,7 +57,6 @@ declare_authority_keys(
     "approval", "approval_binding_admitted", "approval_keep_on_subject_change"
 )
 declare_authority_keys("approval_res_users_deletion", "approval_skip")
-declare_authority_keys("stock", "skip_validation_check")
 declare_authority_keys("stock_delivery", "allow_delivery_cost_update")
 declare_authority_keys("mrp", "allow_more")
 declare_authority_keys("maintenance", "skip_maintenance_reservations")

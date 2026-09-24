@@ -598,7 +598,9 @@ class TestBatchPicking(TransactionCase):
         picking.move_ids.move_line_ids.write({"quantity": 1})
         picking.move_ids.picked = True
         res_dict = picking.button_validate()
-        self.env[res_dict["res_model"]].with_context(res_dict["context"]).process()
+        self.env[res_dict["res_model"]].with_context(res_dict["context"]).create(
+            {}
+        ).process()
 
         move_line = self.env["stock.move.line"].search(
             [

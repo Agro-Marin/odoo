@@ -13,6 +13,9 @@ _logger = logging.getLogger(__name__)
 RULE_IDS_BY_ROUTE = TransactionMemo(
     "stock.rule.ids_by_route", invalidated_by=("stock.rule",)
 )
+CHAIN_WAREHOUSE_IDS = TransactionMemo(
+    "stock.rule.chain_warehouse_ids", invalidated_by=("stock.warehouse",)
+)
 
 
 class StockRuleSelection(models.Model):
@@ -44,6 +47,26 @@ class StockRuleSelection(models.Model):
                 ).ids,
             )
         return valid_route_ids
+
+    @api.model
+    def _get_rule_chain_warehouses(self):
+        memo = CHAIN_WAREHOUSE_IDS(self.env)
+        key = (self.env.uid, self.env.su, tuple(self.env.companies.ids))
+        if key not in memo:
+            memo[key] = self.env["stock.warehouse"].search([]).ids
+        return self.env["stock.warehouse"].browse(memo[key])
+
+    @api.model
+    def _get_rule_chain_key(self, product, location, route_ids, warehouses):
+        # a chain can step into any warehouse, so usability is keyed over all of
+        # them; product and category routes stay apart because they rank first
+        return (
+            location.id,
+            frozenset(route_ids.ids),
+            frozenset(product.route_ids.ids),
+            frozenset(product.categ_id.total_route_ids.ids),
+            frozenset(self._get_valid_route_ids(route_ids, False, product, warehouses)),
+        )
 
     @api.model
     def _get_rule_candidates(self, values, locations, warehouse_ids, valid_route_ids):

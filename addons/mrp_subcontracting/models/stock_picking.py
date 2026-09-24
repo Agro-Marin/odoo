@@ -50,8 +50,8 @@ class StockPicking(models.Model):
             ):
                 picking.show_lots_text = False
 
-    def _action_done(self):
-        res = super()._action_done()
+    def _action_done(self, **kwargs):
+        res = super()._action_done(**kwargs)
         for picking in self:
             productions_to_done = picking._get_subcontract_production().sudo()
             _debug.pipeline(
@@ -177,14 +177,12 @@ class StockPicking(models.Model):
             "reference_ids": [Command.link(ref.id) for ref in references],
         }
 
-    def _get_subcontract_mo_confirmation_ctx(self):
-        if self._is_subcontract() and not self.env.context.get(
-            "cancel_backorder", True
-        ):
+    def _get_subcontract_mo_confirmation_ctx(self, create_proc=True):
+        if self._is_subcontract() and not create_proc:
             return {"no_procurement": True}
         return {}
 
-    def _produce_subcontracted_productions(self, subcontract_details):
+    def _produce_subcontracted_productions(self, subcontract_details, create_proc=True):
         self.check_singleton()
         group_by_company = defaultdict(lambda: ([], []))
         for move, bom in subcontract_details:
@@ -222,7 +220,7 @@ class StockPicking(models.Model):
                 self.env["mrp.production"].with_company(company).create(vals_list)
             )
             grouped_mo.with_context(
-                self._get_subcontract_mo_confirmation_ctx()
+                self._get_subcontract_mo_confirmation_ctx(create_proc)
             ).action_confirm()
             for mo, move in zip(grouped_mo, moves, strict=True):
                 mo.date_end = move.date

@@ -870,11 +870,11 @@ class StockPicking(models.Model):
         return True
 
     @dbg.timed
-    def _action_done(self):
+    def _action_done(self, *, cancel_backorder=False):
         dbg.pipeline.debug(
             "[picking:%s] _action_done cancel_backorder=%s",
             dbg.names(self, "name"),
-            self.env.context.get("cancel_backorder"),
+            cancel_backorder,
         )
         self._check_company()
 
@@ -890,9 +890,7 @@ class StockPicking(models.Model):
             )
             owner_moves.write({"restrict_partner_id": owner.id})
             owner_moves.move_line_ids.write({"owner_id": owner.id})
-        todo_moves._action_done(
-            cancel_backorder=self.env.context.get("cancel_backorder"),
-        )
+        todo_moves._action_done(cancel_backorder=cancel_backorder)
         self.filtered(lambda picking: picking.state == "done").write(
             {"date_done": fields.Datetime.now(), "priority": "0"},
         )
@@ -935,13 +933,22 @@ class StockPicking(models.Model):
         return True
 
     @dbg.timed
-    def button_validate(self):
+    def button_validate(
+        self, *, skip_backorder=False, cancel_backorder_ids=(), batch_id=False
+    ):
+        validate_kwargs = {
+            "skip_backorder": bool(skip_backorder),
+            "cancel_backorder_ids": list(cancel_backorder_ids or ()),
+            "batch_id": batch_id or False,
+        }
         dbg.pipeline.debug(
-            "[picking:%s] button_validate start, states %s",
+            "[picking:%s] button_validate start, states %s, %s",
             dbg.names(self, "name"),
             dbg.names(self, "state"),
+            validate_kwargs,
         )
         self = self.filtered(lambda p: p.state not in DONE_CANCEL_STATES)
+        batch = self.env["stock.picking.batch"].browse(validate_kwargs["batch_id"])
         draft_picking = self.filtered(lambda p: p.state == "draft")
         draft_picking.action_confirm()
         moves_by_quantity = defaultdict(lambda: self.env["stock.move"])
@@ -960,15 +967,9 @@ class StockPicking(models.Model):
             )
             moves.write({"quantity": quantity})
 
-        if not self.env.context.get("skip_validation_check", False):
-            self._check_before_validation()
+        self._check_before_validation(batch=batch)
 
-        requested_ids = self.env.context.get("button_validate_picking_ids")
-        validating = self.browse(requested_ids) & self if requested_ids else self
-        self = self.with_context(
-            button_validate_picking_ids=(validating or self).ids,
-        )
-        res = self._pre_action_done_hook()
+        res = self._pre_action_done_hook(**validate_kwargs)
         if res is not True:
             dbg.pipeline.debug(
                 "button_validate: _pre_action_done_hook returned an action %s",
@@ -976,8 +977,11 @@ class StockPicking(models.Model):
             )
             return res
 
+        detached = self._detach_unvalidated_from_batch(batch)
         pickings_to_backorder, pickings_not_to_backorder = (
-            self._split_backorder_pickings()
+            self._split_backorder_pickings(
+                self.browse(validate_kwargs["cancel_backorder_ids"])
+            )
         )
         dbg.pipeline.debug(
             "button_validate: backorder %s, no backorder %s",
@@ -985,10 +989,11 @@ class StockPicking(models.Model):
             dbg.rec(pickings_not_to_backorder),
         )
         if pickings_not_to_backorder:
-            pickings_not_to_backorder.with_context(cancel_backorder=True)._action_done()
+            pickings_not_to_backorder._action_done(cancel_backorder=True)
         if pickings_to_backorder:
-            pickings_to_backorder.with_context(cancel_backorder=False)._action_done()
-        self._detach_from_batches_after_validation()._rebatch_after_validation()
+            pickings_to_backorder._action_done(cancel_backorder=False)
+        to_rebatch = detached | self._detach_from_batches_after_validation()
+        to_rebatch._rebatch_after_validation(excluded_batches=batch)
         report_actions = self._prepare_actions_autoprint()
         another_action = self._get_reception_report_action()
         dbg.logic.debug(
@@ -1008,6 +1013,20 @@ class StockPicking(models.Model):
                 },
             }
         return True
+
+    def _prepare_validation_resume_vals(self, validate_kwargs):
+        return {
+            "validate_picking_ids": self.ids,
+            "validate_kwargs": dict(validate_kwargs or {}),
+        }
+
+    def _get_validation_resume_defaults(self, validate_kwargs):
+        return {
+            f"default_{name}": value
+            for name, value in self._prepare_validation_resume_vals(
+                validate_kwargs
+            ).items()
+        }
 
     def action_split_transfer(self):
         self.check_singleton()
@@ -1074,19 +1093,30 @@ class StockPicking(models.Model):
         dbg.logic.debug("_get_pickings_to_autopick: %s", dbg.rec(to_autopick))
         return to_autopick
 
-    def _pre_action_done_hook(self):
+    def _pre_action_done_hook(
+        self, *, skip_backorder=False, cancel_backorder_ids=(), batch_id=False
+    ):
         self._get_pickings_to_autopick().move_ids.picked = True
-        if not self.env.context.get("skip_backorder"):
-            pickings_to_backorder = self._get_pickings_to_backorder()
-            if pickings_to_backorder:
-                dbg.pipeline.debug(
-                    "_pre_action_done_hook: backorder confirmation for %s",
-                    dbg.rec(pickings_to_backorder),
-                )
-                return pickings_to_backorder._prepare_action_backorder_confirmation(
-                    show_transfers=self._is_transfer_display_required(),
-                )
-        return True
+        if skip_backorder:
+            return True
+        pickings_to_confirm = self._get_pickings_to_confirm_backorder() - self.browse(
+            cancel_backorder_ids
+        )
+        if not pickings_to_confirm:
+            return True
+        dbg.pipeline.debug(
+            "_pre_action_done_hook: backorder confirmation for %s",
+            dbg.rec(pickings_to_confirm),
+        )
+        batch = self.env["stock.picking.batch"].browse(batch_id)
+        return pickings_to_confirm._prepare_action_backorder_confirmation(
+            show_transfers=self._is_transfer_display_required(batch=batch),
+            validating=self,
+            validate_kwargs={
+                "cancel_backorder_ids": list(cancel_backorder_ids or ()),
+                "batch_id": batch_id,
+            },
+        )
 
     def action_toggle_is_locked(self):
         self.check_singleton()
@@ -1201,7 +1231,7 @@ class StockPicking(models.Model):
         self.check_singleton()
         return self.picking_type_code == "outgoing"
 
-    def _check_before_validation(self):
+    def _check_before_validation(self, batch=None):
         pickings_without_lots = self.browse()
         products_without_lots = self.env["product.product"]
         pickings_without_moves = self.filtered(
@@ -1236,7 +1266,7 @@ class StockPicking(models.Model):
                     pickings_without_lots |= line.picking_id
                     products_without_lots |= line.product_id
 
-        if not self._is_transfer_display_required():
+        if not self._is_transfer_display_required(batch=batch):
             if pickings_without_moves:
                 raise UserError(
                     self.env._(

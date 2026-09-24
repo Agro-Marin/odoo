@@ -70,7 +70,6 @@ class ChangeProductionQty(models.TransientModel):
         return move.move_dest_ids and not move.product_uom_id.is_zero(qty)
 
     def change_prod_qty(self):
-        activity_mixin = self.env["mixin.stock.activity"]
         for wizard in self:
             production = wizard.mo_id
             old_production_qty = production.product_qty
@@ -89,18 +88,9 @@ class ChangeProductionQty(models.TransientModel):
                 "qty_changed", mo=production, old=old_production_qty, factor=factor
             )
             update_info = production._update_raw_moves(factor)
-            documents = {}
-            for move, old_qty, new_qty in update_info:
-                iterate_key = production._get_document_iterate_key(move)
-                if iterate_key:
-                    document = activity_mixin._get_log_activity_documents(
-                        {move: (new_qty, old_qty)}, iterate_key, "UP"
-                    )
-                    for key, value in document.items():
-                        if documents.get(key):
-                            documents[key] += [value]
-                        else:
-                            documents[key] = [value]
+            documents = production._get_raw_moves_activity_documents(
+                {move: (new_qty, old_qty) for move, old_qty, new_qty in update_info}
+            )
             production._log_manufacture_exception(documents)
             self._update_finished_moves(
                 production, new_production_qty, old_production_qty

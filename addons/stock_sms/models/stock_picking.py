@@ -7,12 +7,14 @@ _debug = DebugLog(__name__)
 class StockPicking(models.Model):
     _inherit = "stock.picking"
 
-    def _pre_action_done_hook(self):
-        res = super()._pre_action_done_hook()
+    def _pre_action_done_hook(self, **validate_kwargs):
+        res = super()._pre_action_done_hook(**validate_kwargs)
         if res is True and not self.env.context.get("skip_sms"):
             pickings_to_warn_sms = self._get_pickings_to_warn_sms()
             if pickings_to_warn_sms:
-                return pickings_to_warn_sms._action_generate_warn_sms_wizard()
+                return pickings_to_warn_sms._action_generate_warn_sms_wizard(
+                    validating=self, validate_kwargs=validate_kwargs
+                )
         return res
 
     def _get_pickings_to_warn_sms(self):
@@ -33,11 +35,17 @@ class StockPicking(models.Model):
                 warn_sms_pickings |= picking
         return warn_sms_pickings
 
-    def _action_generate_warn_sms_wizard(self):
+    def _action_generate_warn_sms_wizard(
+        self, *, validating=None, validate_kwargs=None
+    ):
         _debug.pipeline("sms_warn_wizard_open", pickings=self)
         view = self.env.ref("stock_sms.view_confirm_stock_sms")
+        validating = self if validating is None else validating
         wiz = self.env["confirm.stock.sms"].create(
-            {"pick_ids": [Command.link(p.id) for p in self]}
+            {
+                "pick_ids": [Command.link(p.id) for p in self],
+                **validating._prepare_validation_resume_vals(validate_kwargs),
+            }
         )
         return {
             "name": self.env._("SMS"),

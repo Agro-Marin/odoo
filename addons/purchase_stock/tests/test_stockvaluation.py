@@ -286,8 +286,8 @@ class TestStockValuationWithCOA(PurchaseTestCommon):
         self.assertEqual(res_dict["res_model"], "stock.backorder.confirmation")
         wizard = (
             self.env[(res_dict.get("res_model"))]
-            .browse(res_dict.get("res_id"))
             .with_context(res_dict["context"])
+            .create({})
         )
         wizard.process()
         self.assertAlmostEqual(move.value, 10 * price_unit_USD, places=2)
@@ -346,8 +346,8 @@ class TestStockValuationWithCOA(PurchaseTestCommon):
         self.assertEqual(res_dict["res_model"], "stock.backorder.confirmation")
         wizard = (
             self.env[(res_dict.get("res_model"))]
-            .browse(res_dict.get("res_id"))
             .with_context(res_dict["context"])
+            .create({})
         )
         wizard.process()
         self.assertAlmostEqual(move.value, 10 * price_unit_USD, places=2)

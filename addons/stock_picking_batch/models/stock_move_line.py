@@ -198,7 +198,7 @@ class StockMoveLine(models.Model):
         return True
 
     @_debug.perf.timed
-    def _auto_wave(self):
+    def _auto_wave(self, excluded_batches=None):
         _debug.pipeline("auto_wave_enter", lines=self)
         nearest_parent_locations = defaultdict(lambda: self.env["stock.location"])
         batchable_lines = self.browse()
@@ -222,11 +222,11 @@ class StockMoveLine(models.Model):
                 )
 
         remaining_lines = batchable_lines._auto_wave_lines_into_existing_waves(
-            nearest_parent_locations
+            nearest_parent_locations, excluded_batches
         )
         remaining_lines._auto_wave_lines_into_new_waves(nearest_parent_locations)
 
-    def _get_potential_existing_waves(self, picking_type, batches_to_validate_ids):
+    def _get_potential_existing_waves(self, picking_type, excluded_batches=None):
         _debug.logic("wave_candidates_search", picking_type=picking_type.id)
         domains = [
             Domain("picking_type_id", "=", picking_type.id),
@@ -243,8 +243,8 @@ class StockMoveLine(models.Model):
             if criterion.wave_field:
                 domain |= Domain(criterion.wave_field, "in", ids)
             domains.append(domain)
-        if batches_to_validate_ids:
-            domains.append(Domain("id", "not in", batches_to_validate_ids))
+        if excluded_batches:
+            domains.append(Domain("id", "not in", excluded_batches.ids))
         waves = self.env["stock.picking.batch"].search(Domain.AND(domains))
         _debug.logic("wave_candidates_found", picking_type=picking_type.id, waves=waves)
         return waves
@@ -275,13 +275,14 @@ class StockMoveLine(models.Model):
             nearest_parent_location,
         )
 
-    def _auto_wave_lines_into_existing_waves(self, nearest_parent_locations):
+    def _auto_wave_lines_into_existing_waves(
+        self, nearest_parent_locations, excluded_batches=None
+    ):
         _debug.pipeline("auto_wave_into_existing", lines=self)
         remaining_lines = self.browse()
-        batches_to_validate_ids = self.env.context.get("batches_to_validate", False)
         for picking_type, lines in self.grouped("picking_type_id").items():
             potential_waves = lines._get_potential_existing_waves(
-                picking_type, batches_to_validate_ids
+                picking_type, excluded_batches
             )
             waves_nearest_parent_locations, potential_waves = (
                 lines._get_waves_nearest_parent_locations(picking_type, potential_waves)

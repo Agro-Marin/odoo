@@ -978,8 +978,8 @@ class TestStockFlow(TestStockCommon):
         res_dict_for_back_order = picking_in_B.button_validate()
         backorder_wizard = (
             self.env[(res_dict_for_back_order.get("res_model"))]
-            .browse(res_dict_for_back_order.get("res_id"))
             .with_context(res_dict_for_back_order["context"])
+            .create({})
         )
         backorder_wizard.process()
 
@@ -1492,8 +1492,8 @@ class TestStockFlow(TestStockCommon):
         res_dict_for_back_order = picking_out.button_validate()
         backorder_wizard = (
             self.env[(res_dict_for_back_order.get("res_model"))]
-            .browse(res_dict_for_back_order.get("res_id"))
             .with_context(res_dict_for_back_order["context"])
+            .create({})
         )
         backorder_wizard.process()
         quants = self.StockQuantObj.search(
@@ -1535,8 +1535,8 @@ class TestStockFlow(TestStockCommon):
         res_dict_for_back_order = bo_out_1.button_validate()
         backorder_wizard = (
             self.env[(res_dict_for_back_order.get("res_model"))]
-            .browse(res_dict_for_back_order.get("res_id"))
             .with_context(res_dict_for_back_order["context"])
+            .create({})
         )
         backorder_wizard.process()
         quants = self.StockQuantObj.search(
@@ -1579,8 +1579,8 @@ class TestStockFlow(TestStockCommon):
         res_dict_for_back_order = bo_out_2.button_validate()
         backorder_wizard = (
             self.env[(res_dict_for_back_order.get("res_model"))]
-            .browse(res_dict_for_back_order.get("res_id"))
             .with_context(res_dict_for_back_order["context"])
+            .create({})
         )
         backorder_wizard.process()
         quants = self.StockQuantObj.search(
@@ -1622,8 +1622,8 @@ class TestStockFlow(TestStockCommon):
         res_dict_for_back_order = bo_out_3.button_validate()
         backorder_wizard = (
             self.env[(res_dict_for_back_order.get("res_model"))]
-            .browse(res_dict_for_back_order.get("res_id"))
             .with_context(res_dict_for_back_order["context"])
+            .create({})
         )
         backorder_wizard.process()
         quants = self.StockQuantObj.search(

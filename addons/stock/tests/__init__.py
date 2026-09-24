@@ -56,6 +56,7 @@ from . import test_replenish
 from . import test_report_wizard_fixes
 from . import test_reservation_batching
 from . import test_restamp_uom
+from . import test_stock_activity
 from . import test_stock_flow
 from . import test_stock_location
 from . import test_stock_location_search
@@ -66,7 +67,11 @@ from . import test_stock_move_audit_fixes
 from . import test_traceability
 from . import test_traceability_report
 from . import test_warehouse
+from . import test_warehouse_rule_roles
 from . import test_orderpoint_audit
+from . import test_orderpoint_rule_key
+from . import test_orderpoint_rounding_batch
+from . import test_removal_strategy_lineage
 from . import test_quant_audit_2026_08
 from . import test_stock_move_audit_2026_08
 from . import test_stock_move_line_requant
@@ -90,3 +95,4 @@ from . import test_create_computes
 from . import test_move_line_done_access
 from . import test_derived_defaults
 from . import test_reservation_audit_2026_09
+from . import test_picking_validation_kwargs

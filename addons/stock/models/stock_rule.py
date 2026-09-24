@@ -14,6 +14,8 @@ from .stock_procurement import Procurement, ProcurementException
 
 _logger = logging.getLogger(__name__)
 
+RESUPPLY_ROLE = "resupply"
+
 
 class StockRule(models.Model):
     _name = "stock.rule"
@@ -27,6 +29,21 @@ class StockRule(models.Model):
         if "company_id" in fields and not res.get("company_id"):
             res["company_id"] = self.env.company.id
         return res
+
+    @api.model
+    def _selection_warehouse_role(self):
+        Warehouse = self.env["stock.warehouse"]
+        slots = (
+            *Warehouse._get_route_field_names(),
+            *sorted(Warehouse._get_global_rule_fields()),
+        )
+        return [
+            *(
+                (slot, Warehouse._fields[slot]._description_string(self.env))
+                for slot in slots
+            ),
+            (RESUPPLY_ROLE, self.env._("Resupply Route")),
+        ]
 
     Procurement = Procurement
     name = fields.Char(
@@ -135,6 +152,14 @@ class StockRule(models.Model):
         comodel_name="stock.warehouse",
         index=True,
         check_company=True,
+    )
+    warehouse_role = fields.Selection(
+        selection="_selection_warehouse_role",
+        copy=False,
+        readonly=True,
+        help="The warehouse configuration slot this rule was generated for. Generated "
+        "rules are archived and rebuilt when the warehouse configuration changes; rules "
+        "without a role were added by hand and are left alone.",
     )
     auto = fields.Selection(
         selection=[

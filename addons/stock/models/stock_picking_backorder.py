@@ -1,4 +1,5 @@
 from odoo import Command, models
+from odoo.tools.misc import clean_context
 
 from ..tools import debug_log as dbg
 from .stock_picking import DONE_CANCEL_STATES
@@ -7,23 +8,26 @@ from .stock_picking import DONE_CANCEL_STATES
 class StockPickingBackorder(models.Model):
     _inherit = "stock.picking"
 
-    def _split_backorder_pickings(self):
+    def _split_backorder_pickings(self, cancel_backorder_pickings=None):
         not_to_backorder = self.filtered(
             lambda p: p.picking_type_id.create_backorder == "never",
         )
-        if self.env.context.get("picking_ids_not_to_backorder"):
-            not_to_backorder |= (
-                self.browse(self.env.context["picking_ids_not_to_backorder"]) & self
-            ).filtered(lambda p: p.picking_type_id.create_backorder != "always")
+        if cancel_backorder_pickings:
+            not_to_backorder |= (cancel_backorder_pickings & self).filtered(
+                lambda p: p.picking_type_id.create_backorder != "always"
+            )
         dbg.logic.debug(
-            "_split_backorder_pickings: backorder %s, never %s",
+            "_split_backorder_pickings: backorder %s, no backorder %s",
             dbg.rec(self - not_to_backorder),
             dbg.rec(not_to_backorder),
         )
         return self - not_to_backorder, not_to_backorder
 
-    def _prepare_action_backorder_confirmation(self, show_transfers=False):
+    def _prepare_action_backorder_confirmation(
+        self, show_transfers=False, *, validating=None, validate_kwargs=None
+    ):
         view = self.env.ref("stock.view_backorder_confirmation")
+        validating = self if validating is None else validating
         return {
             "name": self.env._("Create Backorder?"),
             "type": "ir.actions.act_window",
@@ -32,11 +36,12 @@ class StockPickingBackorder(models.Model):
             "views": [(view.id, "form")],
             "view_id": view.id,
             "target": "new",
-            "context": dict(
-                self.env.context,
-                default_show_transfers=show_transfers,
-                default_pick_ids=[Command.link(p.id) for p in self],
-            ),
+            "context": {
+                **clean_context(self.env.context),
+                **validating._get_validation_resume_defaults(validate_kwargs),
+                "default_show_transfers": show_transfers,
+                "default_pick_ids": [Command.link(p.id) for p in self],
+            },
         }
 
     def _prepare_backorder_picking_vals(self):
@@ -118,7 +123,7 @@ class StockPickingBackorder(models.Model):
         self.check_singleton()
         return self.move_ids.filtered(lambda x: x.state not in DONE_CANCEL_STATES)
 
-    def _get_pickings_to_backorder(self):
+    def _get_pickings_to_confirm_backorder(self):
         backorder_pickings = self.browse()
         for picking in self:
             if picking.picking_type_id.create_backorder != "ask":
@@ -134,7 +139,9 @@ class StockPickingBackorder(models.Model):
                 if move.state != "cancel"
             ):
                 backorder_pickings |= picking
-        dbg.logic.debug("_get_pickings_to_backorder: %s", dbg.rec(backorder_pickings))
+        dbg.logic.debug(
+            "_get_pickings_to_confirm_backorder: %s", dbg.rec(backorder_pickings)
+        )
         return backorder_pickings
 
     def _is_backorder_ignore_required(self):
@@ -144,22 +151,15 @@ class StockPickingBackorder(models.Model):
         def get_picking_responsible_key(move):
             return (move.picking_id, move.product_id.responsible_id)
 
-        def _render_note_exception_quantity(rendering_context):
-            origin_moves = self.env["stock.move"].browse(
-                [
-                    move.id
-                    for move_orig in rendering_context.values()
-                    for move in move_orig[0]
-                ],
+        def _render_note_exception_quantity(document):
+            origin_picking = self.env["stock.move"].concat(*document.changes).picking_id
+            impacted_pickings = (
+                origin_picking._get_impacted_pickings(document.records)
+                - document.records.picking_id
             )
-            origin_picking = origin_moves.mapped("picking_id")
-            move_dest_ids = self.env["stock.move"].concat(*rendering_context.keys())
-            impacted_pickings = origin_picking._get_impacted_pickings(
-                move_dest_ids,
-            ) - move_dest_ids.mapped("picking_id")
             values = {
                 "origin_picking": origin_picking,
-                "moves_information": rendering_context.values(),
+                "moves_information": document.changes.items(),
                 "impacted_pickings": impacted_pickings,
             }
             return self.env["ir.qweb"]._render("stock.exception_on_picking", values)
@@ -182,8 +182,8 @@ class StockPickingBackorder(models.Model):
             "Set some quantities and let's get moving!",
         )
 
-    def _is_transfer_display_required(self):
-        detached = self._get_pickings_detached_from_batch()
+    def _is_transfer_display_required(self, batch=None):
+        detached = self._get_pickings_detached_from_batch(batch)
         if len(self.batch_id) == 1 and self == self.batch_id.picking_ids - detached:
             return False
         return len(self) > 1

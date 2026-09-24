@@ -480,9 +480,6 @@ class ProductProduct(models.Model):
             "internal": self.description_picking,
         }.get(picking_type_id.code, "")
 
-    def _get_total_routes_by_product(self):
-        return dict.fromkeys(self.ids, self.env["stock.route"])
-
     def _get_quantity_in_progress(self, location_ids=False, warehouse_ids=False):
         return defaultdict(float), defaultdict(float)
 

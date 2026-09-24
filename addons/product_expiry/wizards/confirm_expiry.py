@@ -5,6 +5,7 @@ from odoo.tools.misc import clean_context
 
 class ExpiryPickingConfirmation(models.TransientModel):
     _name = "expiry.picking.confirmation"
+    _inherit = ["mixin.stock.picking.validation"]
     _description = "Confirm Expiry"
 
     lot_ids = fields.Many2many(
@@ -40,11 +41,6 @@ class ExpiryPickingConfirmation(models.TransientModel):
                     lot_name=wizard.lot_ids.name,
                 )
 
-    def _get_pickings_to_validate(self):
-        return self.env["stock.picking"].browse(
-            self.env.context.get("button_validate_picking_ids") or []
-        )
-
     def _get_validation_context(self):
         return clean_context(self.env.context) | {"skip_expired": True}
 
@@ -74,7 +70,9 @@ class ExpiryPickingConfirmation(models.TransientModel):
             return True
         self._check_confirm_access("stock.group_stock_manager")
         self._log_confirmation_with_expired_lots(pickings)
-        return pickings.with_context(**self._get_validation_context()).button_validate()
+        return self.with_context(**self._get_validation_context())._resume_validation(
+            pickings
+        )
 
     def process_no_expired(self):
         pickings = self._get_pickings_to_validate()
@@ -90,4 +88,4 @@ class ExpiryPickingConfirmation(models.TransientModel):
                     pickings=", ".join(emptied.mapped("name")),
                 )
             )
-        return remaining.button_validate()
+        return self._resume_validation(remaining)

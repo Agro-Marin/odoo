@@ -511,21 +511,15 @@ class PurchaseOrder(models.Model):
         def _get_groupby_keys(move):
             return (move.picking_id, move.product_id.responsible_id)
 
-        def _render_note_exception_quantity_po(order_exceptions):
-            line_exceptions = {}
-            for order_line, changes in order_exceptions.values():
-                line_exceptions.setdefault(order_line, changes)
-            order_line_ids = self.env["purchase.order.line"].browse(
-                [order_line.id for order_line in line_exceptions],
+        def _render_note_exception_quantity_po(document):
+            order_lines = self.env["purchase.order.line"].concat(*document.changes)
+            moves = document.records
+            impacted_pickings = (
+                moves.picking_id._get_impacted_pickings(moves) - moves.picking_id
             )
-            purchase_order_ids = order_line_ids.mapped("order_id")
-            move_ids = self.env["stock.move"].concat(*order_exceptions)
-            impacted_pickings = move_ids.mapped("picking_id")._get_impacted_pickings(
-                move_ids,
-            ) - move_ids.mapped("picking_id")
             values = {
-                "purchase_order_ids": purchase_order_ids,
-                "order_exceptions": list(line_exceptions.items()),
+                "purchase_order_ids": order_lines.order_id,
+                "order_exceptions": list(document.changes.items()),
                 "impacted_pickings": impacted_pickings,
             }
             return self.env["ir.qweb"]._render("purchase_stock.exception_on_po", values)
@@ -538,10 +532,10 @@ class PurchaseOrder(models.Model):
         )
         filtered_documents = {}
 
-        for (parent, responsible), rendering_context in documents.items():
+        for (parent, responsible), document in documents.items():
             if parent._name == "stock.picking" and parent.state in ("cancel", "done"):
                 continue
-            filtered_documents[(parent, responsible)] = rendering_context
+            filtered_documents[(parent, responsible)] = document
         self.env["mixin.stock.activity"]._log_activity(
             _render_note_exception_quantity_po,
             filtered_documents,

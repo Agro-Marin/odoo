@@ -387,7 +387,7 @@ class TestPickingRefactor(TestStockCommon):
         with self.assertRaises(UserError):
             picking.button_validate()
 
-    def test_split_backorder_pickings_partitions_by_type_and_context(self):
+    def test_split_backorder_pickings_partitions_by_type_and_decision(self):
         Seq = self.env["ir.sequence"]
         pt_never = self.picking_type_out.copy(
             {
@@ -415,11 +415,18 @@ class TestPickingRefactor(TestStockCommon):
         self.assertEqual(not_to_bo, never_pick)
         self.assertEqual(to_bo, ask_pick)
 
+        to_bo, not_to_bo = pickings._split_backorder_pickings(ask_pick)
+        self.assertEqual(not_to_bo, never_pick | ask_pick)
+        self.assertFalse(to_bo)
+
         to_bo, not_to_bo = pickings.with_context(
             picking_ids_not_to_backorder=ask_pick.ids,
         )._split_backorder_pickings()
-        self.assertEqual(not_to_bo, never_pick | ask_pick)
-        self.assertFalse(to_bo)
+        self.assertEqual(
+            to_bo,
+            ask_pick,
+            "the backorder decision is a parameter; a context key no longer steers it",
+        )
 
     def _internal_move(self, picking, dest_location, demand=10):
         return self.MoveObj.create(
@@ -440,7 +447,7 @@ class TestPickingRefactor(TestStockCommon):
         scrap_move.quantity = 3
         scrap_move.picked = False
 
-        picking.with_context(skip_backorder=True)._pre_action_done_hook()
+        picking._pre_action_done_hook(skip_backorder=True)
 
         self.assertTrue(
             scrap_move.picked,
@@ -458,7 +465,7 @@ class TestPickingRefactor(TestStockCommon):
         real_move.picked = False
         scrap_move.picked = True
 
-        picking.with_context(skip_backorder=True)._pre_action_done_hook()
+        picking._pre_action_done_hook(skip_backorder=True)
 
         self.assertTrue(
             real_move.picked,
@@ -472,7 +479,7 @@ class TestPickingRefactor(TestStockCommon):
         move.quantity = 5
         move.picked = False
 
-        picking.with_context(skip_backorder=True)._pre_action_done_hook()
+        picking._pre_action_done_hook(skip_backorder=True)
 
         self.assertTrue(move.picked, "real move with quantity must be auto-picked")
 

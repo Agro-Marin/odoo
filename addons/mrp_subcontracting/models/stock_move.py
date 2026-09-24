@@ -231,7 +231,9 @@ class StockMove(models.Model):
             pickings=len(subcontract_details_per_picking),
         )
         for picking, subcontract_details in subcontract_details_per_picking.items():
-            picking._produce_subcontracted_productions(subcontract_details)
+            picking._produce_subcontracted_productions(
+                subcontract_details, create_proc=create_proc
+            )
 
         if subcontract_details_per_picking:
             self.env["stock.picking"].concat(

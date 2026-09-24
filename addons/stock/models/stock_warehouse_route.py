@@ -3,9 +3,11 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.fields import Domain
 from odoo.tools import ormcache
 
 from ..tools import debug_log as dbg
+from .stock_rule import RESUPPLY_ROLE
 from .stock_warehouse import ROUTE_NAMES
 
 _logger = logging.getLogger(__name__)
@@ -45,7 +47,17 @@ class StockWarehouseRoute(models.Model):
                 route = self[route_field]
                 if "route_update_values" in route_data:
                     route.write(route_data["route_update_values"])
-                route.rule_ids.write({"active": False})
+                obsolete = route.rule_ids.filtered(
+                    lambda rule, role=route_field: rule.warehouse_role == role
+                )
+                dbg.lifecycle.debug(
+                    "[warehouse:%s] route %s: archive generated %s, keep %s",
+                    self.id,
+                    route_field,
+                    dbg.rec(obsolete),
+                    dbg.rec(route.rule_ids - obsolete),
+                )
+                obsolete.write({"active": False})
             else:
                 if "route_update_values" in route_data:
                     route_data["route_create_values"].update(
@@ -65,10 +77,11 @@ class StockWarehouseRoute(models.Model):
                     "both." % (route_field, routing_key)
                 )
             rules = rules_dict[self.id][routing_key]
-            if "rules_values" in route_data:
-                route_data["rules_values"].update({"route_id": route.id})
-            else:
-                route_data["rules_values"] = {"route_id": route.id}
+            route_data["rules_values"] = {
+                **route_data.get("rules_values", {}),
+                "route_id": route.id,
+                "warehouse_role": route_field,
+            }
             rules_list = self._prepare_rule_vals(
                 rules, values=route_data["rules_values"]
             )
@@ -163,7 +176,10 @@ class StockWarehouseRoute(models.Model):
             rule_field,
             rule_details,
         ) in self._prepare_routable_global_route_rule_vals().items():
-            values = rule_details.get("update_values", {})
+            values = {
+                **rule_details.get("update_values", {}),
+                "warehouse_role": rule_field,
+            }
             if self[rule_field]:
                 self[rule_field].write(values)
             else:
@@ -421,7 +437,7 @@ class StockWarehouseRoute(models.Model):
             ]
         )
         existing = {}
-        for rule in candidates:
+        for rule in candidates.sorted(lambda rule: not rule.warehouse_role):
             key = (
                 rule.picking_type_id.id,
                 rule.location_src_id.id,
@@ -457,6 +473,105 @@ class StockWarehouseRoute(models.Model):
         if to_create:
             Rule.create(to_create)
 
+    def _backfill_rule_roles(self):
+        Rule = self.env["stock.rule"].with_context(active_test=False)
+        customer_loc, supplier_loc = self._get_partner_locations()
+        slots = {}
+        for warehouse in self:
+            base_routings = (
+                *warehouse._prepare_rule_routings()[warehouse.id].values(),
+                *self._prepare_reception_routings(warehouse, supplier_loc).values(),
+                *self._prepare_delivery_routings(warehouse, customer_loc).values(),
+            )
+            shapes = frozenset(
+                (
+                    routing.picking_type.id,
+                    routing.from_loc.id,
+                    routing.dest_loc.id,
+                    routing.action,
+                )
+                for routings in base_routings
+                for routing in routings
+            )
+            for role in warehouse._prepare_route_vals():
+                if warehouse[role]:
+                    slots[warehouse.id, warehouse[role].id] = (role, shapes)
+        marked = defaultdict(lambda: Rule)
+        unmarked = Rule.search(
+            [
+                ("route_id", "in", list({route_id for _wh, route_id in slots})),
+                ("warehouse_id", "in", self.ids),
+                ("warehouse_role", "=", False),
+            ]
+        )
+        for rule in unmarked:
+            role, shapes = slots.get(
+                (rule.warehouse_id.id, rule.route_id.id), (None, frozenset())
+            )
+            shape = (
+                rule.picking_type_id.id,
+                rule.location_src_id.id,
+                rule.location_dest_id.id,
+                rule.action,
+            )
+            if shape in shapes:
+                marked[role] |= rule
+        for role in self._get_global_rule_fields():
+            marked[role] |= self.mapped(role).filtered(
+                lambda rule: not rule.warehouse_role
+            )
+        marked[RESUPPLY_ROLE] |= self._get_unmarked_resupply_rules()
+        dbg.lifecycle.debug(
+            "_backfill_rule_roles on %s: %s",
+            dbg.rec(self),
+            {role: rules.ids for role, rules in marked.items()},
+        )
+        for role, rules in marked.items():
+            rules.write({"warehouse_role": role})
+
+    def _get_unmarked_resupply_rules(self):
+        Rule = self.env["stock.rule"].with_context(active_test=False)
+        routes = (
+            self.env["stock.route"]
+            .with_context(active_test=False)
+            .search(
+                [("supplied_wh_id", "in", self.ids), ("supplier_wh_id", "!=", False)]
+            )
+        )
+        leg_types = {
+            route.id: {
+                route.supplier_wh_id.out_type_id,
+                route.supplier_wh_id.pick_type_id,
+                route.supplied_wh_id.in_type_id,
+            }
+            for route in routes
+        }
+        legs = Rule.search(
+            [
+                ("route_id", "in", routes.ids),
+                ("warehouse_role", "=", False),
+                ("action", "=", "pull"),
+            ]
+        ).filtered(
+            lambda rule: (
+                rule.warehouse_id
+                in (rule.route_id.supplied_wh_id | rule.route_id.supplier_wh_id)
+                and rule.picking_type_id in leg_types[rule.route_id.id]
+            )
+        )
+        mto_domains = [
+            domain
+            for domain in (
+                warehouse._get_domain_resupply_mto_leg() for warehouse in self
+            )
+            if domain
+        ]
+        if mto_domains:
+            legs |= Rule.search(
+                Domain.OR(mto_domains) & Domain("warehouse_role", "=", False)
+            )
+        return legs
+
     @api.model
     def _is_rule_value_different(self, rule, field_name, value):
         current = rule[field_name]
@@ -489,8 +604,7 @@ class StockWarehouseRoute(models.Model):
         return rules_list
 
     def _prepare_supply_pull_rule_vals(self, routings, values=None):
-        pull_values = dict(values or {})
-        pull_values["active"] = True
+        pull_values = dict(values or {}, active=True, warehouse_role=RESUPPLY_ROLE)
         rules_list = self._prepare_rule_vals(routings, values=pull_values)
         for pull_rules in rules_list:
             pull_rules["procure_method"] = (
@@ -638,7 +752,9 @@ class StockWarehouseRoute(models.Model):
             return
         self._sync_rules(
             self._prepare_rule_vals(
-                routings, mto_vals["create_values"], name_suffix="MTO"
+                routings,
+                {**mto_vals["create_values"], "warehouse_role": RESUPPLY_ROLE},
+                name_suffix="MTO",
             )
         )
 

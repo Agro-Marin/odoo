@@ -38,18 +38,17 @@ class StockQuantReservation(models.Model):
             return product_id.categ_id.removal_strategy_id.with_context(
                 lang=None
             ).method
-        location_id = location_id.sudo()
-        if location_id.parent_path:
-            ancestor_ids = list(location_id._get_ancestor_ids(include_self=True))
-            for loc in self.env["stock.location"].browse(ancestor_ids[::-1]):
-                if loc.removal_strategy_id:
-                    return loc.removal_strategy_id.with_context(lang=None).method
-        else:
-            loc = location_id
-            while loc:
-                if loc.removal_strategy_id:
-                    return loc.removal_strategy_id.with_context(lang=None).method
-                loc = loc.location_id
+        location = location_id.sudo()
+        lineage = []
+        while location and not isinstance(location.id, int):
+            lineage.append(location)
+            location = location.location_id
+        if location:
+            ancestor_ids = list(location._get_ancestor_ids(include_self=True))
+            lineage.extend(location.browse(ancestor_ids[::-1]))
+        for candidate in lineage:
+            if candidate.removal_strategy_id:
+                return candidate.removal_strategy_id.with_context(lang=None).method
         return "fifo"
 
     @api.model

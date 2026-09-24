@@ -478,7 +478,7 @@ class TestPutInPackStaysOnItsOwnTransfer(PickingAuditCase):
     def test_a_done_transfer_is_still_refused(self):
         picking = self._ready()
         picking.move_ids.picked = True
-        picking.with_context(skip_backorder=True).button_validate()
+        picking.button_validate(skip_backorder=True)
         self.env.flush_all()
         self.assertEqual(picking.state, "done")
         self.assertIsNone(picking.action_put_in_pack())
@@ -503,11 +503,12 @@ class TestValidationStaysOnTheTransferItWasCalledOn(PickingAuditCase):
 
         action = mine.with_context(
             button_validate_picking_ids=bystander.ids,
+            default_validate_picking_ids=bystander.ids,
         ).button_validate()
 
         self.assertEqual(action["res_model"], "stock.backorder.confirmation")
         self.assertEqual(
-            action["context"]["button_validate_picking_ids"],
+            action["context"]["default_validate_picking_ids"],
             mine.ids,
             "the wizard must be handed the transfer the user opened,"
             " not whatever the incoming context named",
@@ -547,7 +548,7 @@ class TestValidationStaysOnTheTransferItWasCalledOn(PickingAuditCase):
         pair = self.env["stock.picking"].concat(self._partial(), self._partial())
         action = pair.button_validate()
         self.assertEqual(
-            set(action["context"]["button_validate_picking_ids"]),
+            set(action["context"]["default_validate_picking_ids"]),
             set(pair.ids),
         )
 
@@ -588,7 +589,7 @@ class TestAMissingMailTemplateDoesNotBlockDelivery(PickingAuditCase):
         self.env.company.stock_config_id.stock_mail_confirmation_template_id = False
         picking = self._ready_delivery()
 
-        picking.with_context(skip_backorder=True).button_validate()
+        picking.button_validate(skip_backorder=True)
 
         self.assertEqual(
             picking.state,
@@ -604,7 +605,7 @@ class TestAMissingMailTemplateDoesNotBlockDelivery(PickingAuditCase):
         picking = self._ready_delivery()
         before = len(picking.message_ids)
 
-        picking.with_context(skip_backorder=True).button_validate()
+        picking.button_validate(skip_backorder=True)
 
         self.assertEqual(picking.state, "done")
         self.assertGreater(

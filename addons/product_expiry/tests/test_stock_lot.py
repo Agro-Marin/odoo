@@ -830,7 +830,7 @@ class TestStockLot(TestStockCommon):
         )
         picking.button_validate()
         context = {
-            "button_validate_picking_ids": [picking.id],
+            "default_validate_picking_ids": [picking.id],
             "default_picking_ids": [picking.id],
             "default_lot_ids": [lot.id],
         }

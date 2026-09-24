@@ -1395,7 +1395,7 @@ class TestBatchPicking02(TransactionCase):
         moveB = pickings.move_ids.filtered(lambda m: m.product_id == productB)
         moveB.quantity = 4.0
         moveB.picked = True
-        batch.with_context(skip_backorder=True).action_done()
+        batch.action_done(skip_backorder=True)
         self.assertEqual(batch.picking_ids, pickings[0])
         self.assertEqual(batch.state, "done")
         self.assertTrue(pickings[1].batch_id)
@@ -1459,7 +1459,7 @@ class TestBatchPicking02(TransactionCase):
         moveB = pickings.move_ids.filtered(lambda m: m.product_id == productB)
         moveB.quantity = 4.0
         moveB.picked = True
-        batch.with_context(skip_backorder=True).action_done()
+        batch.action_done(skip_backorder=True)
         self.assertEqual(batch.picking_ids, pickings[0])
         self.assertEqual(batch.state, "done")
         self.assertFalse(pickings[1].batch_id)

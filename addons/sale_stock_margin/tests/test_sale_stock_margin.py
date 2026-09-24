@@ -583,8 +583,8 @@ class TestSaleStockMargin(TestStockValuationCommon):
             backorder_wizard_values = delivery.button_validate()
             backorder_wizard = (
                 self.env[(backorder_wizard_values.get("res_model"))]
-                .browse(backorder_wizard_values.get("res_id"))
                 .with_context(backorder_wizard_values["context"])
+                .create({})
             )
             backorder_wizard.process()
             self.assertEqual(

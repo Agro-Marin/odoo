@@ -18,6 +18,7 @@ from . import test_manual_consumption
 from . import test_workcenter
 from . import test_workcenter_effectiveness
 from . import test_workcenter_slots
+from . import test_mrp_activity
 from . import test_mrp_reports
 from . import test_audit_fixes
 from . import test_product
@@ -26,3 +27,5 @@ from . import test_workorder
 from . import test_group_readonly
 from . import test_mo_overview_report
 from . import test_bom_overview_report
+from . import test_warehouse_rule_roles
+from . import test_orderpoint_batch

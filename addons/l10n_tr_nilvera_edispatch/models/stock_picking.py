@@ -121,9 +121,9 @@ class StockPicking(models.Model):
             else:
                 picking.l10n_tr_nilvera_edispatch_warnings = False
 
-    def button_validate(self):
+    def button_validate(self, **validate_kwargs):
         _debug.pipeline("edispatch_picking_validate", pickings=self)
-        res = super().button_validate()
+        res = super().button_validate(**validate_kwargs)
         for picking in self:
             if (
                 picking.country_code != "TR"

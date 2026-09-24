@@ -393,11 +393,11 @@ class SaleOrder(models.Model):
         if documents:
             filtered_documents = {}
 
-            for (parent, responsible), rendering_context in documents.items():
+            for (parent, responsible), document in documents.items():
                 if parent._name == "stock.picking":
                     if parent.state == "cancel":
                         continue
-                filtered_documents[(parent, responsible)] = rendering_context
+                filtered_documents[(parent, responsible)] = document
 
             _debug.pipeline(
                 "cancel_quantity_exceptions_logged",
@@ -446,23 +446,14 @@ class SaleOrder(models.Model):
 
     def _log_decrease_ordered_quantity(self, documents, cancel=False):
 
-        def _render_note_exception_quantity_so(rendering_context):
-            order_exceptions, visited_moves = rendering_context
-            visited_moves = list(visited_moves)
-            visited_moves = self.env[visited_moves[0]._name].concat(*visited_moves)
-            line_exceptions = {}
-            for order_line, changes in order_exceptions.values():
-                line_exceptions.setdefault(order_line, changes)
-            order_line_ids = self.env["sale.order.line"].browse(
-                [order_line.id for order_line in line_exceptions],
-            )
-            sale_order_ids = order_line_ids.mapped("order_id")
-            impacted_pickings = visited_moves.filtered(
+        def _render_note_exception_quantity_so(document):
+            order_lines = self.env["sale.order.line"].concat(*document.changes)
+            impacted_pickings = document.visited.filtered(
                 lambda m: m.state not in ("done", "cancel"),
-            ).mapped("picking_id")
+            ).picking_id
             values = {
-                "sale_order_ids": sale_order_ids,
-                "order_exceptions": list(line_exceptions.items()),
+                "sale_order_ids": order_lines.order_id,
+                "order_exceptions": list(document.changes.items()),
                 "impacted_pickings": impacted_pickings,
                 "cancel": cancel,
             }

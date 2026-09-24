@@ -3150,22 +3150,15 @@ class MrpProduction(models.Model):
         return True
 
     def _action_cancel(self):
-        activity_mixin = self.env["mixin.stock.activity"]
         documents_by_production = {}
         for production in self:
-            documents = defaultdict(list)
-            for move_raw_id in production.move_raw_ids.filtered(
-                lambda m: m.state not in ("done", "cancel")
-            ):
-                iterate_key = self._get_document_iterate_key(move_raw_id)
-                if iterate_key:
-                    document = activity_mixin._get_log_activity_documents(
-                        {move_raw_id: (move_raw_id.product_uom_qty, 0)},
-                        iterate_key,
-                        "UP",
-                    )
-                    for key, value in document.items():
-                        documents[key] += [value]
+            documents = production._get_raw_moves_activity_documents(
+                {
+                    move: (move.product_uom_qty, 0)
+                    for move in production.move_raw_ids
+                    if move.state not in ("done", "cancel")
+                }
+            )
             if documents:
                 documents_by_production[production] = documents
             if self.env.context.get("skip_activity"):
@@ -3211,20 +3204,36 @@ class MrpProduction(models.Model):
 
         for production, documents in documents_by_production.items():
             filtered_documents = {}
-            for (parent, responsible), rendering_context in documents.items():
+            for (parent, responsible), document in documents.items():
                 if (
                     not parent
                     or (parent._name == "stock.picking" and parent.state == "cancel")
                     or parent == production
                 ):
                     continue
-                filtered_documents[(parent, responsible)] = rendering_context
+                filtered_documents[(parent, responsible)] = document
             production._log_manufacture_exception(filtered_documents, cancel=True)
 
         return True
 
     def _get_document_iterate_key(self, move_raw_id):
         return (move_raw_id.move_orig_ids and "move_orig_ids") or False
+
+    def _get_raw_moves_activity_documents(self, raw_move_changes):
+        changes_by_key = defaultdict(dict)
+        for move, change in raw_move_changes.items():
+            iterate_key = self._get_document_iterate_key(move)
+            if iterate_key:
+                changes_by_key[iterate_key][move] = change
+        documents = defaultdict(list)
+        for iterate_key, changes in changes_by_key.items():
+            for key, document in (
+                self.env["mixin.stock.activity"]
+                ._get_log_activity_documents(changes, iterate_key, "UP")
+                .items()
+            ):
+                documents[key].append(document)
+        return dict(documents)
 
     def _update_finished_moves_price_unit(self, consumed_moves):
         self.check_singleton()
@@ -4063,10 +4072,10 @@ class MrpProduction(models.Model):
         def get_groupby_key(move):
             return (move.picking_id, move.product_id.responsible_id)
 
-        def _render_note_exception_quantity_mo(rendering_context):
+        def _render_note_exception_quantity_mo(document):
             values = {
                 "production_order": self,
-                "order_exceptions": rendering_context,
+                "order_exceptions": document.changes,
                 "impacted_pickings": False,
                 "cancel": cancel,
             }
@@ -4083,27 +4092,19 @@ class MrpProduction(models.Model):
         )
 
     def _log_manufacture_exception(self, documents, cancel=False):
-        def _render_note_exception_quantity_mo(rendering_context):
-            visited_objects = []
-            order_exceptions = {}
-            for exception in rendering_context:
-                order_exception, visited = exception
-                order_exceptions.update(order_exception)
-                visited_objects += visited
-            visited_objects = [sm for sm in visited_objects if sm._name == "stock.move"]
-            impacted_object = []
-            if visited_objects:
-                visited_objects = self.env[visited_objects[0]._name].concat(
-                    *visited_objects
-                )
-                visited_objects |= visited_objects.mapped("move_orig_ids")
-                impacted_object = visited_objects.filtered(
-                    lambda m: m.state not in ("done", "cancel")
-                ).mapped("picking_id")
+        def _render_note_exception_quantity_mo(documents):
+            changes = {}
+            visited = self.env["stock.move"]
+            for document in documents:
+                changes.update(document.changes)
+                visited |= document.visited
+            visited |= visited.move_orig_ids
             values = {
                 "production_order": self,
-                "order_exceptions": order_exceptions,
-                "impacted_object": impacted_object,
+                "order_exceptions": changes,
+                "impacted_pickings": visited.filtered(
+                    lambda m: m.state not in ("done", "cancel")
+                ).picking_id,
                 "cancel": cancel,
             }
             return self.env["ir.qweb"]._render("mrp.exception_on_mo", values)

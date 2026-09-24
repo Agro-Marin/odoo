@@ -118,7 +118,8 @@ class StockRoute(models.Model):
             "stock.route.write on %s: keys=%s", dbg.rec(self), dbg.keys(vals)
         )
         if "active" in vals:
-            all_rules = self.with_context(active_test=False).rule_ids.sudo()
+            toggled = self.filtered(lambda route: route.active != bool(vals["active"]))
+            all_rules = toggled.with_context(active_test=False).rule_ids.sudo()
             dbg.lifecycle.debug(
                 "stock.route.write: active=%s cascades to rules %s",
                 vals["active"],

@@ -1,9 +1,18 @@
+from collections import defaultdict
+from dataclasses import dataclass
 from datetime import date
 
 from odoo import models
 from odoo.tools import groupby
 
 from ..tools import debug_log as dbg
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class ActivityDocument:
+    records: models.BaseModel
+    changes: dict
+    visited: models.BaseModel
 
 
 class MixinStockActivity(models.AbstractModel):
@@ -19,70 +28,78 @@ class MixinStockActivity(models.AbstractModel):
     ):
         if self.env.context.get("skip_activity") or not orig_obj_changes:
             return {}
-        move_to_orig_object_rel = {
-            co: ooc for ooc in orig_obj_changes for co in ooc[stream_field]
-        }
-        origin_objects = self.env[next(iter(orig_obj_changes))._name].concat(
+        origins = self.env[next(iter(orig_obj_changes))._name].concat(
             *orig_obj_changes,
         )
-        visited_documents = {}
+        origins_by_record = defaultdict(next(iter(orig_obj_changes)).browse)
+        for origin in orig_obj_changes:
+            for record in origin[stream_field]:
+                origins_by_record[record] |= origin
+        visited_by_document = {}
         if stream == "DOWN":
-            if groupby_method:
-                grouped_moves = groupby(
-                    origin_objects.mapped(stream_field),
-                    key=groupby_method,
-                )
-            else:
+            if not groupby_method:
                 raise AssertionError(
                     "You have to define a groupby method and pass them as arguments.",
                 )
+            grouped_records = groupby(
+                origins.mapped(stream_field),
+                key=groupby_method,
+            )
         elif stream == "UP":
-            grouped_moves = {}
-            for visited_move in origin_objects.mapped(stream_field):
+            grouped_records = {}
+            for record in origins.mapped(stream_field):
                 for (
                     document,
                     responsible,
                     visited,
-                ) in visited_move._get_upstream_documents_and_responsibles(
-                    self.env[visited_move._name],
+                ) in record._get_upstream_documents_and_responsibles(
+                    self.env["stock.move"],
                 ):
-                    if grouped_moves.get((document, responsible)):
-                        grouped_moves[document, responsible] |= visited_move
-                        visited_documents[document, responsible] |= visited
+                    key = (document, responsible)
+                    if key in grouped_records:
+                        grouped_records[key] |= record
+                        visited_by_document[key] |= visited
                     else:
-                        grouped_moves[document, responsible] = visited_move
-                        visited_documents[document, responsible] = visited
-            grouped_moves = grouped_moves.items()
+                        grouped_records[key] = record
+                        visited_by_document[key] = visited
+            grouped_records = grouped_records.items()
         else:
             raise AssertionError("Unknown stream.")
 
         documents = {}
-        for (parent, responsible), moves in grouped_moves:
+        for (parent, responsible), records in grouped_records:
             if not parent:
                 continue
-            moves = self.env[moves[0]._name].concat(*moves)
-            rendering_context = {
-                move: (orig_object, orig_obj_changes[orig_object])
-                for move in moves
-                for orig_object in move_to_orig_object_rel[move]
-            }
-            if visited_documents:
-                documents[parent, responsible] = (
-                    rendering_context,
-                    visited_documents.values(),
-                )
-            else:
-                documents[parent, responsible] = rendering_context
+            records = self.env[records[0]._name].concat(*records)
+            documents[parent, responsible] = ActivityDocument(
+                records=records,
+                changes={
+                    origin: orig_obj_changes[origin]
+                    for record in records
+                    for origin in origins_by_record[record]
+                },
+                visited=visited_by_document.get(
+                    (parent, responsible),
+                    self.env["stock.move"],
+                ),
+            )
+            dbg.logic.debug(
+                "_get_log_activity_documents: %s for %s from %d origin(s) over %s",
+                dbg.rec(parent),
+                responsible.id,
+                len(documents[parent, responsible].changes),
+                dbg.rec(records),
+            )
         return documents
 
     def _log_activity(self, render_method, documents):
-        for (parent, responsible), rendering_context in documents.items():
+        for (parent, responsible), document in documents.items():
             dbg.lifecycle.debug(
                 "_log_activity: warning activity on %s for user %s",
                 dbg.rec(parent),
                 responsible.id,
             )
-            note = render_method(rendering_context)
+            note = render_method(document)
             parent.sudo().activity_schedule(
                 "mail.mail_activity_data_warning",
                 date.today(),

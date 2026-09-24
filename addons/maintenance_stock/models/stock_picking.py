@@ -47,9 +47,9 @@ class StockPicking(models.Model):
         }
 
     # STOCK METHODS
-    def _action_done(self):
+    def _action_done(self, **kwargs):
         self._check_returned_equipment()
-        result = super()._action_done()
+        result = super()._action_done(**kwargs)
         maintenance = self.filtered("maintenance_order_id")
         coming_back = maintenance.filtered(
             lambda picking: picking._is_maintenance_return()

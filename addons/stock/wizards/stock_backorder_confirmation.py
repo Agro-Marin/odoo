@@ -19,6 +19,7 @@ class StockBackorderConfirmationLine(models.TransientModel):
 
 class StockBackorderConfirmation(models.TransientModel):
     _name = "stock.backorder.confirmation"
+    _inherit = ["mixin.stock.picking.validation"]
     _description = "Backorder Confirmation"
 
     pick_ids = fields.Many2many(
@@ -66,40 +67,34 @@ class StockBackorderConfirmation(models.TransientModel):
             else:
                 pickings_not_to_do |= line.picking_id
 
-        pickings_to_validate = self.env.context.get("button_validate_picking_ids")
         dbg.pipeline.debug(
             "backorder wizard process: backorder %s, no backorder %s, validate %s",
             dbg.rec(pickings_to_do),
             dbg.rec(pickings_not_to_do),
-            pickings_to_validate,
+            self.validate_picking_ids,
         )
-        if pickings_to_validate:
-            pickings_to_validate = (
-                self.env["stock.picking"]
-                .browse(pickings_to_validate)
-                .with_context(skip_backorder=True)
-            )
-            if pickings_not_to_do:
-                self._check_less_quantities_than_expected(pickings_not_to_do)
-                pickings_to_validate = pickings_to_validate.with_context(
-                    picking_ids_not_to_backorder=pickings_not_to_do.ids
-                )
-            return pickings_to_validate.button_validate()
-        return True
+        if pickings_not_to_do and self._get_pickings_to_validate():
+            self._check_less_quantities_than_expected(pickings_not_to_do)
+        return self._resume_validation(
+            skip_backorder=True,
+            cancel_backorder_ids=self._get_cancel_backorder_ids(pickings_not_to_do),
+        )
 
     def action_cancel_backorder(self):
-        pickings_to_validate_ids = self.env.context.get("button_validate_picking_ids")
+        pickings_to_validate = self._get_pickings_to_validate()
         dbg.pipeline.debug(
             "backorder wizard cancel: no backorder for %s, validate %s",
             dbg.rec(self.pick_ids),
-            pickings_to_validate_ids,
+            dbg.rec(pickings_to_validate),
         )
-        if pickings_to_validate_ids:
-            pickings_to_validate = self.env["stock.picking"].browse(
-                pickings_to_validate_ids
-            )
+        if pickings_to_validate:
             self._check_less_quantities_than_expected(pickings_to_validate)
-            return pickings_to_validate.with_context(
-                skip_backorder=True, picking_ids_not_to_backorder=self.pick_ids.ids
-            ).button_validate()
-        return True
+        return self._resume_validation(
+            pickings_to_validate,
+            skip_backorder=True,
+            cancel_backorder_ids=self._get_cancel_backorder_ids(self.pick_ids),
+        )
+
+    def _get_cancel_backorder_ids(self, pickings):
+        decided = (self.validate_kwargs or {}).get("cancel_backorder_ids") or []
+        return [*decided, *pickings.ids]

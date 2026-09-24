@@ -139,27 +139,6 @@ class ProductProduct(models.Model):
         )
         return [("id", "in", production.move_raw_ids.product_id.ids)]
 
-    def _get_total_routes_by_product(self):
-        result = super()._get_total_routes_by_product()
-        manufacture_routes = (
-            self.env["stock.rule"].search([("action", "=", "manufacture")]).route_id
-        )
-        if not manufacture_routes:
-            return result
-        boms = {}
-        for company, products in self.grouped("company_id").items():
-            boms.update(
-                self.env["mrp.bom"]._get_bom_by_product(
-                    products,
-                    bom_type="normal",
-                    company_id=(company or self.env.company).id,
-                )
-            )
-        for product in self:
-            if boms.get(product):
-                result[product.id] |= manufacture_routes
-        return result
-
     def _get_components(self):
         self.check_singleton()
         bom_kit = self.env["mrp.bom"]._get_bom_by_product(

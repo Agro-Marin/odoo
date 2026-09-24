@@ -362,7 +362,7 @@ class TestPurchaseStockAdvanced(TestStockCommon):
         )
         first_move.quantity = 10
         first_move.picked = True
-        picking.with_context(skip_backorder=True).button_validate()
+        picking.button_validate(skip_backorder=True)
 
         self.assertEqual(po.line_ids[0].transfer_state, "done")
         self.assertEqual(po.line_ids[1].transfer_state, "to do")

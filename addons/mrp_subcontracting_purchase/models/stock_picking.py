@@ -46,7 +46,7 @@ class StockPicking(models.Model):
         )
         return moves_subcontracted.purchase_line_id.order_id
 
-    def _get_subcontract_mo_confirmation_ctx(self):
-        res = super()._get_subcontract_mo_confirmation_ctx()
+    def _get_subcontract_mo_confirmation_ctx(self, create_proc=True):
+        res = super()._get_subcontract_mo_confirmation_ctx(create_proc)
         res["po_to_notify"] = self.move_ids.purchase_line_id.order_id
         return res

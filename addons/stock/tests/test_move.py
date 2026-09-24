@@ -3804,8 +3804,8 @@ class TestStockMove(TestStockCommon):
         res_dict_for_back_order = picking_pack_cust.button_validate()
         backorder_wizard = (
             self.env[(res_dict_for_back_order.get("res_model"))]
-            .browse(res_dict_for_back_order.get("res_id"))
             .with_context(res_dict_for_back_order["context"])
+            .create({})
         )
         backorder_wizard.process()
         backorder = self.env["stock.picking"].search(
@@ -6032,8 +6032,8 @@ class TestStockMove(TestStockCommon):
         )
         backorder_wizard = (
             self.env[(res_dict_for_back_order.get("res_model"))]
-            .browse(res_dict_for_back_order.get("res_id"))
             .with_context(res_dict_for_back_order["context"])
+            .create({})
         )
         backorder_wizard.process()
 
@@ -6106,8 +6106,8 @@ class TestStockMove(TestStockCommon):
         self.assertEqual(action.get("res_model"), "stock.backorder.confirmation")
         wizard = (
             self.env[(action.get("res_model"))]
-            .browse(action.get("res_id"))
             .with_context(action.get("context"))
+            .create({})
         )
         wizard.process()
         backorder = self.env["stock.picking"].search(

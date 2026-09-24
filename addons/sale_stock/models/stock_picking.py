@@ -122,19 +122,12 @@ class StockPicking(models.Model):
         def _get_groupby_keys(sale_line):
             return (sale_line.order_id, sale_line.order_id.user_id)
 
-        def _render_note_exception_quantity(moves_information):
-            origin_moves = self.env["stock.move"].browse(
-                [
-                    move.id
-                    for move_orig in moves_information.values()
-                    for move in move_orig[0]
-                ],
-            )
-            origin_picking = origin_moves.mapped("picking_id")
+        def _render_note_exception_quantity(document):
+            origin_moves = self.env["stock.move"].concat(*document.changes)
             values = {
                 "origin_moves": origin_moves,
-                "origin_picking": origin_picking,
-                "moves_information": moves_information.values(),
+                "origin_picking": origin_moves.picking_id,
+                "moves_information": document.changes.items(),
             }
             return self.env["ir.qweb"]._render(
                 "sale_stock.exception_on_picking", values

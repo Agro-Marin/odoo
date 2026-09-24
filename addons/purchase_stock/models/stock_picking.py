@@ -23,10 +23,10 @@ class StockPicking(models.Model):
         for picking in self:
             picking.purchase_id = picking.move_ids.purchase_line_id.order_id
 
-    def _action_done(self):
+    def _action_done(self, **kwargs):
         _debug.pipeline("purchase_picking_done", pickings=self)
         self.purchase_id.sudo().action_acknowledge()
-        return super()._action_done()
+        return super()._action_done(**kwargs)
 
     def action_purchase_matching(self):
         return self._get_action_transfer_matching(

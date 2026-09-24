@@ -23,3 +23,5 @@ from . import test_stockvaluation
 from . import test_supplier
 from . import test_uninstall
 from . import test_receipt_line_match
+from . import test_warehouse_rule_roles
+from . import test_orderpoint_replenish_batch

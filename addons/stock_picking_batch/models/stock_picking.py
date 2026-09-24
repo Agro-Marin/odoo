@@ -34,16 +34,20 @@ class StockPicking(models.Model):
             picking._resolve_auto_batch()
         return res
 
-    def _rebatch_after_validation(self):
-        super()._rebatch_after_validation()
-        _debug.pipeline("batch_validate_rebatch", pickings=self)
+    def _rebatch_after_validation(self, excluded_batches=None):
+        super()._rebatch_after_validation(excluded_batches=excluded_batches)
+        _debug.pipeline(
+            "batch_validate_rebatch", pickings=self, excluded=excluded_batches
+        )
         for picking in self:
-            picking._resolve_auto_batch()
+            picking._resolve_auto_batch(excluded_batches=excluded_batches)
         if lines := self.move_line_ids:
-            lines.with_context(skip_auto_waveable=True)._auto_wave()
+            lines.with_context(skip_auto_waveable=True)._auto_wave(
+                excluded_batches=excluded_batches
+            )
 
     @_debug.perf.timed
-    def _resolve_auto_batch(self):
+    def _resolve_auto_batch(self, excluded_batches=None):
         self.check_singleton()
         if not self.picking_type_id._is_auto_batch_grouped():
             skip = "type_not_grouped"
@@ -62,7 +66,7 @@ class StockPicking(models.Model):
         possible_batches = (
             self.env["stock.picking.batch"]
             .sudo()
-            .search(self._get_domain_possible_batches())
+            .search(self._get_domain_possible_batches(excluded_batches))
         )
         _debug.logic("auto_batch_candidates", picking=self, batches=possible_batches)
         for batch in possible_batches:
@@ -141,7 +145,7 @@ class StockPicking(models.Model):
 
         return Domain(domain)
 
-    def _get_domain_possible_batches(self):
+    def _get_domain_possible_batches(self, excluded_batches=None):
         self.check_singleton()
         domain = [
             (
@@ -159,8 +163,8 @@ class StockPicking(models.Model):
             (criterion.batch_path, "=", self.mapped(criterion.picking_path).id)
             for criterion in self.picking_type_id._get_active_batch_criteria().values()
         )
-        if self.env.context.get("batches_to_validate"):
-            domain.append(("id", "not in", self.env.context.get("batches_to_validate")))
+        if excluded_batches:
+            domain.append(("id", "not in", excluded_batches.ids))
 
         return Domain(domain)
 
