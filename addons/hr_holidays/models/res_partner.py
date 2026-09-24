@@ -37,6 +37,10 @@ class ResPartner(models.Model):
     def _get_on_leave_ids(self):
         return self.env["res.users"]._get_on_leave_ids(partner=True)
 
+    def _prefetch_store_persona(self):
+        super()._prefetch_store_persona()
+        self.main_user_id.sudo().employee_ids.mapped("leave_date_to")
+
     def _to_store_defaults(self, target):
         defaults = super()._to_store_defaults(target)
         if target.is_internal(self.env):

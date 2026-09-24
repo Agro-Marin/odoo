@@ -2168,12 +2168,7 @@ class DiscussChannel(models.Model):
         # would name, and a later read of one left out fetches the rest again
         all_members.fetch()
         partners = all_members.partner_id.sudo()
-        partners.fetch()
-        # a fetch computes nothing, so the presence the member stores read is
-        # computed here once for every partner, not once per relation that
-        # reaches them
-        partners.mapped("im_status")
-        partners.main_user_id.fetch(["partner_id", "share"])
+        partners._prefetch_store_persona()
         guests = all_members.guest_id.sudo()
         guests.fetch()
         guests.mapped("im_status")

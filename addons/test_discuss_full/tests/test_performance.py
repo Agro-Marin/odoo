@@ -52,13 +52,13 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #       - _get_needaction_count (inbox counter)
     #       - search mail_message (starred counter, _get_search_access_rows)
     #   1: search discuss_channel (channels_domain)
-    #   28: channel add:
+    #   26: channel add:
     #       - fetch discuss_channel (_to_store_defaults)
     #       - read group member (_compute_self_member_id)
     #       - read group member (_compute_invited_member_ids)
     #       - search, fetch discuss_channel_rtc_session
     #       - search member (channel_member_ids), fetch member (_prefetch_store_members)
-    #       - fetch res_partner (_prefetch_store_members)
+    #       - fetch res_partner (_prefetch_store_persona)
     #       8: _compute_presence, once for every member's partner:
     #           - search res_users, search mail_presence, fetch mail_presence
     #           - _get_on_leave_ids (hr_holidays override)
@@ -66,33 +66,35 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #           - fetch resource_resource (hr_homeworking employee zone)
     #           - search hr_employee_location (hr_homeworking exceptional location)
     #       - search res_users (_compute_main_user_id)
+    #       - search hr_employee (res.users employee_ids), search hr_leave
+    #         (leave_date_to): hr_holidays' _prefetch_store_persona, once for
+    #         every member's user
     #       - search bus_bus (_bus_last_id)
     #       - count discuss_channel_member (member_count)
     #       - search discuss_channel (_compute_is_editable: the write access
     #         check evaluates the membership test)
     #       - _compute_message_needaction_stats
-    #       - search discuss_channel (the read access check of the one2many
-    #         read evaluates the same membership test), fetch member
     #       - search ir_attachment (_compute_avatar_128)
     #       - search discuss_channel_res_groups_rel (group_ids)
-    #       - search hr_employee (res.users employee_ids)
-    #       - search hr_leave (leave_date_to)
     #       - fetch res_groups (group_public_id full_name)
-    _query_count_init_messaging = 41
+    _query_count_init_messaging = 39
     # Queries for _query_count_discuss_channels (in order):
     #   2: SAVEPOINT / RELEASE around the fetch param (webclient _process_one_request)
     #   1: fetch res_users (_get_current_persona)
     #   1: _get_channels_as_member (member and pinned-member domains, one OR)
-    #   48: channel _to_store_defaults and _to_store:
+    #   43: channel _to_store_defaults and _to_store:
     #       - fetch discuss_channel
     #       - read group member (_compute_self_member_id)
     #       - read group member (_compute_invited_member_ids)
     #       - search, fetch discuss_channel_rtc_session
     #       - search member (channel_member_ids)
     #       - search member (_compute_channel_name_member_ids)
-    #       - fetch member, fetch res_partner (_prefetch_store_members)
+    #       - fetch member (_prefetch_store_members), fetch res_partner
+    #         (_prefetch_store_persona)
     #       8: _compute_presence, once for every member's partner (as above)
     #       - search res_users (_compute_main_user_id)
+    #       - search hr_employee (res.users employee_ids), search hr_leave
+    #         (leave_date_to), once for every member's user
     #       - fetch mail_guest, search mail_presence (guest presence)
     #       - search bus_bus (_bus_last_id)
     #       - count discuss_channel_member (member_count)
@@ -101,17 +103,11 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #       - _compute_message_needaction_stats
     #       - search ir_attachment (_compute_avatar_128)
     #       - search discuss_channel_res_groups_rel (group_ids)
-    #       - search discuss_channel (the read access check of the one2many
-    #         read evaluates the same membership test), fetch member
-    #       - search member (_compute_channel_name_member_ids, computed a
-    #         second time when the store reads it)
     #       - fetch livechat_expertise_ids, livechat_conversation_tag_ids and read
     #         the tags
     #       - search, fetch im_livechat_channel_member_history (agent history)
     #       - fetch res_groups (group_public_id full_name)
     #       - _compute_message_unread_counter
-    #       4: employees and leave_date_to of the members' users, in two batches:
-    #          the channel members, then the invited and naming members
     #       - fetch im_livechat_channel_member_history (livechat member type)
     #       - search res_groups, search res_users (_compute_is_public)
     #       - search, fetch res_users_settings (livechat username)
@@ -136,7 +132,7 @@ class TestDiscussFullPerformance(HttpCase, MailCommon):
     #       - fetch discuss_call_history
     #       - search mail_tracking_value
     #       - _compute_rating_stats
-    _query_count_discuss_channels = 72
+    _query_count_discuss_channels = 67
 
     def setUp(self):
         super().setUp()

@@ -322,6 +322,15 @@ class ResPartner(models.Model):
     def _get_fields_store_mention(self) -> list[StoreFieldSpec]:
         return [Store.Attr("mention_token", lambda p: p._get_mention_token())]
 
+    def _prefetch_store_persona(self) -> None:
+        # the members of a store are reached through several relations (the
+        # channel's members, the invited, the naming ones), each read in its
+        # own batch; what their stores compute is computed here once for all
+        # of them, since a fetch computes nothing
+        self.fetch()
+        self.mapped("im_status")
+        self.main_user_id.fetch(["partner_id", "share"])
+
     def _get_fields_store_avatar_card(
         self, target: Store.Target
     ) -> list[StoreFieldSpec]:
