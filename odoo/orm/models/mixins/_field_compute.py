@@ -48,6 +48,33 @@ class _FieldComputeMixin(_ModelStubs):
             records = self.filtered("id")
             core = self.env.core
             if core.protection_depth():
-                core.defer_until_unprotected(partial(records._check_fields, fnames))
+                if _debug.pipeline.enabled:
+                    _debug.pipeline(
+                        "compute.check_deferred",
+                        model=field.model_name,
+                        field=field.name,
+                        records=len(records),
+                    )
+                core.defer_until_unprotected(
+                    partial(records._check_fields_if_they_exist, fnames)
+                )
             else:
                 records._check_fields(fnames)
+
+    def _check_fields_if_they_exist(self, fnames: list[str]) -> None:
+        deleted = self.env.core.deleted_ids(self._name)
+        if deleted is None:
+            records = self.exists()
+        elif deleted:
+            records = self.browse([id_ for id_ in self._ids if id_ not in deleted])
+        else:
+            records = self
+        if _debug.logic.enabled and len(records) != len(self):
+            _debug.logic(
+                "compute.deferred_check_skipped_deleted",
+                model=self._name,
+                fields=fnames,
+                deleted=len(self) - len(records),
+            )
+        if records:
+            records._check_fields(fnames)

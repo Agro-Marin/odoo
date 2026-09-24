@@ -15,7 +15,7 @@ _debug = DebugLog(__name__)
 
 
 class OrmCore[F: FieldKey = FieldKey]:
-    __slots__ = ("_cache", "_deferred", "_draining", "_engine")
+    __slots__ = ("_cache", "_deferred", "_deleted", "_draining", "_engine")
 
     def __init__(
         self,
@@ -29,6 +29,7 @@ class OrmCore[F: FieldKey = FieldKey]:
             engine if engine is not None else cast("ComputeEngine[F]", ComputeEngine())
         )
         self._deferred: list[Callable[[], Any]] = []
+        self._deleted: dict[str, set[Any] | None] = {}
         self._draining = False
 
     def get_value(self, field: F, record_id: Any, default: Any = _MISSING) -> Any:
@@ -189,23 +190,58 @@ class OrmCore[F: FieldKey = FieldKey]:
     def protection_depth(self) -> int:
         return self._engine.protection_depth()
 
+    def has_deferred(self) -> bool:
+        return bool(self._deferred)
+
+    def note_deleted(self, model_name: str, ids: Iterable[Any] | None) -> None:
+        if ids is None:
+            self._deleted[model_name] = None
+            return
+        known = self._deleted.setdefault(model_name, set())
+        if known is not None:
+            known.update(ids)
+
+    def deleted_ids(self, model_name: str) -> set[Any] | None:
+        return self._deleted.get(model_name, set())
+
     def defer_until_unprotected(self, check: Callable[[], Any]) -> None:
         self._deferred.append(check)
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "core.check_deferred",
+                depth=self._engine.protection_depth(),
+                queued=len(self._deferred),
+            )
 
     def run_deferred(self) -> None:
-        if self._draining:
+        if self._draining or not self._deferred:
             return
         self._draining = True
+        ran = 0
         try:
             while self._deferred:
                 self._deferred.pop(0)()
+                ran += 1
         finally:
+            if _debug.lifecycle.enabled:
+                _debug.lifecycle(
+                    "core.deferred_checks_ran",
+                    ran=ran,
+                    dropped=len(self._deferred),
+                )
             self._draining = False
             self._deferred.clear()
+            self._deleted.clear()
 
     def discard_deferred(self) -> None:
-        if not self._draining:
-            self._deferred.clear()
+        if self._draining or not self._deferred:
+            return
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "core.deferred_checks_discarded", dropped=len(self._deferred)
+            )
+        self._deferred.clear()
+        self._deleted.clear()
 
     def clear_cache(self) -> None:
         self._cache.clear()

@@ -194,6 +194,11 @@ class UnlinkMixin(_ModelStubs):
                 if model_name not in gone:
                     gone.add(model_name)
                     todo.append(model_name)
+        core = env.core
+        if core.has_deferred():
+            tree = {self._name, *env._table_inheritance_tree(self._name)}
+            for model_name in gone:
+                core.note_deleted(model_name, self._ids if model_name in tree else None)
         fields_by_comodel = registry.fields_by_comodel
         for model_name in gone:
             for field in env[model_name]._fields.values():
