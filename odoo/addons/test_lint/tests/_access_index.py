@@ -80,6 +80,7 @@ class ModelInfo:
     log_access: bool = True
     inherits_rules: bool = True
     auto: bool = True
+    anchors: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -339,6 +340,18 @@ def _class_defs(path: Path) -> list[_ClassDef]:
                         if (key := _string(key_node))
                         and (field_name := _string(value_node))
                     }
+                elif target.id == "_access_anchors":
+                    if isinstance(value, ast.Call) and value.args:
+                        value = value.args[0]
+                    if isinstance(value, ast.Dict):
+                        attributes[target.id] = {
+                            key: path
+                            for key_node, value_node in zip(
+                                value.keys, value.values, strict=True
+                            )
+                            if (key := _string(key_node)) is not None
+                            and (path := _string(value_node)) is not None
+                        }
                 elif target.id in ("_log_access", "_inherits_rules", "_auto"):
                     if isinstance(value, ast.Constant):
                         attributes[target.id] = value.value
@@ -425,6 +438,7 @@ def models() -> dict[str, ModelInfo]:
                 info.inherits_rules = False
             if class_def.attributes.get("_auto") is False:
                 info.auto = False
+            info.anchors.update(class_def.attributes.get("_access_anchors") or {})
         result[name] = info
     return result
 
@@ -608,3 +622,23 @@ def access_edges(row: Row) -> list[tuple[str, str]]:
         ):
             edges.append((comodel, operation))
     return edges
+
+
+def company_anchor(model_name: str) -> str | None:
+    # the field a grant limited to some companies compiles against, as the
+    # ORM's _access_company_anchor reads it: declared, else the model's own
+    # company_id / company_ids
+    info = models().get(model_name)
+    if info is not None:
+        for parent in [model_name, *info.inherit]:
+            anchors = models().get(parent, info).anchors
+            if "company" in anchors:
+                return anchors["company"] or None
+    if model_name == "res.company":
+        return "id"
+    fields = fields_of(model_name)
+    for name in ("company_id", "company_ids"):
+        field_info = fields.get(name)
+        if field_info and comodel_of(model_name, field_info) == "res.company":
+            return name
+    return None

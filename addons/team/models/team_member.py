@@ -1,12 +1,14 @@
 from odoo import Command, api, exceptions, fields, models
 from odoo.fields import NEGATIVE_CONDITION_OPERATORS, Domain
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
 
 class TeamMember(models.Model):
     _name = "team.member"
+    _access_anchors = frozendict({"company": "team_id.company_id"})
     _inherit = ["mixin.mail.thread"]
     _description = "Team Member"
     _rec_name = "user_id"

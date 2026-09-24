@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.fields import Domain
-from odoo.tools import format_amount, formatLang
+from odoo.tools import format_amount, formatLang, frozendict
 
 from ..tools import debug_log as dbg
 
@@ -23,6 +23,7 @@ STATUS_COLOR = {
 
 class ProjectUpdate(models.Model):
     _name = "project.update"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Project Update"
     _order = "id desc"
     _inherit = ["mixin.mail.thread.cc", "mixin.mail.activity"]

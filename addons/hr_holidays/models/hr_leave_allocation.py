@@ -8,7 +8,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_round
-from odoo.tools import format_date
+from odoo.tools import format_date, frozendict
 from odoo.tools.date_utils import get_timedelta
 
 _debug = DebugLog(__name__)
@@ -16,6 +16,7 @@ _debug = DebugLog(__name__)
 
 class HrLeaveAllocation(models.Model):
     _name = "hr.leave.allocation"
+    _access_anchors = frozendict({"company": "employee_id.company_id"})
     _description = "Time Off Allocation"
     _order = "create_date desc"
     _inherit = ["mixin.hr.leave.approval", "mixin.mail.thread", "mixin.mail.activity"]

@@ -1,11 +1,13 @@
 from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
 
 class StockReference(models.Model):
     _name = "stock.reference"
+    _access_anchors = frozendict({"company": "move_ids.company_id"})
     _description = "Reference between stock documents"
 
     name = fields.Char(

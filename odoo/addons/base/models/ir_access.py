@@ -120,6 +120,8 @@ def _monotone_group_reads(tree: ast.AST) -> set[int]:
                     and value.value.attr in ("all_group_ids", "group_ids")
                 ):
                     allowed.add(id(value.value))
+                elif isinstance(value, ast.Name) and value.id == "group_ids":
+                    allowed.add(id(value))
         elif (
             isinstance(node, ast.IfExp)
             and isinstance(node.test, ast.Call)
@@ -160,6 +162,13 @@ def domain_group_tests(domain: str) -> list[str]:
             for node in ast.walk(tree)
             if isinstance(node, ast.Attribute)
             and node.attr in GROUP_TESTS
+            and id(node) not in allowed
+        }
+        | {
+            node.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name)
+            and node.id == "group_ids"
             and id(node) not in allowed
         }
     )
@@ -600,6 +609,7 @@ class IrAccess(models.Model):
             "user": self.env.user.with_context({}),
             "company_ids": self.env.companies.ids,
             "company_id": self.env.company.id,
+            "group_ids": list(self.env.user._get_group_ids()),
             "time": time,
         }
 
@@ -615,7 +625,7 @@ class IrAccess(models.Model):
         env = self.env
         return (
             env.uid,
-            env.user._get_group_ids(),
+            env.user._get_group_signature(),
             tuple(self._get_access_context()),
             unloaded_module_scope(env),
         )
@@ -685,7 +695,7 @@ class IrAccess(models.Model):
         # the domains of the permissions the principal's groups hold and of the
         # guards that bind it, for one model and operation
         letter = self._operation_letter(operation)
-        group_ids = set(self.env.user._get_group_ids())
+        scopes = self.env.user._get_group_scopes()
         permissions: list[Domain] = []
         guards: list[Domain] = []
         eval_context = None
@@ -693,15 +703,104 @@ class IrAccess(models.Model):
             if letter not in row.operation:
                 continue
             binds = row.kind == "guard" and row.guard_scope == "everyone"
-            if not binds and row.group_id not in group_ids:
+            if not binds and row.group_id not in scopes:
                 continue
             domain = row.domain
             if not isinstance(domain, Domain):
                 if eval_context is None:
                     eval_context = self._eval_context()
                 domain = Domain(safe_eval(domain, eval_context))
+            if not binds:
+                domain = self._scoped(model_name, row, domain, scopes[row.group_id])
             (permissions if row.kind == "permission" else guards).append(domain)
         return permissions, guards
+
+    def _scoped(
+        self,
+        model_name: str,
+        row: AccessInfo,
+        domain: Domain,
+        companies: frozenset[int] | None,
+    ) -> Domain:
+        # a row held through a grant limited to some companies reaches the
+        # records of those companies (and the shared ones); a guard of the
+        # members binds them there only. A model with no company anchor takes
+        # the row whole: the grant holds in it wherever it is in use
+        if companies is None:
+            return domain
+        within = self._company_scope_domain(model_name, companies)
+        if within is None:
+            return domain
+        return domain & within if row.kind == "permission" else domain | ~within
+
+    def _explain(self, model_name: str, operation: str) -> list[str]:
+        # the rows that bind the principal for the operation, in words: each
+        # with the group that carries it and the companies that group is held
+        # in, and a note where the model belongs to no company, so a grant
+        # limited to some companies applies to all its records
+        letter = self._operation_letter(operation)
+        scopes = self.env.user._get_group_scopes()
+        groups = self.env["res.groups"].sudo()
+        companies = self.env["res.company"].sudo()
+        anchor = self.env[model_name]._access_company_anchor()
+        lines = []
+        for row in self._get_all_access().get(model_name, ()):
+            if letter not in row.operation:
+                continue
+            if row.kind == "guard" and row.guard_scope == "everyone":
+                lines.append(self.env._("guard %(row)s, for everyone", row=row.name))
+                continue
+            if row.group_id not in scopes:
+                continue
+            group = groups.browse(row.group_id).full_name
+            scope = scopes[row.group_id]
+            if scope is None:
+                lines.append(
+                    self.env._(
+                        "%(kind)s %(row)s, held through %(group)s in every company",
+                        kind=row.kind,
+                        row=row.name,
+                        group=group,
+                    )
+                )
+                continue
+            names = ", ".join(companies.browse(sorted(scope)).mapped("name"))
+            if anchor:
+                lines.append(
+                    self.env._(
+                        "%(kind)s %(row)s, held through %(group)s in %(companies)s "
+                        "only: it reaches their records and the shared ones",
+                        kind=row.kind,
+                        row=row.name,
+                        group=group,
+                        companies=names,
+                    )
+                )
+            else:
+                lines.append(
+                    self.env._(
+                        "%(kind)s %(row)s, held through %(group)s in %(companies)s "
+                        "only; %(model)s belongs to no company, so it applies to "
+                        "every record while one of those companies is in use",
+                        kind=row.kind,
+                        row=row.name,
+                        group=group,
+                        companies=names,
+                        model=model_name,
+                    )
+                )
+        return lines
+
+    def _company_scope_domain(
+        self, model_name: str, companies: frozenset[int]
+    ) -> Domain | None:
+        anchor = self.env[model_name]._access_company_anchor()
+        if not anchor:
+            return None
+        company_ids = sorted(companies)
+        if anchor == "id":
+            return Domain("id", "in", company_ids)
+        return Domain(anchor, "in", company_ids) | Domain(anchor, "=", False)
 
     def _get_groups_with_access(self, model_name: str, operation: str) -> Any:
         # the groups whose members may perform the operation on some records of
@@ -905,6 +1004,16 @@ class IrAccess(models.Model):
                 f"- {describe(record)}" for record in display_records
             )
             blame = "\n\n".join(self._blame(failing))
+            if any(
+                scope is not None
+                for scope in self.env.user._get_group_scopes().values()
+            ):
+                # a principal holding a group in some companies only is told
+                # where each row that binds it holds
+                lines = "\n".join(
+                    f"- {line}" for line in self._explain(model_name, operation)
+                )
+                blame += f"\n\n{self.env._('What binds you:')}\n{lines}"
             message = (
                 f"{operation_error}\n{failing_records}\n\n{blame}\n\n{resolution_info}"
             )
@@ -968,13 +1077,18 @@ class IrAccess(models.Model):
         letter = self._operation_letter(operation)
         user_model = records.browse()
         model = user_model.sudo().with_context(active_test=False)
-        group_ids = set(self.env.user._get_group_ids())
+        scopes = self.env.user._get_group_scopes()
         eval_context = self._eval_context()
 
         def domain_of(row: AccessInfo) -> Domain:
-            if isinstance(row.domain, Domain):
-                return row.domain
-            return Domain(safe_eval(row.domain, eval_context))
+            domain = row.domain
+            if not isinstance(domain, Domain):
+                domain = Domain(safe_eval(domain, eval_context))
+            if row.group_id in scopes and not (
+                row.kind == "guard" and row.guard_scope == "everyone"
+            ):
+                domain = self._scoped(model._name, row, domain, scopes[row.group_id])
+            return domain
 
         # counted in SQL: evaluating in Python would fill the cache of the
         # records' prefetch batch with values the principal may not read
@@ -987,7 +1101,7 @@ class IrAccess(models.Model):
             return len(admitted(model, domain, ids)) == len(ids)
 
         def holds(row: AccessInfo) -> bool:
-            return row.group_id in group_ids
+            return row.group_id in scopes
 
         rows = [
             row

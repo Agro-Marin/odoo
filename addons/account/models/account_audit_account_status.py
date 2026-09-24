@@ -1,4 +1,5 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 STATUS_SELECTION = [
     ("todo", "To Review"),
@@ -10,6 +11,7 @@ STATUS_SELECTION = [
 
 class AccountAuditAccountStatus(models.Model):
     _name = "account.audit.account.status"
+    _access_anchors = frozendict({"company": "audit_id.company_ids"})
     _description = "Account Audit Account Status"
 
     audit_id = fields.Many2one(

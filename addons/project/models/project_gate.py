@@ -1,11 +1,13 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 
 
 class ProjectGate(models.Model):
     _name = "project.gate"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Project Gate Review"
     _order = "sequence, id"
     _inherit = ["mixin.mail.thread"]
@@ -98,6 +100,7 @@ class ProjectGate(models.Model):
 
 class ProjectGateCriterion(models.Model):
     _name = "project.gate.criterion"
+    _access_anchors = frozendict({"company": "gate_id.project_id.company_id"})
     _description = "Gate Review Criterion"
     _order = "sequence, id"
 

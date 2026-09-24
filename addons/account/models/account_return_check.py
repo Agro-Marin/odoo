@@ -5,6 +5,7 @@ from markupsafe import Markup
 from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 from odoo.tools.translate import LazyGettext
 
 from .account_audit_account_status import STATUS_SELECTION
@@ -15,6 +16,7 @@ _debug = DebugLog(__name__)
 
 class AccountReturnCheck(models.Model):
     _name = "account.return.check"
+    _access_anchors = frozendict({"company": "return_id.company_ids"})
     _description = "Accounting Return Check"
     _order = "name, id"
 

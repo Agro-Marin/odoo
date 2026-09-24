@@ -1,12 +1,14 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
+from odoo.tools import frozendict
 
 from .utils import unlink_where_possible
 
 
 class ProductTemplateAttributeValue(models.Model):
     _name = "product.template.attribute.value"
+    _access_anchors = frozendict({"company": "product_tmpl_id.company_id"})
     _inherit = ["mixin.color"]
     _description = "Product Template Attribute Value"
     _order = "attribute_line_id, product_attribute_value_id, id"

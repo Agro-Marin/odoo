@@ -42,4 +42,4 @@ access_website_dynamic_filter_system,access_website_dynamic_filter,model_website
 access_website_configurator_feature_designer,access_website_configurator_feature_designer,model_website_configurator_feature,group_website_designer,permission,crud,
 access_website_custom_blocked_third_party_domains,access_website_custom_blocked_third_party_domains,model_website_custom_blocked_third_party_domains,group_website_designer,permission,cru,
 access_website_technical_page,access_website_technical_page,model_website_technical_page,base.group_system,permission,r,
-website_menu,Website menu: group_ids,model_website_menu,base.group_everyone,guard,crud,"['|', ('group_ids', '=', False), ('group_ids', 'in', user.all_group_ids.ids)]"
+website_menu,Website menu: group_ids,model_website_menu,base.group_everyone,guard,crud,"['|', ('group_ids', '=', False), ('group_ids', 'in', group_ids)]"

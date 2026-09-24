@@ -40,7 +40,7 @@ GRANT_CAUSES = [
 ]
 # causes whose producer is a later phase: a grant cannot claim them yet
 UNPRODUCED_CAUSES = frozenset({"approval_request", "position", "break_glass"})
-EDITABLE_FIELDS = frozenset({"date_from", "date_to", "reason"})
+EDITABLE_FIELDS = frozenset({"company_ids", "date_from", "date_to", "reason"})
 
 
 @contextlib.contextmanager
@@ -74,6 +74,21 @@ class ResUsersGrant(models.Model):
         index=True,
         required=True,
         ondelete="cascade",
+    )
+    company_ids = fields.Many2many(
+        comodel_name="res.company",
+        relation="res_users_grant_company_rel",
+        column1="grant_id",
+        column2="company_id",
+        string="Companies",
+        help="The grant holds only for records of these companies, and only "
+        "while one of them is among the companies in use. Empty: every company "
+        "the user works in.",
+    )
+    scoped = fields.Boolean(
+        compute="_compute_scoped",
+        store=True,
+        help="Whether the grant is limited to some companies.",
     )
     date_from = fields.Datetime(
         string="From",
@@ -141,6 +156,11 @@ class ResUsersGrant(models.Model):
         "A grant must end after it starts.",
     )
 
+    @api.depends("company_ids")
+    def _compute_scoped(self) -> None:
+        for grant in self:
+            grant.scoped = bool(grant.company_ids)
+
     @api.depends("user_id", "group_id")
     def _compute_display_name(self) -> None:
         for grant in self:
@@ -186,6 +206,7 @@ class ResUsersGrant(models.Model):
                     self.env._("A grant cannot be created already expired.")
                 )
         grants = super().create(vals_list)
+        grants._check_scope()
         grants._check_delegation()
         grants._log("grant_created")
         grants._project()
@@ -209,6 +230,12 @@ class ResUsersGrant(models.Model):
                 )
             self._check_delegation()
         result = super().write(vals)
+        if "company_ids" in vals:
+            self._check_scope()
+            self._check_delegation()
+            self._log("grant_changed")
+            self.env["ir.access"]._clear_access_caches()
+            self._on_grant_changed("grant_changed")
         if not _LIFECYCLE.get() and {"date_from", "date_to"} & vals.keys():
             now = self.env.cr.now()
             with _marked(_LIFECYCLE):
@@ -237,6 +264,30 @@ class ResUsersGrant(models.Model):
         result = super().unlink()
         self._project(pairs)
         return result
+
+    def _check_scope(self) -> None:
+        user_types = self.env["res.groups"].sudo()._get_user_type_groups()
+        for grant in self.sudo():
+            if not grant.company_ids:
+                continue
+            if grant.group_id in user_types:
+                raise ValidationError(
+                    self.env._(
+                        "%(group)s says what kind of user %(user)s is, in every "
+                        "company: it cannot be limited to some.",
+                        group=grant.group_id.full_name,
+                        user=grant.user_id.name,
+                    )
+                )
+            if outside := grant.company_ids - grant.user_id.company_ids:
+                raise ValidationError(
+                    self.env._(
+                        "%(user)s does not work in %(companies)s: a grant cannot "
+                        "be limited to a company its user is not in.",
+                        user=grant.user_id.name,
+                        companies=", ".join(outside.mapped("name")),
+                    )
+                )
 
     def _check_delegation(self) -> None:
         # who may give or change a grant besides the access administrators:
@@ -273,11 +324,12 @@ class ResUsersGrant(models.Model):
                         group=group.full_name,
                     )
                 )
-            if not set(grant.user_id._get_company_ids()) <= actor_companies:
+            reach = set(grant.company_ids._ids) or set(grant.user_id._get_company_ids())
+            if not reach <= actor_companies:
                 raise AccessError(
                     env._(
-                        "%(user)s works in companies you do not: a grant of "
-                        "%(group)s would reach beyond your own companies.",
+                        "A grant of %(group)s to %(user)s would reach companies "
+                        "you do not work in: limit it to your own.",
                         user=grant.user_id.name,
                         group=group.full_name,
                     )
@@ -325,11 +377,12 @@ class ResUsersGrant(models.Model):
         *,
         cause: str,
         cause_ref: models.BaseModel | None = None,
+        companies: models.BaseModel | None = None,
         date_to: datetime | None = None,
         reason: str | None = None,
     ) -> Self:
-        # an unscoped grant of each group to each user that holds none yet
-        live = self._live_pairs(users, groups)
+        # a grant of each group to each user not already holding it everywhere
+        live = self._live_pairs(users, groups, unscoped=True)
         vals_list = [
             {
                 "user_id": user.id,
@@ -337,6 +390,7 @@ class ResUsersGrant(models.Model):
                 "cause": cause,
                 "cause_model": cause_ref._name if cause_ref else False,
                 "cause_res_id": cause_ref.id if cause_ref else False,
+                "company_ids": [Command.set(companies.ids)] if companies else [],
                 "date_to": date_to or False,
                 "reason": reason or False,
             }
@@ -363,14 +417,22 @@ class ResUsersGrant(models.Model):
         return grants
 
     def _live_pairs(
-        self, users: models.BaseModel, groups: models.BaseModel
+        self,
+        users: models.BaseModel,
+        groups: models.BaseModel,
+        unscoped: bool = False,
     ) -> set[tuple[int, int]]:
         if not users or not groups:
             return set()
-        rows = self.sudo()._read_group(
+        domain = (
             self._live_domain()
             & Domain("user_id", "in", users.ids)
-            & Domain("group_id", "in", groups.ids),
+            & Domain("group_id", "in", groups.ids)
+        )
+        if unscoped:
+            domain &= Domain("company_ids", "=", False)
+        rows = self.sudo()._read_group(
+            domain,
             ["user_id", "group_id"],
         )
         return {(user.id, group.id) for user, group in rows}

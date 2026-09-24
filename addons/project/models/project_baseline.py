@@ -1,11 +1,13 @@
 from odoo import fields, models
 from odoo.exceptions import UserError
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 
 
 class ProjectBaseline(models.Model):
     _name = "project.baseline"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Project Baseline"
     _order = "date_created desc, id desc"
 
@@ -104,6 +106,7 @@ class ProjectBaseline(models.Model):
 
 class ProjectBaselineLine(models.Model):
     _name = "project.baseline.line"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Baseline Task Snapshot"
     _order = "sequence, id"
 

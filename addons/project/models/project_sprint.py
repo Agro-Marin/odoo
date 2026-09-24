@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES
@@ -7,6 +8,7 @@ from .project_task import CLOSED_STATES
 
 class ProjectSprint(models.Model):
     _name = "project.sprint"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Sprint"
     _order = "date_start desc, id desc"
     _inherit = ["mixin.mail.thread"]

@@ -1,6 +1,7 @@
 import logging
 
 from odoo import fields, models
+from odoo.tools import frozendict
 from odoo.tools.date_utils import get_timedelta
 from odoo.tools.safe_eval import safe_eval
 
@@ -11,6 +12,7 @@ _logger = logging.getLogger(__name__)
 
 class AutomationRuntimeEdge(models.Model):
     _name = "automation.runtime.edge"
+    _access_anchors = frozendict({"company": "runtime_id.company_id"})
     _description = "Automation Runtime Edge"
     _order = "runtime_id, id"
 

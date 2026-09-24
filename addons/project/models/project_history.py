@@ -1,4 +1,5 @@
 from odoo import Command, api, fields, models
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES, DELIVERED_STATES
@@ -6,6 +7,7 @@ from .project_task import CLOSED_STATES, DELIVERED_STATES
 
 class ProjectHistory(models.Model):
     _name = "project.history"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Project History"
     _order = "date_completed desc, id desc"
 

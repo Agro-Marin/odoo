@@ -1,11 +1,13 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 
 
 class ProjectRetrospective(models.Model):
     _name = "project.retrospective"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Project Retrospective"
     _order = "date desc, id desc"
     _inherit = ["mixin.mail.thread"]
@@ -117,6 +119,7 @@ class ProjectRetrospective(models.Model):
 
 class ProjectRetrospectiveAction(models.Model):
     _name = "project.retrospective.action"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Retrospective Action Item"
     _order = "state_order, date_due, id"
 

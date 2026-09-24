@@ -20,6 +20,7 @@ _logger = logging.getLogger(__name__)
 
 class PosSession(models.Model):
     _name = "pos.session"
+    _access_anchors = frozendict({"company": "config_id.company_id"})
     _order = "id desc"
     _description = "Point of Sale Session"
     _inherit = [

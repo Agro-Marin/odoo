@@ -11,6 +11,11 @@
                 decoration-muted="state in ('expired', 'revoked')">
                 <field name="user_id" />
                 <field name="group_id" />
+                <field
+                    name="company_ids"
+                    widget="many2many_tags"
+                    optional="show"
+                    groups="base.group_multi_company" />
                 <field name="date_from" optional="show" />
                 <field name="date_to" optional="show" />
                 <field name="state" widget="badge" />
@@ -41,6 +46,11 @@
                         <group>
                             <field name="user_id" readonly="id" />
                             <field name="group_id" readonly="id" />
+                            <field
+                                name="company_ids"
+                                widget="many2many_tags"
+                                groups="base.group_multi_company"
+                                readonly="state in ('expired', 'revoked')" />
                             <field name="reason" />
                         </group>
                         <group>

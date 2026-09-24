@@ -3,6 +3,7 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import frozendict
 
 from .workflow_edge import EVENT_CONDITIONS, SETTLED_STATES
 
@@ -11,6 +12,7 @@ _logger = logging.getLogger(__name__)
 
 class AutomationRuntimeLine(models.Model):
     _name = "automation.runtime.line"
+    _access_anchors = frozendict({"company": "runtime_id.company_id"})
     _description = "Automation Runtime Action Line"
     _order = "sequence, id"
 

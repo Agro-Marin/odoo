@@ -1,12 +1,14 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
+from odoo.tools import frozendict
 
 from .utils import unlink_where_possible
 
 
 class ProductTemplateAttributeLine(models.Model):
     _name = "product.template.attribute.line"
+    _access_anchors = frozendict({"company": "product_tmpl_id.company_id"})
     _inherit = "mixin.attribute.line"
     _rec_name = "attribute_id"
     _rec_names_search = ["attribute_id", "value_ids"]

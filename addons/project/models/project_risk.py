@@ -1,11 +1,13 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 
 
 class ProjectRisk(models.Model):
     _name = "project.risk"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Project Risk"
     _order = "risk_score desc, id desc"
     _inherit = ["mixin.mail.thread"]

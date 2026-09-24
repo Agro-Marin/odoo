@@ -1,5 +1,6 @@
 {
   "access_check_override": 11,
+  "access_scope_anchorless": 417,
   "bundle_double_eval": 5,
   "lint_company_field_outside_config": 1,
   "lint_credential_storage": 0,

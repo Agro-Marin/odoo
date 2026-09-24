@@ -12,7 +12,13 @@ from odoo.fields import Domain
 from odoo.http import request
 from odoo.libs.datetime import float_to_time, timezone
 from odoo.libs.intervals import Intervals
-from odoo.tools import convert, format_datetime, format_duration, format_time
+from odoo.tools import (
+    convert,
+    format_datetime,
+    format_duration,
+    format_time,
+    frozendict,
+)
 from odoo.tools.date_utils import get_intervals_hours
 
 from ..tools import debug_log as dbg
@@ -25,6 +31,7 @@ def get_google_maps_url(latitude, longitude):
 
 class HrAttendance(models.Model):
     _name = "hr.attendance"
+    _access_anchors = frozendict({"company": "employee_id.company_id"})
     _description = "Attendance"
     _order = "check_in desc"
     _inherit = ["mixin.mail.thread"]

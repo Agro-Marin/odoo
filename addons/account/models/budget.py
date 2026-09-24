@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import Command, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import date_utils, float_is_zero, float_round
+from odoo.tools import date_utils, float_is_zero, float_round, frozendict
 
 _debug = DebugLog(__name__)
 
@@ -180,6 +180,7 @@ class AccountReportBudget(models.Model):
 
 class AccountReportBudgetItem(models.Model):
     _name = "account.report.budget.item"
+    _access_anchors = frozendict({"company": "budget_id.company_id"})
     _description = "Accounting Report Budget Item"
 
     budget_id = fields.Many2one(

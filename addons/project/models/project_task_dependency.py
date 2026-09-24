@@ -3,13 +3,14 @@ from collections import defaultdict
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 from ..tools import debug_log as dbg
 
 
 class ProjectTaskDependency(models.Model):
     _name = "project.task.dependency"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Task Dependency"
     _order = "id"
     _rec_name = "display_name"

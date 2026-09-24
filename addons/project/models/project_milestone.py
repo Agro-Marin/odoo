@@ -3,7 +3,7 @@ from typing import Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
-from odoo.tools import format_date
+from odoo.tools import format_date, frozendict
 
 from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES
@@ -11,6 +11,7 @@ from .project_task import CLOSED_STATES
 
 class ProjectMilestone(models.Model):
     _name = "project.milestone"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Project Milestone"
     _inherit = ["mixin.mail.thread"]
     _order = "sequence, date_deadline, is_reached desc, name"

@@ -3,3 +3,4 @@ from . import test_feedback
 from . import test_check_access
 from . import test_access_monetary_related
 from . import test_write_groups
+from . import test_scoped_grant_fields

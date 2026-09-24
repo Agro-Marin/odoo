@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import SUPERUSER_ID, Command, api, fields, models
 from odoo.exceptions import RedirectWarning, UserError
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 from odoo.tools.translate import LazyTranslate
 
 _debug = DebugLog(__name__)
@@ -29,6 +29,7 @@ def check_company_domain_account_return(self, companies):
 
 class AccountReturn(models.Model):
     _name = "account.return"
+    _access_anchors = frozendict({"company": "company_ids"})
     _inherit = ["mixin.mail.thread.main.attachment", "mixin.mail.activity"]
     _description = "Accounting Return"
     _order = "is_completed, date_deadline, name, id"

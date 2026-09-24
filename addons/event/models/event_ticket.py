@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import frozendict
 from odoo.tools.misc import formatLang
 
 
@@ -7,6 +8,7 @@ class EventEventTicket(models.Model):
     """Registration ticket for a specific event, based on its event.type.ticket."""
 
     _name = "event.event.ticket"
+    _access_anchors = frozendict({"company": "event_id.company_id"})
     _inherit = ["event.type.ticket"]
     _description = "Event Ticket"
     _order = "event_id, sequence, name, id"

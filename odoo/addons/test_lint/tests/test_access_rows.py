@@ -78,6 +78,83 @@ def coverage_findings(rows, models):
     )
 
 
+# the groups that are never held in some companies only: a grant of a user
+# type is refused a scope, and everyone is every user everywhere
+_UNSCOPED_GROUPS = frozenset(
+    {"base.group_user", "base.group_portal", "base.group_public", "base.group_everyone"}
+)
+_COMPANY_NAMES = frozenset({"company_ids", "company_id"})
+
+
+def _reads_companies(node) -> bool:
+    return any(
+        (isinstance(child, ast.Name) and child.id in _COMPANY_NAMES)
+        or (isinstance(child, ast.Attribute) and child.attr in _COMPANY_NAMES)
+        for child in ast.walk(node)
+    )
+
+
+def _company_paths(row) -> set[str]:
+    # the fields a row's domain compares with the principal's companies
+    if not row.domain:
+        return set()
+    try:
+        found, _problems = index.conditions(index.parse_domain(row.domain))
+    except SyntaxError:
+        return set()
+    return {
+        condition.path
+        for condition in found
+        if condition.operator in ("in", "=", "parent_of", "child_of")
+        and _reads_companies(condition.value)
+    }
+
+
+def company_anchor_findings(rows):
+    # a model's company guards and its company anchor name the same field, so a
+    # grant limited to some companies reaches exactly what a guard would admit
+    # there; a guard reading several fields needs the anchor among them
+    paths_by_model: defaultdict[str, set[str]] = defaultdict(set)
+    where_by_model: dict[str, str] = {}
+    for row in rows:
+        if (
+            row.kind != "guard"
+            or not index.known_model(row.model)
+            or (row.group or "").split(".")[-1] != "group_everyone"
+            or not (paths := _company_paths(row))
+        ):
+            continue
+        paths_by_model[row.model] |= paths
+        where_by_model.setdefault(row.model, row.where())
+    findings = []
+    for model, paths in sorted(paths_by_model.items()):
+        anchor = index.company_anchor(model)
+        if anchor not in paths:
+            findings.append(
+                f"{where_by_model[model]}: {model} is guarded by company on "
+                f"{', '.join(sorted(paths))}, its company anchor is {anchor or 'none'}"
+            )
+    return findings
+
+
+def anchorless_findings(rows, models):
+    # the models where a group that can be held in some companies only has a
+    # permission, and no company anchor: such a grant applies there to every
+    # record while one of its companies is in use
+    return sorted(
+        {
+            f"{info.defined_in}: {row.model}"
+            for row in rows
+            if row.kind == "permission"
+            and (info := models.get(row.model)) is not None
+            and info.kind == "model"
+            and _production(info.module)
+            and index._qualify(row.module, row.group or "") not in _UNSCOPED_GROUPS
+            and index.company_anchor(row.model) is None
+        }
+    )
+
+
 def cycle_findings(rows, models):
     edges: defaultdict[tuple[str, str], set[tuple[str, str]]] = defaultdict(set)
     for name, info in models.items():
@@ -205,7 +282,7 @@ class TestAccessRows(lint_case.LintCase):
             "access_domain_no_group_test",
             "ir.access domain(s) reading the user's groups in a narrowing way",
             "Membership is the row's group: a domain that reads the user's groups "
-            "(other than `in user.all_group_ids.ids` or `[] if has_group else D`) "
+            "(other than `in group_ids` or `[] if has_group else D`) "
             "lets a group take records away. Put the rows on the groups.",
         )
 
@@ -225,6 +302,27 @@ class TestAccessRows(lint_case.LintCase):
             "cycle(s) through 'access' conditions and delegation",
             "A record's access cannot depend on itself: break the cycle with a "
             "domain that does not go through the 'access' operator.",
+        )
+
+    def test_a_company_guard_reads_the_company_anchor(self):
+        self.assert_ratchet(
+            company_anchor_findings(self.production_rows),
+            "access_company_anchor",
+            "company guard(s) on a field other than the model's company anchor",
+            "Declare `_access_anchors = frozendict({'company': '<path>'})` on the "
+            "model, so a grant limited to some companies compiles against the "
+            "field its company guard reads.",
+        )
+
+    def test_scoped_grants_on_models_without_a_company(self):
+        self.assert_ratchet(
+            anchorless_findings(self.production_rows, index.models()),
+            "access_scope_anchorless",
+            "model(s) a scoped grant reaches whole, having no company anchor",
+            "A group held in some companies only reaches every record of such a "
+            "model while one of them is in use: give the model a company anchor "
+            "(a company field, or `_access_anchors`) where its records belong to "
+            "a company. The floor only goes down.",
         )
 
     def test_access_is_decided_in_rows_not_in_code(self):
@@ -316,6 +414,36 @@ class TestAccessRowGatesSeeTheirFaults(lint_case.LintCase):
             group_test_findings(
                 [self._row(domain="[] if user.has_group('x.y') else [('id', '=', 1)]")]
             )
+        )
+        self.assertFalse(
+            group_test_findings([self._row(domain="[('group_ids', 'in', group_ids)]")])
+        )
+        self.assertTrue(
+            group_test_findings(
+                [self._row(domain="['!', ('group_ids', 'in', group_ids)]")]
+            )
+        )
+
+    def test_a_company_guard_on_another_field(self):
+        guard = self._row(
+            kind="guard",
+            group="base.group_everyone",
+            model="res.partner",
+            domain="[('commercial_partner_id.company_id', 'in', company_ids)]",
+        )
+        self.assertTrue(company_anchor_findings([guard]))
+        guard.domain = "[('company_id', 'in', company_ids)]"
+        self.assertFalse(company_anchor_findings([guard]))
+
+    def test_a_scoped_permission_on_a_model_without_a_company(self):
+        models = {
+            "planted.model": index.ModelInfo("planted.model", module="planted"),
+        }
+        row = self._row(model="planted.model", group="base.group_partner_manager")
+        self.assertTrue(anchorless_findings([row], models))
+        self.assertFalse(
+            anchorless_findings([self._row(model="planted.model")], models),
+            "a user type is never held in some companies only",
         )
 
     def test_a_model_without_a_permission(self):

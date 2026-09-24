@@ -4,6 +4,7 @@ from typing import Any
 from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES
@@ -11,6 +12,7 @@ from .project_task import CLOSED_STATES
 
 class ProjectWorkflowStep(models.Model):
     _name = "project.workflow.step"
+    _access_anchors = frozendict({"company": "project_ids.company_id"})
     _description = "Workflow Step"
     _inherit = ["mixin.project.pm"]
     _order = "sequence, id"

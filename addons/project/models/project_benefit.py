@@ -1,6 +1,7 @@
 import logging
 
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 
@@ -9,6 +10,7 @@ _logger = logging.getLogger(__name__)
 
 class ProjectBenefit(models.Model):
     _name = "project.benefit"
+    _access_anchors = frozendict({"company": "project_id.company_id"})
     _description = "Project Benefit"
     _order = "sequence, id"
     _inherit = ["mixin.mail.thread", "mixin.mail.activity"]

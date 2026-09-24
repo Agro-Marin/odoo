@@ -1,8 +1,10 @@
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 
 class HrAttendanceOvertimeLine(models.Model):
     _name = "hr.attendance.overtime.line"
+    _access_anchors = frozendict({"company": "employee_id.company_id"})
     _description = "Attendance Overtime Line"
     _rec_name = "employee_id"
     _order = "time_start"

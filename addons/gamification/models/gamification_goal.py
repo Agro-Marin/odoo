@@ -5,6 +5,7 @@ from typing import Any, Literal, Self
 
 from odoo import api, exceptions, fields, models
 from odoo.models import ValuesType
+from odoo.tools import frozendict
 from odoo.tools.safe_eval import safe_eval, time
 
 _logger = logging.getLogger(__name__)
@@ -14,6 +15,7 @@ class GamificationGoal(models.Model):
     """Individual goal instance for a user on a specific time period."""
 
     _name = "gamification.goal"
+    _access_anchors = frozendict({"company": "user_id.company_id"})
     _description = "Gamification Goal"
     _inherit = ["mixin.mail.thread"]
     _rec_name = "definition_id"

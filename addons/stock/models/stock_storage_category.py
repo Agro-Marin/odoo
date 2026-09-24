@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -95,6 +96,7 @@ class StockStorageCategory(models.Model):
 
 class StockStorageCategoryCapacity(models.Model):
     _name = "stock.storage.category.capacity"
+    _access_anchors = frozendict({"company": "storage_category_id.company_id"})
     _description = "Storage Category Capacity"
     _check_company_auto = True
     _order = "storage_category_id"

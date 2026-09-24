@@ -1,9 +1,11 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 
 class TeamAlias(models.Model):
     _name = "team.alias"
+    _access_anchors = frozendict({"company": "team_id.company_id"})
     _inherits = {"mail.alias": "alias_id"}
     _description = "Team Email Alias"
     _inherits_rules = False

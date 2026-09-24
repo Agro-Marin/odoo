@@ -341,6 +341,26 @@ class AccessMixin(_ModelStubs):
         )
 
     @api.model
+    def _access_company_anchor(self) -> str | None:
+        # the field whose company a record belongs to, which a grant limited
+        # to some companies compiles against: declared in _access_anchors, or
+        # the model's own company_id / company_ids; None for a model whose
+        # records belong to no company
+        if "company" in self._access_anchors:
+            return self._access_anchors["company"] or None
+        if self._name == "res.company":
+            return "id"
+        for name in ("company_id", "company_ids"):
+            field = self._fields.get(name)
+            if (
+                field is not None
+                and field.comodel_name == "res.company"
+                and (field.store or field.related or field.search)
+            ):
+                return name
+        return None
+
+    @api.model
     def _access_guard(self, operation: str) -> Domain:
         # what the model itself requires of every principal beside its rows,
         # typically an 'access' condition on the record it belongs to; read

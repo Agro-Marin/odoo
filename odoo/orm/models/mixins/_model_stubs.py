@@ -11,7 +11,7 @@ if typing.TYPE_CHECKING:
     )
     from typing import Self
 
-    from odoo.tools import SQL, Query
+    from odoo.tools import SQL, Query, frozendict
 
     from ..._protocols import ResCompanyProtocol
     from ..._typing import BaseModel, DomainType, IdType, ValuesType
@@ -68,6 +68,7 @@ class _ModelStubs:
         _display_name_search_exact: tuple[str, ...]
         _inherits_sudo_fields: tuple[str, ...]
         _inherits_rules: bool
+        _access_anchors: frozendict[str, str]
         _table_objects: dict
         _table_inheritance_root: str
         _check_company_auto: bool

@@ -3,6 +3,7 @@ import contextlib
 import datetime
 import logging
 import time
+import typing
 import uuid
 from functools import wraps
 from hashlib import sha256
@@ -43,6 +44,13 @@ from .res_users_login_cooldown import LoginCooldown
 
 _logger = logging.getLogger(__name__)
 _debug = DebugLog(__name__)
+
+
+class GroupState(typing.NamedTuple):
+    group_ids: tuple[int, ...]
+    scopes: frozendict
+    signature: tuple
+    valid_until: datetime.datetime | None
 
 
 DEBUG_GROUP = "base.group_no_one"
@@ -119,6 +127,7 @@ def check_identity(
 
 class ResUsers(models.Model):
     _name = "res.users"
+    _access_anchors = frozendict({"company": "company_ids"})
     _description = "User"
     _inherits = {"res.partner": "partner_id"}
     _order = "name, login"
@@ -279,29 +288,46 @@ class ResUsers(models.Model):
         return self._hash_session_token(sid, field_values)
 
     def _get_group_ids(self) -> tuple[int, ...]:
+        # the groups the user holds in the companies in play: the context's
+        # allowed companies, or every company of the user without one
+        return self._get_group_state()[0]
+
+    def _get_group_scopes(self) -> frozendict:
+        # the same groups, each with the companies its grants limit it to
+        # (None: every company)
+        return self._get_group_state()[1]
+
+    def _get_group_signature(self) -> tuple:
+        return self._get_group_state()[2]
+
+    def _get_group_state(self) -> GroupState:
         self.check_singleton()
-        group_ids, valid_until = self._get_group_state()
-        if valid_until is not None and self.env.cr.now() >= valid_until:
+        key = self._grant_scope_key()
+        state = self._get_cached_group_state(key)
+        if state.valid_until is not None and self.env.cr.now() >= state.valid_until:
             # a grant started or ended since the value was cached: answer at
             # the second, until the boundary cron settles it and clears
-            group_ids = self._compute_group_state()[0]
-        return group_ids
+            state = self._compute_group_state(key)
+        return state
 
-    @tools.ormcache("self.id")
-    def _get_group_state(self) -> tuple[tuple[int, ...], datetime.datetime | None]:
-        return self._compute_group_state()
+    def _grant_scope_key(self) -> tuple[int, ...] | None:
+        company_ids = self.env.context.get("allowed_company_ids")
+        return tuple(sorted(company_ids)) if company_ids else None
 
-    def _compute_group_state(
-        self,
-    ) -> tuple[tuple[int, ...], datetime.datetime | None]:
-        # the groups of the user's live grants, and when that answer next
-        # changes
+    @tools.ormcache("self.id", "key")
+    def _get_cached_group_state(self, key: tuple[int, ...] | None) -> GroupState:
+        return self._compute_group_state(key)
+
+    def _compute_group_state(self, key: tuple[int, ...] | None) -> GroupState:
+        # the groups of the user's live grants, each with the companies it is
+        # limited to, and when that answer next changes
         grant_model = self.env["res.users.grant"].sudo()
         valid_until = None
+        scopes: dict[int, frozenset[int] | None] = {}
         grants = (
             grant_model.search_fetch(
                 [("user_id", "=", self.id), ("state", "in", ("scheduled", "active"))],
-                ["group_id", "date_from", "date_to"],
+                ["group_id", "date_from", "date_to", "scoped"],
             )
             if grant_model._grants_available()
             else grant_model
@@ -309,9 +335,11 @@ class ResUsers(models.Model):
         if not grants:
             # a user whose memberships have no grant yet: while its create is
             # making them, or before the migration that turns them into grants
-            held = set(self.sudo().with_context({}).group_ids._ids)
+            scopes = dict.fromkeys(self.sudo().with_context({}).group_ids._ids)
         else:
-            held = set()
+            spans: collections.defaultdict[int, list] = collections.defaultdict(list)
+            # the companies are read only for a user holding a scoped grant
+            grants.filtered("scoped").fetch(["company_ids"])
             # the clock is read only for a user holding a timed grant
             now = (
                 self.env.cr.now()
@@ -327,13 +355,50 @@ class ResUsers(models.Model):
                         and (valid_until is None or moment < valid_until)
                     ):
                         valid_until = moment
-                if (not start or start <= now) and (not end or end > now):
-                    held.add(grant.group_id.id)
-        group_ids = tuple(
-            sorted(self.env["res.groups"].sudo().browse(held).all_implied_ids._ids)
+                live = (not start or start <= now) and (not end or end > now)
+                spans[grant.group_id.id].append(
+                    (live, frozenset(grant.company_ids._ids) if grant.scoped else None)
+                )
+            for group_id, group_spans in spans.items():
+                live_scopes = [scope for live, scope in group_spans if live]
+                if not live_scopes:
+                    continue
+                if None in live_scopes:
+                    scopes[group_id] = None
+                else:
+                    scopes[group_id] = frozenset().union(*live_scopes)
+        # an implied group takes the scope of what implies it; a user type is
+        # never scoped, so a user stays internal in every company
+        groups = self.env["res.groups"].sudo()
+        user_types = set(groups._get_user_type_groups()._ids)
+        closure: dict[int, frozenset[int] | None] = {}
+        for group_id, scope in scopes.items():
+            for implied_id in groups.browse(group_id).all_implied_ids._ids:
+                if implied_id in user_types or scope is None:
+                    closure[implied_id] = None
+                elif implied_id not in closure:
+                    closure[implied_id] = scope
+                elif closure[implied_id] is not None:
+                    closure[implied_id] |= scope
+        active = set(key) if key else None
+        held = {
+            group_id: scope
+            for group_id, scope in closure.items()
+            if scope is None or active is None or scope & active
+        }
+        group_ids = tuple(sorted(held))
+        signature = (
+            group_ids,
+            tuple(
+                sorted(
+                    (group_id, tuple(sorted(scope)))
+                    for group_id, scope in held.items()
+                    if scope is not None
+                )
+            ),
         )
         _debug.perf.count("group_ids_computed", uid=self.id, groups=len(group_ids))
-        return group_ids, valid_until
+        return GroupState(group_ids, frozendict(held), signature, valid_until)
 
     def _get_effective_group_ids(self) -> tuple[int, ...]:
         self.check_singleton()
