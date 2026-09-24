@@ -218,11 +218,9 @@ def compute_value(field: Field, records: ModelLike, validate: bool = True) -> No
     ]
     try:
         with records.env.protecting(fields, records):
-            records._compute_field_value(field, validate=False)
+            records._compute_field_value(field, validate=validate)
         for computed, before in sudo_assigned:
             computed._adopt_superuser_assignments(records.env, before)
-        if validate:
-            records._check_computed(field)
     except Exception as e:
         _debug.logic(
             "field.compute.failed_rescheduled",

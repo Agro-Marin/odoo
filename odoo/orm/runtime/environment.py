@@ -103,15 +103,21 @@ class _Protecting:
             core.protect(field, frozenset(rec_ids))
 
     def __exit__(self, exc_type: object, *exc: object) -> None:
-        if self._active:
-            self._active = False
-            core = self._core
-            core.pop_protection()
-            if not core.protection_depth():
+        if not self._active:
+            return
+        self._active = False
+        core = self._core
+        try:
+            # the outermost scope drains while it still protects what it
+            # assigned, so a check cannot invalidate a value its caller
+            # has not read yet
+            if core.protection_depth() == 1:
                 if exc_type is None:
                     core.run_deferred()
                 else:
                     core.discard_deferred()
+        finally:
+            core.pop_protection()
 
 
 class Environment(Mapping[str, "BaseModel"]):

@@ -14,3 +14,9 @@ class TestComputeCheckDeferral(TransactionCase):
         with self.env.protecting([record._fields["code"]], record):
             record._check_computed(field)
             record.unlink()
+
+    def test_a_deferred_check_keeps_the_value_the_outer_compute_assigned(self):
+        host = self.env["test_orm.compute_check_host"].create({"name": "a"})
+        self.assertTrue(host.has_code)
+        self.assertTrue(host.lines_made)
+        self.assertEqual(len(host.line_ids), 1)

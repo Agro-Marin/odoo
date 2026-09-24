@@ -191,3 +191,5 @@ access_test_orm_scope_open,access_test_orm_scope_open,model_test_orm_scope_open,
 test_orm_scope_item_rule_visible_tag,test_orm.scope_item: its tag is visible,model_test_orm_scope_item,base.group_everyone,guard,crud,"[('tag_id.visible', '=', True)]"
 access_test_orm_manual_lines_holder,access_test_orm_manual_lines_holder,model_test_orm_manual_lines_holder,base.group_user,permission,crud,
 access_test_orm_compute_check,access_test_orm_compute_check,model_test_orm_compute_check,base.group_user,permission,crud,
+access_test_orm_compute_check_host,access_test_orm_compute_check_host,model_test_orm_compute_check_host,base.group_user,permission,crud,
+access_test_orm_compute_check_line,access_test_orm_compute_check_line,model_test_orm_compute_check_line,base.group_user,permission,crud,
