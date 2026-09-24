@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="access_account_move_post" model="ir.access">
+        <field name="name">account.move: post where it is written</field>
+        <field name="model_id" ref="model_account_move" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field name="verbs">post</field>
+    </record>
+
+</odoo>

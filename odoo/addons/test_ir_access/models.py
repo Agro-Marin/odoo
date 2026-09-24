@@ -105,7 +105,7 @@ class TestIrAccessDocument(models.Model):
     _access_verbs = {
         "post": models.Verb(
             methods=("action_post",),
-            checkpoints=("_check_postable",),
+            checkpoints=("_check_postable", "_post_entries"),
             transition=("state", "*", "posted"),
         ),
     }
@@ -119,11 +119,14 @@ class TestIrAccessDocument(models.Model):
 
     def action_post(self):
         self._check_postable()
-        self.write({"state": "posted"})
+        self._post_entries()
         return True
 
     def _check_postable(self):
         return True
+
+    def _post_entries(self):
+        self.write({"state": "posted"})
 
 
 class IrAccessObligation(models.AbstractModel):

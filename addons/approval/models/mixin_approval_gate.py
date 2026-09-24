@@ -12,7 +12,13 @@ class MixinApprovalGate(models.AbstractModel):
     _inherit = ["mixin.approval"]
     _description = "Operation Gated by Approval"
 
-    _approval_operations = ()
+    def _check_before_approval(self, verb):
+        """Refuse, before anything is asked, a call the verb could not run anyway.
+
+        Runs at the verb's door ahead of the approval, so a document that is not
+        in a state to go through fails in the caller's face instead of after the
+        approval, inside a side effect where a refusal is only a chatter note.
+        """
 
     def _run_through_approval(self, operation, run):
         ready, need_approval = self._split_for_approval(operation)
@@ -195,7 +201,17 @@ class MixinApprovalGate(models.AbstractModel):
         if request.get_source_document() != self:
             return False
         asked_for = request.operation
-        return not asked_for or asked_for == operation
+        return not asked_for or asked_for in self._get_operation_names(operation)
+
+    def _get_operation_names(self, operation):
+        """`operation` and its doors: a request raised before its method was a
+        verb's door names the method."""
+        verb = self.env["approval.binding"]._get_declared_verb(self, operation)
+        return (operation, *verb.methods) if verb else (operation,)
+
+    def _get_operation_door(self, operation):
+        verb = self.env["approval.binding"]._get_declared_verb(self, operation)
+        return verb.methods[0] if verb and verb.methods else operation
 
     def _get_approval_snapshot(self, operation):
         """What the approver is being shown, as far as the grant covers it.
@@ -230,12 +246,12 @@ class MixinApprovalGate(models.AbstractModel):
     def _get_admitted_ids(self, operation):
         return self.env["approval.binding"]._get_admitted_ids(self, operation)
 
-    def _check_approval_admits(self, operation):
-        """Hold `operation`'s gate on a path that did not come through it.
+    def _check_approval_admits(self, operation, enforced=True, binding=None):
+        """Hold `operation`'s obligation on a path that did not come through it.
 
-        A checkpoint can raise no request, so a record the gate would send for
-        approval is refused here -- or, while the gate is only watching, recorded.
-        A grant that no longer covers its document is refused either way: that is
+        A checkpoint can raise no request, so a record the obligation would send
+        for approval is refused here -- or, while it only watches, recorded. A
+        grant that no longer covers its document is refused either way: that is
         the approval speaking, not the path.
         """
         admitted = self._get_admitted_ids(operation)
@@ -252,6 +268,7 @@ class MixinApprovalGate(models.AbstractModel):
         self.env["approval.observation"].sudo().create(
             [
                 {
+                    "binding_id": binding.id if binding else False,
                     "model_name": record._name,
                     "operation": operation,
                     "res_id": record.id,
@@ -262,7 +279,7 @@ class MixinApprovalGate(models.AbstractModel):
                 for record in blocked
             ]
         )
-        if not self._is_approval_gate_enforced(operation):
+        if not enforced:
             trace.MIXIN.note(
                 "gate_observed", records=blocked, operation=operation, enforced=False
             )
@@ -277,9 +294,6 @@ class MixinApprovalGate(models.AbstractModel):
                 operation=operation,
             )
         )
-
-    def _is_approval_gate_enforced(self, operation):
-        return self.env["approval.gate"]._is_enforced(self, operation)
 
     def _is_operation_run_on_approval(self, operation):
         self.check_singleton()
@@ -309,7 +323,7 @@ class MixinApprovalGate(models.AbstractModel):
         if owner.id == SUPERUSER_ID:
             document = document.sudo()
         with self._approval_side_effect(self._get_operation_failure_note(operation)):
-            getattr(document, operation)()
+            getattr(document, self._get_operation_door(operation))()
 
     def _get_operation_failure_note(self, operation):
         self.check_singleton()
@@ -318,8 +332,9 @@ class MixinApprovalGate(models.AbstractModel):
         )
 
     def _get_gated_operation(self):
+        """The verb the document's own obligation holds, for a request that names none."""
         self.check_singleton()
-        return self._approval_operations[0] if self._approval_operations else False
+        return self.env["approval.binding"]._get_own_verb(self) or False
 
     def _get_asked_operation(self):
         (record,) = self

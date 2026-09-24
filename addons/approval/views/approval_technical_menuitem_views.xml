@@ -26,7 +26,7 @@
         id="menu_approval_technical_gate"
         name="Code Gates"
         parent="menu_approval_technical"
-        action="action_approval_gate"
+        action="action_approval_binding_module"
         sequence="22" />
 
     <menuitem

@@ -7,7 +7,8 @@ class TestVerbs(TransactionCase):
     """A verb is an operation the policy grants like create, read, write, unlink.
 
     `test_ir_access.document` declares `post`: its door is `action_post`, its
-    checkpoint `_check_postable`, and it is the move of `state` into `posted`.
+    checkpoints `_check_postable` and `_post_entries`, and it is the move of
+    `state` into `posted`.
     Every internal user may write a document; only administrators may post one.
     """
 
@@ -99,6 +100,17 @@ class TestVerbs(TransactionCase):
             self.assertRaises(AccessError),
         ):
             document.with_user(self.clerk)._check_postable()
+
+    def test_a_checkpoint_admits_the_rest_of_its_call(self):
+        calls = []
+        document = self._document().with_context(verb_calls=calls)
+        document.with_user(self.admin)._post_entries()
+        self.assertEqual(document.state, "posted")
+        self.assertEqual(
+            calls,
+            [("checkpoint", "post", document.ids)],
+            "the state the checkpoint's own call writes is not asked again",
+        )
 
     def test_a_row_names_only_the_verbs_its_model_declares(self):
         with self.assertRaises(ValidationError):

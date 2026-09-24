@@ -28,7 +28,7 @@ class TestBindingOnAnAdopter(ApprovalCommon):
         self.binding = self.env["approval.binding"].create(
             {
                 "model_id": self.env["ir.model"]._get("approval.test.document").id,
-                "method": "action_record_operation",
+                "verb": "record_operation",
                 "mode": "request",
                 "category_id": self.category.id,
                 "sudo_policy": "enforce",

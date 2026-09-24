@@ -97,8 +97,13 @@ def _checkpoint(verb_name: str, origin: typing.Callable) -> typing.Callable:
     def checkpoint(
         records: BaseModel, *args: typing.Any, **kwargs: typing.Any
     ) -> typing.Any:
-        records._verb_checkpoint(verb_name)
-        return origin(records, *args, **kwargs)
+        checked = records._verb_checkpoint(verb_name)
+        if not checked:
+            return origin(records, *args, **kwargs)
+        # what passed the checkpoint is admitted for the rest of its call, so the
+        # state the call then writes is not asked again
+        with records.env.transaction.admitting(records._name, verb_name, checked):
+            return origin(records, *args, **kwargs)
 
     return checkpoint
 

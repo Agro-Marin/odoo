@@ -16,6 +16,7 @@
     "data": [
         "security/stock_security.xml",
         "security/ir.access.csv",
+        "security/ir_access.xml",
         "data/digest_data.xml",
         "data/mail_templates.xml",
         "data/default_barcode_patterns.xml",

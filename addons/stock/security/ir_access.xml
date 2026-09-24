@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="access_stock_picking_validate" model="ir.access">
+        <field name="name">stock.picking: validate where it is written</field>
+        <field name="model_id" ref="model_stock_picking" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field name="verbs">validate</field>
+    </record>
+
+</odoo>

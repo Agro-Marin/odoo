@@ -8,9 +8,11 @@ class ApprovalTestGated(models.Model):
     _name = "approval.test.gated"
     _description = "Test Document Gated on Its Own Operations"
     _inherit = ["mixin.mail.thread", "mixin.approval.gate"]
-    _operation_checkpoints = {"action_ship": "_check_ship"}
-    _approval_operations = ("action_ship", "action_bill")
     _approval_requester_field = "user_id"
+    _access_verbs = {
+        "ship": models.Verb(methods=("action_ship",), checkpoints=("_check_ship",)),
+        "bill": models.Verb(methods=("action_bill",)),
+    }
 
     name = fields.Char(required=True)
     partner_id = fields.Many2one(comodel_name="res.partner")
@@ -38,13 +40,13 @@ class ApprovalTestGated(models.Model):
     shipped_amount = fields.Monetary(currency_field="currency_id")
 
     def action_ship(self) -> Any:
-        return self._run_through_approval("action_ship", self._ship)
+        return self._ship(self)
 
     def action_ship_from_elsewhere(self) -> None:
         self._ship(self)
 
     def action_bill(self) -> Any:
-        return self._run_through_approval("action_bill", self._bill)
+        return self._bill(self)
 
     def _ship(self, records) -> bool:
         records._check_ship()
@@ -66,7 +68,7 @@ class ApprovalTestGated(models.Model):
         return True
 
     def _check_ship(self) -> None:
-        self._check_approval_admits("action_ship")
+        return
 
     def _check_approval_covers(self, operation: str) -> None:
         super()._check_approval_covers(operation)

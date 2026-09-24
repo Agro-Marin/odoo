@@ -8,8 +8,10 @@
             <list string="Approval Bindings">
                 <field name="sequence" widget="handle" />
                 <field name="model_name" />
+                <field name="verb" />
                 <field name="method" />
                 <field name="action_id" optional="show" />
+                <field name="origin" optional="show" />
                 <field name="is_enforced" optional="show" />
                 <field name="mode" />
                 <field name="sudo_policy" />
@@ -46,15 +48,24 @@
                     </div>
                     <group>
                         <group string="Gated Operation">
-                            <field name="model_id" options="{'no_create': True}" />
-                            <field name="method" invisible="action_id" />
+                            <field
+                                name="model_id"
+                                options="{'no_create': True}"
+                                readonly="origin == 'module'" />
+                            <field
+                                name="verb"
+                                invisible="method or action_id"
+                                readonly="origin == 'module'" />
+                            <field name="method" invisible="action_id or verb" />
                             <field
                                 name="action_id"
                                 options="{'no_create': True}"
-                                invisible="method" />
+                                invisible="method or verb" />
                             <field
                                 name="subject_domain"
-                                placeholder="e.g. [('state', '=', 'draft')]" />
+                                placeholder="e.g. [('state', '=', 'draft')]"
+                                invisible="origin == 'module'" />
+                            <field name="origin" />
                             <field name="sequence" />
                             <field name="active" invisible="1" />
                         </group>
@@ -63,8 +74,8 @@
                             <field name="sudo_policy" />
                             <field
                                 name="category_id"
-                                invisible="mode == 'advise'"
-                                required="mode != 'advise'" />
+                                invisible="mode == 'advise' or origin == 'module'"
+                                required="mode != 'advise' and origin == 'manual'" />
                         </group>
                     </group>
                     <group string="Observed" invisible="not observation_count">
@@ -97,10 +108,27 @@
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Gate an operation on an approval</p>
             <p>
-                A binding intercepts a method or an action so the approval is consulted before it
-                runs, for every caller rather than only the user interface. Start a
+                A binding intercepts a verb, a method or an action so the approval is consulted
+                before it runs, for every caller rather than only the user interface. Start a
                 new one in Observe mode: it changes nothing and counts who reaches
                 the operation, including callers that arrive elevated.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_approval_binding_module" model="ir.actions.act_window">
+        <field name="name">Code Gates</field>
+        <field name="res_model">approval.binding</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('origin', '=', 'module')]</field>
+        <field name="context">{'active_test': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No module ships an approval obligation</p>
+            <p>
+                A module that holds one of its model's verbs on the document's own approval ships
+                that obligation here. What is left to decide is its mode: Request, as every one
+                ships, asks at the verb's door and refuses any other path to it; Observe only
+                records those paths.
             </p>
         </field>
     </record>

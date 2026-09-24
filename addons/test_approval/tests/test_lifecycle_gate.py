@@ -25,12 +25,7 @@ class TestLifecycleGate(ApprovalCommon):
             }
         )
         self.clerk = self.owner_user
-        self.gate = self.env["approval.gate"].search(
-            [
-                ("model_name", "=", "approval.test.lifecycle"),
-                ("operation", "=", "action_confirm"),
-            ]
-        )
+        self.obligation = self.env.ref("test_approval.obligation_lifecycle_confirm")
 
     def _values(self, **values):
         return {
@@ -51,14 +46,14 @@ class TestLifecycleGate(ApprovalCommon):
         return self.env["approval.observation"].search(
             [
                 ("model_name", "=", "approval.test.lifecycle"),
-                ("operation", "=", "action_confirm"),
+                ("operation", "=", "confirm"),
                 ("res_id", "=", document.id),
             ]
         )
 
-    def test_the_confirmed_state_is_a_gate_that_enforces_from_the_start(self):
-        self.assertEqual(len(self.gate), 1, "the registry declares the row")
-        self.assertTrue(self.gate.enforced)
+    def test_confirming_is_an_obligation_that_enforces_from_the_start(self):
+        self.assertEqual(self.obligation.verb, "confirm")
+        self.assertEqual(self.obligation.mode, "request")
 
     def test_the_button_asks_instead_of_confirming(self):
         document = self._document()
@@ -67,7 +62,7 @@ class TestLifecycleGate(ApprovalCommon):
         self.assertEqual(document.approval_state, "pending")
 
     def test_writing_the_confirmed_state_is_watched_while_the_gate_watches(self):
-        self.gate.enforced = False
+        self.obligation.mode = "advise"
         document = self._document()
         document.write({"state": "done"})
         self.assertTrue(self._observed(document).would_block)

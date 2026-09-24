@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import tagged
 
 from odoo.addons.approval.tests.common import ApprovalCommon
@@ -8,7 +8,12 @@ from odoo.addons.approval.tests.common import ApprovalCommon
 
 @tagged("post_install", "-at_install")
 class TestApprovalGate(ApprovalCommon):
-    """A document gates its own terminal transitions, one grant per operation."""
+    """A document holds its own verbs on its approval, one grant per verb.
+
+    `approval.test.gated` declares `ship` (door `action_ship`, checkpoint
+    `_check_ship`) and `bill` (door `action_bill`); test_approval ships an
+    obligation on each, in Request mode.
+    """
 
     def setUp(self):
         super().setUp()
@@ -31,29 +36,25 @@ class TestApprovalGate(ApprovalCommon):
     def _approve(self, document):
         document.approval_request_id.with_user(self.approver_1).action_approve()
 
-    def _gate(self, operation):
-        gate = self.env["approval.gate"].search(
-            [("model_name", "=", "approval.test.gated"), ("operation", "=", operation)]
-        )
-        self.assertEqual(len(gate), 1, "the registry declares this gate")
-        return gate
+    def _obligation(self, verb):
+        return self.env.ref(f"test_approval.obligation_gated_{verb}")
 
-    def _enforce(self, operation):
-        gate = self._gate(operation)
-        gate.enforced = True
-        return gate
+    def _enforce(self, verb):
+        obligation = self._obligation(verb)
+        obligation.mode = "request"
+        return obligation
 
-    def _watch(self, operation):
-        gate = self._gate(operation)
-        gate.enforced = False
-        return gate
+    def _watch(self, verb):
+        obligation = self._obligation(verb)
+        obligation.mode = "advise"
+        return obligation
 
     def test_the_operation_asks_instead_of_running(self):
         document = self._document()
         document.action_ship()
         self.assertEqual(document.ship_count, 0)
         self.assertEqual(document.approval_state, "pending")
-        self.assertEqual(document.approval_request_id.operation, "action_ship")
+        self.assertEqual(document.approval_request_id.operation, "ship")
         with self.assertRaises(UserError):
             document.action_ship()
 
@@ -144,26 +145,25 @@ class TestApprovalGate(ApprovalCommon):
         self.assertEqual(gated.ship_count, 0)
         self.assertEqual(gated.approval_state, "pending")
 
-    def test_another_path_is_watched_while_the_gate_watches(self):
-        self._watch("action_ship")
+    def test_every_path_is_watched_while_the_obligation_watches(self):
+        obligation = self._watch("ship")
         document = self._document()
         document.action_ship()
-        Observation = self.env["approval.observation"]
-        before = Observation.search_count([])
+        self.assertEqual(document.ship_count, 1, "a watching obligation asks nothing")
+        self.assertFalse(document.approval_request_id)
         document.action_ship_from_elsewhere()
-        self.assertEqual(document.ship_count, 1, "the watching gate refuses nothing")
-        observed = Observation.search([], order="id desc", limit=1)
-        self.assertEqual(Observation.search_count([]), before + 1)
+        self.assertEqual(document.ship_count, 2)
         self.assertRecordValues(
-            observed,
+            obligation.observation_ids.sorted("id"),
             [
                 {
                     "model_name": "approval.test.gated",
-                    "operation": "action_ship",
+                    "operation": "ship",
                     "res_id": document.id,
                     "would_block": True,
                 }
-            ],
+            ]
+            * 2,
         )
 
     def test_another_path_is_refused(self):
@@ -174,12 +174,10 @@ class TestApprovalGate(ApprovalCommon):
         self.assertEqual(document.ship_count, 0)
 
     def test_a_forged_admission_in_the_context_admits_nothing(self):
-        self._enforce("action_ship")
+        self._enforce("ship")
         document = self._document()
         forged = document.with_context(
-            approval_binding_admitted=[
-                ["approval.test.gated", "action_ship", [document.id]]
-            ]
+            approval_binding_admitted=[["approval.test.gated", "ship", [document.id]]]
         )
         with self.assertRaises(UserError):
             forged.action_ship_from_elsewhere()
@@ -187,88 +185,71 @@ class TestApprovalGate(ApprovalCommon):
         self.assertFalse(document.approval_request_id)
 
     def test_the_gate_admits_what_it_let_through(self):
-        self._enforce("action_ship")
+        self._enforce("ship")
         document = self._document(test_category_id=False)
         document.action_ship()
         self.assertEqual(document.ship_count, 1)
 
-    def test_only_an_operation_with_a_checkpoint_gets_a_row(self):
-        gates = self.env["approval.gate"].search(
+    def test_every_verb_ships_its_obligation_and_it_enforces(self):
+        obligations = self.env["approval.binding"].search(
             [("model_name", "=", "approval.test.gated")]
         )
+        self.assertEqual(set(obligations.mapped("verb")), {"ship", "bill"})
+        self.assertEqual(set(obligations.mapped("origin")), {"module"})
         self.assertEqual(
-            set(gates.mapped("operation")),
-            {"action_ship"},
-            "the registry declares the row and nobody created it -- and action_bill "
-            "names no checkpoint, so enforcing it could close no path and it is "
-            "given no switch that would govern nothing",
-        )
-        self.assertEqual(
-            gates.filtered("enforced"),
-            gates,
-            "a gate enforces from its creation: a door the code declares is closed "
-            "before anyone has to remember to close it",
+            set(obligations.mapped("mode")),
+            {"request"},
+            "an obligation enforces from its creation: a door the code declares is "
+            "closed before anyone has to remember to close it",
         )
 
-    def test_enforcing_one_operation_leaves_the_other_watching(self):
-        self._enforce("action_ship")
-        document = self._document()
-
-        self.assertTrue(document._is_approval_gate_enforced("action_ship"))
+    def test_enforcing_one_verb_leaves_the_other_watching(self):
+        ship = self._enforce("ship")
+        bill = self._watch("bill")
+        self.assertTrue(ship._enforces())
         self.assertFalse(
-            document._is_approval_gate_enforced("action_bill"),
-            "a gate is switched on per operation, so a cheap one need not wait "
-            "for an expensive one",
+            bill._enforces(),
+            "an obligation is switched per verb, so a cheap one need not wait for an "
+            "expensive one",
         )
-
+        document = self._document()
         document.action_ship()
         with self.assertRaises(UserError):
             document.action_ship_from_elsewhere()
 
-    def test_the_count_beside_a_gate_is_its_own(self):
-        self._watch("action_ship")
+    def test_the_count_beside_an_obligation_is_its_own(self):
+        ship = self._watch("ship")
         document = self._document()
-        document.action_ship()
         document.action_ship_from_elsewhere()
-
-        ship = self.env["approval.gate"].search(
-            [
-                ("model_name", "=", "approval.test.gated"),
-                ("operation", "=", "action_ship"),
-            ]
-        )
-        self.assertEqual(ship.would_block_count, 1)
+        self.assertEqual(ship.observation_count, 1)
 
         self.env["approval.observation"].sudo().create(
             {
                 "model_name": "approval.test.gated",
-                "operation": "action_elsewhere",
+                "operation": "elsewhere",
                 "res_id": document.id,
                 "elevation": "none",
                 "would_block": True,
             }
         )
-        ship.invalidate_recordset(["would_block_count"])
+        ship.invalidate_recordset(["observation_count"])
         self.assertEqual(
-            ship.would_block_count,
+            ship.observation_count,
             1,
-            "a gate counts what reached its own operation, not its neighbour's",
+            "an obligation counts what reached its own verb, not its neighbour's",
         )
 
-    def test_a_database_that_was_enforcing_globally_keeps_enforcing(self):
-        parameters = self.env["ir.config_parameter"].sudo()
-        parameters.set_param("approval.gate_enforced", "1")
+    def test_the_document_obligation_takes_no_condition_of_its_own(self):
+        with self.assertRaises(ValidationError):
+            self._obligation("ship").subject_domain = "[('amount_total', '>', 0)]"
 
-        self.env["approval.gate"]._adopt_legacy_enforcement()
-
-        gates = self.env["approval.gate"].search(
-            [("model_name", "=", "approval.test.gated")]
-        )
-        self.assertTrue(
-            all(gates.mapped("enforced")),
-            "the single switch meant every gate, so every gate keeps it",
-        )
-        self.assertFalse(
-            parameters.search([("key", "=", "approval.gate_enforced")]),
-            "and the superseded parameter is gone, so it cannot disagree later",
-        )
+    def test_a_method_that_is_a_verb_door_is_bound_through_its_verb(self):
+        with self.assertRaises(ValidationError):
+            self.env["approval.binding"].create(
+                {
+                    "model_id": self.env["ir.model"]._get_id("approval.test.gated"),
+                    "method": "action_ship",
+                    "mode": "block",
+                    "category_id": self.category.id,
+                }
+            )

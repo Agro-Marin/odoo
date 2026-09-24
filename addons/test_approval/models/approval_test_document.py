@@ -7,7 +7,12 @@ class ApprovalTestDocument(models.Model):
     _name = "approval.test.document"
     _description = "Test Document for Approval Mixin"
     _inherit = ["mixin.mail.thread", "mixin.approval"]
-    _operation_checkpoints = {"action_record_operation": "_check_record_operation"}
+    _access_verbs = {
+        "record_operation": models.Verb(
+            methods=("action_record_operation",),
+            checkpoints=("_check_record_operation",),
+        ),
+    }
 
     name = fields.Char(
         required=True,

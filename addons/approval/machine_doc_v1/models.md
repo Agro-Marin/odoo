@@ -272,7 +272,7 @@ so category names are unique per company, archived rows included.
 | `binding_snapshot` | Json | Yes | No | readonly, copy=False. The values the binding's condition read from the source document when the request was raised. The approval covers the record only while they still match |
 | `subject_key` | Char | Yes | No | readonly, copy=False, indexed. What the request asks about when its record holds one request per subject (`mixin.approval.subjects`): `access:<partner>` on a course, `stage:<stage>` on an engineering change. Only a request carrying one reaches such a record |
 | `date_binding_replayed` | Datetime | Yes | No | readonly, copy=False. When the gated operation ran after approval. Set once, so a withdrawal and a second approval do not run it again |
-| `operation` | Char | Yes | No | readonly, copy=False, index=btree_not_null. The gated operation a document's own `mixin.approval.gate` raised this request for. A grant clears that operation and no other |
+| `operation` | Char | Yes | No | readonly, copy=False, index=btree_not_null. The verb a document's own obligation raised this request for (a door's method name on a request raised before 19.0.2.14.0, which approval 2.14 renames for the eight shipped doors). A grant clears that verb and no other |
 | `operation_snapshot` | Json | Yes | No | "Approved Subject": what the document looked like when the request was raised, as its `_get_approval_snapshot` describes it. The grant covers that version and no other |
 | `date_operation_run` | Datetime | Yes | No | readonly, copy=False. When the grant ran that operation, so it runs once |
 | `binding_replay_error` | Text | Yes | No | readonly, copy=False. Why the gated operation did not run. The approval itself stands |
@@ -741,7 +741,7 @@ For a record that holds one request per subject rather than one in all: a course
 | File | `models/mixin_approval_gate.py` |
 | Inherits | `mixin.approval` |
 
-For a document that gates its own terminal transitions — confirming, posting, validating — without owning a `mixin.lifecycle` state machine. The adopter declares `_approval_operations` (the gated methods) and, through the registry's `_operation_checkpoints`, where each one's validations live.
+For a document that holds its own verbs — confirming, posting, validating — on its approval, without owning a `mixin.lifecycle` state machine (19.0.2.14.0). The model declares the verb (`_access_verbs`: its doors, checkpoints and state move, in the module that owns the model), and a module ships the obligation: an `approval.binding` on the verb with no category, `origin = module`, Request mode, `sudo_policy = enforce`. The kernel's door hands the call to `ir.access.obligation._at_door`, which runs `_check_before_approval(verb)` then `_run_through_approval(verb, run)`; a checkpoint or a write or create that makes the move reaches `_at_checkpoint`, which runs `_check_approval_admits(verb, enforced, binding)`.
 
 | Method | What it does |
 |--------|--------------|
@@ -749,7 +749,9 @@ For a document that gates its own terminal transitions — confirming, posting, 
 | `_split_for_approval(operation)` | ready / needs-approval. A waiting request always refuses; a refused or cancelled one refuses while the document still requires approval; an approved one is checked by `_check_approval_covers` |
 | `_approval_request_gates(operation)` | Whether the linked request was raised for this operation. A grant clears the operation it was asked for and no other |
 | `_check_approval_covers(operation)` | Hook: raises when the grant no longer covers what the operation would do |
-| `_check_approval_admits(operation)` | Called from the operation's checkpoint, so a caller that did not come through the gate is caught. Records an `approval.observation` and refuses only once `approval.gate_enforced` is set |
+| `_check_approval_admits(operation, enforced, binding)` | Reached from the verb's checkpoints and state move, so a caller that did not come through the door is caught. Records an `approval.observation` on the obligation and refuses when the obligation enforces (Request or Block, and the caller's elevation does not pass its `sudo_policy`) |
+| `_check_before_approval(verb)` | Hook run at the door before anything is asked: a document that could not go through fails in the caller's face. `mixin.approval.lifecycle` runs the confirm checks for `confirm`; agromarin's order mixin skips them, as the orders always asked first; a transfer runs `_check_before_approval_gate` for `validate` |
+| `_get_gated_operation()` / `_get_operation_door(verb)` / `_get_operation_names(verb)` | The verb the document's own obligation holds, for a request that names none; the door a grant re-enters; and the names a request may carry for the verb, its doors included, for a request raised before 19.0.2.14.0 |
 | `_is_operation_run_on_approval(operation)` / `_run_operation_on_approval()` | Whether a grant re-enters the transition, and the re-entry itself: once, through the gated method so its validations run again, as the request's owner in the owner's companies (the document's first) -- never the approver, never under sudo, as a binding replays; the superuser account keeps its `su` (19.0.2.10.3). A requester who can no longer run the operation leaves the grant standing and a chatter note, like any failed side effect |
 | `_refuse_pending_approval()` | Refuses a waiting request, for an adopter's cancel path |
 
@@ -765,19 +767,18 @@ Adopted by `mixin.approval.lifecycle`. Covered by `test_approval/tests/test_gate
 | File | `models/mixin_approval_lifecycle.py` |
 | Inherits | `mixin.approval.gate`, `mixin.lifecycle` |
 
-For a document with a declared lifecycle whose confirmation is the approval gate. It is `mixin.approval.gate` with `_approval_operations = ("action_confirm",)`, so the split, the coverage check and the re-entry are the gate's; only the lifecycle's own wiring lives here. Entering the confirmed state is the operation, whatever the door (19.0.2.10.3): `_operation_checkpoints = {"action_confirm": "_check_confirm_transition"}`, reached by a write that moves a record into `_get_confirmed_state()` (the state `_prepare_confirmation_values` writes) and by a create that starts there -- which covers `load()`. So every adopter has an `approval.gate` row, and a record that needs approval is watched, then refused once enforced, however it is confirmed without its grant. The adopter supplies `_get_domain_approval_category`; with no category matching, confirming is the plain lifecycle.
+For a document with a declared lifecycle whose confirmation is held on its approval. Each adopter declares the verb `confirm` (door `action_confirm`, transition `state` into the state `_prepare_confirmation_values` writes, which `_get_confirmed_state()` returns) and its module ships the obligation, so the split, the coverage check and the re-entry are the gate's. Entering the confirmed state is the verb, whatever the door: a write that makes the move and a create that starts there -- which covers `load()` -- reach the obligation through the kernel's transition funnel, and a record that needs approval is refused (Observe: recorded) however it is confirmed without its grant. The adopter supplies `_get_domain_approval_category`; with no category matching, confirming is the plain lifecycle.
 
 | Method | What it does |
 |--------|--------------|
-| `action_confirm` | Runs the confirm checks, then `_run_through_approval("action_confirm", ...)` |
-| `_check_confirm_transition` | The checkpoint: `_check_approval_admits("action_confirm")` for the records entering the confirmed state |
+| `_check_before_approval("confirm")` | The confirm checks, before the request is raised |
 | `_is_operation_run_on_approval` | A grant re-enters `action_confirm` while the document is still a draft |
 | `action_cancel` | Cancels, then `_refuse_pending_approval`, so an adopter whose refusal callback cancels meets an already cancelled document |
 | `action_draft` | Clears a refused or cancelled request's link, so confirming asks again |
 
-An adopter that gains the mixin after its model's own `action_confirm` (sale and purchase orders in `approval_product`) sits below that method in the MRO. It overrides `action_confirm` to call `_run_through_approval` with its own `super()`, so nothing the order does on confirmation runs before the gate.
+The door wraps the model's outermost `action_confirm`, so nothing an order does on confirmation runs before the obligation, wherever the mixin sits in its MRO.
 
-Adopted by `maintenance.order` and agromarin's `mixin.approval.document`. Covered by `maintenance`'s `TestMaintenanceOrderApproval`.
+Adopted by `maintenance.order` and agromarin's `mixin.approval.document`. Covered by `test_approval/tests/test_lifecycle_gate.py` and `maintenance`'s `TestMaintenanceOrderApproval`.
 
 ---
 
@@ -869,7 +870,9 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `active` | Boolean | Yes | No | default=True |
 | `model_id` | Many2one(`ir.model`) | Yes | **Yes** | ondelete=cascade, index |
 | `model_name` | Char | Yes | No | related `model_id.model`, index — the lookup key |
-| `method` | Char | Yes | **Yes** | refused if `automation` claims it, if it is the ORM's own API, if it is private outside module data, if it does not exist, or if it is the binding machinery |
+| `method` | Char | Yes | No | refused if `automation` claims it, if it is the ORM's own API, if it is private outside module data, if it does not exist, if it is the binding machinery, or if it is a door or checkpoint of a verb the model declares (bind the verb) |
+| `verb` | Char | Yes | No | index=btree_not_null. A verb the model declares (19.0.2.14.0). Installs no wrapper of its own: the kernel's doors, checkpoints and transition funnel ask `ir.access.obligation`, which asks this binding. With no category on a `mixin.approval.gate` model it is the document's own obligation, which takes no `subject_domain` |
+| `origin` | Selection(module/manual) | Yes | **Yes** | default="manual", readonly. `module`: an obligation a module ships as `noupdate` data, of which the mode and the sudo policy are the operator's decision; listed under *Code Gates* (`action_approval_binding_module`) |
 | `category_id` | Many2one(`approval.category`) | Yes | No | ondelete=cascade. Required for `block` and `request` |
 | `subject_domain` | Char | Yes | No | string="Applies When"; empty means every record |
 | `mode` | Selection(advise/block/request) | Yes | **Yes** | default="advise". `advise` (labelled Observe) runs the operation and records it; `block` refuses unless an approved request covers the record; `request` raises the approval instead of running — and, with `run_on_approval`, runs the operation exactly once when it is approved, as the person who called it |
@@ -887,14 +890,14 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 
 ### Constraints
 
-- `_model_method_domain_uniq`: unique nulls not distinct (model_id, method, subject_domain)
+- `_model_method_domain_uniq`: unique nulls not distinct (model_id, method, action_id, verb, subject_domain)
 - `_check_binding`: the model is in the registry; the method passes `_check_method_available`; the domain passes `_check_domain_against_model`; `block` and `request` have a category; `request` passes `_check_method_replayable`
 - `_check_method_available`: refuses `AUTOMATION_CLAIMED_METHODS` — `create`, `write`, `unlink`, `_compute_field_value`, `_onchange_methods__`, `message_post`. `automation._unregister_hook` does `delattr(Model, name)` for each across the whole registry without checking who installed it, so a gate there would disappear silently rather than fail
 - `_check_method_replayable`: with `run_on_approval` on, `request` mode only gates a method taking nothing but `self`. The signature is read with `annotationlib.Format.FORWARDREF`: nine `res.partner` methods annotate with names their module never imports, and the default reading raises `NameError` on 3.14. Replaying stored arguments would have to guess at stale recordsets and closures, so the limit is enforced up front; with it off nothing is replayed and any method may be gated
 - `_get_method_refusal(method)`: refuses every name `BaseModel` defines, dunders included, except the lifecycle actions in `ORM_LIFECYCLE_ACTIONS` (`action_archive`, `action_unarchive`, `toggle_active`). The gate calls the ORM's API itself (`browse`, `filtered_domain`, `sudo`), so wrapping one recurses or breaks the model; an Observe binding on `__setattr__` broke building any partner in the process.
 - `_check_private_method_from_module_data` (fires on `model_id` and `method` only): a private method is accepted only with `install_module` in the context, which is to say from module data. Editing any other field of such a binding from the interface is unaffected.
 - `approve_on_invoke` needs `request` mode: Block mode raises no request for the caller to approve
-- A binding gates exactly one of `method` and `action_id`; the uniqueness constraint covers (model_id, method, action_id, subject_domain), so two actions on one model can each be bound
+- A binding gates exactly one of `verb`, `method` and `action_id`; the uniqueness constraint covers (model_id, method, action_id, verb, subject_domain), so two actions on one model can each be bound
 - With `run_on_approval` in `request` mode, only a method or a server action can be run again; a window, client or report action needs it off
 - `reset_domain`, when set, must name paths that exist on the gated model *(added by `approval_automation`)*
 
@@ -926,7 +929,9 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 | `get_button_approvals(specs)` | For each `{model, res_id, method, action_id}`: `{gated, approved, request, steps}`. Each step carries who may decide it (`approval.request._can_decide_step`: neither decided by the caller nor excluded by an exclusive step they decided) and its decisions, assigned by `approval.request._get_step_assignment`, so what the button draws is what the quorum counts. A category without steps is one step with `id` false. Read access on the record is checked first |
 | `check_button_approval(model, res_id, method, action_id)` | `_gate` with a no-op operation: `{approved, request_id}`. It raises or reuses the request and marks the one-shot, because the browser runs the action next |
 | `action_decide_approval(..., approve, step_id)` / `action_withdraw_decision(..., approver_id, step_id)` | Decide as the caller, for the step the button drew the control under (`_get_button_decision_steps` refuses a step of another button), or withdraw through `action_withdraw_approver` (a refusal through `action_reset_to_draft`); the rights are `_can_withdraw_approver` / `_can_reopen_refusal`, the same predicates the checks raise from, judged against the withdrawn step |
-| `_get_checkpoint_guard(model, checkpoint, operations)` / `_enforce_at_checkpoint(records, bindings, operation)` | Operation checkpoints. A model that declares `_operation_checkpoints = {operation: private_hook}` (`account.move`: `action_post` -> `_post_check_business_rules`) has the hook wrapped too, so a binding on the operation holds on every path that crosses it. The paths that never reach the operation's own wrapper get Block semantics: a checkpoint can neither ask for an approval nor keep a request, so a record Block or Request mode would stop is refused there |
+| `_enforce_at_checkpoint(records, bindings, verb)` | A configured binding on a verb, at the verb's checkpoint or state move (`account.move`: `post` crosses `_post_check_business_rules`), so it holds on every path the model says the verb crosses. Those paths get Block semantics: a checkpoint can neither ask for an approval nor keep a request, so a record Block or Request mode would stop is refused there |
+| `_split_verb_bindings(model, verb)` / `_bindings_for_verb(model, verb)` | The document's own obligation on the verb (a verb binding with no category on a `mixin.approval.gate` model, `_is_document_obligation`) and the configured ones. The kill switch reaches only the configured ones, as it never reached a code gate |
+| `_hold_document_at_door(records, verb, run)` / `_hold_document_at_checkpoint(records, verb)` | The document's own obligation: Request asks through `_run_through_approval`; Block and Observe run `_check_approval_admits` and let through what it admits |
 | `_run_admitted(records, operation, call)` / `_get_admitted_ids(records, operation)` | The operation's wrapper runs `call(records)` with the records it lets through admitted, as (transaction, model, operation, ids) on a stack the process holds for the length of the call; their checkpoint does not check them again. Nothing in the context admits anything, so no client can forge an admission. Records the admitted call touches on its own (a reversal a posting creates) are still checked |
 | `create_step_for_button(model, method, action_id)` | Adds a step to a button; the first one binds the button in Studio's shape (Request, approve-on-invoke, run-on-approval off, a category that requests its steps in order). A step starts with the Internal User group and the gated model as subject model; its sequence is the last plus one, capped at 9 |
 | `action_open_button_steps(model, method, action_id)` | A button's steps as a kanban (then list and form), with a quick-create card -- the card Studio's rule kanban showed: name, exclusivity, group, order, approvers |
@@ -947,8 +952,8 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 
 One row per gated call let through while its gate was only watching: written by
 an Observe binding, by any binding whose `sudo_policy` let an elevated caller
-pass, and by `mixin.approval.gate` when a call reaches a terminal transition by
-a path the gate does not own and `approval.gate_enforced` is not set.
+pass, and by a document's own obligation when a call reaches the verb by a path
+other than its door while the obligation watches.
 Append-only on purpose: a counter on the binding would contend for one row lock
 on every gated call, and the question the table answers needs the breakdown
 rather than a total.
@@ -957,91 +962,22 @@ rather than a total.
 switched on, so the table has its own screen: *Settings > Technical > Approvals
 > Watched Calls* (`action_approval_observation`), which opens filtered to
 `would_block` and grouped by model and operation. Those rows are what
-enforcement would begin refusing. Rows with no `binding_id` come from a code
-gate and are switched on through `approval.gate` rather than a binding's mode;
-the search view separates the two.
+enforcement would begin refusing. Every row since 19.0.2.14.0 names its
+binding; approval 2.14's end migration links the rows a code gate recorded to
+the obligation that replaced it.
 
 ### Fields
 
 | Field | Type | Stored | Required | Key Attributes |
 |-------|------|--------|----------|----------------|
-| `binding_id` | Many2one(`approval.binding`) | Yes | No | ondelete=cascade, index=btree_not_null. Empty for a gate a model declares in code |
+| `binding_id` | Many2one(`approval.binding`) | Yes | No | ondelete=cascade, index=btree_not_null. Empty only on a row recorded before 19.0.2.14.0 that no obligation took over |
 | `model_name` | Char | Yes | **Yes** | index. The gated model |
-| `operation` | Char | Yes | **Yes** | index. The gated method the call was reaching |
+| `operation` | Char | Yes | **Yes** | index. The verb or gated method the call was reaching |
 | `res_id` | Integer | Yes | No | index |
 | `user_id` | Many2one(`res.users`) | Yes | No | the caller's uid, which `sudo()` preserves |
 | `elevation` | Selection(none/superuser/self_elevated) | Yes | **Yes** | index |
 | `would_block` | Boolean | Yes | No | whether Block would have refused this call — the number that sizes switching a binding on |
 | `date` | Datetime | Yes | No | default=now, index |
-
----
-
-## approval.gate
-
-| Key | Value |
-|-----|-------|
-| Model | `approval.gate` |
-| File | `models/approval_gate.py` |
-| Type | Model |
-| Order | `model_name, operation` |
-
-One row per terminal transition a model gates in its own code -- the configured
-twin of `approval.binding`. A binding exists because a person decided to gate a
-method; a gate exists because a model declares `_approval_operations`, so
-**nobody creates these**. `_register_hook` calls `_sync_declared_gates`, which
-walks the registry, adds a row for each declared operation and archives any row
-whose operation the installed code no longer declares. A new adopter therefore
-appears the next time the registry is built, without a data file.
-
-A row is archived, never deleted, and keeps `enforced`: an operation declared
-again reactivates the same row, enforcing as it was, and the archive of an
-enforcing row is a WARNING on the module logger. The registry is not the only
-witness, because a server started on a shorter addons path builds one that lacks
-installed modules. So the sync archives nothing while any installed module is
-not loaded (`registry.loaded_modules`), and never a row whose model an installed
-module owns (`ir_model_data`) though this registry lacks it: it archives only
-what an installed, loaded model stopped declaring, and what belongs to no
-installed module. Before 19.0.2.10.4 the sync deleted the row and recreated it
-watching, so one boot on a shorter path cost every gate of the missing modules
-its enforcement. Covered by `test_approval/tests/test_gate_sync.py`.
-
-An operation earns a row only where the model also names it in
-`_operation_checkpoints`. `_check_approval_admits` is called from that checkpoint
-and nowhere else, so without one enforcement has no path to close: the toggle
-would govern nothing and the count beside it could never leave zero.
-`approval.test.gated`'s `action_bill` is the standing case. `mixin.approval.lifecycle`
-was one until 19.0.2.10.3, when entering the confirmed state became its checkpoint;
-`sale.order`, `purchase.order`, `maintenance.order` and `rma.order` have their row
-since. The pairs left out are named on `trace.REGISTRY` at each sync.
-
-The only field a person may write is `enforced`, and that is the point: the row
-is a place to put the decision the counts beside it inform. Enforcement is **per
-operation**, so a gate whose watched calls cost nothing can be switched on while
-an expensive one keeps watching. `mixin.approval.gate._is_approval_gate_enforced`
-asks `_is_enforced`, which reads an `ormcache`d set cleared on every write here.
-
-Supersedes `approval.gate_enforced`, the single system parameter 19.0.2.9.0
-shipped with. `_adopt_legacy_enforcement` carries a `1` there onto every row and
-deletes the parameter, so a database that was enforcing keeps enforcing. It runs
-from the sync rather than from a migration because **no migration phase runs late
-enough**: the gates cannot be discovered until every adopter is in the registry,
-which is `_register_hook`, and end migrations run before that.
-
-A document holds **one** `approval_request_id` at a time, so a model may declare
-several gated operations but cannot have two of them waiting at once.
-
-### Fields
-
-| Field | Type | Stored | Required | Key Attributes |
-|-------|------|--------|----------|----------------|
-| `model_name` | Char | Yes | **Yes** | index, readonly. The gated model |
-| `operation` | Char | Yes | **Yes** | index, readonly. The method the model declares as terminal |
-| `model_id` | Many2one(`ir.model`) | No | No | compute, for display |
-| `active` | Boolean | Yes | No | default True, readonly. Off once no installed code declares the operation; `enforced` is kept for its return |
-| `enforced` | Boolean | Yes | No | the one writable field: whether this operation refuses a bypassing caller yet |
-| `would_block_count` | Integer | No | No | compute: the calls enforcement would refuse -- the cost of switching it on, and the only count a code gate can honestly offer, since it records a call it would have refused and no other |
-
-Constraint: UNIQUE `(model_name, operation)`.
 
 ---
 

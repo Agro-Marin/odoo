@@ -35,6 +35,12 @@ class MaintenanceOrder(models.Model):
     ]
     _description = "Maintenance Order"
     _order = "id desc"
+    _access_verbs = {
+        "confirm": models.Verb(
+            methods=("action_confirm",),
+            transition=("state", "*", "confirmed"),
+        ),
+    }
     _check_company_auto = True
 
     _reservation_sync_manual = True

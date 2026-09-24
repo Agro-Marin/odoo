@@ -27,6 +27,12 @@ class StockPicking(models.Model):
     ]
     _description = "Transfer"
     _order = "priority desc, date_planned asc, id desc"
+    _access_verbs = {
+        "validate": models.Verb(
+            methods=("button_validate",),
+            checkpoints=("_pre_action_done_hook",),
+        ),
+    }
     _date_category_field = "date_planned"
 
     name = fields.Char(

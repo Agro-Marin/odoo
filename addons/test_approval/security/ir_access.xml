@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="access_approval_test_document_record_operation" model="ir.access">
+        <field name="name">approval.test.document: record where it is written</field>
+        <field name="model_id" ref="model_approval_test_document" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field name="verbs">record_operation</field>
+    </record>
+
+    <record id="access_approval_test_gated_ship_bill" model="ir.access">
+        <field
+            name="name">approval.test.gated: ship and bill where it is written</field>
+        <field name="model_id" ref="model_approval_test_gated" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field name="verbs">ship,bill</field>
+    </record>
+
+    <record id="access_approval_test_lifecycle_confirm" model="ir.access">
+        <field name="name">approval.test.lifecycle: confirm where it is written</field>
+        <field name="model_id" ref="model_approval_test_lifecycle" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field name="verbs">confirm</field>
+    </record>
+
+</odoo>

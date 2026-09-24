@@ -24,7 +24,6 @@ from . import (
     approval_request_reach,
     approval_request_routing,
     approval_decision_log,  # isort: skip -- extends approval.request
-    approval_gate,
     approval_observation,
     approval_rule,
     approval_trace,
@@ -32,6 +31,7 @@ from . import (
     ir_actions_report,
     ir_actions_server,
     ir_access_exception,
+    ir_access_obligation,
     ir_attachment,
     mail_activity,
     mail_activity_type,

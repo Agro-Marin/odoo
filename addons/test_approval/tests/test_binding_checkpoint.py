@@ -6,12 +6,12 @@ from odoo.addons.approval.tests.common import ApprovalCommon
 
 @tagged("post_install", "-at_install")
 class TestBindingCheckpoint(ApprovalCommon):
-    """A binding on an operation holds on every path its model says the operation crosses.
+    """A binding on a verb holds on every path its model says the verb crosses.
 
-    `approval.test.document` declares that `action_record_operation` and
-    `action_record_operation_from_list` both cross `_check_record_operation`, the
-    way `account.move` declares that every posting path crosses
-    `_post_check_business_rules`.
+    `approval.test.document` declares the verb `record_operation`: its door is
+    `action_record_operation`, and `action_record_operation_from_list` crosses its
+    checkpoint `_check_record_operation`, the way `account.move` declares that
+    every posting path crosses `_post_check_business_rules`.
     """
 
     def setUp(self):
@@ -24,7 +24,7 @@ class TestBindingCheckpoint(ApprovalCommon):
         self.binding = self.env["approval.binding"].create(
             {
                 "model_id": self.env["ir.model"]._get("approval.test.document").id,
-                "method": "action_record_operation",
+                "verb": "record_operation",
                 "mode": "block",
                 "category_id": self.category.id,
                 "sudo_policy": "enforce",
@@ -78,7 +78,7 @@ class TestBindingCheckpoint(ApprovalCommon):
         with self.assertRaises(UserError):
             self.env["approval.binding"]._run_admitted(
                 self.doc,
-                "action_record_operation",
+                "record_operation",
                 lambda admitted: other.action_record_operation_from_list(),
             )
         self.assertEqual(other.operation_count, 0)
@@ -86,7 +86,7 @@ class TestBindingCheckpoint(ApprovalCommon):
     def test_a_forged_admission_in_the_context_admits_nothing(self):
         forged = self.doc.with_context(
             approval_binding_admitted=[
-                ["approval.test.document", "action_record_operation", [self.doc.id]]
+                ["approval.test.document", "record_operation", [self.doc.id]]
             ]
         )
         with self.assertRaises(UserError):

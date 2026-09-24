@@ -13,6 +13,12 @@ class ApprovalTestLifecycle(models.Model):
         "closed": set(),
         "cancel": {"draft"},
     }
+    _access_verbs = {
+        "confirm": models.Verb(
+            methods=("action_confirm",),
+            transition=("state", "*", "done"),
+        ),
+    }
 
     name = fields.Char(required=True)
     partner_id = fields.Many2one(comodel_name="res.partner")

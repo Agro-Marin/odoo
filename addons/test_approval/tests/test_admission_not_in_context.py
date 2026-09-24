@@ -33,7 +33,7 @@ class TestAdmissionNotInContext(ApprovalCommon):
             approval_gate_operation="action_bill"
         ).action_create_approval_request()
         request = document.approval_request_id
-        self.assertEqual(request.operation, "action_ship")
+        self.assertEqual(request.operation, "ship")
         request.with_user(self.approver_1).action_approve()
         self.assertEqual(document.bill_count, 0)
 

@@ -35,6 +35,12 @@ class SaleOrder(models.Model):
     _description = "Sale Order"
     _check_company_auto = True
     _order = "date_order desc, id desc"
+    _access_verbs = {
+        "confirm": models.Verb(
+            methods=("action_confirm",),
+            transition=("state", "*", "done"),
+        ),
+    }
 
     _price_history_action = "sale.action_sale_history"
 

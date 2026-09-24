@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="obligation_order_confirm" model="approval.binding">
+        <field name="model_id" ref="model_maintenance_order" />
+        <field name="verb">confirm</field>
+        <field name="mode">request</field>
+        <field name="sudo_policy">enforce</field>
+        <field name="origin">module</field>
+    </record>
+
+</odoo>

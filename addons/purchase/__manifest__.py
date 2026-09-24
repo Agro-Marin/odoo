@@ -15,6 +15,7 @@
     "data": [
         "security/res_groups.xml",
         "security/ir.access.csv",
+        "security/ir_access.xml",
         "data/digest_data.xml",
         "data/template_data.xml",
         "data/ir_actions_report_data.xml",

@@ -126,6 +126,7 @@ You could use this simplified accounting in case you work with an (external) acc
         "wizards/account_reconcile_wizard_views.xml",
         "views/account_reconcile_menus.xml",
         "security/ir.access.csv",
+        "security/ir_access.xml",
         "data/pdf_export_templates_ledger.xml",
         "data/customer_reports_pdf_export_templates.xml",
         "data/balance_sheet.xml",

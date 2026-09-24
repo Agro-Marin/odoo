@@ -382,16 +382,17 @@ class AccessMixin(_ModelStubs):
         self.check_access(verb)
         return self.env.registry.access_policy.verb_door(self.env, self, verb, call)
 
-    def _verb_checkpoint(self, verb: str) -> None:
+    def _verb_checkpoint(self, verb: str) -> tuple[int, ...]:
         # a funnel every door of the verb passes: what no door admitted is
         # checked here, and can be refused but never asked
         env = self.env
         admitted = env.transaction.admitted_ids(self._name, verb)
         pending = self.browse([id_ for id_ in self._ids if id_ not in admitted])
         if not pending:
-            return
+            return ()
         pending.check_access(verb)
         env.registry.access_policy.verb_checkpoint(env, pending, verb)
+        return pending._ids
 
     def _check_verb_transitions(
         self, vals: dict[str, typing.Any], transitions: dict

@@ -20,7 +20,7 @@ from . import (
     test_subject_integrity,
 )
 from . import test_gate
-from . import test_gate_sync
+from . import test_obligation_in_data
 from . import test_gate_batch
 from . import test_lifecycle_gate
 from . import test_decision_ledger_kept

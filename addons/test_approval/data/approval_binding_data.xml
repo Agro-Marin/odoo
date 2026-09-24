@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="obligation_gated_ship" model="approval.binding">
+        <field name="model_id" ref="model_approval_test_gated" />
+        <field name="verb">ship</field>
+        <field name="mode">request</field>
+        <field name="sudo_policy">enforce</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_gated_bill" model="approval.binding">
+        <field name="model_id" ref="model_approval_test_gated" />
+        <field name="verb">bill</field>
+        <field name="mode">request</field>
+        <field name="sudo_policy">enforce</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_lifecycle_confirm" model="approval.binding">
+        <field name="model_id" ref="model_approval_test_lifecycle" />
+        <field name="verb">confirm</field>
+        <field name="mode">request</field>
+        <field name="sudo_policy">enforce</field>
+        <field name="origin">module</field>
+    </record>
+
+</odoo>

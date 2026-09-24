@@ -24,11 +24,12 @@ class TestTestDocumentIsNotProductionSurface(ApprovalCommon):
             [
                 ("model_id.model", "=", "approval.test.document"),
                 ("kind", "=", "permission"),
+                ("operation", "!=", False),
             ],
         )
         self.assertFalse(
             acl,
-            "approval.test.document must carry no ir.access permission: this "
-            "module ships none, and the fixture is reached as superuser or "
-            "as a manager. Found: %s" % acl.mapped("name"),
+            "approval.test.document must carry no ir.access permission for create, "
+            "read, write or delete: this module ships none, and the fixture is "
+            "reached as superuser or as a manager. Found: %s" % acl.mapped("name"),
         )

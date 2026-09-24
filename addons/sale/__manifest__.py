@@ -44,6 +44,7 @@ that reach sales orders only through another application.
     "data": [
         "security/res_groups.xml",
         "security/ir.access.csv",
+        "security/ir_access.xml",
         "reports/ir_actions_report_templates.xml",
         "reports/ir_actions_report.xml",
         "reports/sale_report_views.xml",

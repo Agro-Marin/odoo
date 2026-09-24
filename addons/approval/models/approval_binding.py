@@ -60,7 +60,21 @@ class ApprovalBinding(models.Model):
     method = fields.Char(
         help="Method to gate. It is wrapped at registry load, so the gate "
         "holds for every caller, not only the user interface. A binding gates "
-        "a method or an action, never both."
+        "one thing: a verb, a method or an action."
+    )
+    verb = fields.Char(
+        index="btree_not_null",
+        help="A verb the model declares (post, confirm, validate...). It needs no "
+        "wrapper of its own: every door, checkpoint and state move of the verb "
+        "asks the binding.",
+    )
+    origin = fields.Selection(
+        selection=[("module", "Shipped by a module"), ("manual", "Configured")],
+        default="manual",
+        readonly=True,
+        required=True,
+        help="Shipped by a module: the module's own obligation, of which only the "
+        "mode and the sudo policy are an operator's decision.",
     )
     action_id = fields.Many2one(
         comodel_name="ir.actions.actions",
@@ -157,22 +171,45 @@ class ApprovalBinding(models.Model):
     self_elevated_count = fields.Integer(compute="_compute_elevation_counts")
 
     _model_method_domain_uniq = models.Constraint(
-        "unique nulls not distinct (model_id, method, action_id, subject_domain)",
+        "unique nulls not distinct (model_id, method, action_id, verb, subject_domain)",
         "A binding already covers that model, operation and condition.",
     )
 
-    @api.depends("model_id", "method", "action_id", "mode")
+    @api.depends("model_id", "method", "verb", "action_id", "mode")
     def _compute_name(self) -> None:
         for binding in self:
-            target = binding.method or binding.action_id.name or "?"
+            target = binding._get_operation_label()
             binding.name = f"{binding.model_name or '?'}.{target} ({binding.mode})"
 
-    @api.depends("method", "action_id", "action_id.type")
+    @api.depends("method", "verb", "action_id", "action_id.type")
     def _compute_is_enforced(self) -> None:
         for binding in self:
-            binding.is_enforced = bool(binding.method) or (
+            binding.is_enforced = bool(binding.method or binding.verb) or (
                 binding.action_id.type in ENFORCEABLE_ACTION_TYPES
             )
+
+    def _get_operation_label(self) -> str:
+        self.check_singleton()
+        return self.verb or self.method or self.action_id.name or "?"
+
+    def _get_method_name(self) -> str | None:
+        """The method a replay calls: the bound method, or the verb's first door."""
+        self.check_singleton()
+        if self.method or not self.verb:
+            return self.method or None
+        verb = self.env.registry.model_verbs.get(self.model_id.model, {}).get(self.verb)
+        return verb.methods[0] if verb and verb.methods else None
+
+    def _is_document_obligation(self) -> bool:
+        """A verb binding with no category: the document asks its own approval."""
+        self.check_singleton()
+        model = self.env.get(self.model_id.model)
+        return bool(
+            self.verb
+            and not self.category_id
+            and model is not None
+            and isinstance(model, self.env.registry["mixin.approval.gate"])
+        )
 
     def _compute_elevation_counts(self) -> None:
         grouped = self.env["approval.observation"]._read_group(
@@ -206,6 +243,7 @@ class ApprovalBinding(models.Model):
     @api.constrains(
         "model_id",
         "method",
+        "verb",
         "mode",
         "subject_domain",
         "category_id",
@@ -228,26 +266,46 @@ class ApprovalBinding(models.Model):
                         model=binding.model_id.model,
                     ),
                 )
-            if bool(binding.method) == bool(binding.action_id):
+            if bool(binding.method) + bool(binding.action_id) + bool(binding.verb) != 1:
                 trace.REFUSAL.event(
                     "binding_gates_none_or_both",
                     binding=binding.id,
                     method=binding.method or None,
+                    verb=binding.verb or None,
                     action=binding.action_id.id or None,
                 )
                 raise ValidationError(
                     self.env._(
-                        "%(name)s must gate exactly one thing: a method or an action.",
+                        "%(name)s must gate exactly one thing: a verb, a method or "
+                        "an action.",
                         name=binding.name,
                     ),
                 )
-            if binding.method:
+            if binding.verb:
+                binding._check_verb_declared(model)
+            elif binding.method:
                 binding._check_method_available(model)
             else:
                 binding._check_action_available()
+            if binding.subject_domain and binding._is_document_obligation():
+                trace.REFUSAL.event(
+                    "document_obligation_with_condition", binding=binding.id
+                )
+                raise ValidationError(
+                    self.env._(
+                        "%(name)s holds %(model)s's own approval, which its approval "
+                        "categories scope: it takes no condition of its own.",
+                        name=binding.name,
+                        model=model._name,
+                    ),
+                )
             if binding.subject_domain:
                 binding._check_domain_against_model(model)
-            if binding.mode != "advise" and not binding.category_id:
+            if (
+                binding.mode != "advise"
+                and not binding.category_id
+                and not binding._is_document_obligation()
+            ):
                 trace.REFUSAL.event(
                     "binding_without_category", binding=binding.id, mode=binding.mode
                 )
@@ -272,8 +330,12 @@ class ApprovalBinding(models.Model):
                         name=binding.name,
                     ),
                 )
-            if binding.mode == "request" and binding.run_on_approval:
-                if binding.method:
+            if (
+                binding.mode == "request"
+                and binding.run_on_approval
+                and not binding._is_document_obligation()
+            ):
+                if binding.method or binding.verb:
                     binding._check_method_replayable(model)
                 elif binding.action_id.type != "ir.actions.server":
                     trace.REFUSAL.event(
@@ -348,6 +410,33 @@ class ApprovalBinding(models.Model):
                     ),
                 )
 
+    def _check_verb_declared(self, model) -> None:
+        self.check_singleton()
+        verb = self.env.registry.model_verbs.get(model._name, {}).get(self.verb)
+        if verb is None:
+            trace.REFUSAL.event(
+                "verb_not_declared", binding=self.id, model=model._name, verb=self.verb
+            )
+            raise ValidationError(
+                self.env._(
+                    "%(model)s declares no verb %(verb)s.",
+                    model=model._name,
+                    verb=self.verb,
+                ),
+            )
+        if not verb.methods and self.mode == "request":
+            trace.REFUSAL.event(
+                "verb_without_door_in_request_mode", binding=self.id, verb=self.verb
+            )
+            raise ValidationError(
+                self.env._(
+                    "%(verb)s has no door on %(model)s, so nothing can wait for its "
+                    "approval: use Block.",
+                    model=model._name,
+                    verb=self.verb,
+                ),
+            )
+
     def _check_method_available(self, model) -> None:
         self.check_singleton()
         if self.method in AUTOMATION_CLAIMED_METHODS:
@@ -374,6 +463,25 @@ class ApprovalBinding(models.Model):
             raise ValidationError(
                 self.env._("A binding cannot gate the binding machinery."),
             )
+        for verb_name, verb in self.env.registry.model_verbs.get(
+            model._name, {}
+        ).items():
+            if self.method in (*verb.methods, *verb.checkpoints):
+                trace.REFUSAL.event(
+                    "method_is_a_verb_door",
+                    binding=self.id,
+                    method=self.method,
+                    verb=verb_name,
+                )
+                raise ValidationError(
+                    self.env._(
+                        "%(method)s is how %(model)s does %(verb)s: bind the verb, "
+                        "which every door, checkpoint and state move of it asks.",
+                        method=self.method,
+                        model=model._name,
+                        verb=verb_name,
+                    ),
+                )
         function = getattr(model, self.method, None)
         if function is None or not callable(function):
             trace.REFUSAL.event(
@@ -424,7 +532,8 @@ class ApprovalBinding(models.Model):
 
     def _check_method_replayable(self, model) -> None:
         self.check_singleton()
-        function = getattr(model, self.method)
+        method = self._get_method_name()
+        function = getattr(model, method)
         signature = inspect.signature(
             function, annotation_format=annotationlib.Format.FORWARDREF
         )
@@ -447,7 +556,7 @@ class ApprovalBinding(models.Model):
                     "%(method)s takes %(args)s, so it cannot be replayed after "
                     "approval. Request mode only gates methods that take no "
                     "argument; use Block mode for this one.",
-                    method=self.method,
+                    method=method,
                     args=", ".join(p.name for p in required),
                 ),
             )
@@ -597,7 +706,7 @@ class ApprovalBinding(models.Model):
         return {
             "binding_id": self.id,
             "model_name": record._name,
-            "operation": self.method or self.action_id.name or "?",
+            "operation": self._get_operation_label(),
             "res_id": record.id,
             "user_id": self.env.uid,
             "elevation": elevation,
@@ -641,7 +750,7 @@ class ApprovalBinding(models.Model):
                     "%(record)s needs an approval before %(method)s can run.\n\n"
                     "Ask for approval on the document first.",
                     record=record.display_name,
-                    method=self.method or self.action_id.name,
+                    method=self._get_operation_label(),
                 ),
             )
         trace.BINDING.note(
@@ -833,21 +942,21 @@ class ApprovalBinding(models.Model):
                     if self.action_id:
                         self._run_action_on(record)
                     else:
-                        getattr(record, self.method)()
+                        getattr(record, self._get_method_name())()
         except UserError as exc:
             error = str(exc) or type(exc).__name__
             trace.BINDING.note(
                 "replay_failed",
                 binding=self.id,
                 request=request.id,
-                method=self.method,
+                method=self._get_operation_label(),
                 error=type(exc).__name__,
             )
             _logger.info(
                 "Approval binding %s: request %s approved, operation %s not run: %s",
                 self.id,
                 request.id,
-                self.method,
+                self._get_operation_label(),
                 error,
             )
 
@@ -855,7 +964,7 @@ class ApprovalBinding(models.Model):
             request.sudo().write({"binding_replay_error": error})
             body = self.env._(
                 "The gated operation %(method)s did not run: %(error)s",
-                method=self.method,
+                method=self._get_operation_label(),
                 error=error,
             )
         else:
@@ -869,12 +978,12 @@ class ApprovalBinding(models.Model):
                 "replay_ran",
                 binding=self.id,
                 request=request.id,
-                method=self.method,
+                method=self._get_operation_label(),
                 owner=owner.id,
             )
             body = self.env._(
                 "The gated operation %(method)s ran as %(user)s.",
-                method=self.method,
+                method=self._get_operation_label(),
                 user=owner.display_name,
             )
         request.sudo().message_post(body=body, message_type="notification")
@@ -890,6 +999,20 @@ class ApprovalBinding(models.Model):
             self.sudo()
             .with_context(active_test=True)
             .search([("model_name", "=", model_name), ("method", "=", method)])
+            .ids
+        )
+
+    @api.model
+    def _bindings_for_verb(self, model_name: str, verb: str):
+        return self.sudo().browse(self._get_verb_binding_ids(model_name, verb))
+
+    @api.model
+    @ormcache("model_name", "verb")
+    def _get_verb_binding_ids(self, model_name: str, verb: str) -> tuple[int, ...]:
+        return tuple(
+            self.sudo()
+            .with_context(active_test=True)
+            .search([("model_name", "=", model_name), ("verb", "=", verb)])
             .ids
         )
 
@@ -930,7 +1053,7 @@ class ApprovalBinding(models.Model):
         return bindings
 
     def write(self, vals):
-        if {"model_id", "method", "action_id"} & vals.keys():
+        if {"model_id", "method", "verb", "action_id"} & vals.keys():
             self._check_target_unchanged_once_requested(vals)
         result = super().write(vals)
         self._apply_to_registry()
@@ -947,6 +1070,7 @@ class ApprovalBinding(models.Model):
             current = {
                 "model_id": binding.model_id.id,
                 "method": binding.method or False,
+                "verb": binding.verb or False,
                 "action_id": binding.action_id.id or False,
             }
             if any(
@@ -1130,17 +1254,6 @@ class ApprovalBinding(models.Model):
                 guarded = self._get_guarded_method(model_name, method_name)
                 setattr(guarded, ORIGIN_ATTR, origin)
                 setattr(ModelClass, method_name, guarded)
-            checkpoints = getattr(ModelClass, "_operation_checkpoints", {})
-            for checkpoint in {checkpoints[m] for m in methods if m in checkpoints}:
-                origin = getattr(ModelClass, checkpoint, None)
-                if origin is None or getattr(origin, ORIGIN_ATTR, None) is not None:
-                    continue
-                operations = tuple(
-                    sorted(m for m, c in checkpoints.items() if c == checkpoint)
-                )
-                guarded = self._get_checkpoint_guard(model_name, checkpoint, operations)
-                setattr(guarded, ORIGIN_ATTR, origin)
-                setattr(ModelClass, checkpoint, guarded)
 
     def _unregister_hook(self):
         """Remove only our own wrappers, identified by the marker we set."""
@@ -1282,40 +1395,6 @@ class ApprovalBinding(models.Model):
     def _get_admitted_ids(self, records, operation: str) -> set[int]:
         return set(records.env.transaction.admitted_ids(records._name, operation))
 
-    def _get_checkpoint_guard(
-        self, model_name: str, checkpoint: str, operations: tuple[str, ...]
-    ):
-        def guarded(records, *args, **kwargs):
-            origin = getattr(guarded, ORIGIN_ATTR)
-            Binding = records.env["approval.binding"]
-            if not records:
-                return origin(records, *args, **kwargs)
-            if not Binding._enabled():
-                trace.BINDING.event(
-                    "checkpoint_disabled",
-                    checkpoint=checkpoint,
-                    model=model_name,
-                    records=len(records),
-                )
-                return origin(records, *args, **kwargs)
-            for operation in operations:
-                bindings = Binding._bindings_for(model_name, operation)
-                trace.BINDING.event(
-                    "checkpoint",
-                    checkpoint=checkpoint,
-                    model=model_name,
-                    operation=operation,
-                    records=len(records),
-                    bindings=bindings.ids,
-                )
-                if bindings:
-                    Binding._enforce_at_checkpoint(records, bindings, operation)
-            return origin(records, *args, **kwargs)
-
-        guarded.__name__ = checkpoint
-        guarded.__qualname__ = f"{model_name}.{checkpoint}"
-        return guarded
-
     @api.model
     def _enforce_at_checkpoint(self, records, bindings, operation: str) -> None:
         """Hold `operation`'s bindings on a path that reaches its checkpoint.
@@ -1363,3 +1442,53 @@ class ApprovalBinding(models.Model):
                     operation=operation,
                 ),
             )
+
+    # -- verbs: the kernel's doors and checkpoints ask these -----------------
+
+    @api.model
+    def _get_declared_verb(self, records, verb: str):
+        return records.env.registry.model_verbs.get(records._name, {}).get(verb)
+
+    @api.model
+    def _get_own_verb(self, records) -> str | None:
+        """The verb a document's own obligation holds, for a request naming none."""
+        for verb in records.env.registry.model_verbs.get(records._name, ()):
+            own, _configured = self._split_verb_bindings(records._name, verb)
+            if own:
+                return verb
+        return None
+
+    @api.model
+    def _split_verb_bindings(self, model_name: str, verb: str):
+        """The document's own obligation on `verb`, and the configured bindings.
+
+        A shipped obligation is the code gate it replaces, which the kill switch
+        never reached; the configured bindings keep answering to it.
+        """
+        bindings = self._bindings_for_verb(model_name, verb)
+        if not bindings:
+            return bindings, bindings
+        own = bindings.filtered(lambda binding: binding._is_document_obligation())
+        configured = bindings - own
+        if configured and not self._enabled():
+            configured = configured.browse()
+        return own[:1], configured
+
+    def _hold_document_at_door(self, records, verb: str, run):
+        """A document asks its own approval at the verb's door, as its code gate did."""
+        self.check_singleton()
+        records._check_before_approval(verb)
+        if self.mode == "request" and not self._passes_on_elevation(self._elevation()):
+            return records._run_through_approval(verb, run)
+        records._check_approval_admits(verb, enforced=self._enforces(), binding=self)
+        return self._run_admitted(records, verb, run)
+
+    def _hold_document_at_checkpoint(self, records, verb: str) -> None:
+        self.check_singleton()
+        records._check_approval_admits(verb, enforced=self._enforces(), binding=self)
+
+    def _enforces(self) -> bool:
+        self.check_singleton()
+        return self.mode != "advise" and not self._passes_on_elevation(
+            self._elevation()
+        )
