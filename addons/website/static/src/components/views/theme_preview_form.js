@@ -4,6 +4,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { FormController, formView } from "@web/views/form";
 import { ViewButton } from "@web/views/view_button";
@@ -71,6 +72,7 @@ class ThemePreviewFormController extends FormController {
      */
     setup() {
         super.setup();
+        this.config = useViewConfig();
         useLifecycleLog(log);
         useLoaderOnClick();
 
@@ -88,7 +90,7 @@ class ThemePreviewFormController extends FormController {
         return { ...super.className, o_view_form_theme_preview_controller: true };
     }
     back() {
-        this.env.config.historyBack();
+        this.config.historyBack();
     }
 }
 
@@ -96,6 +98,7 @@ class ThemePreviewFormControlPanel extends ControlPanel {
     static template = "website.ThemePreviewForm.ControlPanel";
     setup() {
         super.setup();
+        this.config = useViewConfig();
         this.ui = useService("ui");
     }
 
@@ -108,7 +111,7 @@ class ThemePreviewFormControlPanel extends ControlPanel {
         this.env.bus.trigger("THEME_PREVIEW:SWITCH_MODE", { mode: "desktop" });
     }
     back() {
-        this.env.config.historyBack();
+        this.config.historyBack();
     }
 }
 

@@ -2,6 +2,7 @@
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { useViewModel } from "@web/model/model";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
@@ -26,6 +27,7 @@ export class BankRecKanbanControlPanel extends ControlPanel {
 
     setup() {
         super.setup();
+        this.config = useViewConfig();
         this.model = useViewModel();
         this.ui = useService("ui");
         this.notification = useService("notification");

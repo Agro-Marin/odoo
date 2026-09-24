@@ -12,7 +12,7 @@ patch(View.prototype, {
             !router.current.resId &&
             router.current.active_id === session.project_id
         ) {
-            this.env.config.setDisplayName(session.project_name);
+            this.config.setDisplayName(session.project_name);
         }
     },
 

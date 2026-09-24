@@ -4,6 +4,7 @@ import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
 import { useBus, useRefListener, useService } from "@web/core/utils/hooks";
 import { onWillStart, useRef, useEffect, useState } from "@odoo/owl";
+import { useViewConfig } from "@web/core/view_config_hooks";
 
 registry.category("share_target_apps").add("hr_expense", "expenses");
 
@@ -71,6 +72,7 @@ export const ExpenseDocumentUpload = (T) =>
     class ExpenseDocumentUpload extends T {
         setup() {
             super.setup();
+            this.config = useViewConfig();
             this.actionService = useService("action");
             this.notification = useService("notification");
             this.orm = useService("orm");
@@ -119,7 +121,7 @@ export const ExpenseDocumentUpload = (T) =>
                             res_model: "hr.expense",
                             type: "ir.actions.act_window",
                             views: [
-                                [false, this.env.config.viewType],
+                                [false, this.config.viewType],
                                 [false, "form"],
                             ],
                             domain: domain,
@@ -163,7 +165,7 @@ export const ExpenseDocumentUpload = (T) =>
             const createdExpenseIds = await this.orm.call(
                 "hr.expense",
                 "create_expense_from_attachments",
-                [attachmentIds, this.env.config.viewType],
+                [attachmentIds, this.config.viewType],
                 { context: this.props.context },
             );
             this.createdExpenseIds = [...this.createdExpenseIds, ...createdExpenseIds];

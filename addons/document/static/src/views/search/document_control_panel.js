@@ -7,6 +7,7 @@ import { onPatched, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { useViewModel } from "@web/model/model";
 import { useSearchModel } from "@web/search/search_model";
+import { useViewConfig } from "@web/core/view_config_hooks";
 
 export class DocumentsControlPanel extends ControlPanel {
     static template = "document.ControlPanel";
@@ -19,6 +20,7 @@ export class DocumentsControlPanel extends ControlPanel {
 
     setup() {
         super.setup();
+        this.config = useViewConfig();
         this.searchModel = useSearchModel();
         this.model = useViewModel();
         this.ui = useService("ui");
@@ -50,7 +52,7 @@ export class DocumentsControlPanel extends ControlPanel {
                 (r) => r.id === this.rightPanelState.focusedRecord.id,
             );
         return (
-            this.env.config.viewType !== "activity" &&
+            this.config.viewType !== "activity" &&
             !previewing &&
             (!focusing || focusedSelected)
         );
@@ -59,7 +61,7 @@ export class DocumentsControlPanel extends ControlPanel {
     get pathBreadcrumbs() {
         if (this.model.config.context.active_model) {
             return [
-                ...this.env.config.breadcrumbs.slice(0, -1),
+                ...this.config.breadcrumbs.slice(0, -1),
                 {
                     name: this.searchModel.getSelectedFolder().display_name,
                 },

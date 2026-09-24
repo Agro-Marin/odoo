@@ -18,6 +18,7 @@ import {
 } from "@odoo/owl";
 import { useViewModel } from "@web/model/model";
 import { useSearchModel } from "@web/search/search_model";
+import { useViewConfig } from "@web/core/view_config_hooks";
 
 export const DocumentsRendererMixin = (component) =>
     class extends component {
@@ -35,6 +36,7 @@ export const DocumentsRendererMixin = (component) =>
         setup() {
             super.setup();
             this.searchModel = useSearchModel();
+            this.config = useViewConfig();
             this.model = useViewModel();
             this.root = useRef("root");
             this.documentService = useService("document.document");
@@ -144,7 +146,7 @@ export const DocumentsRendererMixin = (component) =>
                 : this.props.records;
             if (!focusedRecord || !records.find((r) => r.id === focusedRecord.id)) {
                 const record =
-                    this.env.config.viewType === "kanban"
+                    this.config.viewType === "kanban"
                         ? records.find((r) => r.data.type === "folder") || records[0]
                         : records[0];
                 this.documentService.focusRecord(

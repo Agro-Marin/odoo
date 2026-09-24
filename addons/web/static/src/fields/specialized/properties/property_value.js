@@ -26,6 +26,7 @@ import { formatFloat } from "@web/core/utils/format/numbers";
 import { nbsp } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { useFieldFlush } from "@web/fields/hooks/debounced_field_commit";
 import { extractData } from "@web/fields/relational/many2one/many2one";
 import {
@@ -68,6 +69,7 @@ export class PropertyValue extends Component {
     };
 
     setup() {
+        this.config = useViewConfig();
         this.nbsp = nbsp;
 
         this.orm = useService("orm");
@@ -236,7 +238,7 @@ export class PropertyValue extends Component {
 
     /** @returns {boolean} */
     get clickableRelational() {
-        return !this.env.config || this.env.config.viewType !== "kanban";
+        return !this.config || this.config.viewType !== "kanban";
     }
 
     /** @returns {boolean} */

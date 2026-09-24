@@ -3,6 +3,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import {
     KanbanController,
@@ -30,6 +31,7 @@ class ThemePreviewControlPanel extends ControlPanel {
     static template = "website.ThemePreviewKanban.ControlPanel";
     setup() {
         super.setup();
+        this.config = useViewConfig();
         this.ui = useService("ui");
         useLifecycleLog(log);
         this.website = useService("website");

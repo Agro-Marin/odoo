@@ -13,6 +13,7 @@ import { createElementWithContent } from "@web/core/utils/dom/html";
 import { useService } from "@web/core/utils/hooks";
 import { renderToMarkup } from "@web/core/utils/render";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { useReactiveModel } from "@web/model/model";
 import { ReportViewMeasures } from "@web/views/view_components/report_view_measures";
 import {
@@ -45,6 +46,7 @@ export class GraphRenderer extends Component {
     static props = ["class?", "model", "buttonTemplate"];
 
     setup() {
+        this.config = useViewConfig();
         this.ui = useService("ui");
         useRenderCounter("graph.GraphRenderer");
         useLifecycleLog(log);
@@ -464,7 +466,7 @@ export class GraphRenderer extends Component {
     onGraphClickedFinal(domain, isMiddleClick = false) {
         this.openView(
             domain,
-            drillDownViews(this.env.config.views),
+            drillDownViews(this.config.views),
             drillDownContext(this.model.metaData.context),
             isMiddleClick,
         );

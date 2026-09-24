@@ -5,6 +5,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useNestedSortable } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { useOpenX2ManyRecord } from "@web/fields/relational/x2many_dialog";
@@ -19,6 +20,7 @@ export class AccountReportListRenderer extends ListRenderer {
     static template = "account.AccountReportList";
 
     setup() {
+        this.config = useViewConfig();
         this.dialog = useService("dialog");
         this.orm = useService("orm");
 

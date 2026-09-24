@@ -6,6 +6,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { Layout } from "@web/search/layout";
 import { SelectCreateDialog } from "@web/views/view_dialogs";
 import { standardActionServiceProps } from "@web/webclient/actions";
@@ -18,6 +19,7 @@ export class ProductPricelistReport extends Component {
     static MAX_QTY = 5;
 
     setup() {
+        this.config = useViewConfig();
         this.action = useService("action");
         this.orm = useService("orm");
         this.dialog = useService("dialog");
@@ -65,7 +67,7 @@ export class ProductPricelistReport extends Component {
             await this.renderHtml();
         });
 
-        this.env.config.setDisplayName(_t("Pricelist Report"));
+        this.config.setDisplayName(_t("Pricelist Report"));
 
         /*
         When following the link of a product and coming back we need to keep the

@@ -12,6 +12,7 @@ import { _t } from "@web/core/translation";
 import { createElement } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { Field } from "@web/fields/field";
 import { provideViewModel, useModel } from "@web/model/model";
 import {
@@ -108,6 +109,7 @@ export class FormController extends ViewController {
     onNotebookPageChange;
 
     setup() {
+        this.config = useViewConfig();
         this.setupControllerServices();
         this.setupModel();
         this.setupArch();
@@ -278,7 +280,7 @@ export class FormController extends ViewController {
         });
 
         onRendered(() => {
-            this.env.config.setDisplayName(this.displayName());
+            this.config.setDisplayName(this.displayName());
         });
 
         const { disableAutofocus } = this.archInfo;
@@ -581,7 +583,7 @@ export class FormController extends ViewController {
             confirm: async () => {
                 await this.model.root.delete();
                 if (!this.model.root.resId) {
-                    this.env.config.historyBack();
+                    this.config.historyBack();
                 }
             },
         };
@@ -683,7 +685,7 @@ export class FormController extends ViewController {
         if (this.env.inDialog) {
             await this.env.dialogData.close();
         } else if (this.model.root.isNew) {
-            this.env.config.historyBack();
+            this.config.historyBack();
         }
     }
 

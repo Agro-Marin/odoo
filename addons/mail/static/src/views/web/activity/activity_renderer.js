@@ -9,6 +9,7 @@ import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
+import { useViewConfig } from "@web/core/view_config_hooks";
 
 const log = makeLogger("mail.activity.view");
 export class ActivityRenderer extends Component {
@@ -37,6 +38,7 @@ export class ActivityRenderer extends Component {
     static template = "mail.ActivityRenderer";
 
     setup() {
+        this.config = useViewConfig();
         this.activeFilter = useState({
             progressValue: {
                 active: null,
@@ -62,11 +64,7 @@ export class ActivityRenderer extends Component {
             },
         );
 
-        this.storageKey = [
-            "activity_columns",
-            this.props.resModel,
-            this.env.config.viewId,
-        ];
+        this.storageKey = ["activity_columns", this.props.resModel, this.config.viewId];
         this.setupStorageActiveColumns();
     }
 

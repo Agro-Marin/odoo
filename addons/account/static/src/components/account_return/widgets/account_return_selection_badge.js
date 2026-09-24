@@ -4,6 +4,7 @@ import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { colorScheme } from "@web/core/color_scheme";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class AccountReturnSelectionBadge extends Component {
@@ -17,6 +18,7 @@ export class AccountReturnSelectionBadge extends Component {
     };
 
     setup() {
+        this.config = useViewConfig();
         onWillStart(async () => {
             this.editableOptions = await this.getEditableOptions();
         });
@@ -96,7 +98,7 @@ export class AccountReturnSelectionBadge extends Component {
 
     get additionalClassName() {
         const addClasses = [];
-        if (this.props.size === "small" || this.env.config?.viewType === "list") {
+        if (this.props.size === "small" || this.config?.viewType === "list") {
             addClasses.push("o_account_return_selection_badge_button_small");
         }
         if (this.props.class) {

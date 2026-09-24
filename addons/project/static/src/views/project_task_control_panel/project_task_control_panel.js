@@ -2,6 +2,7 @@
 import { getShowSubtasks, setShowSubtasks } from "@project/utils/project_utils";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { useSearchModel } from "@web/search/search_model";
 
@@ -10,6 +11,7 @@ export class ProjectTaskControlPanel extends ControlPanel {
 
     setup() {
         super.setup();
+        this.config = useViewConfig();
         this.searchModel = useSearchModel();
         this.ui = useService("ui");
         this.state.showSubtasks = getShowSubtasks();

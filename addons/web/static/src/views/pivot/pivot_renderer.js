@@ -16,6 +16,7 @@ import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { useReactiveModel } from "@web/model/model";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
@@ -58,6 +59,7 @@ export class PivotRenderer extends Component {
     static props = ["model", "buttonTemplate"];
 
     setup() {
+        this.config = useViewConfig();
         this.searchModel = useSearchModel();
         this.ui = useService("ui");
         useRenderCounter("pivot.PivotRenderer");
@@ -385,7 +387,7 @@ export class PivotRenderer extends Component {
         }
 
         const context = drillDownContext(this.model.searchParams.context);
-        const views = drillDownViews(this.env.config.views);
+        const views = drillDownViews(this.config.views);
 
         const group = {
             rowValues: cell.groupId[0],

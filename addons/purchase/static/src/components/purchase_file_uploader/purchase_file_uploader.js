@@ -4,6 +4,7 @@ import { WarningDialog } from "@web/components/errors";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 
 export class PurchaseFileUploader extends DocumentFileUploader {
     static template = "purchase.DocumentFileUploader";
@@ -14,6 +15,7 @@ export class PurchaseFileUploader extends DocumentFileUploader {
 
     setup() {
         super.setup();
+        this.config = useViewConfig();
         this.dialog = useService("dialog");
     }
 
@@ -34,7 +36,7 @@ export class PurchaseFileUploader extends DocumentFileUploader {
     }
 
     onClick(ev) {
-        if (this.env.config.viewType !== "list") {
+        if (this.config.viewType !== "list") {
             return;
         }
         const vendorSet = new Set(

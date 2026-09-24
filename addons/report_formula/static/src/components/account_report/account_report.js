@@ -24,6 +24,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { standardActionServiceProps } from "@web/webclient/actions";
+import { useViewConfig } from "@web/core/view_config_hooks";
 
 const log = makeLogger("account.report.ui");
 
@@ -48,6 +49,7 @@ export class AccountReport extends Component {
     static defaultComponentsMap = [];
 
     setup() {
+        this.config = useViewConfig();
         useLifecycleLog(log);
         this.rootRef = useRef("root");
         useSetupAction({
@@ -61,7 +63,7 @@ export class AccountReport extends Component {
         }
 
         // ControlPanel reads viewSwitcherEntries from the env config; a client action doesn't provide it.
-        this.env.config.viewSwitcherEntries = [];
+        this.config.viewSwitcherEntries = [];
 
         this.orm = useService("orm");
         this.actionService = useService("action");

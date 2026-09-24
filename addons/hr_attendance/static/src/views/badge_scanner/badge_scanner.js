@@ -5,6 +5,7 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { standardActionServiceProps } from "@web/webclient/actions";
 import { BarcodeScanner } from "@barcodes/components/barcode_scanner";
+import { useViewConfig } from "@web/core/view_config_hooks";
 
 export class BadgeScanner extends Component {
     static template = "hr.BadgeScannerTemplate";
@@ -13,6 +14,7 @@ export class BadgeScanner extends Component {
         ...standardActionServiceProps,
     };
     setup() {
+        this.config = useViewConfig();
         this.employeeId = this.props.action?.context?.active_id;
         this.notification = useService("notification");
         this.actionService = useService("action");
@@ -43,7 +45,7 @@ export class BadgeScanner extends Component {
             await this.orm.write("hr.employee", [this.employee[0].id], {
                 barcode: barcode,
             });
-            this.env.config.historyBack();
+            this.config.historyBack();
             this.notification.add(_t("Badge updated: ") + barcode, { type: "success" });
         } catch (error) {
             this.notification.add(
@@ -56,7 +58,7 @@ export class BadgeScanner extends Component {
     }
 
     onClickBack() {
-        this.env.config.historyBack();
+        this.config.historyBack();
     }
 }
 

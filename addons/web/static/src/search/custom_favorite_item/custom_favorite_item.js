@@ -8,6 +8,7 @@ import { useAction } from "@web/core/action_port";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { useSearchModel } from "@web/search/search_model";
 import { editFavoriteFilter } from "@web/search/utils/misc";
 const favoriteMenuRegistry = registry.category("favoriteMenu");
@@ -18,12 +19,13 @@ export class CustomFavoriteItem extends Component {
     static props = {};
 
     setup() {
+        this.config = useViewConfig();
         this.searchModel = useSearchModel();
         this.actionService = useAction();
         this.notificationService = useService("notification");
         this.descriptionRef = useRef("description");
         this.state = useState({
-            description: this.env.config.getDisplayName(),
+            description: this.config.getDisplayName(),
             isDefault: false,
         });
     }
@@ -43,7 +45,7 @@ export class CustomFavoriteItem extends Component {
             return false;
         }
         const { isDefault } = this.state;
-        const embeddedActionId = this.env.config.currentEmbeddedActionId || false;
+        const embeddedActionId = this.config.currentEmbeddedActionId || false;
         const serverSideId = await this.searchModel.createNewFavorite({
             description,
             isDefault,
@@ -52,7 +54,7 @@ export class CustomFavoriteItem extends Component {
         });
 
         Object.assign(this.state, {
-            description: this.env.config.getDisplayName(),
+            description: this.config.getDisplayName(),
             isDefault: false,
         });
         return serverSideId;

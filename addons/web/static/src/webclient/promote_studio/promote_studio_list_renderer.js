@@ -25,7 +25,7 @@ export const patchListRendererDesktop = () => ({
         this.dialogService = useService("dialog");
         const list = this.props.list;
 
-        const { actionId, actionType, actionXmlId } = this.env.config || {};
+        const { actionId, actionType, actionXmlId } = this.config || {};
         const resModel = this.props.list.resModel;
 
         const isPotentiallyEditable =

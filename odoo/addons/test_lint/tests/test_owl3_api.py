@@ -14,6 +14,7 @@ _XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 ENV_KEYS = {
     "owl_env_is_small": re.compile(r"\bthis\.env\.isSmall\b"),
     "owl_env_model": re.compile(r"\bthis\.env\.model\b"),
+    "owl_env_config": re.compile(r"\bthis\.env\.config\b"),
     "owl_env_search_model": re.compile(r"\bthis\.env\.searchModel\b"),
 }
 REMOVED_IN_OWL3 = {
@@ -129,6 +130,16 @@ class TestOwl3Api(lint_case.LintCase):
             "A component under a view reads this.model = useViewModel() from "
             "setup, and a view provides it with provideViewModel(model); OWL 3 "
             "components have no env",
+        )
+
+    def test_no_env_config(self):
+        self.assert_ratchet(
+            _env_findings("owl_env_config"),
+            "owl_env_config",
+            "this.env.config reads in static/src (JS and templates)",
+            "A component reads this.config = useViewConfig() from setup, and a "
+            "view, action or dialog provides it with provideViewConfig (both in "
+            "@web/core/view_config_hooks); OWL 3 components have no env",
         )
 
     def test_no_env_search_model(self):

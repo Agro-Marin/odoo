@@ -4,6 +4,7 @@
 import { Component, useRef } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 
@@ -32,8 +33,9 @@ export class Layout extends Component {
         display: {},
     };
     setup() {
+        this.config = useViewConfig();
         useLifecycleLog(log);
-        this.components = extractLayoutComponents(this.env.config);
+        this.components = extractLayoutComponents(this.config);
         this.contentRef = useRef("content");
     }
     /** @returns {Record<string, any>} */

@@ -8,6 +8,7 @@ import { DocumentsListActionItemDownload } from "./document_list_action_item_dow
 import { DocumentsListActionItemOpenFolder } from "./document_list_action_item_open_folder.js";
 import { DocumentsListActionItemRename } from "./document_list_action_item_rename.js";
 import { DocumentsListActionItemShare } from "./document_list_action_item_share.js";
+import { useViewConfig } from "@web/core/view_config_hooks";
 
 export class DocumentsListActionWidget extends Component {
     static props = { ...standardWidgetProps };
@@ -20,6 +21,11 @@ export class DocumentsListActionWidget extends Component {
         DocumentsListActionItemDetails,
         DocumentsListActionItemOpenFolder,
     ];
+
+    setup() {
+        super.setup();
+        this.config = useViewConfig();
+    }
 }
 
 export const documentsListActionWidget = {

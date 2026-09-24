@@ -6,6 +6,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useFileUploader } from "@web/core/utils/files";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { Layout } from "@web/search/layout";
 import { DocumentationLink } from "@web/views/widgets";
 import { standardActionServiceProps } from "@web/webclient/actions";
@@ -35,9 +36,10 @@ export class ImportAction extends Component {
     static ACCEPTED_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx", ".xlsm", ".ods"];
 
     setup() {
+        this.config = useViewConfig();
         this.actionService = useService("action");
         this.notification = useService("notification");
-        this.env.config.setDisplayName(this.props.action.name || _t("Import a File"));
+        this.config.setDisplayName(this.props.action.name || _t("Import a File"));
         this.model = useImportModel({
             env: this.env,
             context: this.props.action.params?.context || {},
@@ -173,14 +175,14 @@ export class ImportAction extends Component {
             // Nothing tells us what to import into — a bare /odoo/import URL,
             // or an import opened over a non-window action. Leave rather than
             // mount an action that cannot work.
-            return this.env.config.historyBack();
+            return this.config.historyBack();
         }
         this.model.setResModel(this.resModel);
         return this.model.init();
     }
 
     cancel() {
-        this.env.config.historyBack();
+        this.config.historyBack();
     }
 
     openRecords(resIds) {

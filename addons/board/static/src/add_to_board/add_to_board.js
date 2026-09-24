@@ -5,6 +5,7 @@ import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { COG_GROUP, isActWindowView } from "@web/search/cog_menu/cog_menu_group";
 import { useSearchModel } from "@web/search/search_model";
 
@@ -29,9 +30,10 @@ export class AddToBoard extends Component {
     static props = {};
 
     setup() {
+        this.config = useViewConfig();
         this.searchModel = useSearchModel();
         this.notification = useService("notification");
-        this.state = useState({ name: this.env.config.getDisplayName() });
+        this.state = useState({ name: this.config.getDisplayName() });
 
         useAutofocus();
     }
@@ -56,11 +58,11 @@ export class AddToBoard extends Component {
         };
 
         const result = await rpc("/board/add_to_dashboard", {
-            action_id: this.env.config.actionId || false,
+            action_id: this.config.actionId || false,
             context_to_save: contextToSave,
             domain,
             name: this.state.name,
-            view_mode: this.env.config.viewType,
+            view_mode: this.config.viewType,
         });
 
         if (result) {
@@ -71,7 +73,7 @@ export class AddToBoard extends Component {
                     type: "warning",
                 },
             );
-            this.state.name = this.env.config.getDisplayName();
+            this.state.name = this.config.getDisplayName();
         } else {
             this.notification.add(_t("Could not add filter to dashboard"), {
                 type: "danger",

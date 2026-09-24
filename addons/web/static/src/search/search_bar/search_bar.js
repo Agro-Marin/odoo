@@ -17,6 +17,7 @@ import { _t } from "@web/core/translation";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useAutofocus, useBus, useChildRef, useService } from "@web/core/utils/hooks";
 import { fuzzyTest } from "@web/core/utils/search";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
 import { useSearchModel } from "@web/search/search_model";
 
@@ -118,6 +119,7 @@ export class SearchBar extends Component {
     inputRef;
 
     setup() {
+        this.config = useViewConfig();
         this._searchModel = useSearchModel();
         useLifecycleLog(log);
         this.root = useRef("root");
@@ -151,7 +153,7 @@ export class SearchBar extends Component {
         this._pendingSubItems = new Map();
 
         this.inputRef =
-            this.env.config.disableSearchBarAutofocus || !this.props.autofocus
+            this.config.disableSearchBarAutofocus || !this.props.autofocus
                 ? useRef("autofocus")
                 : useAutofocus({ mobile: this.ui.isSmall });
 

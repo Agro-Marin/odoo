@@ -21,6 +21,7 @@ import { KeepLast } from "@web/core/utils/concurrency";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { nbsp } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
+import { provideViewConfig, useViewConfig } from "@web/core/view_config_hooks";
 import { extractLayoutComponents } from "@web/search/layout";
 import { WithSearch } from "@web/search/with_search/with_search";
 import { session } from "@web/session";
@@ -430,12 +431,10 @@ export class View extends Component {
         this.withSearchProps = null;
         this.loadViewId = 0;
 
+        this.config = { ...getDefaultConfig(), ...useViewConfig() };
+        provideViewConfig(this.config);
         useSubEnv({
             keepLast: new KeepLast(),
-            config: {
-                ...getDefaultConfig(),
-                ...this.env.config,
-            },
             ...Object.fromEntries(
                 CALLBACK_RECORDER_NAMES.map((name) => [name, this.props[name] || null]),
             ),
@@ -462,9 +461,7 @@ export class View extends Component {
             resModel,
             viewId: props.viewId,
         }));
-        const config = /** @type {ViewConfig & Record<string, any>} */ (
-            this.env.config
-        );
+        const config = /** @type {ViewConfig & Record<string, any>} */ (this.config);
         if (!session.view_info[type]) {
             throw new Error(`Invalid view type: ${type}`);
         }

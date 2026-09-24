@@ -17,6 +17,7 @@ import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 const log = makeLogger("mail.discuss");
 
 export class Discuss extends Component {
@@ -35,6 +36,7 @@ export class Discuss extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.config = useViewConfig();
         this.store = useService("mail.store");
         this.messageHighlight = useMessageScrolling();
         this.root = useRef("root");

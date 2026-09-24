@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useRef, useSubEnv } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { useAction } from "@web/core/action_port";
+import { provideViewConfig, useViewConfig } from "@web/core/view_config_hooks";
 import { Layout } from "@web/search/layout";
 import { getDefaultConfig } from "@web/views/view";
 import { useEnrichWithActionLinks } from "@web/webclient/actions/reports/report_hook";
@@ -16,12 +17,7 @@ export class ReportAction extends Component {
     action;
 
     setup() {
-        useSubEnv({
-            config: {
-                ...getDefaultConfig(),
-                ...this.env.config,
-            },
-        });
+        provideViewConfig({ ...getDefaultConfig(), ...useViewConfig() });
         useSetupAction();
 
         this.action = useAction();

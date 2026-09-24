@@ -10,6 +10,7 @@ import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { exprToBoolean, uuid } from "@web/core/utils/format/strings";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { archAttribute } from "@web/fields/field_options";
@@ -50,6 +51,7 @@ export class PropertiesField extends FieldComponent {
     };
 
     setup() {
+        this.config = useViewConfig();
         this.model = useViewModel();
         this.ui = useService("ui");
         this.notification = useService("notification");
@@ -99,7 +101,7 @@ export class PropertiesField extends FieldComponent {
     }
 
     setupEditMode() {
-        if (this.env.config?.viewType === "form") {
+        if (this.config?.viewType === "form") {
             useBus(this.model.bus, ModelEvent.PROPERTY_FIELD_EDIT, async () => {
                 if (this.props.readonly || this.state.isInEditMode) {
                     return;

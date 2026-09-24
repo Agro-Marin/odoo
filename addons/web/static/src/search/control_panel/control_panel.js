@@ -14,6 +14,7 @@ import { SearchModelEvent } from "@web/core/events";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { Breadcrumbs } from "@web/search/breadcrumbs/breadcrumbs";
 import { useEmbeddedActions } from "@web/search/embedded_actions_bar/embedded_actions";
 import { EmbeddedActionsBar } from "@web/search/embedded_actions_bar/embedded_actions_bar";
@@ -87,15 +88,16 @@ export class ControlPanel extends Component {
     isScrolling;
 
     setup() {
+        this.config = useViewConfig();
         this.searchModel = useSearchModel();
         this.ui = useService("ui");
         useLifecycleLog(log);
         this.actionService = useAction();
-        this.pagerProps = this.env.config.pagerProps
-            ? useState(this.env.config.pagerProps)
+        this.pagerProps = this.config.pagerProps
+            ? useState(this.config.pagerProps)
             : undefined;
         this.notificationService = useService("notification");
-        this.breadcrumbs = useState(this.env.config.breadcrumbs);
+        this.breadcrumbs = useState(this.config.breadcrumbs);
         this.orm = useService("orm");
 
         this.root = useRef("root");
@@ -114,7 +116,7 @@ export class ControlPanel extends Component {
     }
 
     setupViewSwitcherCommands() {
-        const { viewSwitcherEntries } = this.env.config;
+        const { viewSwitcherEntries } = this.config;
         for (const view of viewSwitcherEntries || []) {
             useCommand(
                 _t("Show %s view", view.name),
@@ -124,7 +126,7 @@ export class ControlPanel extends Component {
                 {
                     category: "view_switcher",
                     global: true,
-                    isAvailable: () => view.type !== this.env.config.viewType,
+                    isAvailable: () => view.type !== this.config.viewType,
                 },
             );
         }
@@ -248,8 +250,8 @@ export class ControlPanel extends Component {
     }
 
     cycleThroughViews() {
-        const currentViewType = this.env.config.viewType;
-        const viewSwitcherEntries = this.env.config.viewSwitcherEntries;
+        const currentViewType = this.config.viewType;
+        const viewSwitcherEntries = this.config.viewSwitcherEntries;
         const currentIndex = viewSwitcherEntries.findIndex(
             (/** @type {any} */ entry) => entry.type === currentViewType,
         );

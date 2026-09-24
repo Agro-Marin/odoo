@@ -18,6 +18,7 @@ import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { session } from "@web/session";
 import {
     ControllerNotFoundError,
@@ -144,6 +145,7 @@ export class HomeMenuAction extends Component {
     homeMenu;
 
     setup() {
+        this.config = useViewConfig();
         this.menus = useService("menu");
         this.homeMenu = useService("home_menu");
         this.state = useState({
@@ -151,8 +153,8 @@ export class HomeMenuAction extends Component {
         });
         this.homeMenu.currentAction = markRaw(this);
         this.homeMenu.hasHomeMenu = true;
-        this.homeMenu.hasBackgroundAction = this.env.config.breadcrumbs.length > 0;
-        log.lifecycle("setup", () => ({ crumbs: this.env.config.breadcrumbs.length }));
+        this.homeMenu.hasBackgroundAction = this.config.breadcrumbs.length > 0;
+        log.lifecycle("setup", () => ({ crumbs: this.config.breadcrumbs.length }));
         onMounted(() => {
             log.lifecycle("mounted", () => ({
                 isCurrent: this.homeMenu.currentAction === this,

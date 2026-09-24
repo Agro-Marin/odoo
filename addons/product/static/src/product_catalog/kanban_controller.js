@@ -3,6 +3,7 @@ import { onWillStart, useSubEnv } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { KanbanController } from "@web/views/kanban";
 
 export class ProductCatalogKanbanController extends KanbanController {
@@ -10,6 +11,7 @@ export class ProductCatalogKanbanController extends KanbanController {
 
     setup() {
         super.setup();
+        this.config = useViewConfig();
         this.ui = useService("ui");
         this.orm = useService("orm");
         this.orderId = this.props.context.order_id;
@@ -97,7 +99,7 @@ export class ProductCatalogKanbanController extends KanbanController {
         // Restore the last form view from the breadcrumbs if breadcrumbs are available.
         // If, for some weird reason, the user reloads the page then the breadcrumbs are
         // lost, and we fall back to the form view ourselves.
-        if (this.env.config.breadcrumbs.length > 1) {
+        if (this.config.breadcrumbs.length > 1) {
             await this.actionService.restore();
         } else {
             await this.actionService.doAction({

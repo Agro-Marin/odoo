@@ -1,11 +1,13 @@
 /** @odoo-module native */
 import { useAskRecurrenceUpdatePolicy } from "@calendar/views/ask_recurrence_update_policy_hook";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { FormController } from "@web/views/form";
 
 export class CalendarFormController extends FormController {
     setup() {
         super.setup();
+        this.config = useViewConfig();
         this.actionService = useService("action");
         this.askRecurrenceUpdatePolicy = useAskRecurrenceUpdatePolicy();
     }
@@ -81,6 +83,6 @@ export class CalendarFormController extends FormController {
             [id],
             recurrenceUpdate,
         ]);
-        this.env.config.historyBack();
+        this.config.historyBack();
     }
 }

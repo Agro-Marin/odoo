@@ -27,6 +27,7 @@ import { _t } from "@web/core/translation";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { Field } from "@web/fields/field";
 import { getTooltipInfo } from "@web/fields/field_tooltip";
 import { MOVABLE_RECORD_TYPES } from "@web/model/relational_model/dynamic_group_list";
@@ -233,6 +234,7 @@ export class ListRenderer extends Component {
     rowApi;
 
     setup() {
+        this.config = useViewConfig();
         this.setupServices();
         useLifecycleLog(log);
         this.setupSharedContexts();
@@ -785,7 +787,7 @@ export class ListRenderer extends Component {
             fields: this.props.list.fieldNames,
             model: this.props.list.resModel,
             viewMode: "list",
-            viewId: this.env.config.viewId,
+            viewId: this.config.viewId,
         };
 
         if (this.props.nestedKeyOptionalFieldsData) {

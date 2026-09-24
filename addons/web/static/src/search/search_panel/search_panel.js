@@ -19,6 +19,7 @@ import { SearchModelEvent } from "@web/core/events";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { uniqueId } from "@web/core/utils/functions";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { useSearchModel } from "@web/search/search_model";
 
 const isFilter = (s) => s.type === "filter";
@@ -51,10 +52,11 @@ export class SearchPanel extends Component {
     };
 
     setup() {
+        this.config = useViewConfig();
         this.searchModel = useSearchModel();
         this.ui = useService("ui");
         this.idPrefix = uniqueId("o_sp");
-        this.keyExpandSidebar = `search_panel_expanded,${this.env.config.viewId},${this.env.config.actionId}`;
+        this.keyExpandSidebar = `search_panel_expanded,${this.config.viewId},${this.config.actionId}`;
         this.state = useState({
             expanded: {},
             sidebarExpanded: true,

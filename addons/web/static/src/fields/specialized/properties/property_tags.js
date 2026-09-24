@@ -9,6 +9,7 @@ import { getNextTagColorIndex, RECORD_COLOR_INDICES } from "@web/core/colors/col
 import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -52,6 +53,7 @@ export class PropertyTags extends Component {
     popover;
 
     setup() {
+        this.config = useViewConfig();
         this.notification = useService("notification");
         this.popover = usePopover(
             /** @type {any} */ (this.constructor).components.Popover,
@@ -63,9 +65,7 @@ export class PropertyTags extends Component {
 
     /** @returns {array} */
     get displayBadge() {
-        return /** @type {any} */ (
-            !this.env.config || this.env.config.viewType !== "kanban"
-        );
+        return /** @type {any} */ (!this.config || this.config.viewType !== "kanban");
     }
 
     /** @returns {array} */
