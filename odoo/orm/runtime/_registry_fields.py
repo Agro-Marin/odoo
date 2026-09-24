@@ -3,7 +3,7 @@ import logging
 import typing
 import warnings
 from collections import defaultdict
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.func import locked
@@ -11,6 +11,7 @@ from odoo.tools import OrderedSet
 from odoo.tools.misc import Collector
 
 from ..components.model_graph import ModelGraph, TriggerTree
+from ..fields._field_setup import has_callable_depends
 from ..parsing import regex_order
 from ._registry_stubs import _RegistryStubs
 
@@ -209,6 +210,24 @@ class _RegistryFieldsMixin(_RegistryStubs):
     def get_dependent_fields(self, field: Field) -> Iterator[Field]:
         self._get_field_triggers()
         return self.model_graph.get_dependent_fields(field)
+
+    @locked
+    def refresh_field_depends(self, env: typing.Any, fields: Iterable[Field]) -> None:
+        refreshed = 0
+        for field in fields:
+            model_cls = self.models.get(field.model_name)
+            if model_cls is None or model_cls._fields.get(field.name) is not field:
+                continue
+            model = model_cls(env, (), ())
+            if not has_callable_depends(field, model):
+                continue
+            depends, depends_context = field.get_depends(model)
+            self.field_depends[field] = tuple(depends)
+            self.field_depends_context[field] = tuple(depends_context)
+            refreshed += 1
+        if refreshed:
+            self.__dict__.pop("_field_triggers", None)
+        _debug.logic("registry.field_depends_refreshed", fields=refreshed)
 
     @locked
     def discard_fields(self, fields: list[Field]) -> None:

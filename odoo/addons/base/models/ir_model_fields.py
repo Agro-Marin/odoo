@@ -789,6 +789,26 @@ class IrModelFields(models.Model):
         )
         return {field.name: field.id for field in fields_}
 
+    def _pop_registry_fields(self) -> list[fields.Field | None]:
+        popping = OrderedSet(
+            field
+            for record in self
+            if (field := self.env[record.model]._fields.get(record.name))
+        )
+        # a code field keeps depending on a popped field until its depends are
+        # derived again: a callable @api.depends names the manual fields it saw
+        code_dependents = OrderedSet(
+            dependent
+            for field in popping
+            for dependent in self.pool.get_dependent_fields(field)
+            if not dependent.manual and dependent not in popping
+        )
+        popped = [
+            pop_field(self.env.registry[record.model], record.name) for record in self
+        ]
+        self.pool.refresh_field_depends(self.env, code_dependents)
+        return popped
+
     def _drop_columns(self) -> bool:
         cr = self.env.cr
         columns_by_table = defaultdict(OrderedSet)
@@ -806,8 +826,9 @@ class IrModelFields(models.Model):
                 continue
             if field.store:
                 columns_by_table[model._table].add(field.name)
-            if field.state == "manual":
-                pop_field(self.env.registry[model._name], field.name)
+        self.filtered(
+            lambda field: field.state == "manual" and field.model in self.env
+        )._pop_registry_fields()
 
         for table, names in columns_by_table.items():
             if sql.get_table_kind(cr, table) != sql.TableKind.Regular:
@@ -957,10 +978,7 @@ class IrModelFields(models.Model):
             field = self.env[record.model]._fields.get(record.name)
             if field:
                 self.env.core.pop_dirty(field)
-        fields_ = [
-            pop_field(self.env.registry[record.model], record.name)
-            for record in records
-        ]
+        fields_ = records._pop_registry_fields()
         self.pool.discard_fields([field for field in fields_ if field is not None])
         # the popped fields must come back if this transaction does not commit
         self.pool.registry_invalidated = True

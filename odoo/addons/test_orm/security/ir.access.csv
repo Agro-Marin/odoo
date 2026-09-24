@@ -189,3 +189,4 @@ access_test_orm_scope_gated,access_test_orm_scope_gated,model_test_orm_scope_gat
 access_test_orm_scope_narrow,access_test_orm_scope_narrow,model_test_orm_scope_narrow,base.group_user,permission,crud,
 access_test_orm_scope_open,access_test_orm_scope_open,model_test_orm_scope_open,base.group_user,permission,crud,
 test_orm_scope_item_rule_visible_tag,test_orm.scope_item: its tag is visible,model_test_orm_scope_item,base.group_everyone,guard,crud,"[('tag_id.visible', '=', True)]"
+access_test_orm_manual_lines_holder,access_test_orm_manual_lines_holder,model_test_orm_manual_lines_holder,base.group_user,permission,crud,

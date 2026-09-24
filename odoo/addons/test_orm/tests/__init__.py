@@ -55,3 +55,4 @@ from . import test_many2many_shared_relation
 from . import test_company_config
 from . import test_orm_audit_regressions
 from . import test_registry_manual_relations
+from . import test_callable_depends_after_field_removal

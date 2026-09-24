@@ -223,6 +223,16 @@ def get_depends(field: Field, model: BaseModel) -> tuple[Iterable[str], Iterable
     return list(unique(depends)), list(unique(depends_context))
 
 
+def has_callable_depends(field: Field, model: BaseModel) -> bool:
+    if field._depends is not None or field.related or not field.compute:
+        return False
+    if isinstance(field.compute, str):
+        funcs = resolve_mro(model, field.compute, callable)
+    else:
+        funcs = [field.compute]
+    return any(callable(getattr(func, "_depends", None)) for func in funcs)
+
+
 def resolve_depends(field: Field, registry: Registry) -> Iterator[tuple[Field, ...]]:
     Model0 = registry[field.model_name]
 
