@@ -797,7 +797,14 @@ class TestNewDeviceAlert(MockEmail, HttpCaseWithUserDemo):
         "(KHTML, like Gecko) Chrome/130.0 Safari/537.36"
     )
 
-    def _sign_in(self, user_agent=_BROWSER, *, new_browser=False, login="demo"):
+    def _sign_in(
+        self,
+        user_agent=_BROWSER,
+        *,
+        new_browser=False,
+        login="demo",
+        subject="New Sign-in to your Account",
+    ):
         if new_browser:
             self.authenticate(None, None, session_extra={"_trace_disable": False})
         payload = {
@@ -812,11 +819,7 @@ class TestNewDeviceAlert(MockEmail, HttpCaseWithUserDemo):
                 headers={"Content-Type": "application/json", "User-Agent": user_agent},
             )
         self.assertNotIn("error", response.json())
-        return [
-            mail
-            for mail in self._new_mails
-            if mail.subject == "New Sign-in to your Account"
-        ]
+        return [mail for mail in self._new_mails if mail.subject == subject]
 
     def test_a_new_browser_alerts_a_known_one_does_not(self):
         self.assertFalse(self._sign_in(new_browser=True), "a first device is expected")
@@ -832,6 +835,17 @@ class TestNewDeviceAlert(MockEmail, HttpCaseWithUserDemo):
         self.assertFalse(self._sign_in(new_browser=True, login=portal.login))
         alerts = self._sign_in(new_browser=True, login=portal.login)
         self.assertEqual(len(alerts), 1)
+
+    def test_the_alert_speaks_the_owners_language(self):
+        self.env["res.lang"]._activate_lang("es_MX")
+        self.env["ir.module.module"]._load_module_terms(["mail"], ["es_MX"])
+        self.user_demo.lang = "es_MX"
+        self._sign_in(new_browser=True)
+        alerts = self._sign_in(
+            new_browser=True, subject="Nuevo inicio de sesión en su cuenta"
+        )
+        self.assertEqual(len(alerts), 1, "the owner reads it, whoever signed in")
+        self.assertIn("inició sesión en su cuenta", alerts[0].body_html)
 
     def test_a_script_signing_in_is_not_a_browser(self):
         self._sign_in(new_browser=True)

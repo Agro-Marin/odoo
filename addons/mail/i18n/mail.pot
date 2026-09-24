@@ -767,6 +767,12 @@ msgid ""
 msgstr ""
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/res_device.py:0
+msgid "A device never used before, %(device)s, signed in to your account."
+msgstr ""
+
+#. module: mail
 #: model:ir.model.constraint,message:mail.constraint_mail_presence_partner_or_guest_exists
 msgid "A mail presence must have a user or a guest."
 msgstr ""
@@ -3588,6 +3594,11 @@ msgid "Determines if the canned_response is currently shared with other users"
 msgstr ""
 
 #. module: mail
+#: model:ir.model,name:mail.model_res_device
+msgid "Devices"
+msgstr ""
+
+#. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/discuss/core/public_web/discuss_app_model_patch.js:0
 msgid "Direct messages"
@@ -3685,6 +3696,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:mail.field_discuss_gif_favorite__display_name
 #: model:ir.model.fields,field_description:mail.field_discuss_voice_metadata__display_name
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__display_name
+#: model:ir.model.fields,field_description:mail.field_ir_access_exception__display_name
 #: model:ir.model.fields,field_description:mail.field_ir_actions_act_window_view__display_name
 #: model:ir.model.fields,field_description:mail.field_ir_actions_server__display_name
 #: model:ir.model.fields,field_description:mail.field_ir_attachment__display_name
@@ -3710,6 +3722,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:mail.field_mail_blacklist_remove__display_name
 #: model:ir.model.fields,field_description:mail.field_mail_canned_response__display_name
 #: model:ir.model.fields,field_description:mail.field_mail_compose_message__display_name
+#: model:ir.model.fields,field_description:mail.field_mail_config__display_name
 #: model:ir.model.fields,field_description:mail.field_mail_followers__display_name
 #: model:ir.model.fields,field_description:mail.field_mail_followers_edit__display_name
 #: model:ir.model.fields,field_description:mail.field_mail_gateway_allowed__display_name
@@ -3740,6 +3753,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_attachment_owner__display_name
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_composer__display_name
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_gateway__display_name
+#: model:ir.model.fields,field_description:mail.field_mixin_mail_presence__display_name
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_render__display_name
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_thread__display_name
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_thread_blacklist__display_name
@@ -3751,9 +3765,11 @@ msgstr ""
 #: model:ir.model.fields,field_description:mail.field_publisher_warranty_contract__display_name
 #: model:ir.model.fields,field_description:mail.field_res_company__display_name
 #: model:ir.model.fields,field_description:mail.field_res_config_settings__display_name
+#: model:ir.model.fields,field_description:mail.field_res_device__display_name
 #: model:ir.model.fields,field_description:mail.field_res_groups__display_name
 #: model:ir.model.fields,field_description:mail.field_res_partner__display_name
 #: model:ir.model.fields,field_description:mail.field_res_partner_category__display_name
+#: model:ir.model.fields,field_description:mail.field_res_partner_tag__display_name
 #: model:ir.model.fields,field_description:mail.field_res_role__display_name
 #: model:ir.model.fields,field_description:mail.field_res_users__display_name
 #: model:ir.model.fields,field_description:mail.field_res_users_settings__display_name
@@ -5166,6 +5182,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:mail.field_discuss_gif_favorite__id
 #: model:ir.model.fields,field_description:mail.field_discuss_voice_metadata__id
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__id
+#: model:ir.model.fields,field_description:mail.field_ir_access_exception__id
 #: model:ir.model.fields,field_description:mail.field_ir_actions_act_window_view__id
 #: model:ir.model.fields,field_description:mail.field_ir_actions_server__id
 #: model:ir.model.fields,field_description:mail.field_ir_attachment__id
@@ -5191,6 +5208,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:mail.field_mail_blacklist_remove__id
 #: model:ir.model.fields,field_description:mail.field_mail_canned_response__id
 #: model:ir.model.fields,field_description:mail.field_mail_compose_message__id
+#: model:ir.model.fields,field_description:mail.field_mail_config__id
 #: model:ir.model.fields,field_description:mail.field_mail_followers__id
 #: model:ir.model.fields,field_description:mail.field_mail_followers_edit__id
 #: model:ir.model.fields,field_description:mail.field_mail_gateway_allowed__id
@@ -5221,6 +5239,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_attachment_owner__id
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_composer__id
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_gateway__id
+#: model:ir.model.fields,field_description:mail.field_mixin_mail_presence__id
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_render__id
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_thread__id
 #: model:ir.model.fields,field_description:mail.field_mixin_mail_thread_blacklist__id
@@ -5232,9 +5251,11 @@ msgstr ""
 #: model:ir.model.fields,field_description:mail.field_publisher_warranty_contract__id
 #: model:ir.model.fields,field_description:mail.field_res_company__id
 #: model:ir.model.fields,field_description:mail.field_res_config_settings__id
+#: model:ir.model.fields,field_description:mail.field_res_device__id
 #: model:ir.model.fields,field_description:mail.field_res_groups__id
 #: model:ir.model.fields,field_description:mail.field_res_partner__id
 #: model:ir.model.fields,field_description:mail.field_res_partner_category__id
+#: model:ir.model.fields,field_description:mail.field_res_partner_tag__id
 #: model:ir.model.fields,field_description:mail.field_res_role__id
 #: model:ir.model.fields,field_description:mail.field_res_users__id
 #: model:ir.model.fields,field_description:mail.field_res_users_settings__id
@@ -7265,6 +7286,12 @@ msgstr ""
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_discuss_channel_member__new_message_separator
 msgid "New Message Separator"
+msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/res_device.py:0
+msgid "New Sign-in to your Account"
 msgstr ""
 
 #. module: mail

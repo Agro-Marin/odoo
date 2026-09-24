@@ -15293,6 +15293,11 @@ msgid "A module to verify the inheritance."
 msgstr "Un módulo para verificar la herencia."
 
 #. module: base
+#: model:ir.model.fields,help:base.field_res_device__name
+msgid "A name of your choosing, shown instead of the platform and browser."
+msgstr "Un nombre de su elección, que se muestra en lugar de la plataforma y el navegador."
+
+#. module: base
 #: model_terms:res.partner,website_description:base.res_partner_3
 msgid ""
 "A non-profit international educational and scientific\n"
@@ -15365,6 +15370,14 @@ msgid "A payment provider for running fake payment flows for demo purposes."
 msgstr ""
 "Un proveedor de pagos para ejecutar flujos de pago falsos con fines de "
 "demostración."
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_device.py:0
+msgid ""
+"A revoked device cannot be restored: it comes back by itself when its "
+"browser signs in again."
+msgstr "Un dispositivo revocado no se puede restaurar: vuelve por sí solo cuando su navegador inicia sesión de nuevo."
 
 #. module: base
 #. odoo-python
@@ -16496,6 +16509,12 @@ msgstr "Formato de dirección..."
 #: code:addons/base/models/ir_qweb_fields.py:0
 msgid "Address separator"
 msgstr "Separador de direcciones"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_res_device__log_ids
+#: model_terms:ir.ui.view,arch_db:base.res_device_view_form
+msgid "Addresses"
+msgstr "Direcciones"
 
 #. module: base
 #: model:ir.module.module,summary:base.module_pos_restaurant_adyen
@@ -22784,6 +22803,11 @@ msgid "Computer"
 msgstr "Computadora"
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.res_device_view_search
+msgid "Computers"
+msgstr "Computadoras"
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_concert_halls
 msgid "Concert Halls"
 msgstr "Recintos para conciertos"
@@ -24743,9 +24767,30 @@ msgstr ""
 "Desarrollo, desarrollo de TI, diseño, tecnología, computadoras, TI, blogs"
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_res_device_log__device_id
+#: model:ir.model.fields,field_description:base.field_res_device_session__device_id
+msgid "Device"
+msgstr "Dispositivo"
+
+#. module: base
+#: model:ir.model,name:base.model_res_device_log
+msgid "Device Address"
+msgstr "Dirección del dispositivo"
+
+#. module: base
 #: model:ir.model,name:base.model_res_device_log
 msgid "Device Log"
 msgstr "Registro del dispositivo"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_res_device__name
+msgid "Device Name"
+msgstr "Nombre del dispositivo"
+
+#. module: base
+#: model:ir.model,name:base.model_res_device_session
+msgid "Device Session"
+msgstr "Sesión del dispositivo"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_device__device_type
@@ -31763,6 +31808,11 @@ msgid "Key"
 msgstr "Clave"
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_res_device__key_hash
+msgid "Key Hash"
+msgstr "Hash de la clave"
+
+#. module: base
 #: model:ir.model.constraint,message:base.constraint_ir_config_parameter_key_uniq
 msgid "Key must be unique."
 msgstr "La clave debe ser única."
@@ -32721,6 +32771,12 @@ msgstr "Declaración Intrastat de Lituania"
 #: model:ir.module.module,shortdesc:base.module_l10n_lt_saft
 msgid "Lithuanian Standard Audit File for Tax"
 msgstr "Archivo de auditoría estándar para impuestos de Lituania"
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.res_device_view_form
+#: model_terms:ir.ui.view,arch_db:base.res_users_grant_view_search
+msgid "Live"
+msgstr "Activa"
 
 #. module: base
 #: model:ir.module.category,name:base.module_category_website_live_chat
@@ -34252,6 +34308,11 @@ msgstr "Celular"
 #: model:ir.model.fields,field_description:base.field_ir_actions_act_window__mobile_view_mode
 msgid "Mobile View Mode"
 msgstr "Modo de vista móvil"
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.res_device_view_search
+msgid "Mobiles"
+msgstr "Celulares"
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_actions_report__model_id
@@ -41192,6 +41253,17 @@ msgid "Removing"
 msgstr "Eliminando"
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.res_device_view_kanban
+msgid "Rename"
+msgstr "Renombrar"
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/res_device.py:0
+msgid "Rename Device"
+msgstr "Renombrar dispositivo"
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_sale_renting
 msgid "Rental"
 msgstr "Alquiler"
@@ -42344,6 +42416,11 @@ msgid "Saudi Arabia - Withholding Tax"
 msgstr "Arabia Saudita - Retención de impuestos"
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.res_device_view_rename
+msgid "Save"
+msgstr "Guardar"
+
+#. module: base
 #: model:ir.model.fields,field_description:base.field_ir_actions_report__attachment
 msgid "Save as Attachment Prefix"
 msgstr "Guardar como prefijo del archivo adjunto"
@@ -43064,6 +43141,12 @@ msgstr "Sesión"
 #: model:ir.model.fields,field_description:base.field_res_device_log__session_identifier
 msgid "Session Identifier"
 msgstr "Identificador de la sesión"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_res_device__session_ids
+#: model_terms:ir.ui.view,arch_db:base.res_device_view_form
+msgid "Sessions"
+msgstr "Sesiones"
 
 #. module: base
 #: model:ir.model.fields.selection,name:base.selection__ir_model_fields__on_delete__set_null
@@ -48135,6 +48218,17 @@ msgstr ""
 "%(use)s)"
 
 #. module: base
+#: model:ir.model.fields,help:base.field_res_device__active
+msgid "Unset once none of the device's sessions exists any more."
+msgstr "Se desactiva cuando ya no existe ninguna de las sesiones del dispositivo."
+
+#. module: base
+#: model:ir.model.fields,help:base.field_res_device_session__active
+msgid ""
+"Unset once the session no longer exists: revoked, logged out or expired."
+msgstr "Se desactiva cuando la sesión ya no existe: revocada, cerrada o caducada."
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_web_unsplash
 msgid "Unsplash Image Library"
 msgstr "Biblioteca de imágenes de Unsplash"
@@ -49860,6 +49954,12 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/models/res_device.py:0
+msgid "You can only rename a device."
+msgstr "Solo puede cambiar el nombre de un dispositivo."
+
+#. module: base
+#. odoo-python
 #: code:addons/base/models/res_users.py:0
 msgid "You can ony call user.has_group() with your current user."
 msgstr "Con su usuario actual solo puede llamar a user.has_group()."
@@ -50506,6 +50606,12 @@ msgstr "Por ejemplo, mi servidor saliente"
 #: model_terms:ir.ui.view,arch_db:base.view_partner_simple_form
 msgid "e.g. Sales Director"
 msgstr "Por ejemplo, director de ventas"
+
+#. module: base
+#: model_terms:ir.ui.view,arch_db:base.res_device_view_form
+#: model_terms:ir.ui.view,arch_db:base.res_device_view_rename
+msgid "e.g. Work laptop"
+msgstr "p. ej., Laptop del trabajo"
 
 #. module: base
 #: model_terms:ir.ui.view,arch_db:base.ir_mail_server_form

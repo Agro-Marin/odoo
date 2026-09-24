@@ -31,11 +31,13 @@ class ResDevice(models.Model):
         ):
             _debug.logic("new_device_alert_skipped", reason="first_device")
             return
-        user._notify_security_setting_update(
-            subject=self.env._("New Sign-in to your Account"),
-            content=self.env._(
+        # the owner reads it, in their language, not the signing-in browser's
+        owner = self.with_context(lang=user.lang)
+        user.with_context(lang=user.lang)._notify_security_setting_update(
+            subject=owner.env._("New Sign-in to your Account"),
+            content=owner.env._(
                 "A device never used before, %(device)s, signed in to your account.",
-                device=self.display_name,
+                device=owner.display_name,
             ),
         )
         _debug.lifecycle("new_device_alert_sent", user=user.id, device=self.id)

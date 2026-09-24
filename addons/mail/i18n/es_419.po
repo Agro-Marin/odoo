@@ -806,6 +806,12 @@ msgid ""
 msgstr "No se debe crear un chat con más de 2 personas. Mejor cree un grupo."
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/res_device.py:0
+msgid "A device never used before, %(device)s, signed in to your account."
+msgstr "Un dispositivo nunca antes usado, %(device)s, inició sesión en su cuenta."
+
+#. module: mail
 #: model:ir.model.constraint,message:mail.constraint_mail_presence_partner_or_guest_exists
 msgid "A mail presence must have a user or a guest."
 msgstr "Una presencia de correo debe tener un usuario o un invitado."
@@ -3716,6 +3722,11 @@ msgid "Determines if the canned_response is currently shared with other users"
 msgstr ""
 "Determina si la canned_response se comparte con otros usuarios en este "
 "momento"
+
+#. module: mail
+#: model:ir.model,name:mail.model_res_device
+msgid "Devices"
+msgstr "Dispositivos"
 
 #. module: mail
 #. odoo-javascript
@@ -7612,6 +7623,12 @@ msgstr "Mensaje nuevo"
 #: model:ir.model.fields,field_description:mail.field_discuss_channel_member__new_message_separator
 msgid "New Message Separator"
 msgstr "Separador para nuevos mensajes"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/res_device.py:0
+msgid "New Sign-in to your Account"
+msgstr "Nuevo inicio de sesión en su cuenta"
 
 #. module: mail
 #. odoo-python
