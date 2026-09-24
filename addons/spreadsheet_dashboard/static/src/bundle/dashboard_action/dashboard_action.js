@@ -39,6 +39,7 @@ export class SpreadsheetDashboardAction extends Component {
     static displayName = _t("Dashboards");
 
     setup() {
+        this.ui = useService("ui");
         useLifecycleLog(log);
         this.Status = Status;
         this.controlPanelDisplay = {};

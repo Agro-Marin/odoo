@@ -28,6 +28,7 @@ export class HierarchyRenderer extends Component {
     static template = "web_hierarchy.HierarchyRenderer";
 
     setup() {
+        this.ui = useService("ui");
         this.rendererRef = useRef("renderer");
         this.notification = useService("notification");
         if (this.canDragAndDropRecord) {
@@ -105,7 +106,7 @@ export class HierarchyRenderer extends Component {
     }
 
     get canDragAndDropRecord() {
-        return this.draggable && !this.env.isSmall;
+        return this.draggable && !this.ui.isSmall;
     }
 
     get draggable() {

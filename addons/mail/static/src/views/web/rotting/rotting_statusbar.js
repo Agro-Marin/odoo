@@ -5,10 +5,16 @@ import {
     statusBarDurationField,
 } from "@mail/views/web/fields/statusbar_duration/statusbar_duration_field";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 
 import { getRottingDaysTitle } from "./rotting_widget.js";
 export class RottingStatusBarDurationField extends StatusBarDurationField {
     static template = "mail.RottingStatusBarDurationField";
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     get title() {
         return getRottingDaysTitle(

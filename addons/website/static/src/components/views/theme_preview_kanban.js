@@ -30,6 +30,7 @@ class ThemePreviewControlPanel extends ControlPanel {
     static template = "website.ThemePreviewKanban.ControlPanel";
     setup() {
         super.setup();
+        this.ui = useService("ui");
         useLifecycleLog(log);
         this.website = useService("website");
     }

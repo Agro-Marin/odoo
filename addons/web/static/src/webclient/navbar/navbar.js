@@ -83,6 +83,7 @@ export class NavBar extends Component {
     quickLauncher;
 
     setup() {
+        this.ui = useService("ui");
         useLifecycleLog(log);
         this.state = useState({
             isAppMenuSidebarOpened: false,
@@ -323,7 +324,7 @@ export class NavBar extends Component {
         }
     }
     _onMenuToggleEnter() {
-        if (this.env.isSmall || this.hm.hasHomeMenu || this.quickLauncher.isOpen) {
+        if (this.ui.isSmall || this.hm.hasHomeMenu || this.quickLauncher.isOpen) {
             return;
         }
         this._clearQuickLauncherTimer();
@@ -346,7 +347,7 @@ export class NavBar extends Component {
     _onMenuToggleClick() {
         this._clearQuickLauncherTimer();
         this.quickLauncher.close();
-        if (this.env.isSmall) {
+        if (this.ui.isSmall) {
             this._openAppMenuSidebar();
         } else {
             this.hm.toggle();

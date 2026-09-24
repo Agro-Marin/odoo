@@ -26,6 +26,7 @@ export class DashboardSearchBar extends Component {
     static props = { model: Object, toggler: Object };
 
     setup() {
+        this.ui = useService("ui");
         this.facets = [];
         this.firstDateFilter = undefined;
         this.nameService = useService("name");
@@ -123,7 +124,7 @@ export class DashboardSearchBar extends Component {
     }
 
     onSearchInputPointerDown(ev) {
-        if (this.env.isSmall) {
+        if (this.ui.isSmall) {
             // Prevent the input from being focused on mobile, as it opens the keyboard
             ev.preventDefault();
         }
@@ -366,7 +367,7 @@ export class DashboardSearchBar extends Component {
     resetState(options = { focus: true }) {
         this.state.subItemsLimits = {};
         this.computeState({ expanded: [], query: "", subItems: [] });
-        if (options.focus && !this.env.isSmall) {
+        if (options.focus && !this.ui.isSmall) {
             this.inputRef.el.focus();
         }
     }

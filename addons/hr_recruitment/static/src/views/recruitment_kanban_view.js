@@ -5,6 +5,7 @@ import { ConfirmationDialog } from "@web/ui/dialog";
 
 import { kanbanView, KanbanRenderer } from "@web/views/kanban";
 import { RecruitmentActionHelper } from "@hr_recruitment/views/recruitment_helper_view";
+import { useService } from "@web/core/utils/hooks";
 
 export class RecruitmentKanbanRenderer extends KanbanRenderer {
     static template = "hr_recruitment.RecruitmentKanbanRenderer";
@@ -12,6 +13,11 @@ export class RecruitmentKanbanRenderer extends KanbanRenderer {
         ...KanbanRenderer.components,
         RecruitmentActionHelper,
     };
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     async archiveRecord(record, active) {
         if (active && record.data.application_count > 0) {

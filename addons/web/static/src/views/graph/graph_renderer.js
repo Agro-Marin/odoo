@@ -10,6 +10,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { _t } from "@web/core/translation";
 import { createElementWithContent } from "@web/core/utils/dom/html";
+import { useService } from "@web/core/utils/hooks";
 import { renderToMarkup } from "@web/core/utils/render";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { useReactiveModel } from "@web/model/model";
@@ -44,6 +45,7 @@ export class GraphRenderer extends Component {
     static props = ["class?", "model", "buttonTemplate"];
 
     setup() {
+        this.ui = useService("ui");
         useRenderCounter("graph.GraphRenderer");
         useLifecycleLog(log);
         this.model = useReactiveModel(this.props.model);
@@ -403,7 +405,7 @@ export class GraphRenderer extends Component {
     resizeChart(context) {
         const { mode } = this.model.metaData;
         if (mode === "pie") {
-            if (this.env.isSmall) {
+            if (this.ui.isSmall) {
                 context.plugins.legend.position = "bottom";
                 context.plugins.legend.align = "center";
             } else {

@@ -2,6 +2,7 @@
 import { subTaskDeleteConfirmationMessage } from "@project/views/project_task_form/project_task_form_controller";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import { CalendarController } from "@web/views/calendar";
 
 import { useCalendarTaskToPlanDraggable } from "./hooks/project_task_calendar_task_to_plan_draggable.js";
@@ -15,6 +16,7 @@ export class ProjectTaskCalendarController extends CalendarController {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         if (this.canDragAndDropRecord) {
             useCalendarTaskToPlanDraggable({
                 ref: this.rootRef,
@@ -52,7 +54,7 @@ export class ProjectTaskCalendarController extends CalendarController {
     }
 
     get canDragAndDropRecord() {
-        return this.draggable && !this.env.isSmall;
+        return this.draggable && !this.ui.isSmall;
     }
 
     get draggable() {

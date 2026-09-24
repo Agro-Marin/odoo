@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useOperationGuard } from "@stock/utils/use_operation_guard";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
+import { useService } from "@web/core/utils/hooks";
 import { ListController } from "@web/views/list";
 
 export class StockOrderpointListController extends ListController {
@@ -14,6 +15,7 @@ export class StockOrderpointListController extends ListController {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.opGuard = useOperationGuard();
         this.onClickOrder = this.opGuard.guard(this.onClickOrder.bind(this));
         this.onClickSnooze = this.opGuard.guard(this.onClickSnooze.bind(this));

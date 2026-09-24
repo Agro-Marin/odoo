@@ -14,7 +14,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { uniqueId } from "@web/core/utils/functions";
-import { useForwardRefToParent } from "@web/core/utils/hooks";
+import { useForwardRefToParent, useService } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useActiveElement } from "@web/ui/active_element";
 
@@ -99,6 +99,7 @@ export class Dialog extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         useLifecycleLog(log);
         this.modalRef = useForwardRefToParent("modalRef");
         useActiveElement("modalRef");
@@ -125,7 +126,7 @@ export class Dialog extends Component {
             this.position = useState({ left: 0, top: 0 });
             useDialogDraggable(
                 /** @type {any} */ ({
-                    enable: () => !this.env.isSmall,
+                    enable: () => !this.ui.isSmall,
                     ref: this.modalRef,
                     elements: ".modal-content",
                     handle: ".modal-header",
@@ -143,7 +144,7 @@ export class Dialog extends Component {
             useExternalListener(window, "resize", throttledResize);
         }
         onWillDestroy(() => {
-            if (this.env.isSmall) {
+            if (this.ui.isSmall) {
                 this.data.scrollToOrigin?.();
             }
         });
@@ -152,7 +153,7 @@ export class Dialog extends Component {
 
     /** @returns {boolean} */
     get isFullscreen() {
-        return this.props.fullscreen || this.env.isSmall;
+        return this.props.fullscreen || this.ui.isSmall;
     }
 
     /** @returns {string} */

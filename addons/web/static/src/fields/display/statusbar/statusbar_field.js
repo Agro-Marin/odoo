@@ -15,6 +15,7 @@ import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/translation";
 import { groupBy } from "@web/core/utils/collections/arrays";
 import { measure, mutate } from "@web/core/utils/dom/layout_batch";
+import { useService } from "@web/core/utils/hooks";
 import { throttleForAnimation } from "@web/core/utils/timing";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
@@ -155,6 +156,7 @@ export class StatusBarField extends FieldComponent {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.beforeRef = useRef("before");
         this.rootRef = useRef("root");
         this.afterRef = useRef("after");
@@ -295,7 +297,7 @@ export class StatusBarField extends FieldComponent {
         this.statusItems.after = [...this.statusItems.folded];
         const itemsToAssign = this.allItems.filter((item) => !item.isFolded);
 
-        if (this.env.isSmall && this.statusItems.inline.length) {
+        if (this.ui.isSmall && this.statusItems.inline.length) {
             show(this.dropdownRef.el);
             hide(this.beforeRef.el, this.afterRef.el, ...itemEls);
             return;

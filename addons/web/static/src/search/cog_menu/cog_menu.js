@@ -5,6 +5,7 @@ import { onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
 import {
     COG_GROUP,
@@ -47,6 +48,7 @@ export class CogMenu extends ActionMenus {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         onWillStart(async () => {
             this.registryItems = await this._registryItems();
         });

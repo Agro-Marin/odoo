@@ -25,6 +25,7 @@ export class ProjectRightSidePanel extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.actionService = useService("action");
         this.dialog = useService("dialog");

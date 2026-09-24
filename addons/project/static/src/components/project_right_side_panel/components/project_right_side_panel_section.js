@@ -29,10 +29,10 @@ export class ProjectRightSidePanelSection extends Component {
     static template = "project.ProjectRightSidePanelSection";
 
     setup() {
-        this.state = useState({
-            isClosed: !!this.env.isSmall && this.props.canBeClosed,
-        });
         this.ui = useService("ui");
+        this.state = useState({
+            isClosed: !!this.ui.isSmall && this.props.canBeClosed,
+        });
 
         useBus(this.ui.bus, "resize", this.setDefaultIsClosed.bind(this));
     }
@@ -42,7 +42,7 @@ export class ProjectRightSidePanelSection extends Component {
     }
 
     toggleSection() {
-        if (!this.env.isSmall || !this.props.canBeClosed) {
+        if (!this.ui.isSmall || !this.props.canBeClosed) {
             this.state.isClosed = false;
         } else {
             this.state.isClosed = !this.state.isClosed;

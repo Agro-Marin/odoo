@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 import { KanbanController, KanbanRenderer, kanbanView } from "@web/views/kanban";
 
 export class BankRecReconcileDialogKanbanController extends KanbanController {
@@ -9,6 +10,11 @@ export class BankRecReconcileDialogKanbanController extends KanbanController {
         ...KanbanController.props,
         bankRecInfo: { type: Object, optional: true },
     };
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     async onSelectionChanged() {
         this.props.bankRecInfo.onSelectionChanged(this);
@@ -21,6 +27,7 @@ export class BankRecReconcileDialogKanbanRenderer extends KanbanRenderer {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         if (this.props.bankRecInfo?.state) {
             this.bankRecState = useState(this.props.bankRecInfo.state);
         }

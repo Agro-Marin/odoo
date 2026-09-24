@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { ProductCatalogKanbanRenderer } from "@product/product_catalog/kanban_renderer";
+import { useService } from "@web/core/utils/hooks";
 
 import { PurchaseProductCatalogKanbanRecord } from "./kanban_record.js";
 
@@ -9,6 +10,11 @@ export class PurchaseProductCatalogKanbanRenderer extends ProductCatalogKanbanRe
         ...ProductCatalogKanbanRenderer.components,
         KanbanRecord: PurchaseProductCatalogKanbanRecord,
     };
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     get createProductContext() {
         return {

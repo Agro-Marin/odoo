@@ -1,11 +1,13 @@
 /** @odoo-module native */
 import { useEffect } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
+import { useService } from "@web/core/utils/hooks";
 import { ListRenderer } from "@web/views/list";
 
 export class SlideCategoryListRenderer extends ListRenderer {
     setup() {
         super.setup();
+        this.ui = useService("ui");
 
         this.discriminant = "is_category";
         this.titleField = "name";
@@ -22,7 +24,7 @@ export class SlideCategoryListRenderer extends ListRenderer {
 
     add(params) {
         let editable = false;
-        if (params.context && !this.env.isSmall) {
+        if (params.context && !this.ui.isSmall) {
             const evaluatedContext = makeContext([params.context]);
             if (evaluatedContext[`default_${this.discriminant}`]) {
                 editable = this.props.editable;

@@ -4,6 +4,7 @@
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { placeholderFieldOption } from "@web/fields/field_options";
 import { isFalseEmpty } from "@web/fields/field_utils";
@@ -27,11 +28,16 @@ export class SelectionField extends SelectionLikeField {
         autosave: false,
     };
 
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
+
     get choices() {
         return this.options.map(([value, label]) => ({ value, label }));
     }
     get isBottomSheet() {
-        return this.env.isSmall && hasTouch();
+        return this.ui.isSmall && hasTouch();
     }
     onChange(value) {
         if (!this.isReady || this.props.readonly) {

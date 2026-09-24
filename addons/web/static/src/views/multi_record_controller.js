@@ -6,6 +6,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { user } from "@web/core/user";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
+import { useService } from "@web/core/utils/hooks";
 import { usePager } from "@web/search/pager_hook";
 import { useViewButtons } from "@web/views/view_button/view_button_hook";
 import { useViewChassis } from "@web/views/view_components/view_layout";
@@ -83,6 +84,7 @@ export class MultiRecordController extends ViewController {
     _multiRecordBehaviorReady = false;
 
     setup() {
+        this.ui = useService("ui");
         this.setupControllerServices();
         this.setupModel();
         this.setupArch();
@@ -335,7 +337,7 @@ export class MultiRecordController extends ViewController {
         if (!this.rootRef?.el) {
             return;
         }
-        if (this.env.isSmall) {
+        if (this.ui.isSmall) {
             this.rootRef.el.scrollTop = 0;
         } else {
             const el = this.rootRef.el.querySelector(this.scrollSelector);

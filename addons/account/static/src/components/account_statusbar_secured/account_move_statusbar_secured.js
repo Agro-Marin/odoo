@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import {
     StatusBarField,
     statusBarField,
@@ -8,6 +9,11 @@ import {
 
 export class AccountMoveStatusBarSecuredField extends StatusBarField {
     static template = "account.MoveStatusBarSecuredField";
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     get isSecured() {
         return this.props.record.data["secured"];

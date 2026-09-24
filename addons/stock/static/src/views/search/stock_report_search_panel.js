@@ -1,11 +1,13 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 
 export class StockReportSearchPanel extends SearchPanel {
     static template = "stock.StockReportSearchPanel";
     setup() {
         super.setup(...arguments);
+        this.ui = useService("ui");
         this.selectedWarehouse = useState({
             value: this.env.searchModel.globalContext.warehouse_id || false,
         });

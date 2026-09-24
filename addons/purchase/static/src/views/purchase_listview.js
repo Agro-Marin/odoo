@@ -5,6 +5,7 @@ import { fileUploadListView } from "@account/views/file_upload_list/file_upload_
 import { PurchaseFileUploader } from "@purchase/components/purchase_file_uploader/purchase_file_uploader";
 import { PurchaseDashBoard } from "@purchase/views/purchase_dashboard";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 
 export class PurchaseDashBoardRenderer extends FileUploadListRenderer {
     static template = "purchase.ListRenderer";
@@ -17,6 +18,11 @@ export class PurchaseFileUploadListController extends FileUploadListController {
         ...FileUploadListController.components,
         PurchaseFileUploader,
     };
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 }
 
 export const PurchaseDashBoardListView = {

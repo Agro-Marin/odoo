@@ -17,6 +17,7 @@ export class DocumentsControlPanel extends ControlPanel {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.documentService = useService("document.document");
 
         this.rightPanelState = useState(this.documentService.rightPanelReactive);
@@ -26,7 +27,7 @@ export class DocumentsControlPanel extends ControlPanel {
             if (searchPanelContainer) {
                 searchPanelContainer.classList.toggle(
                     "d-none",
-                    this.env.isSmall && this.env.model.root.selection.length,
+                    this.ui.isSmall && this.env.model.root.selection.length,
                 );
             }
         });

@@ -15,6 +15,7 @@ import { DocumentsFileViewerHost } from "@document/views/helper/document_file_vi
 import { DocumentsKanbanRecord } from "@document/views/kanban/document_kanban_record";
 
 import { onMounted } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 
 export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRenderer) {
     static props = [...KanbanRenderer.props, "previewStore"];
@@ -35,6 +36,7 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         useCommand(
             _t("Toggle favorite"),
             async () => {
@@ -158,7 +160,7 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
     }
 
     get isMobile() {
-        return this.env.isSmall;
+        return this.ui.isSmall;
     }
 
     getFolderRecords() {

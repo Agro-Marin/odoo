@@ -62,6 +62,7 @@ export class BankRecKanbanController extends KanbanController {
     async setup() {
         useLifecycleLog(log);
         super.setup();
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.bankReconciliation = useBankReconciliation();
         this.bankReconciliation.hydrateChatterState();

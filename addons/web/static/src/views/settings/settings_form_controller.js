@@ -3,7 +3,7 @@
 
 import { useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
 import { _t } from "@web/core/translation";
-import { useAutofocus } from "@web/core/utils/hooks";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { formView } from "@web/views/form/form_view";
 import { recordResParams } from "@web/views/view_button/view_button";
 
@@ -19,6 +19,7 @@ export class SettingsFormController extends formView.Controller {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         useAutofocus();
         this.state = useState({ displayNoContent: false });
         this.searchState = useState({ value: "" });

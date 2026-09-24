@@ -52,7 +52,7 @@ export class DocumentsFileViewer extends WebFileViewer {
     }
 
     get isChatterButtonVisible() {
-        return this.documentService.userIsInternal && !this.env.isSmall;
+        return this.documentService.userIsInternal && !this.ui.isSmall;
     }
 
     close() {

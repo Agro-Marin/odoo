@@ -80,6 +80,7 @@ export class CalendarController extends Component {
     callbackRecorder;
 
     setup() {
+        this.ui = useService("ui");
         this.action = useAction();
         this.orm = useService("orm");
         this.displayDialog = useUniqueDialog();
@@ -103,7 +104,7 @@ export class CalendarController extends Component {
             browser.sessionStorage.getItem("calendar.showSideBar");
         this.state = useState({
             isWeekendVisible: storedWeekendVisible !== "false",
-            showSideBar: !this.env.isSmall && sessionShowSidebar !== "false",
+            showSideBar: !this.ui.isSmall && sessionShowSidebar !== "false",
         });
 
         this.chassis = useViewChassis(this);
@@ -199,7 +200,7 @@ export class CalendarController extends Component {
     }
 
     get showCalendar() {
-        return !this.env.isSmall || !this.state.showSideBar;
+        return !this.ui.isSmall || !this.state.showSideBar;
     }
 
     get hasSideBar() {

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 import {
     Many2ManyTagsField,
     many2ManyTagsField,
@@ -12,6 +13,11 @@ export class Many2ManyTagsJournalsMany2xAutocomplete extends Many2XAutocomplete 
         ...Many2XAutocomplete.props,
         group_company_id: { type: Number, optional: true },
     };
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     get searchSpecification() {
         return {

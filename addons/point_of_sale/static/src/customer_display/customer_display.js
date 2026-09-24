@@ -19,6 +19,7 @@ export class CustomerDisplay extends Component {
     static props = [];
 
     setup() {
+        this.ui = useService("ui");
         useLifecycleLog(log);
         this.session = session;
         this.dialog = useService("dialog");

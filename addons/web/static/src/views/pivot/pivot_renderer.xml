@@ -6,7 +6,7 @@
         <t t-set="_modelEpoch" t-value="this.model.updateEpoch"/>
         <div>
             <t t-call="{{ this.props.buttonTemplate }}"/>
-            <div t-if="this.model.hasData() and this.model.metaData.activeMeasures.length" t-att-class="this.env.isSmall ? 'table-responsive' : ''" class="o_pivot mx-3">
+            <div t-if="this.model.hasData() and this.model.metaData.activeMeasures.length" t-att-class="this.ui.isSmall ? 'table-responsive' : ''" class="o_pivot mx-3">
                 <table
                     class="table-hover table table-sm table-bordered table-borderless"
                     t-att-class="{ o_enable_linking: !this.model.metaData.disableLinking }"
@@ -42,7 +42,7 @@
                                         </div>
                                         <div t-else="" class="o_value">
                                             <t t-set="formattedValue" t-value="this.getFormattedValue(cell)"/>
-                                            <span t-att-data-tooltip="this.env.isSmall ? undefined : formattedValue.help">
+                                            <span t-att-data-tooltip="this.ui.isSmall ? undefined : formattedValue.help">
                                                 <t t-out="formattedValue.value"/>
                                                 <sup
                                                     t-if="formattedValue.currencies"
@@ -126,8 +126,8 @@
                         ? 'padding-left: ' + padding + 'px;'
                         : 'padding-right: ' + padding + 'px;'
             }}"
-            t-att-data-tooltip="this.env.isSmall ? undefined : cell.label"
-            t-att-data-tooltip-position="this.env.isSmall ? undefined : (this.l10n.direction === 'ltr' ? 'right' : 'left')"
+            t-att-data-tooltip="this.ui.isSmall ? undefined : cell.label"
+            t-att-data-tooltip-position="this.ui.isSmall ? undefined : (this.l10n.direction === 'ltr' ? 'right' : 'left')"
             t-on-pointerdown.capture.stop.synthetic=""
             t-on-click.stop.synthetic="(ev) => this.onHeaderClick(ev, cell, isXAxis)"
         >

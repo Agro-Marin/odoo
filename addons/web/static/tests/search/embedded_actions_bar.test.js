@@ -891,11 +891,11 @@ describe("EmbeddedActionsDropdown", () => {
 
     test("getDropdownClass reads visibility on desktop and currency on mobile", () => {
         const dropdown = makeDropdown({}, { visibleEmbeddedActions: [1] });
-        dropdown.env = { isSmall: false };
+        dropdown.ui = { isSmall: false };
         expect(dropdown.getDropdownClass({ id: 1 })).toBe("selected");
         expect(dropdown.getDropdownClass({ id: 2 })).toBe("");
 
-        dropdown.env = { isSmall: true };
+        dropdown.ui = { isSmall: true };
         expect(dropdown.getDropdownClass({ id: 1 })).toBe("selected");
         expect(dropdown.getDropdownClass({ id: 2 })).toBe("");
     });

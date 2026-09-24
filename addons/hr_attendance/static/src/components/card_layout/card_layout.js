@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
 import { Component, useState, onWillUnmount } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 
 const { DateTime } = luxon;
 export class CardLayout extends Component {
@@ -13,6 +14,7 @@ export class CardLayout extends Component {
         activeDisplay: { type: String },
     };
     setup() {
+        this.ui = useService("ui");
         this.state = useState(this.getDateTime());
         this.timeInterval = setInterval(() => {
             Object.assign(this.state, this.getDateTime());

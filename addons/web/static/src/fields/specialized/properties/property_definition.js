@@ -66,6 +66,7 @@ export class PropertyDefinition extends Component {
     ]);
 
     setup() {
+        this.ui = useService("ui");
         this.orm = useService("orm");
 
         this.keepLastCount = new KeepLast({ rejectSuperseded: true });

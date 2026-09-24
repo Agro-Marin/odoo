@@ -8,7 +8,7 @@ import { getLocalYearAndWeek } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { DateTime, Settings } from "@web/core/l10n/luxon";
 import { is24HourFormat } from "@web/core/l10n/time";
-import { useBus } from "@web/core/utils/hooks";
+import { useBus, useService } from "@web/core/utils/hooks";
 import { renderToFragment, renderToString } from "@web/core/utils/render";
 import { useReactiveModel } from "@web/model/model";
 import { CalendarCommonPopover } from "@web/views/calendar/calendar_common/calendar_common_popover";
@@ -119,6 +119,7 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
     popover;
 
     setup() {
+        this.ui = useService("ui");
         this.model = useReactiveModel(this.props.model);
         this.fc = useFullCalendar(this, "fullCalendar", () => this.options);
         this.clickTimeoutId = null;
@@ -145,7 +146,7 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
             ...FC_CLASS_OPTIONS,
             allDaySlot: true,
             allDayText: "",
-            dayHeaderFormat: this.env.isSmall
+            dayHeaderFormat: this.ui.isSmall
                 ? SHORT_SCALE_TO_HEADER_FORMAT[this.model.scale]
                 : SCALE_TO_HEADER_FORMAT[this.model.scale],
             dateClick: this.model.hasMultiCreate ? () => {} : this.onDateClick,
@@ -190,7 +191,7 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
             unselectAuto: false,
             weekNumberFormat: {
                 week:
-                    this.model.scale === "month" || this.env.isSmall
+                    this.model.scale === "month" || this.ui.isSmall
                         ? "numeric"
                         : "long",
             },
@@ -207,7 +208,7 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
 
     get customOptions() {
         return {
-            weekNumbersWithinDays: !this.env.isSmall,
+            weekNumbersWithinDays: !this.ui.isSmall,
         };
     }
 
@@ -363,7 +364,7 @@ export class CalendarCommonRenderer extends CalendarRendererBase {
     /** @param {Object} info */
     addMobileWeekNumber(info) {
         if (
-            !this.env.isSmall ||
+            !this.ui.isSmall ||
             this.customOptions.weekNumbersWithinDays ||
             !info.el?.parentElement ||
             !info.date

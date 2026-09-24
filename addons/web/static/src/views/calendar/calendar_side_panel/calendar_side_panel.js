@@ -4,6 +4,7 @@
 import { Component } from "@odoo/owl";
 import { DateTimePicker } from "@web/components/datetime/datetime_picker";
 import { getStartOfLocalWeek } from "@web/core/l10n/date_utils";
+import { useService } from "@web/core/utils/hooks";
 import { CalendarFilterSection } from "@web/views/calendar/calendar_filter_section/calendar_filter_section";
 
 export class CalendarSidePanel extends Component {
@@ -13,6 +14,11 @@ export class CalendarSidePanel extends Component {
     };
     static template = "web.CalendarSidePanel";
     static props = ["model"];
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     /** @returns {Object} */
     get datePickerProps() {
@@ -54,6 +60,6 @@ export class CalendarSidePanel extends Component {
 
     /** @returns {boolean} */
     get showDatePicker() {
-        return this.props.model.showDatePicker && !this.env.isSmall;
+        return this.props.model.showDatePicker && !this.ui.isSmall;
     }
 }

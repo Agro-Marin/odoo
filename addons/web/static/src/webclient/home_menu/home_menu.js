@@ -119,6 +119,7 @@ export class HomeMenu extends Component {
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     rootRef;
     setup() {
+        this.ui = useService("ui");
         useLifecycleLog(log);
         this.menus = useService("menu");
         this.homeMenuService = useService("home_menu");
@@ -392,7 +393,7 @@ export class HomeMenu extends Component {
                 ),
             );
         }
-        return this.env.isSmall ? (this.state.isIosApp ? 1 : 4) : APPS_PER_ROW;
+        return this.ui.isSmall ? (this.state.isIosApp ? 1 : 4) : APPS_PER_ROW;
     }
 
     /** @param {HomeMenuApp} app */

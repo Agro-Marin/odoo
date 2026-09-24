@@ -18,7 +18,7 @@ import { isActivationKey } from "@web/core/browser/hotkeys";
 import { SearchModelEvent } from "@web/core/events";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { uniqueId } from "@web/core/utils/functions";
-import { useBus } from "@web/core/utils/hooks";
+import { useBus, useService } from "@web/core/utils/hooks";
 
 const isFilter = (s) => s.type === "filter";
 const isActiveCategory = (s) => s.type === "category" && s.activeValueId;
@@ -50,6 +50,7 @@ export class SearchPanel extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.idPrefix = uniqueId("o_sp");
         this.keyExpandSidebar = `search_panel_expanded,${this.env.config.viewId},${this.env.config.actionId}`;
         this.state = useState({

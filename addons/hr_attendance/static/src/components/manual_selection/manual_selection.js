@@ -8,6 +8,7 @@ import { _t } from "@web/core/translation";
 import { rpc } from "@web/core/network";
 import { Pager } from "@web/components/pager";
 import { MEDIAS_BREAKPOINTS, SIZES } from "@web/ui/viewport";
+import { useService } from "@web/core/utils/hooks";
 
 export class KioskManualSelection extends Component {
     static template = "hr_attendance.public_kiosk_manual_selection";
@@ -25,6 +26,7 @@ export class KioskManualSelection extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         let limit = this.calculateLimit();
         this.state = useState({
             employeesData: {
@@ -106,7 +108,7 @@ export class KioskManualSelection extends Component {
     }
 
     async onDepartmentClick(departmentId = false) {
-        if (this.env.isSmall) {
+        if (this.ui.isSmall) {
             if (departmentId) {
                 const selectedDepartment = this.props.departments.find(
                     (department) => department.id === departmentId,

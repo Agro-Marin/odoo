@@ -11,6 +11,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
 
         this.notification = useService("notification");
         this.state = useState({

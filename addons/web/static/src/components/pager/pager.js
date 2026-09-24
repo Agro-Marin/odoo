@@ -6,7 +6,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { PagerEvent } from "@web/core/events";
 import { clamp } from "@web/core/utils/format/numbers";
-import { useAutofocus } from "@web/core/utils/hooks";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
 
 const log = makeLogger("web.components.pager");
 
@@ -32,6 +32,7 @@ export class Pager extends Component {
     inputRef;
 
     setup() {
+        this.ui = useService("ui");
         useLifecycleLog(log);
         this.state = useState({
             isEditing: false,
@@ -41,7 +42,7 @@ export class Pager extends Component {
         let firstMount = true;
         useEffect(
             () => {
-                if (!firstMount && this.env.isSmall) {
+                if (!firstMount && this.ui.isSmall) {
                     this.env.bus.trigger(PagerEvent.UPDATED, {
                         value: this.value,
                         total: this.props.total,

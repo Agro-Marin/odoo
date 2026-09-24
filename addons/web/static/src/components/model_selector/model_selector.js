@@ -34,6 +34,7 @@ export class ModelSelector extends Component {
     sources;
 
     setup() {
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.keepLast = new KeepLast({ rejectSuperseded: true });
         this.sources = [

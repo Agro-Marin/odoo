@@ -3,26 +3,28 @@ import { onMounted, useEffect } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
+import { useService } from "@web/core/utils/hooks";
 
 export class TodoFormControlPanel extends ControlPanel {
     static template = "project_todo.TodoFormControlPanel";
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         useEffect(
             (isSmall) => {
                 if (isSmall && !this.state.displayChatter) {
                     this.toggleChatter();
                 }
             },
-            () => [this.env.isSmall],
+            () => [this.ui.isSmall],
         );
         onMounted(() => {
             const isFromActivityView =
                 router.current.actionStack?.[router.current.actionStack?.length - 1]
                     ?.view_type === "activity";
             if (
-                !this.env.isSmall &&
+                !this.ui.isSmall &&
                 !this.state.displayChatter &&
                 (isFromActivityView ||
                     JSON.parse(browser.localStorage.getItem("isChatterOpened")))

@@ -20,6 +20,7 @@ export class VersionsTimeline extends StatusBarField {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.actionService = useService("action");
         this.orm = useService("orm");
 

@@ -22,6 +22,7 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
+import { utils } from "@web/ui/viewport";
 import { NavBar } from "@web/webclient/navbar/navbar";
 
 const systrayRegistry = registry.category("systray");
@@ -300,8 +301,9 @@ test("can adapt with 'more' menu sections behavior", async () => {
 
     await resize({ width: 1080 });
 
-    const env = await makeMockEnv();
-    Object.defineProperty(env, "isSmall", { get: () => false });
+    await makeMockEnv();
+    patchWithCleanup(utils, { isSmall: () => false });
+    getService("ui").isSmall = false;
 
     getService("menu").setCurrentMenu(1);
     await mountWithCleanup(MyNavbar);
@@ -374,8 +376,9 @@ test("'more' menu sections adaptations do not trigger render in some cases", asy
 
     await resize({ width: 600 });
 
-    const env = await makeMockEnv();
-    Object.defineProperty(env, "isSmall", { get: () => false });
+    await makeMockEnv();
+    patchWithCleanup(utils, { isSmall: () => false });
+    getService("ui").isSmall = false;
 
     const navbar = await mountWithCleanup(MyNavbar);
 
@@ -472,8 +475,9 @@ test("'more' menu sections follow a menu reload that keeps the overflow count", 
     onRpc("/web/webclient/load_menus", () => build(names));
 
     await resize({ width: 700 });
-    const env = await makeMockEnv();
-    Object.defineProperty(env, "isSmall", { get: () => false });
+    await makeMockEnv();
+    patchWithCleanup(utils, { isSmall: () => false });
+    getService("ui").isSmall = false;
 
     const menuService = getService("menu");
     await menuService.reload();
@@ -538,8 +542,9 @@ test("'more' menu sections properly updated on app change", async () => {
 
     await resize({ width: 1080 });
 
-    const env = await makeMockEnv();
-    Object.defineProperty(env, "isSmall", { get: () => false });
+    await makeMockEnv();
+    patchWithCleanup(utils, { isSmall: () => false });
+    getService("ui").isSmall = false;
 
     getService("menu").setCurrentMenu(1);
     await mountWithCleanup(NavBar);
@@ -602,8 +607,9 @@ test("'more' menu keeps a valid access key with 9 visible sections", async () =>
         }
     }
 
-    const env = await makeMockEnv();
-    Object.defineProperty(env, "isSmall", { get: () => false });
+    await makeMockEnv();
+    patchWithCleanup(utils, { isSmall: () => false });
+    getService("ui").isSmall = false;
     await mountWithCleanup(MyNavbar);
     await animationFrame();
 
@@ -646,8 +652,9 @@ test("the icon-only navbar toggles carry an accessible name", async () => {
         },
     ]);
     await resize({ width: 300 });
-    const env = await makeMockEnv();
-    Object.defineProperty(env, "isSmall", { get: () => false });
+    await makeMockEnv();
+    patchWithCleanup(utils, { isSmall: () => false });
+    getService("ui").isSmall = false;
     getService("menu").setCurrentMenu(1);
     await mountWithCleanup(NavBar);
     await waitNavbarAdaptation();

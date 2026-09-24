@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { reactive, useSubEnv } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 import { KanbanRenderer } from "@web/views/kanban";
 
 import { DashboardKanbanRecord } from "./account_dashboard_kanban_record.js";
@@ -13,6 +14,7 @@ export class DashboardKanbanRenderer extends KanbanRenderer {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         useSubEnv({
             dashboardState: reactive({ isDragging: false }),
             setDragging: this.setDragging.bind(this),

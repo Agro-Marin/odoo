@@ -15,6 +15,7 @@ export class ImStatusDropdown extends Component {
     static template = "mail.ImStatusDropdown";
 
     setup() {
+        this.ui = useService("ui");
         this.store = useService("mail.store");
         this.readableImStatusByCode = {
             online: _t("Online"),

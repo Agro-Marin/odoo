@@ -57,6 +57,7 @@ export class PivotRenderer extends Component {
     static props = ["model", "buttonTemplate"];
 
     setup() {
+        this.ui = useService("ui");
         useRenderCounter("pivot.PivotRenderer");
         useLifecycleLog(log);
         this.actionService = useAction();
@@ -122,7 +123,7 @@ export class PivotRenderer extends Component {
      * @returns {number}
      */
     getPadding(cell) {
-        return 5 + cell.indent * (this.env.isSmall ? 5 : 30);
+        return 5 + cell.indent * (this.ui.isSmall ? 5 : 30);
     }
     /**
      * @private

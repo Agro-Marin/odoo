@@ -10,6 +10,7 @@ import {
 import { standardViewProps } from "@web/views/standard_view_props";
 import { useViewButtons } from "@web/views/view_button";
 import { useViewChassis, ViewLayout } from "@web/views/view_components";
+import { useService } from "@web/core/utils/hooks";
 
 export class HierarchyController extends Component {
     static components = { ViewLayout };
@@ -23,6 +24,7 @@ export class HierarchyController extends Component {
     static template = "web_hierarchy.HierarchyView";
 
     setup() {
+        this.ui = useService("ui");
         this.chassis = useViewChassis(this);
         this.rootRef = this.chassis.rootRef;
         const { parentFieldName, childFieldName } = this.props.archInfo;
@@ -61,7 +63,7 @@ export class HierarchyController extends Component {
     }
 
     get chassisProps() {
-        const small = this.env.isSmall ? " o_action_delegate_scroll" : "";
+        const small = this.ui.isSmall ? " o_action_delegate_scroll" : "";
         return {
             ...this.chassis.props,
             className: `o_hierarchy_view${small} ${this.props.className || ""}`,

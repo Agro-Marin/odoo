@@ -9,13 +9,19 @@ import {
     many2ManyTagsAvatarUserField,
 } from "@mail/views/web/fields/many2many_avatar_user_field/many2many_avatar_user_field";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 
 export class Many2ManyTagsAvatarEmployeeField extends EmployeeFieldRelationMixin(
     Many2ManyTagsAvatarUserField,
 ) {
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
+
     displayAvatarCard(record) {
         return (
-            (!this.env.isSmall && this.relation === "hr.employee") ||
+            (!this.ui.isSmall && this.relation === "hr.employee") ||
             super.displayAvatarCard(record)
         );
     }
@@ -42,9 +48,14 @@ registry
 export class KanbanMany2ManyTagsAvatarEmployeeField extends EmployeeFieldRelationMixin(
     KanbanMany2ManyTagsAvatarUserField,
 ) {
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
+
     displayAvatarCard(record) {
         return (
-            (!this.env.isSmall && this.relation === "hr.employee") ||
+            (!this.ui.isSmall && this.relation === "hr.employee") ||
             super.displayAvatarCard(record)
         );
     }
@@ -71,9 +82,14 @@ registry
 export class ListMany2ManyTagsAvatarEmployeeField extends EmployeeFieldRelationMixin(
     ListMany2ManyTagsAvatarUserField,
 ) {
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
+
     displayAvatarCard(record) {
         return (
-            (!this.env.isSmall && this.relation === "hr.employee") ||
+            (!this.ui.isSmall && this.relation === "hr.employee") ||
             super.displayAvatarCard(record)
         );
     }

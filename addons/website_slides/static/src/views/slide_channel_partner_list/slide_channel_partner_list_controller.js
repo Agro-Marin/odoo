@@ -6,6 +6,7 @@ export default class SlideChannelPartnerListController extends ListController {
     static template = "website_slides.SlideChannelPartnerListView";
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.action = useService("action");
         this.orm = useService("orm");
         this.channelId = this.props.context.default_channel_id || false;

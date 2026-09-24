@@ -5,6 +5,7 @@ import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
+import { useService } from "@web/core/utils/hooks";
 export class SettingsPage extends Component {
     static template = "web.SettingsPage";
     static components = { ActionSwiper };
@@ -24,6 +25,7 @@ export class SettingsPage extends Component {
     tabChangeProm;
 
     setup() {
+        this.ui = useService("ui");
         this.state = useState({
             selectedTab: "",
             search: this.env.searchState,
@@ -78,14 +80,14 @@ export class SettingsPage extends Component {
 
     hasRightSwipe() {
         return (
-            this.env.isSmall &&
+            this.ui.isSmall &&
             !this.state.search.value.length &&
             this.getCurrentIndex() !== 0
         );
     }
     hasLeftSwipe() {
         return (
-            this.env.isSmall &&
+            this.ui.isSmall &&
             !this.state.search.value.length &&
             this.getCurrentIndex() !== this.props.modules.length - 1
         );

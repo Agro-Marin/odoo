@@ -1,6 +1,8 @@
 import functools
 import re
+from pathlib import Path
 
+from odoo.modules import Manifest
 from odoo.tests.common import BaseCase, no_retry
 
 from . import _js_sources, lint_case
@@ -8,6 +10,8 @@ from . import _js_sources, lint_case
 _VENDORED = ("/static/lib/", "/static/src/o_spreadsheet/")
 _COMMENT = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 _OWN_RENDER = re.compile(r"^\s+render\s*\([^)]*\)\s*\{", re.MULTILINE)
+_XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+_ENV_IS_SMALL = re.compile(r"\bthis\.env\.isSmall\b")
 REMOVED_IN_OWL3 = {
     "owl_on_rendered": re.compile(r"(?<![\w.$])onRendered\s*\("),
     "owl_on_will_render": re.compile(r"(?<![\w.$])onWillRender\s*\("),
@@ -34,6 +38,34 @@ def _findings(gate: str) -> tuple[str, ...]:
         and not any(part in path.as_posix() for part in _VENDORED)
         for line in calls(pattern, source)
     )
+
+
+def template_calls(pattern: re.Pattern, source: str) -> list[int]:
+    code = _XML_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), source)
+    return [code.count("\n", 0, m.start()) + 1 for m in pattern.finditer(code)]
+
+
+@functools.cache
+def _env_is_small_findings() -> tuple[str, ...]:
+    findings = [
+        f"{path}:{line}"
+        for _addon, path, source in _js_sources.addon_js_outside_lib()
+        if "/static/src/" in path.as_posix()
+        and not any(part in path.as_posix() for part in _VENDORED)
+        for line in calls(_ENV_IS_SMALL, source)
+    ]
+    for manifest in Manifest.get_all_addon_manifests():
+        src = Path(manifest.path) / "static" / "src"
+        if not src.is_dir():
+            continue
+        for path in sorted(src.rglob("*.xml")):
+            if any(part in path.as_posix() for part in _VENDORED):
+                continue
+            findings += [
+                f"{path}:{line}"
+                for line in template_calls(_ENV_IS_SMALL, path.read_text(errors="replace"))
+            ]
+    return tuple(findings)
 
 
 class TestOwl3Api(lint_case.LintCase):
@@ -73,6 +105,15 @@ class TestOwl3Api(lint_case.LintCase):
             "useComponent()",
             "A hook takes what it needs as arguments or reads it through its "
             "own hooks; OWL 3 has no useComponent",
+        )
+
+    def test_no_env_is_small(self):
+        self.assert_ratchet(
+            _env_is_small_findings(),
+            "owl_env_is_small",
+            "this.env.isSmall reads in static/src (JS and templates)",
+            "A component reads this.ui.isSmall from this.ui = useService(\"ui\") "
+            "in setup; OWL 3 components have no env",
         )
 
     def test_no_env_services(self):

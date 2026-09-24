@@ -20,6 +20,7 @@ export class DocumentsSearchPanelUserFolderId extends Component {
         ulClass: { type: String, optional: true },
     };
     setup() {
+        this.ui = useService("ui");
         this.orm = useService("orm");
         const activeValueId = toFolderValueId(this.props.value);
         this.state = useState({

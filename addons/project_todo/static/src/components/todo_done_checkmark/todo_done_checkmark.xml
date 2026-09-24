@@ -6,7 +6,7 @@
            t-on-click.stop="this.onDoneToggled"
            t-on-mouseleave="this.actualizeDoneState"
            t-on-mouseover="this.freezeDoneState"
-           t-attf-class="{{ this.env.isSmall ? 'o_todo_done_button_mobile' : 'o_todo_done_button' }} fa-lg {{ this.isDone ? 'fa-solid fa-circle-check done_button_enabled' : 'fa-regular fa-circle-check' }}"/>
+           t-attf-class="{{ this.ui.isSmall ? 'o_todo_done_button_mobile' : 'o_todo_done_button' }} fa-lg {{ this.isDone ? 'fa-solid fa-circle-check done_button_enabled' : 'fa-regular fa-circle-check' }}"/>
     </t>
 
 </templates>

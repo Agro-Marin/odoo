@@ -2,10 +2,13 @@ import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { ActivityMenu } from "@mail/core/web/activity_menu";
 import { describe, expect, test } from "@odoo/hoot";
 import {
+    getService,
     makeMockEnv,
     mockService,
     mountWithCleanup,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { utils } from "@web/ui/viewport";
 
 describe.current.tags("desktop");
 defineMailModels();
@@ -23,7 +26,8 @@ const LEAVE_GROUP = {
 
 async function openGroupWith({ isSmall, group }) {
     const env = await makeMockEnv();
-    Object.defineProperty(env, "isSmall", { get: () => isSmall });
+    patchWithCleanup(utils, { isSmall: () => isSmall });
+    getService("ui").isSmall = isSmall;
 
     let openedWith;
     mockService("action", {

@@ -10,6 +10,7 @@ export class SaverScreen extends Component {
     static props = [];
 
     setup() {
+        this.ui = useService("ui");
         this.time = useTime();
         this.dialog = useService("dialog");
         this.dialog.closeAll();

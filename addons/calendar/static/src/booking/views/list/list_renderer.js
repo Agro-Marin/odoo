@@ -11,6 +11,7 @@ export class AppointmentBookingListRenderer extends ListRenderer {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.action = useService("action");
 
         onWillStart(async () => {

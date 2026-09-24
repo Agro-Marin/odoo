@@ -12,6 +12,7 @@ export class DocumentsFileViewerHost extends Component {
     static props = ["parentRoot", "previewStore"];
 
     setup() {
+        this.ui = useService("ui");
         this.documentService = useService("document.document");
         this.root = useRef("root");
         this.rightPanelState = useState(this.documentService.rightPanelReactive);
@@ -59,7 +60,7 @@ export class DocumentsFileViewerHost extends Component {
     }
 
     get isRightPanelVisible() {
-        return this.rightPanelState.visible && !this.env.isSmall;
+        return this.rightPanelState.visible && !this.ui.isSmall;
     }
 
     onGlobalKeydown(ev) {

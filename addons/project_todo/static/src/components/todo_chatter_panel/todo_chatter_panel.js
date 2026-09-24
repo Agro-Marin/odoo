@@ -5,7 +5,7 @@ import { Component, useState, useRef } from "@odoo/owl";
 
 import { registry } from "@web/core/registry";
 import { standardWidgetProps } from "@web/views/widgets";
-import { useBus } from "@web/core/utils/hooks";
+import { useBus, useService } from "@web/core/utils/hooks";
 
 export class TodoChatterPanel extends Component {
     static template = "project_todo.TodoChatterPanel";
@@ -15,8 +15,9 @@ export class TodoChatterPanel extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.state = useState({
-            displayChatter: this.env.isSmall,
+            displayChatter: this.ui.isSmall,
         });
         this.rootRef = useRef("root");
         useBus(this.env.bus, "TODO:TOGGLE_CHATTER", this.toggleChatter.bind(this));

@@ -6,6 +6,7 @@ import { is24HourFormat } from "@web/core/l10n/time";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import { Field } from "@web/fields/field";
 import { Record } from "@web/model/record";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -41,6 +42,7 @@ export class CalendarCommonPopover extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.time = null;
         this.timeDuration = null;
         this.date = null;

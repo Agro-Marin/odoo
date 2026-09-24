@@ -7,6 +7,7 @@ import { Dialog } from "@web/ui/dialog";
 import { _t } from "@web/core/translation";
 import { rpc } from "@web/core/network";
 import { useDebounced } from "@web/core/utils/timing";
+import { useService } from "@web/core/utils/hooks";
 
 export class LocationSelectorDialog extends Component {
     static components = { Dialog, LocationList, MapContainer };
@@ -23,6 +24,7 @@ export class LocationSelectorDialog extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.state = useState({
             locations: [],
             error: false,
@@ -30,7 +32,7 @@ export class LocationSelectorDialog extends Component {
             zipCode: this.props.zipCode,
             // Some APIs like FedEx use strings to identify locations.
             selectedLocationId: String(this.props.selectedLocationId),
-            isSmall: this.env.isSmall,
+            isSmall: this.ui.isSmall,
         });
 
         this.getLocationUrl = "/delivery/get_pickup_locations";
@@ -205,6 +207,6 @@ export class LocationSelectorDialog extends Component {
      * @return {void}
      */
     updateSize() {
-        this.state.isSmall = this.env.isSmall;
+        this.state.isSmall = this.ui.isSmall;
     }
 }

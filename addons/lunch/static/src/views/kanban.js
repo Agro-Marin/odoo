@@ -13,6 +13,7 @@ import { LunchRendererMixin } from "../mixins/lunch_renderer_mixin.js";
 
 import { LunchSearchModel } from "./search_model.js";
 import { LunchSearchPanel } from "./search_panel.js";
+import { useService } from "@web/core/utils/hooks";
 
 export class LunchKanbanRecord extends KanbanRecord {
     onGlobalClick() {
@@ -29,6 +30,11 @@ export class LunchKanbanRenderer extends LunchRendererMixin(KanbanRenderer) {
         LunchDashboard,
         KanbanRecord: LunchKanbanRecord,
     };
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     getGroupsOrRecords() {
         const { locationId } = this.env.searchModel.lunchState;

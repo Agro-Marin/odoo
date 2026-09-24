@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { AvatarCardPopover } from "@mail/discuss/web/avatar_card/avatar_card_popover";
 import { Component } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover";
 export class Avatar extends Component {
     static template = "mail.Avatar";
@@ -19,13 +20,14 @@ export class Avatar extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.avatarCard = usePopover(
             /** @type {typeof Avatar} */ (this.constructor).components.Popover,
         );
     }
 
     get canOpenPopover() {
-        return this.props.canOpenPopover && !this.env.isSmall && !!this.props.resId;
+        return this.props.canOpenPopover && !this.ui.isSmall && !!this.props.resId;
     }
 
     get popoverProps() {

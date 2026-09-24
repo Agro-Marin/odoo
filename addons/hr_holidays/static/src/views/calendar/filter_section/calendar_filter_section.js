@@ -16,6 +16,7 @@ export class TimeOffCalendarFilterSection extends CalendarFilterSection {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
 
         this.orm = useService("orm");
         this.leaveState = useState({
@@ -25,7 +26,7 @@ export class TimeOffCalendarFilterSection extends CalendarFilterSection {
     }
 
     async loadFilterData() {
-        if (!this.env.isSmall || this.section.fieldName !== "holiday_status_id") {
+        if (!this.ui.isSmall || this.section.fieldName !== "holiday_status_id") {
             return;
         }
         const filterData = {};

@@ -25,6 +25,7 @@ export const DocumentsControllerMixin = (component) =>
         setup() {
             preSuperSetup();
             super.setup(...arguments);
+            this.ui = useService("ui");
             this.searchBarToggler = useSearchBarToggler();
             useSubEnv({
                 searchBarToggler: this.searchBarToggler,
@@ -208,7 +209,7 @@ export const DocumentsControllerMixin = (component) =>
             const someArchived = this.targetRecords.some((r) => !r.data.active);
             const someUnlocked = this.targetRecords.some((r) => !r.data.lock_uid);
             const menuItems = super.getStaticActionMenuItems();
-            const topBarActions = this.env.isSmall
+            const topBarActions = this.ui.isSmall
                 ? this.getTopBarActionMenuItems()
                 : {};
             return {

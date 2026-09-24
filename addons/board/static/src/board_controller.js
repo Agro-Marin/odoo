@@ -20,9 +20,10 @@ export class BoardController extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.board = useState(this.props.board);
         this.dialogService = useService("dialog");
-        if (this.env.isSmall) {
+        if (this.ui.isSmall) {
             this.selectLayout("1", false);
         } else {
             const mainRef = useRef("main");

@@ -5,7 +5,7 @@
             <button
             t-if="this.isAppointmentManager and this.isResourceView"
             class="btn btn-primary"
-            t-att-class="{'btn-sm btn-link p-1': this.env.isSmall}"
+            t-att-class="{'btn-sm btn-link p-1': this.ui.isSmall}"
             t-on-click="this.onClickAddLeave">Add Closing Day(s)</button>
         </xpath>
         <xpath expr="//div[hasclass('o_calendar_header')]" position="inside">

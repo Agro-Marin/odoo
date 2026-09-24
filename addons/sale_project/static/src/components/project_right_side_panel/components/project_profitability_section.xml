@@ -16,7 +16,7 @@
  class="revenue_section btn btn-link my-n2 py-2 text-action"
  t-if="this.revenue.action" href="#"
  t-on-click="() => this.props.onClick(this.revenue.action)"
- t-att-class="{ 'ms-auto': this.env.isSmall, 'opacity-0': !this.env.isSmall and this.state.isFolded, 'opacity-100-hover': !this.env.isSmall }"
+ t-att-class="{ 'ms-auto': this.ui.isSmall, 'opacity-0': !this.ui.isSmall and this.state.isFolded, 'opacity-100-hover': !this.ui.isSmall }"
  aria-label="Internal link"
  data-tooltip="Internal link"
  >

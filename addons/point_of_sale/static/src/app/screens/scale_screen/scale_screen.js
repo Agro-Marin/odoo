@@ -15,6 +15,7 @@ export class ScaleScreen extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         useLifecycleLog(log);
         this.scale = useState(useService("pos_scale"));
         this.dialog = useService("dialog");

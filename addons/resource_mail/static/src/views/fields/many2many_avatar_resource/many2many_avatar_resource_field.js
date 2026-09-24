@@ -14,6 +14,7 @@ import {
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { AvatarCardResourcePopover } from "@resource_mail/components/avatar_card_resource/avatar_card_resource_popover";
 import { KanbanMany2ManyTagsAvatarFieldTagsList } from "@web/fields/relational/many2many_tags_avatar/many2many_tags_avatar_field";
+import { useService } from "@web/core/utils/hooks";
 
 export class AvatarResourceMany2XAutocomplete extends Many2XAutocomplete {
     /**
@@ -36,6 +37,7 @@ const WithResourceFieldMixin = (T) =>
     class ResourceFieldMixin extends T {
         setup() {
             super.setup(...arguments);
+            this.ui = useService("ui");
             if (this.relation == "resource.resource") {
                 this.avatarCard = usePopover(AvatarCardResourcePopover);
             }
@@ -50,7 +52,7 @@ const WithResourceFieldMixin = (T) =>
 
         displayAvatarCard(record) {
             return (
-                !this.env.isSmall &&
+                !this.ui.isSmall &&
                 this.relation === "resource.resource" &&
                 record.data.resource_type === "user"
             );

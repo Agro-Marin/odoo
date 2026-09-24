@@ -6,12 +6,14 @@ import {
     StateSelectionField,
     stateSelectionField,
 } from "@web/fields/selection/state_selection/state_selection_field";
+import { useService } from "@web/core/utils/hooks";
 
 export class TodoDoneCheckmark extends StateSelectionField {
     static template = "project_todo.TodoDoneCheckmark";
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.frozen = useState({ isDone: null });
         onMounted(() => {
             const value = this.props.record.data[this.props.name];

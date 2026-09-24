@@ -7,6 +7,7 @@ export const ExpenseMobileQRCode = (T) =>
     class ExpenseMobileQRCode extends T {
         setup() {
             super.setup();
+            this.ui = useService("ui");
             this.root = useRef("root");
             this.actionService = useService("action");
 
@@ -31,7 +32,7 @@ export const ExpenseMobileQRCode = (T) =>
             ev.stopPropagation();
 
             const url = ev.currentTarget && ev.currentTarget.href;
-            if (!this.env.isSmall) {
+            if (!this.ui.isSmall) {
                 this.actionService.doAction({
                     name: _t("Download our App"),
                     type: "ir.actions.client",

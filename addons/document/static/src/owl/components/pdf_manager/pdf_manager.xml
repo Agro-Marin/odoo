@@ -5,7 +5,7 @@
             <div class='o_documents_pdf_manager' t-ref="root" t-att-class="{'pe-none': this.state.isSelecting}">
                 <div class="o_documents_pdf_manager_top_bar">
                     <input type="file" t-ref="addFileInput" class="o_input_file o_hidden" accept="application/pdf" t-on-change.stop="this.onFileInputChange"/>
-                    <t t-if="this.env.isSmall" t-call="document.component.PdfManager.ButtonsMobile"/>
+                    <t t-if="this.ui.isSmall" t-call="document.component.PdfManager.ButtonsMobile"/>
                     <span t-else="" class="o_pdf_global_buttons">
                         <div>
                             <t t-call="document.component.PdfManager.GlobalButtons"/>
@@ -17,7 +17,7 @@
                             <input class="ms-2 form-check-input mt-0" id="pdf_archive" type="checkbox" name="archive" t-att-checked="this.state.archive" t-att-disabled="this.state.viewedPage"/>
                         </span>
                         <button class="btn btn-danger me-2 o_pdf_manager_button text-uppercase"
-                            t-att-class="{'o_pdf_manager_button': !this.env.isSmall}"
+                            t-att-class="{'o_pdf_manager_button': !this.ui.isSmall}"
                             aria-label="Move to trash"
                             title="Move to trash"
                             t-att-disabled="this.state.uploadingLock || this.state.viewedPage"
@@ -105,7 +105,7 @@
     </t>
 
     <t t-name="document.component.PdfManager.GlobalButtons">
-        <t t-set="isMobile" t-value="this.env.isSmall"/>
+        <t t-set="isMobile" t-value="this.ui.isSmall"/>
         <button class="btn btn-primary o_pdf_manager_button"
             t-att-class="{'dropdown-item': isMobile, 'm-0': isMobile, 'h-auto': isMobile}"
             title="Split selected pages"

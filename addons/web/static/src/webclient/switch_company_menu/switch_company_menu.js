@@ -60,6 +60,7 @@ export class SwitchCompanyMenu extends Component {
     static CompanySelector = CompanySelector;
 
     setup() {
+        this.ui = useService("ui");
         this.dropdown = useDropdownState();
         this.user = user;
         const actionService = useService("action");
@@ -78,7 +79,7 @@ export class SwitchCompanyMenu extends Component {
         );
         this.resetState();
 
-        if (!this.env.isSmall) {
+        if (!this.ui.isSmall) {
             useHotkey("control+enter", () => this.confirm(), {
                 bypassEditableProtection: true,
                 isAvailable: () =>

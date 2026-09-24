@@ -18,6 +18,7 @@ export class ExpenseListController extends ExpenseDocumentUpload(ListController)
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.actionService = useService("action");
 

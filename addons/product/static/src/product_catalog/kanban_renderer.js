@@ -13,6 +13,7 @@ export class ProductCatalogKanbanRenderer extends KanbanRenderer {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.action = useService("action");
     }
 

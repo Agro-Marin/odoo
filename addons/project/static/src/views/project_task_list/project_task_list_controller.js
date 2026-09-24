@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { subTaskDeleteConfirmationMessage } from "@project/views/project_task_form/project_task_form_controller";
+import { useService } from "@web/core/utils/hooks";
 import { ListController } from "@web/views/list";
 
 import { ProjectTaskTemplateDropdown } from "../components/project_task_template_dropdown.js";
@@ -10,6 +11,11 @@ export class ProjectTaskListController extends ListController {
         ...ListController.components,
         ProjectTaskTemplateDropdown,
     };
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     get deleteConfirmationDialogProps() {
         const deleteConfirmationDialogProps = super.deleteConfirmationDialogProps;

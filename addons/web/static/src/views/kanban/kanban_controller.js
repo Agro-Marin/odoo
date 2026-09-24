@@ -5,6 +5,7 @@ import { reactive, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useService } from "@web/core/utils/hooks";
 import { useModelWithSampleData } from "@web/model/model";
 import {
     addFieldDependencies,
@@ -96,6 +97,11 @@ export class KanbanController extends MultiRecordController {
         showButtons: true,
     };
 
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
+
     /** @override */
     setupModel() {
         this.model = useState(
@@ -166,7 +172,7 @@ export class KanbanController extends MultiRecordController {
                 if (!isReady) {
                     return;
                 }
-                if (this.env.isSmall && this.model.root.isGrouped) {
+                if (this.ui.isSmall && this.model.root.isGrouped) {
                     this.restoreColumnScrollPositions();
                 } else {
                     setScrollFromState();
@@ -188,7 +194,7 @@ export class KanbanController extends MultiRecordController {
             activeBars: this.progressBarState?.activeBars,
             modelState: this.model.exportState(),
         };
-        if (this.env.isSmall && this.model.root.isGrouped) {
+        if (this.ui.isSmall && this.model.root.isGrouped) {
             state.scrollPositions = this.getColumnScrollPositions();
         }
         return state;
@@ -295,7 +301,7 @@ export class KanbanController extends MultiRecordController {
     }
 
     get className() {
-        if (this.env.isSmall && this.model.root.isGrouped) {
+        if (this.ui.isSmall && this.model.root.isGrouped) {
             const classList = (this.props.className || "").split(" ");
             classList.push("o_action_delegate_scroll");
             return classList.join(" ");

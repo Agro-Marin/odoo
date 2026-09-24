@@ -226,6 +226,7 @@ export class Many2One extends Component {
     _activeActions = null;
 
     setup() {
+        this.ui = useService("ui");
         useRenderCounter("fields.web.Many2One");
         this.rootRef = useRef("root");
 
@@ -470,7 +471,7 @@ export class Many2One extends Component {
             }
             input.value = barcode;
             input.dispatchEvent(new Event("input"));
-            if (this.env.isSmall) {
+            if (this.ui.isSmall) {
                 input.dispatchEvent(new Event("barcode-search"));
             }
         }

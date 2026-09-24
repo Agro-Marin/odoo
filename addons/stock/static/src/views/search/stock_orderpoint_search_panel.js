@@ -9,6 +9,7 @@ export class StockOrderpointSearchPanel extends SearchPanel {
     setup() {
         this.orm = useService("orm");
         super.setup(...arguments);
+        this.ui = useService("ui");
         this.globalHorizonDays = useState({ value: 0 });
         onWillStart(this.getHorizonParameter);
     }

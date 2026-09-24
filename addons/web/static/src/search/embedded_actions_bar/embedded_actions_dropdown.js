@@ -8,6 +8,7 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { isActivationKey } from "@web/core/browser/hotkeys";
+import { useService } from "@web/core/utils/hooks";
 import { EmbeddedActions } from "@web/search/embedded_actions_bar/embedded_actions";
 
 /** @import { EmbeddedAction } from "@web/search/embedded_actions_bar/embedded_actions" */
@@ -27,6 +28,7 @@ export class EmbeddedActionsDropdown extends Component {
     state;
 
     setup() {
+        this.ui = useService("ui");
         this.newActionNameRef = useRef("newActionNameRef");
         const ownDropdownState = useDropdownState();
         this.dropdownState = this.props.state || ownDropdownState;
@@ -43,7 +45,7 @@ export class EmbeddedActionsDropdown extends Component {
         const isCurrent =
             this.state.embeddedInfos.currentEmbeddedAction?.id === action.id;
         const isVisible = EmbeddedActions.isVisible(this.state.embeddedInfos, action);
-        return (this.env.isSmall ? isCurrent : isVisible) ? "selected" : "";
+        return (this.ui.isSmall ? isCurrent : isVisible) ? "selected" : "";
     }
 
     /** @param {EmbeddedAction} action */

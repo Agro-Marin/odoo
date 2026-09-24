@@ -11,6 +11,7 @@ export class TimeOffCalendarMobileFilterPanel extends CalendarMobileFilterPanel 
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
 
         this.orm = useService("orm");
         this.leaveState = useState({
@@ -21,7 +22,7 @@ export class TimeOffCalendarMobileFilterPanel extends CalendarMobileFilterPanel 
     }
 
     async loadFilterData() {
-        if (!this.env.isSmall) {
+        if (!this.ui.isSmall) {
             return;
         }
         const promises = [];

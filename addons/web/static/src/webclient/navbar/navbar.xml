@@ -8,7 +8,7 @@
         data-command-category="disabled"
       >
         <a t-if="!this.isScopedApp" href="/odoo" class="o_menu_toggle border-0" t-att-class="this.menuToggleClass" t-att-title="this.menuToggleTitle" t-att-aria-label="this.menuToggleTitle" accesskey="h" t-ref="menuApps" t-on-click.prevent="this._onMenuToggleClick" t-on-mouseenter="this._onMenuToggleEnter" t-on-mouseleave="this._onMenuToggleLeave">
-            <t t-if="this.env.isSmall and !this.hm.hasHomeMenu">
+            <t t-if="this.ui.isSmall and !this.hm.hasHomeMenu">
                 <t t-call="web.NavBar.AppsMenu.Sidebar"/>
             </t>
             <t t-else="">
@@ -17,7 +17,7 @@
                         <rect t-foreach="[0, 5, 10]" t-as="X" width="3" height="3" t-att-x="X" t-att-y="Y" t-key="'o_menu_toggle_cell_' + X_index"/>
                     </g>
                 </svg>
-                <t t-if="!this.env.isSmall and this.currentApp">
+                <t t-if="!this.ui.isSmall and this.currentApp">
                     <img
                         t-if="this.currentApp.webIconData"
                         t-att-src="this.currentApp.webIconData"
@@ -47,7 +47,7 @@
 
         <div class="o_navbar_breadcrumbs d-contents" t-att-class="{'o_hidden': !this.isInApp}"/>
 
-        <t t-if="!this.env.isSmall">
+        <t t-if="!this.ui.isSmall">
           <t t-if="this.currentAppSections.length" t-call="web.NavBar.SectionsMenu"
               sections="this.currentAppSections"/>
         </t>
@@ -119,7 +119,7 @@
 
   <t t-name="web.NavBar.SectionsMenu">
     <div class="o_menu_sections d-flex flex-grow-1 flex-shrink-1 w-0" t-att-class="{'o_hidden': !this.isInApp}" t-ref="appSubMenus" role="menu">
-        <t t-if="!this.env.isSmall">
+        <t t-if="!this.ui.isSmall">
             <DropdownGroup>
                 <t
                     t-set="sectionsVisibleCount"

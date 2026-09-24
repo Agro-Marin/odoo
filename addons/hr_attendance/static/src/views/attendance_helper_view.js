@@ -10,6 +10,7 @@ export class AttendanceActionHelper extends Component {
     static template = "hr_attendance.AttendanceActionHelper";
     static props = ["noContentHelp"];
     setup() {
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.actionService = useService("action");
         this.dialogService = useService("dialog");

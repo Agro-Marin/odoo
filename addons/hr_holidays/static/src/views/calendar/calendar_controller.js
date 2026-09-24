@@ -2,6 +2,7 @@
 import { EventBus, useSubEnv } from "@odoo/owl";
 import { serializeDate } from "@web/core/l10n/dates";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog";
 import { CalendarController } from "@web/views/calendar";
 
@@ -19,6 +20,7 @@ export class TimeOffCalendarController extends CalendarController {
     static template = "hr_holidays.CalendarController";
     setup() {
         super.setup();
+        this.ui = useService("ui");
         useSubEnv({
             timeOffBus: new EventBus(),
         });

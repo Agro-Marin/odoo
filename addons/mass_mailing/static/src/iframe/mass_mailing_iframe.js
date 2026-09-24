@@ -21,7 +21,7 @@ import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { closestScrollableY } from "@web/core/utils/dom/scrolling";
 import { uniqueId } from "@web/core/utils/functions";
-import { useChildRef, useForwardRefToParent } from "@web/core/utils/hooks";
+import { useChildRef, useForwardRefToParent, useService } from "@web/core/utils/hooks";
 import { renderToFragment } from "@web/core/utils/render";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
@@ -77,6 +77,7 @@ export class MassMailingIframe extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         useOverlayServiceOffset();
         this.overlayRef = useChildRef();
         this.iframeRef = useForwardRefToParent("iframeRef");

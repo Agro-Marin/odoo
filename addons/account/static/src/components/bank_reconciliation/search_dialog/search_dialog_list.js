@@ -11,6 +11,11 @@ export class BankRecReconcileDialogListController extends ListController {
         bankRecInfo: { type: Object, optional: true },
     };
 
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
+
     async onSelectionChanged() {
         this.props.bankRecInfo.onSelectionChanged(this);
     }
@@ -23,6 +28,7 @@ export class BankRecReconcileDialogListRenderer extends ListRenderer {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.action = useService("action");
         if (this.props.bankRecInfo?.state) {
             this.bankRecState = useState(this.props.bankRecInfo.state);

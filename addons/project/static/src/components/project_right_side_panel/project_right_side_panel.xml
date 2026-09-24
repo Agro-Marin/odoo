@@ -12,7 +12,7 @@
                 <div class="o_form_view">
                     <div
                         class="oe_button_box o-form-buttonbox d-print-none d-grid"
-                        t-att-class="{'border-top': this.env.isSmall}"
+                        t-att-class="{'border-top': this.ui.isSmall}"
                         t-attf-style="grid-template-columns: repeat({{ this.state.gridTemplateColumns }}, 1fr);"
                     >
                         <t t-foreach="this.state.data.buttons" t-as="button" t-key="button_index">
@@ -83,7 +83,7 @@
                 name="'profitability'"
                 show="this.state.data.show_project_profitability_helper"
                 headerClassName="'border-top pt-0 pt-md-3'"
-                dataClassName="{ 'd-flex overflow-x-auto': this.env.isSmall }"
+                dataClassName="{ 'd-flex overflow-x-auto': this.ui.isSmall }"
             >
                 <t t-set-slot="title">
                     Profitability

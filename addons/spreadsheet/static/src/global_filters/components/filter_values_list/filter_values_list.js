@@ -29,6 +29,7 @@ export class FilterValuesList extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.state = useState({
             filtersAndValues: this.globalFilters.map((globalFilter) => {

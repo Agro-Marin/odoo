@@ -31,7 +31,7 @@
                 <t t-foreach="this.state.embeddedInfos.embeddedActions" t-as="action" t-key="action.id">
                     <DropdownItem
                         class="this.getDropdownClass(action)"
-                        onSelected="() => this.env.isSmall ? this.onEmbeddedActionClick(action) : this.setVisibility(action.id)"
+                        onSelected="() => this.ui.isSmall ? this.onEmbeddedActionClick(action) : this.setVisibility(action.id)"
                         closingMode="'none'"
                     >
                         <div class="d-flex p-0 pe-1 align-items-center justify-content-between">

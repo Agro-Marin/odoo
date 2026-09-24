@@ -40,6 +40,7 @@ export class PdfManager extends Component {
     static template = "document.component.PdfManager";
 
     setup() {
+        this.ui = useService("ui");
         this.root = useRef("root");
         useActiveElement("root");
         this.pageViewer = useRef("pageViewer");

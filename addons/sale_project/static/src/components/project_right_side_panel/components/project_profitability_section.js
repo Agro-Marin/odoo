@@ -16,6 +16,7 @@ export class ProjectProfitabilitySection extends Component {
     static template = "sale_project.ProjectProfitabilitySection";
 
     setup() {
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.actionService = useService("action");
         this.state = useState({

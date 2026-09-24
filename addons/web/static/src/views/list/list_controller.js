@@ -6,6 +6,7 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
+import { useService } from "@web/core/utils/hooks";
 import { useModelWithSampleData } from "@web/model/model";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
@@ -60,6 +61,11 @@ export class ListController extends MultiRecordController {
         allowOpenAction: true,
     };
 
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
+
     /** @type {Record<string, any>} */
     optionalActiveFields;
 
@@ -109,7 +115,7 @@ export class ListController extends MultiRecordController {
         useEffect(
             (isReady) => {
                 if (isReady) {
-                    if (this.env.isSmall) {
+                    if (this.ui.isSmall) {
                         setScrollFromState();
                     } else {
                         const { rendererScrollPositions } = this.props.state || {};

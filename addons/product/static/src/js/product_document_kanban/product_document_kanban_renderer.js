@@ -17,6 +17,7 @@ export class ProductDocumentKanbanRenderer extends KanbanRenderer {
     static template = "product.ProductDocumentKanbanRenderer";
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.fileUploadService = useService("file_upload");
     }
 }

@@ -40,6 +40,7 @@ export class PosKanbanController extends KanbanController {
     static template = "point_of_sale.PosKanbanController";
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.initialPosState = {
             has_pos_config: true,
@@ -57,6 +58,7 @@ export class PosKanbanRenderer extends KanbanRenderer {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.action = useService("action");
         this.posState = useState(this.props.initialPosState);

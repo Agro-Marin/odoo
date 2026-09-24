@@ -130,6 +130,7 @@ export class Many2XAutocomplete extends Component {
     emptySearchMemo = { signature: null, names: new Set() };
 
     setup() {
+        this.ui = useService("ui");
         useRenderCounter("fields.web.Many2XAutocomplete");
         this.orm = useService("orm");
 

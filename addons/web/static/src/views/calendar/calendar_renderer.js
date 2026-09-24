@@ -5,6 +5,7 @@ import { Component } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { useService } from "@web/core/utils/hooks";
 import { useReactiveModel } from "@web/model/model";
 
 import { CalendarCommonRenderer } from "./calendar_common/calendar_common_renderer.js";
@@ -32,6 +33,7 @@ export class CalendarRenderer extends Component {
         cleanSquareSelection: Function,
     };
     setup() {
+        this.ui = useService("ui");
         this.model = useReactiveModel(this.props.model);
         useLifecycleLog(log);
     }
@@ -56,10 +58,10 @@ export class CalendarRenderer extends Component {
     }
     get actionSwiperProps() {
         return {
-            onLeftSwipe: this.env.isSmall
+            onLeftSwipe: this.ui.isSmall
                 ? { action: () => this.props.setDate("next") }
                 : undefined,
-            onRightSwipe: this.env.isSmall
+            onRightSwipe: this.ui.isSmall
                 ? { action: () => this.props.setDate("previous") }
                 : undefined,
             animationOnMove: false,

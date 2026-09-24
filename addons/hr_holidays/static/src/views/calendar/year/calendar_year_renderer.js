@@ -9,6 +9,7 @@ import { TimeOffCalendarYearPopover } from "./calendar_year_popover.js";
 export class TimeOffCalendarYearRenderer extends CalendarYearRenderer {
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.mandatoryDays = useMandatoryDays(this.props);
         this.mandatoryDaysList = [];
@@ -33,7 +34,7 @@ export class TimeOffCalendarYearRenderer extends CalendarYearRenderer {
             elClass.startsWith("hr_mandatory_day_"),
         );
         this.mandatoryDayPopover.close();
-        if (is_mandatory_day && !this.env.isSmall) {
+        if (is_mandatory_day && !this.ui.isSmall) {
             this.popover.close();
             const date = luxon.DateTime.fromISO(info.dateStr);
             const target = info.dayEl;

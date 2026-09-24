@@ -10,6 +10,7 @@ export class AccountAuditBalanceListController extends ListController {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.chatterService = useAuditBalanceListChatterService();
 

@@ -52,6 +52,7 @@ export class SelectCreateDialog extends Component {
     state;
 
     setup() {
+        this.ui = useService("ui");
         this.dialogService = useService("dialog");
         this.state = useState({ resIds: [] });
         const noContentHelp = this.props.noContentHelp || getDefaultNoContentHelp();
@@ -69,7 +70,7 @@ export class SelectCreateDialog extends Component {
     }
 
     get viewProps() {
-        const type = this.env.isSmall ? "kanban" : "list";
+        const type = this.ui.isSmall ? "kanban" : "list";
         /** @type {Record<string, any>} */
         const props = {
             loadIrFilters: true,
@@ -119,7 +120,7 @@ export class SelectCreateDialog extends Component {
     }
 
     get canUnselect() {
-        return this.env.isSmall && !!this.props.onUnselect;
+        return this.ui.isSmall && !!this.props.onUnselect;
     }
 
     async createEditRecord() {

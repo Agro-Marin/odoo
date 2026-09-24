@@ -132,6 +132,7 @@ export class LunchDashboard extends Component {
     static template = "lunch.LunchDashboard";
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.state = useState({
             infos: {},
             date: DateTime.now(),

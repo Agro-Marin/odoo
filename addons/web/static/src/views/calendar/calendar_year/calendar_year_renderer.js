@@ -5,6 +5,7 @@ import { useEffect, useExternalListener, useRef } from "@odoo/owl";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { DateTime, Info, Interval, Settings } from "@web/core/l10n/luxon";
+import { useService } from "@web/core/utils/hooks";
 import { useReactiveModel } from "@web/model/model";
 import { formatFcInitialDate } from "@web/views/calendar/calendar_common/calendar_common_renderer";
 import { CalendarRendererBase } from "@web/views/calendar/calendar_renderer_base";
@@ -39,6 +40,7 @@ export class CalendarYearRenderer extends CalendarRendererBase {
     rootRef;
 
     setup() {
+        this.ui = useService("ui");
         this.model = useReactiveModel(this.props.model);
         this.months = Info.months();
         this.fcs = {};
@@ -153,7 +155,7 @@ export class CalendarYearRenderer extends CalendarRendererBase {
     }
 
     onDateClick(info) {
-        if (this.env.isSmall) {
+        if (this.ui.isSmall) {
             this.model.load({
                 date: DateTime.fromISO(info.dateStr),
                 scale: "day",

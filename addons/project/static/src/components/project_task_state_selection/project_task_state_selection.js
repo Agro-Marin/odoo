@@ -3,6 +3,7 @@ import { useState } from "@odoo/owl";
 import { formatSelection } from "@web/core/formatters";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import {
     StateSelectionField,
     stateSelectionField,
@@ -19,6 +20,7 @@ export class ProjectTaskStateSelection extends StateSelectionField {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.state = useState({
             isStateButtonHighlighted: false,
         });
@@ -121,7 +123,7 @@ export class ProjectTaskStateSelection extends StateSelectionField {
     getDropdownPosition() {
         if (
             this.isView(["activity", "kanban", "list", "calendar"]) ||
-            this.env.isSmall
+            this.ui.isSmall
         ) {
             return "";
         }
@@ -131,7 +133,7 @@ export class ProjectTaskStateSelection extends StateSelectionField {
     getTogglerClass(currentValue) {
         if (
             this.isView(["activity", "kanban", "list", "calendar"]) ||
-            this.env.isSmall
+            this.ui.isSmall
         ) {
             return "btn btn-link d-flex p-0";
         }
@@ -144,7 +146,7 @@ export class ProjectTaskStateSelection extends StateSelectionField {
     }
 
     onMouseEnterStateButton() {
-        if (!this.env.isSmall) {
+        if (!this.ui.isSmall) {
             this.state.isStateButtonHighlighted = true;
         }
     }

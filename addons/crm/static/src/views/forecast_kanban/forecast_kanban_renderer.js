@@ -12,6 +12,7 @@ export class ForecastKanbanRenderer extends CrmKanbanRenderer {
 
     setup() {
         super.setup(...arguments);
+        this.ui = useService("ui");
         this.fillTemporalService = useService("fillTemporalService");
     }
     canCreateGroup() {

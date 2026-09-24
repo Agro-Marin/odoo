@@ -5,7 +5,7 @@
             <button
             t-if="this.isAppointmentManager and this.isResourceView"
             class="o_appointment_booking_list_button_add_leaves btn btn-primary mx-3 mt-2"
-            t-att-class="{'btn-sm btn-link p-1': this.env.isSmall}"
+            t-att-class="{'btn-sm btn-link p-1': this.ui.isSmall}"
             t-on-click="this.onClickAddLeave">Add Closing Day(s)</button>
         </xpath>
     </t>

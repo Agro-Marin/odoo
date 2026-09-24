@@ -75,7 +75,7 @@
                 </div>
                 <div t-if="this.order.scaleData">
                     <t t-set-slot="header">
-                        <h4 class="modal-title text-break text-center w-100" t-att-class="{ 'me-auto': this.env.isSmall }">
+                        <h4 class="modal-title text-break text-center w-100" t-att-class="{ 'me-auto': this.ui.isSmall }">
                             <span class="me-2">Weighing Product:</span>
                             <t t-out="this.order.scaleData.product.name"/>
                         </h4>

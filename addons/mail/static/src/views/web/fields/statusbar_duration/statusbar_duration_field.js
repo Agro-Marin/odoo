@@ -3,12 +3,18 @@
 import { formatDuration } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import {
     StatusBarField,
     statusBarField,
 } from "@web/fields/display/statusbar/statusbar_field";
 export class StatusBarDurationField extends StatusBarField {
     static template = "mail.StatusBarDurationField";
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     getAllItems() {
         /** @type {(ReturnType<StatusBarField["getAllItems"]>[number] & {shortTimeInStage?: string|number, fullTimeInStage?: string})[]} */

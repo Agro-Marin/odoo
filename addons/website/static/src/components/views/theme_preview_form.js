@@ -94,6 +94,11 @@ class ThemePreviewFormController extends FormController {
 
 class ThemePreviewFormControlPanel extends ControlPanel {
     static template = "website.ThemePreviewForm.ControlPanel";
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
+
     onMobileClick() {
         log.logic("ThemePreviewFormControlPanel switch mode", { mode: "mobile" });
         this.env.bus.trigger("THEME_PREVIEW:SWITCH_MODE", { mode: "mobile" });

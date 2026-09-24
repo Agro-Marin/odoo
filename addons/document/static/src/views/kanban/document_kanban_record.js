@@ -20,6 +20,7 @@ export class DocumentsKanbanRecord extends KanbanRecord {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.documentUploads = useState(useService("file_upload").uploads);
 
         this.documentService = useService("document.document");
@@ -59,7 +60,7 @@ export class DocumentsKanbanRecord extends KanbanRecord {
             result += " o_folder_record";
         }
         if (
-            this.env.isSmall &&
+            this.ui.isSmall &&
             this.props.groupByField?.name === "last_access_date_group"
         ) {
             result += " flex-grow-1";

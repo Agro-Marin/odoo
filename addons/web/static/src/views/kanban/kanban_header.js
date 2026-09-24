@@ -52,6 +52,7 @@ export class KanbanHeader extends Component {
     popover;
 
     setup() {
+        this.ui = useService("ui");
         this.progressBarState = this.props.progressBarState
             ? useState(this.props.progressBarState)
             : undefined;

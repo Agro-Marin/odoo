@@ -86,6 +86,7 @@ export class ControlPanel extends Component {
     isScrolling;
 
     setup() {
+        this.ui = useService("ui");
         useLifecycleLog(log);
         this.actionService = useAction();
         this.pagerProps = this.env.config.pagerProps
@@ -144,7 +145,7 @@ export class ControlPanel extends Component {
     /** @returns {boolean} */
     get adaptsToScroll() {
         return (
-            this.env.isSmall &&
+            this.ui.isSmall &&
             !("adaptToScroll" in this.display && !this.display.adaptToScroll)
         );
     }
@@ -181,7 +182,7 @@ export class ControlPanel extends Component {
                     );
                 };
             },
-            () => [this.env.isSmall, this.display.adaptToScroll, this.root.el],
+            () => [this.ui.isSmall, this.display.adaptToScroll, this.root.el],
         );
     }
 

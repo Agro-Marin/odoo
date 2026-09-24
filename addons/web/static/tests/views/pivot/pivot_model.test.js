@@ -671,7 +671,7 @@ describe("getTableRows — stale sortedKeys fallback", () => {
 
 describe("PivotRenderer.getPadding — row indentation seam", () => {
     test("indents 5px + 30px per level", () => {
-        const self = { env: { isSmall: false } };
+        const self = { ui: { isSmall: false } };
         expect(PivotRenderer.prototype.getPadding.call(self, { indent: 0 })).toBe(5);
         expect(PivotRenderer.prototype.getPadding.call(self, { indent: 1 })).toBe(35);
         expect(PivotRenderer.prototype.getPadding.call(self, { indent: 3 })).toBe(95);

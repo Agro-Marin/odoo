@@ -2,7 +2,7 @@
 <templates id="template" xml:space="preserve">
 
 <t t-name="web.SearchPanel">
-    <t t-if="this.env.isSmall">
+    <t t-if="this.ui.isSmall">
         <t t-call="web.SearchPanel.Small" />
     </t>
     <t t-else="">
@@ -51,9 +51,9 @@
 <t t-name="web.SearchPanelContent">
     <div class="o_search_panel flex-grow-0 flex-shrink-0 h-100 pb-5 bg-view overflow-auto position-relative"
          t-att-class="this.env.searchModel.searchPanelInfo.className"
-         t-attf-class="#{this.env.isSmall ? 'px-3' : 'pe-1 ps-3'}"
+         t-attf-class="#{this.ui.isSmall ? 'px-3' : 'pe-1 ps-3'}"
          t-ref="root">
-        <button t-if="!this.env.isSmall" class="btn btn-light btn-sm end-0 m-2 position-absolute px-2 py-1 top-0 z-1" title="Collapse the search panel" aria-label="Collapse the search panel" t-on-click="this.toggleSidebar">
+        <button t-if="!this.ui.isSmall" class="btn btn-light btn-sm end-0 m-2 position-absolute px-2 py-1 top-0 z-1" title="Collapse the search panel" aria-label="Collapse the search panel" t-on-click="this.toggleSidebar">
             <i class="oi oi-fw oi-panel-right fa-flip-horizontal"/>
         </button>
         <div t-if="!this.sections or this.sections.length === 0" class="o_search_panel_empty_state me-3">
@@ -172,7 +172,7 @@
     <t t-foreach="values" t-as="valueId" t-key="valueId">
         <t t-set="value" t-value="section.values.get(valueId)"/>
         <li class="o_search_panel_category_value list-group-item py-1 cursor-pointer border-0 pe-0"
-            t-att-class="isChildList ? this.env.isSmall ? '' : 'o_treeEntry' : 'ps-0'"
+            t-att-class="isChildList ? this.ui.isSmall ? '' : 'o_treeEntry' : 'ps-0'"
             >
             <header
                 class="list-group-item list-group-item-action d-flex align-items-center px-0 py-lg-0 border-0"

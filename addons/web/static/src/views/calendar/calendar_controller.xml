@@ -8,7 +8,7 @@
             </t>
             <div class="o_calendar_container d-grid h-100 bg-view">
                 <div class="o_calendar_header d-flex align-items-center gap-1 px-3 pe-md-1 py-2 px-print-0 pt-print-0 border-bottom">
-                    <div t-if="!this.env.isSmall" class="o_calendar_navigation_buttons btn-group d-print-none">
+                    <div t-if="!this.ui.isSmall" class="o_calendar_navigation_buttons btn-group d-print-none">
                         <button
                             class="o_calendar_button_prev btn btn-secondary d-none d-md-block"
                             title="Previous"
@@ -25,9 +25,9 @@
                     <ViewScaleSelector scales="this.scales" currentScale="this.model.scale" isWeekendVisible="this.state.isWeekendVisible" setScale.bind="this.setScale" toggleWeekendVisibility.bind="this.toggleWeekendVisibility" dropdownClass="'d-print-none order-3 order-lg-0'"/>
                     <button
                         class="btn btn-secondary o_calendar_button_today d-print-none order-2 order-lg-0 ms-auto ms-lg-0"
-                        t-att-class="this.env.isSmall ? 'btn-sm btn-light' : 'btn-secondary'"
+                        t-att-class="this.ui.isSmall ? 'btn-sm btn-light' : 'btn-secondary'"
                         t-on-click.stop="() => this.setDate('today')"
-                    >   <span t-if="this.env.isSmall" class="position-relative pt-1"><t t-out="this.today"/><i class="fa-regular fa-calendar position-absolute top-50 start-50 translate-middle fs-1"></i></span>
+                    >   <span t-if="this.ui.isSmall" class="position-relative pt-1"><t t-out="this.today"/><i class="fa-regular fa-calendar position-absolute top-50 start-50 translate-middle fs-1"></i></span>
                         <t t-else="">Today</t>
                     </button>
                     <h5 class="d-inline-flex ps-lg-2 ps-print-0 mb-0">
@@ -46,10 +46,10 @@
                     </h5>
                     <MultiSelectionButtons reactive="this.multiSelectionButtonsReactive" />
                 </div>
-                <div t-if="this.hasSideBar and !this.env.isSmall" class="o_sidebar_toggler d-flex d-print-none align-items-center border-bottom pe-3">
+                <div t-if="this.hasSideBar and !this.ui.isSmall" class="o_sidebar_toggler d-flex d-print-none align-items-center border-bottom pe-3">
                     <button class="btn btn-light oi oi-panel-right collapsed ms-2 lh-base" t-on-click="this.toggleSideBar"/>
                 </div>
-                <MobileFilterPanel t-if="this.env.isSmall and this.hasSideBar" t-props="this.mobileFilterPanelProps" />
+                <MobileFilterPanel t-if="this.ui.isSmall and this.hasSideBar" t-props="this.mobileFilterPanelProps" />
                 <div class="o_calendar_wrapper d-flex overflow-hidden">
                     <t t-if="this.showCalendar" t-component="this.props.Renderer" t-props="this.rendererProps"/>
                     <CalendarSidePanel t-if="this.hasSideBar and this.showSideBar" t-props="this.sidePanelProps"/>

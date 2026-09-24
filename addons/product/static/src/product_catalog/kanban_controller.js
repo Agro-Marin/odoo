@@ -10,6 +10,7 @@ export class ProductCatalogKanbanController extends KanbanController {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.orm = useService("orm");
         this.orderId = this.props.context.order_id;
         this.orderResModel = this.props.context.product_catalog_order_model;

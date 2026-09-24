@@ -49,6 +49,7 @@ export class PropertiesField extends FieldComponent {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.notification = useService("notification");
         this.orm = useService("orm");
         this.dialogService = useService("dialog");
@@ -169,7 +170,7 @@ export class PropertiesField extends FieldComponent {
 
     /** @returns {object} */
     get renderedColumnsCount() {
-        return this.env.isSmall ? 1 : this.props.columns;
+        return this.ui.isSmall ? 1 : this.props.columns;
     }
 
     /** @returns {array} */

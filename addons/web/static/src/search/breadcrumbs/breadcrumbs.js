@@ -5,6 +5,7 @@ import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 export class Breadcrumbs extends Component {
     static template = "web.Breadcrumbs";
     static components = { Dropdown, DropdownItem };
@@ -12,6 +13,11 @@ export class Breadcrumbs extends Component {
         breadcrumbs: Array,
         slots: { type: Object, optional: true },
     };
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     /**
      * @param {{ isFormView: boolean, name: string }} breadcrumb

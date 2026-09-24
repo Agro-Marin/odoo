@@ -1,9 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
+import { useService } from "@web/core/utils/hooks";
 import { ReportController } from "@web/views/report_controller";
 
 export class GraphController extends ReportController {
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
+
     /** @override */
     get chassisHooks() {
         return { displayNoContent: () => this.displayNoContent };

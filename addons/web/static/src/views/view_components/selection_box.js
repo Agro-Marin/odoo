@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { Component } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 
 export class SelectionBox extends Component {
     static components = {};
@@ -9,6 +10,11 @@ export class SelectionBox extends Component {
     static props = {
         root: { type: Object },
     };
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
+
     /**
      * @returns {import("@web/model/relational_model/dynamic_record_list").DynamicRecordList
      * & import("@web/model/relational_model/dynamic_group_list").DynamicGroupList}

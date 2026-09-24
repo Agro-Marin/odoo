@@ -72,6 +72,7 @@ export class FormRenderer extends Component {
     uiService;
 
     setup() {
+        this.ui = useService("ui");
         useRenderCounter("form.FormRenderer");
         useLifecycleLog(log);
         this.evaluateBooleanExpr = evaluateBooleanExpr;
@@ -176,7 +177,7 @@ export class FormRenderer extends Component {
                     ([entry]) => {
                         this.state.isStatusbarStickyPinned =
                             !this.env.inDialog &&
-                            !this.env.isSmall &&
+                            !this.ui.isSmall &&
                             !entry.isIntersecting;
                     },
                     { root: el.parentElement },

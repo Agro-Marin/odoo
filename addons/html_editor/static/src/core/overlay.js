@@ -10,6 +10,7 @@ import {
     xml,
 } from "@odoo/owl";
 import { usePosition } from "@web/core/position/position_hook";
+import { useService } from "@web/core/utils/hooks";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
 import { useActiveElement } from "@web/ui/ui_service";
 
@@ -44,6 +45,7 @@ export class EditorOverlay extends Component {
     };
 
     setup() {
+        this.ui = useService("ui");
         this.lastSelection = this.props.initialSelection;
         /** @type {HTMLElement} */
         const editable = this.props.editable;
@@ -155,7 +157,7 @@ export class EditorOverlay extends Component {
     }
 
     updateVisibility(overlayElement, solution, scrollContainer) {
-        if (this.env.isSmall) {
+        if (this.ui.isSmall) {
             return;
         }
         const shouldBeVisible = this.shouldOverlayBeVisible(

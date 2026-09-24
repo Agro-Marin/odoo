@@ -2,7 +2,7 @@
 <templates>
     <t t-name="document.DocumentsKanbanView" t-inherit="web.KanbanView" t-inherit-mode="primary">
         <xpath expr="//ViewLayout" position="attributes">
-            <attribute name="contentClassName">'o_documents_content o_documents_kanban' + (this.env.isSmall ? ' overflow-hidden' : '')</attribute>
+            <attribute name="contentClassName">'o_documents_content o_documents_kanban' + (this.ui.isSmall ? ' overflow-hidden' : '')</attribute>
         </xpath>
         <xpath expr="//t[@t-set-slot='control-panel-create-button']" position="inside">
             <t t-call="document.DocumentsViews.ControlPanel"/>

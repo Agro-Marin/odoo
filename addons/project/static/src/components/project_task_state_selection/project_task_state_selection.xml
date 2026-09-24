@@ -18,7 +18,7 @@
         </xpath>
         <xpath expr="//t[@t-if='this.props.readonly']" position="after">
             <t t-elif="this.isToggleMode and ['todo', 'in_progress'].includes(this.currentValue)">
-                <button t-if="this.isView(['activity', 'kanban', 'list', 'calendar']) or this.env.isSmall"
+                <button t-if="this.isView(['activity', 'kanban', 'list', 'calendar']) or this.ui.isSmall"
                         class="d-flex align-items-center btn fw-normal p-0"
                         tabindex="-1"
                         t-att-class="{'o_task_state_list_view': this.isView(['list'])}"
@@ -47,7 +47,7 @@
         </xpath>
 
         <xpath expr="//Dropdown/button/div" position="replace">
-            <div t-if="this.isView(['activity', 'kanban', 'list', 'calendar']) or this.env.isSmall" class="d-flex align-items-center" t-att-class="{'o_task_state_list_view': this.isView(['list'])}" t-att-title="this.label">
+            <div t-if="this.isView(['activity', 'kanban', 'list', 'calendar']) or this.ui.isSmall" class="d-flex align-items-center" t-att-class="{'o_task_state_list_view': this.isView(['list'])}" t-att-title="this.label">
                 <i t-if="this.currentValue == 'blocked'" t-attf-class="{{ this.stateIcon(this.currentValue) }} {{ this.statusColor(this.currentValue) }}"/>
                 <i t-else="" t-attf-class="{{ this.stateIcon(this.currentValue) }} {{ this.statusColor(this.currentValue) }} {{ ['done', 'canceled'].includes(this.currentValue) and this.isView(['activity', 'kanban']) ? 'opacity-50' : '' }}"/>
             </div>
@@ -76,7 +76,7 @@
             <attribute name="t-att-class">this.getTogglerClass(this.currentValue)</attribute>
         </xpath>
         <xpath expr="//CheckboxItem" position="before">
-            <div t-if="option[0] == 'canceled' and (this.currentValue != 'blocked' or this.env.isSmall)" role="separator" class="dropdown-divider"/>
+            <div t-if="option[0] == 'canceled' and (this.currentValue != 'blocked' or this.ui.isSmall)" role="separator" class="dropdown-divider"/>
         </xpath>
         <xpath expr="//CheckboxItem/span[1]" position="attributes">
             <attribute name="t-attf-class" separator=" " add="{{ this.stateIcon(option[0]) }}" remove="o_status"></attribute>

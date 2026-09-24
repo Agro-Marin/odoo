@@ -3,6 +3,7 @@ import { DocumentsControllerMixin } from "@document/views/document_controller_mi
 import { DocumentsSelectionBox } from "@document/views/selection_box/document_selection_box";
 import { KanbanController } from "@web/views/kanban";
 import { Dropdown } from "@web/components/dropdown";
+import { useService } from "@web/core/utils/hooks";
 
 export class DocumentsKanbanController extends DocumentsControllerMixin(
     KanbanController,
@@ -14,6 +15,11 @@ export class DocumentsKanbanController extends DocumentsControllerMixin(
         SelectionBox: DocumentsSelectionBox,
     };
     static selectedDocumentsSelector = ".o_kanban_record.o_record_selected";
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     onUnselectAll() {
         this.model.root.selection.forEach((record) => {

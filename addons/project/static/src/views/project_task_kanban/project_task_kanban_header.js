@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { RottingKanbanHeader } from "@mail/views/web/rotting/rotting_kanban_header";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 
 import { ProjectTaskGroupConfigMenu } from "./project_task_group_config_menu.js";
 
@@ -10,6 +11,11 @@ export class ProjectTaskKanbanHeader extends RottingKanbanHeader {
         ...RottingKanbanHeader.components,
         GroupConfigMenu: ProjectTaskGroupConfigMenu,
     };
+
+    setup() {
+        super.setup();
+        this.ui = useService("ui");
+    }
 
     /** @returns {number} */
     get wipLimit() {
