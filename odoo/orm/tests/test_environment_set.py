@@ -13,7 +13,7 @@ class _FakeEnv:
         self.uid = uid
         self.su = su
         self.context = context
-        self.privileges = frozenset()
+        self.privileges: frozenset[int] = frozenset()
 
 
 def _env(uid, su=False, context=()) -> Any:

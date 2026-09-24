@@ -34,6 +34,7 @@ if typing.TYPE_CHECKING:
 
     from .._protocols import (
         DecimalPrecisionProtocol,
+        IrAccessLogProtocol,
         IrAccessProtocol,
         IrAttachmentProtocol,
         IrConfigParameterProtocol,
@@ -53,6 +54,7 @@ if typing.TYPE_CHECKING:
         ResCountryProtocol,
         ResCurrencyProtocol,
         ResLangProtocol,
+        ResGroupsProtocol,
         ResUsersApikeysScopeProtocol,
         ResUsersProtocol,
     )
@@ -280,6 +282,16 @@ class Environment(Mapping[str, "BaseModel"]):
     def __getitem__(  # type: ignore[overload-overlap]
         self, model_name: typing.Literal["res.users.apikeys.scope"]
     ) -> ResUsersApikeysScopeProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["res.groups"]
+    ) -> ResGroupsProtocol: ...
+
+    @typing.overload
+    def __getitem__(  # type: ignore[overload-overlap]
+        self, model_name: typing.Literal["ir.access.log"]
+    ) -> IrAccessLogProtocol: ...
 
     @typing.overload
     def __getitem__(self, model_name: str) -> BaseModel: ...

@@ -271,6 +271,18 @@ class ResUsersApikeysScopeProtocol(RecordsetProtocol, Protocol):
     def _rules(self) -> Any: ...
 
 
+class ResGroupsProtocol(RecordsetProtocol, Protocol):
+    def _privilege_ids(self, names: tuple[str, ...]) -> frozenset[int]: ...
+
+    def union(self, *args: Any) -> Any: ...
+
+
+class IrAccessLogProtocol(RecordsetProtocol, Protocol):
+    def _record_privileged(
+        self, model_name: str, operation: str, ids: tuple
+    ) -> None: ...
+
+
 class ResUsersProtocol(RecordsetProtocol, Protocol):
     company_id: Any
     company_ids: Any
@@ -327,4 +339,6 @@ FRAMEWORK_MODEL_PROTOCOLS: dict[str, type] = {
     "res.lang": ResLangProtocol,
     "res.users": ResUsersProtocol,
     "res.users.apikeys.scope": ResUsersApikeysScopeProtocol,
+    "res.groups": ResGroupsProtocol,
+    "ir.access.log": IrAccessLogProtocol,
 }
