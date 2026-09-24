@@ -54,9 +54,11 @@ class StockPickingPackage(models.Model):
     @api.depends(
         "move_line_ids.result_package_id",
         "move_line_ids.result_package_id.package_type_id",
+        "move_line_ids.result_package_id.package_type_id.base_weight",
         "move_line_ids.result_package_id.shipping_weight",
         "move_line_ids.result_package_id.outermost_package_id",
         "move_line_ids.result_package_id.outermost_package_id.package_type_id",
+        "move_line_ids.result_package_id.outermost_package_id.package_type_id.base_weight",
         "move_line_ids.result_package_id.outermost_package_id.shipping_weight",
         "weight_bulk",
     )
@@ -65,9 +67,19 @@ class StockPickingPackage(models.Model):
             picking: picking.move_line_ids.result_package_id.outermost_package_id
             for picking in self
         }
-        all_packages = self.env["stock.package"].union(*packages_by_picking.values())
+        pairs = [
+            (package, picking.id)
+            for picking, packages in packages_by_picking.items()
+            for package in packages
+            if not package.shipping_weight
+        ]
+        all_packages = self.env["stock.package"].union(
+            *(package for package, __ in pairs)
+        )
         packages_weight = (
-            all_packages.sudo()._get_weight_by_picking(self.ids) if all_packages else {}
+            all_packages.sudo()._get_weight_by_picking(self.ids, pairs=pairs)
+            if all_packages
+            else {}
         )
         for picking in self:
             shipping_weight = picking.weight_bulk
@@ -242,4 +254,4 @@ class StockPickingPackage(models.Model):
         )
 
     def _is_single_transfer(self):
-        return len(self) == 1
+        return len(self) == 1 or len(self.batch_id) == 1

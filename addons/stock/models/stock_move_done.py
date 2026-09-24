@@ -34,6 +34,7 @@ class StockMoveDone(models.Model):
             dbg.rec(self),
             cancel_backorder,
         )
+        caller_env = self.env
         self = self.with_context(**self._prepare_block_completion_context())
 
         moves = self.filtered(lambda move: move.state == "draft")._action_confirm(
@@ -88,6 +89,10 @@ class StockMoveDone(models.Model):
         dbg.lifecycle.debug("_action_done: %s -> done", dbg.rec(moves_todo))
         moves_todo.write({"state": "done", "date": fields.Datetime.now()})
 
+        # the completion flag lets the lines leave a location blocked since
+        # they were reserved; what runs downstream is a new operation
+        moves_todo = moves_todo.with_env(caller_env)
+        picking = picking.with_env(caller_env)
         moves_todo._push_and_assign_downstream()
 
         if self.env.context.get("is_scrap"):
@@ -220,10 +225,6 @@ class StockMoveDone(models.Model):
         ml_ids_to_unlink = OrderedSet()
         move_ids_to_cancel = OrderedSet()
         for move in self:
-            if move.picked:
-                ml_ids_to_unlink |= move.move_line_ids.filtered(
-                    lambda ml: not ml.picked,
-                ).ids
             if (
                 (
                     move.product_uom_id.compare(move.quantity, 0.0) <= 0
@@ -235,7 +236,12 @@ class StockMoveDone(models.Model):
                     or cancel_backorder
                 )
             ):
+                # cancelling unreserves with force: every line of the move goes
                 move_ids_to_cancel.add(move.id)
+            elif move.picked:
+                ml_ids_to_unlink |= move.move_line_ids.filtered(
+                    lambda ml: not ml.picked,
+                ).ids
         dbg.logic.debug(
             "_remove_unpicked_lines_and_cancel_empty(cancel_backorder=%s): cancel %s, "
             "unlink lines %s",

@@ -19,7 +19,9 @@ class MixinStockReplenish(models.AbstractModel):
         compute="_compute_allowed_route_ids",
     )
 
-    @api.depends("product_id", "product_tmpl_id")
+    @api.depends(
+        "product_id", "product_tmpl_id", "warehouse_id", "warehouse_id.route_ids"
+    )
     def _compute_allowed_route_ids(self):
         domains = {record: record._get_domain_allowed_route() for record in self}
         routes = self.env["stock.route"].search(Domain.OR(domains.values()))

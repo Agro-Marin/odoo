@@ -1,6 +1,7 @@
 from collections import defaultdict
 
 from odoo import api, models
+from odoo.fields import Domain
 from odoo.libs.colors import ROUTE_COLORS, get_palette_color
 
 from ..tools import debug_log as dbg
@@ -28,8 +29,11 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
         loc_by_rule = {rl["rule"]: rl for rl in rules_and_loc}
 
         locations = self._sort_locations(rules_and_loc, warehouses)
+        orderpoint_domain = Domain("product_id", "=", product.id)
+        if warehouses:
+            orderpoint_domain &= Domain("warehouse_id", "in", warehouses.ids)
         reordering_rules = self.env["stock.warehouse.orderpoint"].search(
-            [("product_id", "=", product.id)]
+            orderpoint_domain
         )
         locations |= reordering_rules.location_id
         dbg.logic.debug(
@@ -119,7 +123,7 @@ class ReportStockReport_Stock_Rule(models.AbstractModel):
         rule.check_singleton()
         destination = (
             rule.location_dest_id
-            if rule.action != "pull"
+            if rule.action != "pull" or rule.location_dest_from_rule
             else rule.picking_type_id.default_location_dest_id
         )
         return {

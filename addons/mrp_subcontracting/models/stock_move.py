@@ -417,19 +417,6 @@ class StockMove(models.Model):
 
                 mos_to_assign.sudo().action_assign()
 
-    def _update_move_lines_for_serials(
-        self, next_serial, next_serial_count=False, location_id=False
-    ):
-        if self.is_subcontract:
-            return super(
-                StockMove, self.with_context(force_lot_m2o=True)
-            )._update_move_lines_for_serials(
-                next_serial, next_serial_count, location_id
-            )
-        return super()._update_move_lines_for_serials(
-            next_serial, next_serial_count, location_id
-        )
-
     def _get_partner_id(self):
         if self.raw_material_production_id.subcontractor_id:
             route = self.env.ref(

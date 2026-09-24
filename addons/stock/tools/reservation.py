@@ -3,7 +3,7 @@ import math
 import typing
 from collections import defaultdict
 
-from odoo.tools import float_compare, float_is_zero
+from odoo.tools import float_compare, float_is_zero, float_round
 
 from . import debug_log as dbg
 
@@ -117,6 +117,9 @@ class ReservationLedger:
     def take(self, quant, quantity):
         self._pending[quant.id] += quantity
 
+    def get_pending_quant_ids(self):
+        return [quant_id for quant_id, quantity in self._pending.items() if quantity]
+
     def get_total_pending(self):
         return sum(self._pending.values())
 
@@ -131,15 +134,15 @@ class ReservationCandidate(typing.NamedTuple):
     key: object
 
 
-def distribute_reservation(candidates, quantity, precision_digits, whole_units=False):
+def distribute_reservation(candidates, quantity, precision_rounding, whole_units=False):
     reserved = []
-    if float_compare(quantity, 0, precision_digits=precision_digits) <= 0:
+    if float_compare(quantity, 0, precision_rounding=precision_rounding) <= 0:
         return reserved
 
     negative_available = defaultdict(float)
     for cand in candidates:
         slack = cand.on_hand - cand.reserved
-        if float_compare(slack, 0, precision_digits=precision_digits) < 0:
+        if float_compare(slack, 0, precision_rounding=precision_rounding) < 0:
             negative_available[cand.key] += slack
     if negative_available:
         dbg.logic.debug(
@@ -149,24 +152,28 @@ def distribute_reservation(candidates, quantity, precision_digits, whole_units=F
 
     for cand in candidates:
         max_on_cand = cand.on_hand - cand.reserved
-        if float_compare(max_on_cand, 0, precision_digits=precision_digits) <= 0:
+        if float_compare(max_on_cand, 0, precision_rounding=precision_rounding) <= 0:
             continue
         negative = negative_available[cand.key]
         if negative:
             to_absorb = min(abs(negative), max_on_cand)
             negative_available[cand.key] += to_absorb
             max_on_cand -= to_absorb
-        if float_compare(max_on_cand, 0, precision_digits=precision_digits) <= 0:
+        if float_compare(max_on_cand, 0, precision_rounding=precision_rounding) <= 0:
             continue
         max_on_cand = min(max_on_cand, quantity)
         if whole_units:
-            max_on_cand = float(math.floor(round(max_on_cand, precision_digits)))
+            max_on_cand = float(
+                math.floor(
+                    float_round(max_on_cand, precision_rounding=precision_rounding)
+                )
+            )
             if max_on_cand <= 0:
                 continue
         reserved.append((cand.handle, max_on_cand))
         quantity -= max_on_cand
 
-        if float_is_zero(quantity, precision_digits=precision_digits):
+        if float_is_zero(quantity, precision_rounding=precision_rounding):
             break
     dbg.logic.debug(
         "distribute_reservation over %d candidates whole_units=%s: %d taken, %s unserved",
@@ -202,11 +209,24 @@ class QuantsCache:
         return self._data.get(key, self._empty)
 
     def __setitem__(self, key, value):
+        if key not in self._data:
+            self._by_product[key[0]].append(key)
         self._data[key] = value
-        self._by_product[key[0]].append(key)
 
     def set_location_path(self, location_id, parent_path):
         self._paths_by_location[location_id] = parent_path or ""
+
+    def add(self, quant):
+        location = quant.location_id
+        key = (
+            quant.product_id.id,
+            location.id,
+            quant.lot_id.id,
+            quant.package_id.id,
+            quant.owner_id.id,
+        )
+        self[key] |= quant
+        self.set_location_path(location.id, location.parent_path)
 
     def under(
         self, product_id, location_path, lot_id=None, package_id=None, owner_id=None

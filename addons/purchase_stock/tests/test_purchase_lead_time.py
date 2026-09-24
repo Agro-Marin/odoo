@@ -1,5 +1,4 @@
 from datetime import datetime, time, timedelta
-from unittest.mock import patch
 
 from odoo import Command, fields
 from odoo.tests import Form, freeze_time
@@ -465,10 +464,6 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
 
     def test_reordering_days_to_purchase(self):
         self.company.stock_config_id.horizon_days = 0
-        self.patcher = patch(
-            "odoo.addons.stock.models.stock_orderpoint.fields.Date", wraps=fields.Date
-        )
-        self.mock_date = self.startPatcher(self.patcher)
 
         vendor = self.env["res.partner"].create({"name": "Colruyt"})
         vendor2 = self.env["res.partner"].create({"name": "Delhaize"})
@@ -570,9 +565,9 @@ class TestPurchaseLeadTime(PurchaseTestCommon):
         self.assertEqual(po_line.product_uom_qty, 25.0)
         self.assertEqual(len(po_line.order_id), 1)
 
-        self.mock_date.today.return_value = fields.Date.today() + timedelta(days=2)
-        self.env.invalidate_all()
-        self.env["stock.scheduler"].run()
+        with freeze_time(fields.Datetime.now() + timedelta(days=2)):
+            self.env.invalidate_all()
+            self.env["stock.scheduler"].run()
         po_line02 = self.env["purchase.order.line"].search(
             [("product_id", "=", product.id)]
         )

@@ -14,10 +14,6 @@ class StockMovePicking(models.Model):
 
     @dbg.timed
     def _update_picking(self):
-        # the pickings the groups need are created together, then every group
-        # is attached and post-processed in one pass per kind: a picking's
-        # creation posts to its chatter, and mail batches what it is given
-        Picking = self.env["stock.picking"]
         grouped_moves = [
             self.env["stock.move"].concat(*moves)
             for _group, moves in groupby(
@@ -27,15 +23,21 @@ class StockMovePicking(models.Model):
         picking_by_lead = self._get_pickings_for_assignation(
             [moves[0] for moves in grouped_moves]
         )
-        existing = []
-        wanted = []
+        attached = self.env["stock.move"]
+        orphans = []
         for moves in grouped_moves:
             picking = picking_by_lead[moves[0]]
             if picking:
                 vals = moves._prepare_picking_vals(picking)
                 if vals:
                     picking.write(vals)
-                existing.append((moves, picking))
+                dbg.pipeline.debug(
+                    "_update_picking: %s -> existing picking %s",
+                    dbg.rec(moves),
+                    picking.id,
+                )
+                moves.write({"picking_id": picking.id})
+                attached |= moves
             else:
                 moves = moves.filtered(
                     lambda m: m.product_uom_id.compare(m.product_uom_qty, 0.0) >= 0,
@@ -43,66 +45,67 @@ class StockMovePicking(models.Model):
                 if not moves:
                     dbg.logic.debug("_update_picking: only negative moves, no picking")
                     continue
-                pending = moves._pending_picking_for_assignation(wanted)
-                if pending is None:
-                    wanted.append([moves])
-                else:
-                    pending.append(moves)
-        created = Picking.create(
-            [groups[0]._prepare_new_picking_vals() for groups in wanted]
-        )
-        for groups, picking in zip(wanted, created, strict=True):
-            for joining in groups[1:]:
-                vals = joining._prepare_picking_vals(picking)
-                if vals:
-                    picking.write(vals)
-        for new_picking, pairs in (
-            (False, existing),
-            (
-                True,
-                (
-                    (self.env["stock.move"].concat(*groups), picking)
-                    for groups, picking in zip(wanted, created, strict=True)
-                ),
-            ),
-        ):
-            attached = self.env["stock.move"]
-            for moves, picking in pairs:
-                dbg.pipeline.debug(
-                    "_update_picking: %s -> picking %s (%s)",
-                    dbg.rec(moves),
-                    picking.id,
-                    "new" if new_picking else "existing",
-                )
-                moves.write({"picking_id": picking.id})
-                attached |= moves
-            if attached:
-                attached._post_process_picking(new=new_picking)
+                orphans.append(moves)
+        if attached:
+            attached._post_process_picking(new=False)
+        if orphans:
+            self._attach_to_new_pickings(orphans)._post_process_picking(new=True)
         return True
 
-    def _pending_picking_for_assignation(self, wanted):
-        if not self.reference_ids:
-            return None
-        first = self[0]
-        reference_set = set(first.reference_ids.ids)
-        covered = None
+    def _attach_to_new_pickings(self, groups):
+        # a group joins a picking an earlier group of this call created when
+        # `_get_domain_picking_for_assignation` and `_pick_picking_for_assignation`
+        # accept it, exactly as they would once that picking is in the table;
+        # the pickings are created together until a group might join one that
+        # is still pending: same operation type and intersecting references
+        # are required by every override of the domain
+        Picking = self.env["stock.picking"]
+        created = Picking
+        attached = self.env["stock.move"]
+        pending = []
 
-        for groups in wanted:
-            lead = groups[0][0]
-            if (
-                lead.location_id != first.location_id
-                or lead._get_picking_destination() != first._get_picking_destination()
-                or lead.picking_type_id != first.picking_type_id
-            ):
-                continue
-            pending_set = set().union(*(set(g.reference_ids.ids) for g in groups))
-            if not pending_set & reference_set:
-                continue
-            if pending_set == reference_set:
-                return groups
-            if covered is None and pending_set <= reference_set:
-                covered = groups
-        return covered
+        def create_pending():
+            nonlocal created
+            if not pending:
+                return
+            new_pickings = Picking.create(
+                [moves._prepare_new_picking_vals() for moves in pending]
+            )
+            for moves, picking in zip(pending, new_pickings, strict=True):
+                dbg.pipeline.debug(
+                    "_update_picking: %s -> new picking %s", dbg.rec(moves), picking.id
+                )
+                moves.write({"picking_id": picking.id})
+            created |= new_pickings
+            pending.clear()
+
+        for moves in groups:
+            attached |= moves
+            lead = moves[0]
+            if lead.reference_ids:
+                if any(
+                    waiting[0].picking_type_id == lead.picking_type_id
+                    and waiting[0].reference_ids & lead.reference_ids
+                    for waiting in pending
+                ):
+                    create_pending()
+                picking = lead._pick_picking_for_assignation(
+                    created.filtered_domain(lead._get_domain_picking_for_assignation())
+                )
+                if picking:
+                    vals = moves._prepare_picking_vals(picking)
+                    if vals:
+                        picking.write(vals)
+                    dbg.pipeline.debug(
+                        "_update_picking: %s joins picking %s created by this call",
+                        dbg.rec(moves),
+                        picking.id,
+                    )
+                    moves.write({"picking_id": picking.id})
+                    continue
+            pending.append(moves)
+        create_pending()
+        return attached
 
     def _get_picking_destination(self):
         return self.location_dest_id or self.picking_type_id.default_location_dest_id
@@ -157,14 +160,7 @@ class StockMovePicking(models.Model):
         return [
             ("reference_ids", "in", self.reference_ids.ids),
             ("location_id", "=", self.location_id.id),
-            (
-                "location_dest_id",
-                "=",
-                (
-                    self.location_dest_id.id
-                    or self.picking_type_id.default_location_dest_id.id
-                ),
-            ),
+            ("location_dest_id", "=", self._get_picking_destination().id),
             ("picking_type_id", "=", self.picking_type_id.id),
             ("printed", "=", False),
             (

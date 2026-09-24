@@ -3814,30 +3814,13 @@ class TestStockMove(TestStockCommon):
         backordered_move = backorder.move_ids
 
         backordered_move._action_assign()
-        self.assertEqual(backordered_move.quantity, 0)
-
-        lot3 = self.env["stock.lot"].search([("name", "=", "lot3")])
-        backorder.write(
-            {
-                "move_line_ids": [
-                    (
-                        0,
-                        0,
-                        {
-                            "product_id": self.product_serial.id,
-                            "product_uom_id": self.uom_unit.id,
-                            "quantity": 1,
-                            "lot_id": lot3.id,
-                            "package_id": False,
-                            "result_package_id": False,
-                            "location_id": backordered_move.location_id.id,
-                            "location_dest_id": backordered_move.location_dest_id.id,
-                            "move_id": backordered_move.id,
-                        },
-                    )
-                ]
-            }
+        self.assertEqual(
+            backordered_move.product_qty,
+            1,
+            "three units less the two done is one unit, not the 0.99 read back "
+            "from 0.33 of a three-unit",
         )
+        self.assertEqual(backordered_move.move_line_ids.lot_id.name, "lot3")
         backorder.move_ids.picked = True
         backorder.button_validate()
 
@@ -8980,14 +8963,14 @@ class TestStockMove(TestStockCommon):
         delivery.action_confirm()
         delivery.action_assign()
 
-        self.assertEqual(delivery.move_ids.quantity, 149.97)
+        self.assertEqual(delivery.move_ids.quantity, 150.0)
         delivery.move_ids.write({"quantity": 150})
 
         self.assertEqual(delivery.move_ids.quantity, 150)
         delivery.button_validate()
         self.assertEqual(delivery.state, "done")
         lines = delivery.move_line_ids
-        self.assertRecordValues(lines, [{"quantity": 149.97}, {"quantity": 0.03}])
+        self.assertRecordValues(lines, [{"quantity": 150.0}])
         for line in lines:
             self.assertAlmostEqual(
                 line.quantity_product_uom,

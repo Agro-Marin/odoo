@@ -7,6 +7,7 @@ from odoo.tests import Form, tagged
 from odoo.tests.common import TransactionCase
 
 from odoo.addons.mrp_subcontracting.tests.common import TestMrpSubcontractingCommon
+from odoo.addons.stock.tests.common import generate_lot_lines
 
 
 @tagged("post_install", "-at_install")
@@ -1792,14 +1793,14 @@ class TestSubcontractingSerialMassReceipt(TransactionCase):
         picking_deliver.button_validate()
         for quantity in quantities:
             picking_receipt.action_unreserve()
-            lot_name = (
-                self.env["stock.lot"]._get_next_serial(
-                    picking_receipt.company_id, picking_receipt.move_ids[0].product_id
-                )
-                or "sn#1"
-            )
-            picking_receipt.move_ids[0]._update_move_lines_for_serials(
-                lot_name, quantity
+            lot_name = self.env["stock.lot"]._prepare_next_lot_vals(
+                picking_receipt.company_id, picking_receipt.move_ids[0].product_id
+            )["name"]
+            generate_lot_lines(
+                picking_receipt.move_ids[0],
+                first_lot=lot_name,
+                count=quantity,
+                context={"force_lot_m2o": True},
             )
             picking_receipt.move_ids.picked = True
             wizard_data = picking_receipt.button_validate()
@@ -1833,13 +1834,15 @@ class TestSubcontractingSerialMassReceipt(TransactionCase):
         picking_receipt = picking_form.save()
         picking_receipt.action_confirm()
         picking_receipt.action_unreserve()
-        lot_name = (
-            self.env["stock.lot"]._get_next_serial(
-                picking_receipt.company_id, picking_receipt.move_ids[0].product_id
-            )
-            or "sn#1"
+        lot_name = self.env["stock.lot"]._prepare_next_lot_vals(
+            picking_receipt.company_id, picking_receipt.move_ids[0].product_id
+        )["name"]
+        generate_lot_lines(
+            picking_receipt.move_ids[0],
+            first_lot=lot_name,
+            count=quantity,
+            context={"force_lot_m2o": True},
         )
-        picking_receipt.move_ids[0]._update_move_lines_for_serials(lot_name, quantity)
         picking_receipt.move_ids.picked = True
         picking_receipt.button_validate()
         self.assertEqual(picking_receipt.state, "done")

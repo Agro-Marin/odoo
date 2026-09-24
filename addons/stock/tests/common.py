@@ -1,5 +1,7 @@
 import re
 
+from odoo import Command
+
 from odoo.addons.mail.tests.common import mail_new_test_user
 from odoo.addons.product.tests.common import ProductVariantsCommon
 
@@ -8,6 +10,61 @@ RECEPTION_ROUTE_BOUGHT = "purchase_stock replaces the reception pull rule by a b
 
 def is_module_installed(env, name):
     return env["ir.module.module"]._get(name).state == "installed"
+
+
+GENERATED_LINE_FIELDS = (
+    "picking_id",
+    "product_id",
+    "product_uom_id",
+    "location_id",
+    "location_dest_id",
+    "lot_id",
+    "lot_name",
+    "quantity",
+    "expiration_date",
+)
+
+
+def generate_lot_lines(
+    move,
+    mode="generate",
+    first_lot="",
+    count=0,
+    lot_text="",
+    keep_lines=False,
+    quantity=None,
+    context=None,
+):
+    MoveLine = move.env["stock.move.line"]
+    replaced = MoveLine if keep_lines else move.move_line_ids
+    is_lot = move.has_tracking == "lot"
+    context_data = {
+        **(context or {}),
+        "default_product_id": move.product_id.id,
+        "default_location_id": move.location_id.id,
+        "default_location_dest_id": move.location_dest_id.id,
+        "default_tracking": move.has_tracking,
+        "default_quantity": quantity if quantity is not None else move.quantity,
+        "default_picking_id": move.picking_id.id,
+        "default_picking_type_id": move.picking_type_id.id,
+        "default_company_id": move.company_id.id,
+        "exclude_sml_ids": replaced.ids,
+    }
+    if is_lot:
+        context_data["default_uom_id"] = move.product_uom_id.id
+    vals_list = move.env["stock.move"].action_generate_lot_line_vals(
+        context_data, mode, first_lot, count, lot_text
+    )
+    commands = [Command.delete(line.id) for line in replaced]
+    for vals in vals_list:
+        line_vals = {
+            name: value["id"] if isinstance(value, dict) else value
+            for name, value in vals.items()
+            if name in GENERATED_LINE_FIELDS and name in MoveLine._fields
+        }
+        commands.append(Command.create(line_vals))
+    move.write({"move_line_ids": commands})
+    return move.move_line_ids
 
 
 class TestStockCommon(ProductVariantsCommon):

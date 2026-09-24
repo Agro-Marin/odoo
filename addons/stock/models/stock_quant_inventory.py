@@ -52,7 +52,7 @@ class StockQuantInventory(models.Model):
     def _compute_inventory_diff_quantity(self):
         for quant in self:
             if quant.inventory_quantity_set:
-                quant.inventory_diff_quantity = (
+                quant.inventory_diff_quantity = quant.product_uom_id._round_aggregate(
                     quant.inventory_quantity - quant.quantity
                 )
             else:
@@ -178,7 +178,7 @@ class StockQuantInventory(models.Model):
         quant_to_inventory = self.env["stock.quant"]
         for quant in self:
             if (
-                quant.product_uom_id.compare(
+                quant.product_uom_id._compare_aggregate(
                     quant.quantity, quant.inventory_quantity_auto_apply
                 )
                 == 0
@@ -415,7 +415,7 @@ class StockQuantInventory(models.Model):
     def _apply_inventory(self, date=None):
         dbg.pipeline.debug("_apply_inventory start on %s date=%s", dbg.rec(self), date)
         if self.env.context.get("from_inverse_qty") and not any(
-            quant.product_uom_id.compare(quant.inventory_diff_quantity, 0)
+            quant.product_uom_id._compare_aggregate(quant.inventory_diff_quantity, 0)
             for quant in self
         ):
             dbg.logic.debug("_apply_inventory: no diff from inverse, skipped")
@@ -452,9 +452,10 @@ class StockQuantInventory(models.Model):
                     loss_location_id
                 )
         for quant in self:
-            if (
-                quant.env.context.get("from_inverse_qty")
-                and quant.product_uom_id.compare(quant.inventory_diff_quantity, 0) == 0
+            if quant.env.context.get(
+                "from_inverse_qty"
+            ) and quant.product_uom_id._is_zero_aggregate(
+                quant.inventory_diff_quantity
             ):
                 continue
             inventory_location = loss_location_by_product_company[
@@ -486,7 +487,12 @@ class StockQuantInventory(models.Model):
                     intended,
                     quant.quantity + applied,
                 )
-            if quant.product_uom_id.compare(quant.inventory_diff_quantity, 0) > 0:
+            if (
+                quant.product_uom_id._compare_aggregate(
+                    quant.inventory_diff_quantity, 0
+                )
+                > 0
+            ):
                 move_vals.append(
                     quant._prepare_inventory_move_vals(
                         quant.inventory_diff_quantity,
@@ -558,10 +564,11 @@ class StockQuantInventory(models.Model):
         package_dest_id=False,
     ):
         self.check_singleton()
+        uom, qty = self._get_inventory_move_quantity(qty)
 
         res = {
             "product_id": self.product_id.id,
-            "product_uom_id": self.product_uom_id.id,
+            "product_uom_id": uom.id,
             "product_uom_qty": qty,
             "company_id": self.company_id.id or self.env.company.id,
             "state": "confirmed",
@@ -574,7 +581,7 @@ class StockQuantInventory(models.Model):
                 Command.create(
                     {
                         "product_id": self.product_id.id,
-                        "product_uom_id": self.product_uom_id.id,
+                        "product_uom_id": uom.id,
                         "quantity": qty,
                         "location_id": location_id.id,
                         "location_dest_id": location_dest_id.id,
@@ -593,6 +600,20 @@ class StockQuantInventory(models.Model):
             res["inventory_name"] = self.env.context.get("inventory_name")
 
         return res
+
+    def _get_inventory_move_quantity(self, qty):
+        uom = self.product_uom_id
+        if not uom._compare_aggregate(uom.round(qty), qty):
+            return uom, qty
+        reference = uom._get_reference_uom()
+        dbg.logic.debug(
+            "[quant:%s] inventory move of %s %s is finer than the unit, expressed in %s",
+            self.id,
+            qty,
+            uom.name,
+            reference.name,
+        )
+        return reference, uom._get_quantity_in_unit(qty, reference, round=False)
 
     def _get_move_line_match_key(self):
         self.check_singleton()

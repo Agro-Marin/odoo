@@ -367,6 +367,68 @@ class TestProductTemplateStorabilityOff(TransactionCase):
             "the ledger/stock disagreement must be booked, not left implicit",
         )
 
+    def test_toggling_storability_off_and_on_books_nothing(self):
+        template = self._stocked_product("roundtrip")
+        product = template.product_variant_id
+        moves_before = self.env["stock.move"].search_count(
+            [("product_id", "=", product.id)],
+        )
+
+        template.write({"is_storable": False})
+        template.write({"is_storable": True})
+
+        self.assertEqual(product.qty_available, 10.0)
+        self.assertEqual(
+            self.env["stock.move"].search_count([("product_id", "=", product.id)]),
+            moves_before,
+            "a history that already matches the quants needs no adjustment",
+        )
+        self.assertEqual(
+            sum(
+                self.env["stock.quant"]
+                .search(
+                    [
+                        ("product_id", "=", product.id),
+                        ("location_id.usage", "=", "internal"),
+                    ]
+                )
+                .mapped("quantity"),
+            ),
+            10.0,
+        )
+
+    def test_moves_done_while_not_storable_are_balanced_against_on_hand(self):
+        template = self._stocked_product("drift")
+        product = template.product_variant_id
+        template.write({"is_storable": False})
+        move = self.env["stock.move"].create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": 3.0,
+                "location_id": self.stock_location.id,
+                "location_dest_id": self.env.ref("stock.stock_location_customers").id,
+                "company_id": self.env.company.id,
+            },
+        )
+        move._action_confirm()
+        move.quantity = 3.0
+        move.picked = True
+        move._action_done()
+
+        template.write({"is_storable": True})
+
+        self.assertEqual(product.qty_available, 10.0)
+        history = sum(
+            line.quantity_product_uom
+            * (1 if line.location_dest_id == self.stock_location else -1)
+            for line in self.env["stock.move.line"].search(
+                [("product_id", "=", product.id), ("state", "=", "done")],
+            )
+        )
+        self.assertEqual(
+            history, 10.0, "the move history must end where the quants are"
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestProductTemplateQuantityMessages(TransactionCase):

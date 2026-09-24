@@ -298,15 +298,17 @@ class TestProductQuantityScope(TransactionCase):
         )
         self.assertTrue(scope.dates_in_the_past)
         self.assertIsNone(scope.expired_quant)
-        self.assertNotEqual(scope.move_in_done, Domain.FALSE)
+        self.assertEqual(scope.to_date, past)
+        self.assertIsNotNone(scope.done_in_leaves)
+        self.assertIsNotNone(scope.done_out_leaves)
 
         future = fields.Datetime.now() + datetime.timedelta(days=5)
         scope = self.product._prepare_quantities_scope(
             QuantityFilters(to_date=future), location_domains=location_domains
         )
         self.assertFalse(scope.dates_in_the_past)
-        self.assertEqual(scope.move_in_done, Domain.FALSE)
-        self.assertEqual(scope.move_out_done, Domain.FALSE)
+        self.assertIsNone(scope.done_in_leaves)
+        self.assertIsNone(scope.done_out_leaves)
 
     def test_stocks_own_expiry_hook_narrows_on_nothing(self):
         scoped = self.product.with_context(
@@ -856,6 +858,37 @@ class TestProductQuantityScope(TransactionCase):
             ]
         )
         self.assertEqual(quant.location_id, self.warehouse.lot_stock_id)
+
+    def test_inverse_qty_available_counts_the_stock_below_its_target(self):
+        shelf = self.env["stock.location"].create(
+            {"name": "Scope Shelf C", "location_id": self.stock_location.id}
+        )
+        self._stock_up(self.product, 5.0, shelf)
+        for context in (
+            {},
+            {"warehouse_id": self.warehouse.id},
+            {"location": self.stock_location.id},
+        ):
+            self.product.with_context(**context).qty_available = 7.0
+            self.product.flush_recordset()
+            self.env.invalidate_all()
+            self.assertEqual(
+                self.product.with_context(**context).qty_available,
+                7.0,
+                f"the total must read back as written under {context}",
+            )
+        self.assertEqual(
+            self.product.with_context(location=shelf.id).qty_available, 5.0
+        )
+
+    def test_inverse_qty_available_refuses_less_than_what_it_cannot_touch(self):
+        shelf = self.env["stock.location"].create(
+            {"name": "Scope Shelf D", "location_id": self.stock_location.id}
+        )
+        self._stock_up(self.product, 5.0, shelf)
+        with self.assertRaisesRegex(UserError, "held in sublocations"):
+            self.product.qty_available = 3.0
+            self.product.flush_recordset()
 
     def test_count_moves_follows_the_move_line_not_the_move(self):
         picking = self.env["stock.picking"].create(

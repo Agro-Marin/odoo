@@ -49,8 +49,8 @@ class StockMove(models.Model):
 
         return res
 
-    def _action_assign(self, force_qty=False):
-        super()._action_assign(force_qty=force_qty)
+    def _action_assign(self):
+        super()._action_assign()
         if lines := self.move_line_ids:
             lines._auto_wave()
 

@@ -909,6 +909,24 @@ class TestARerateDoesNotRewriteHistory(TestStockCommon):
         with self.assertRaises(UserError):
             box.relative_factor = 20
 
+    def test_the_guard_refuses_a_rerate_that_rescales_a_unit_in_stock(self):
+        unit = self.env.ref("uom.product_uom_unit")
+        pack = self.env["uom.uom"].create(
+            {"name": "Rerate pack", "relative_factor": 6, "relative_uom_id": unit.id}
+        )
+        crate = self.env["uom.uom"].create(
+            {"name": "Rerate crate", "relative_factor": 4, "relative_uom_id": pack.id}
+        )
+        product = self.env["product.product"].create(
+            {"name": "Rerate crated", "is_storable": True, "uom_id": crate.id}
+        )
+        self.StockQuantObj._update_available_quantity(product, self.stock_location, 3)
+        self.env.flush_all()
+
+        with self.assertRaises(UserError):
+            pack.relative_factor = 12
+        self.assertEqual(crate.factor, 24.0)
+
 
 @tagged("post_install", "-at_install")
 class TestBatchIsCompanyScoped(TransactionCase):

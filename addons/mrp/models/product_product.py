@@ -341,9 +341,11 @@ class ProductProduct(models.Model):
     def _get_phantom_bom_products(self):
         return self.search([("is_kit", "=", True)])
 
-    def _get_quantity_search_candidates(self, location_domains=None):
+    def _get_quantity_search_candidates(self, location_domains=None, field=None):
         return (
-            super()._get_quantity_search_candidates(location_domains=location_domains)
+            super()._get_quantity_search_candidates(
+                location_domains=location_domains, field=field
+            )
             | self._get_phantom_bom_products()
         )
 

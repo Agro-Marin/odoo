@@ -67,8 +67,20 @@ class StockPackageContent(models.Model):
                 ],
             )
 
+    def _prefetch_move_line_ids(self):
+        # `move_line_ids` is recursive, and the ORM computes a recursive field
+        # one record at a time on a cache miss: without this every package of
+        # a list pays its own read_group and line read.
+        saved = self.filtered("id")
+        if len(saved) > 1:
+            dbg.performance.debug(
+                "_prefetch_move_line_ids: one batch for %d packages", len(saved)
+            )
+            saved._fields["move_line_ids"].compute_value(saved)
+
     @api.depends("move_line_ids", "move_line_ids.location_dest_id")
     def _compute_json_popover(self):
+        self._prefetch_move_line_ids()
         for package in self:
             if not package._has_issues():
                 package.json_popover = False
@@ -90,6 +102,7 @@ class StockPackageContent(models.Model):
 
     @api.depends("move_line_ids.location_dest_id")
     def _compute_location_dest_id(self):
+        self._prefetch_move_line_ids()
         for package in self:
             locations = package.move_line_ids.location_dest_id
             package.location_dest_id = locations if len(locations) == 1 else False
@@ -158,6 +171,7 @@ class StockPackageContent(models.Model):
 
     @api.depends("move_line_ids")
     def _compute_picking_ids(self):
+        self._prefetch_move_line_ids()
         for package in self:
             package.picking_ids = package.move_line_ids.picking_id
 
@@ -183,11 +197,9 @@ class StockPackageContent(models.Model):
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
         packages = self.search_fetch(
-            domain=[("id", operator, value)], field_names=["id"]
+            domain=[("id", operator, value)], field_names=["parent_package_id"]
         )
-        return Domain("id", "parent_of", packages.ids) & Domain(
-            "id", "not in", packages.ids
-        )
+        return Domain("id", "parent_of", packages.parent_package_id.ids)
 
     def _search_contained_quant_ids(self, operator, value):
         if operator in Domain.NEGATIVE_OPERATORS:
@@ -272,8 +284,12 @@ class StockPackageContent(models.Model):
         return res
 
     @dbg.timed
-    def _get_weight_by_picking(self, picking_ids):
+    def _get_weight_by_picking(self, picking_ids, pairs=None):
         picking_ids = list(picking_ids)
+        if pairs is None:
+            pairs = [
+                (package, picking_id) for package in self for picking_id in picking_ids
+            ]
         package_weights = defaultdict(float)
         children_by_dest_pack, all_pack_ids = self._get_all_children_package_dest_ids()
         base_weight_per_package_group = self.env["stock.package"]._read_group(
@@ -300,26 +316,38 @@ class StockPackageContent(models.Model):
             )
 
         res = {}
-        for package in self:
-            base_weight = package.package_type_id.base_weight or 0.0
-            for picking_id in picking_ids:
-                weight = base_weight + package_weights[(picking_id, package.id)]
-                for child_id in children_by_dest_pack.get(package, []):
-                    weight += (
-                        base_weight_per_package.get(child_id, 0)
-                        + package_weights[(picking_id, child_id)]
-                    )
-                res[(package, picking_id)] = weight
+        for package, picking_id in pairs:
+            package = package.with_env(self.env)
+            weight = (package.package_type_id.base_weight or 0.0) + package_weights.get(
+                (picking_id, package.id), 0.0
+            )
+            for child_id in children_by_dest_pack.get(package, []):
+                weight += base_weight_per_package.get(
+                    child_id, 0
+                ) + package_weights.get((picking_id, child_id), 0.0)
+            res[(package, picking_id)] = weight
         return res
 
     def _get_all_children_package_dest_ids(self):
+        descendants_by_root = defaultdict(set)
+        roots_by_frontier = {package: {package.id} for package in self}
+        while roots_by_frontier:
+            next_roots = defaultdict(set)
+            for parent, root_ids in roots_by_frontier.items():
+                for child in parent.child_package_dest_ids:
+                    for root_id in root_ids:
+                        if (
+                            child.id == root_id
+                            or child.id in descendants_by_root[root_id]
+                        ):
+                            continue
+                        descendants_by_root[root_id].add(child.id)
+                        next_roots[child].add(root_id)
+            roots_by_frontier = next_roots
         all_children_by_pack = defaultdict(list)
         all_children_ids = set(self.ids)
         for package in self:
-            descendants = self._walk_dest_tree(
-                package.child_package_dest_ids, "child_package_dest_ids"
-            )
-            if descendants:
+            if descendants := descendants_by_root[package.id]:
                 all_children_by_pack[package] = list(descendants)
                 all_children_ids.update(descendants)
 

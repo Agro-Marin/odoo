@@ -3,7 +3,7 @@ from collections import defaultdict
 from re import fullmatch as regex_fullmatch
 
 from odoo import api, models
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import UserError
 from odoo.fields import Command, Domain
 from odoo.tools.misc import OrderedSet
 
@@ -355,12 +355,25 @@ class StockMoveLot(models.Model):
             raise UserError(
                 self.env._("The quantity per lot should always be a positive value."),
             )
+        # binary floats put `//` one short (1.0 // 0.1 == 9) or leave a
+        # remainder of ~1e-16 (6 % 0.6): both are settled at the unit precision
+        uom = self.env["uom.uom"]
         line_count = int(quantity // qty_per_lot)
+        leftover = uom.round(quantity - line_count * qty_per_lot)
+        if uom.compare(leftover, qty_per_lot) >= 0:
+            line_count += 1
+            leftover = uom.round(leftover - qty_per_lot)
         self._check_generated_lot_count(line_count)
-        leftover = quantity % qty_per_lot
         qty_array = [qty_per_lot] * line_count
-        if leftover:
+        if uom.compare(leftover, 0) > 0:
             qty_array.append(leftover)
+        dbg.logic.debug(
+            "_prepare_lot_generation_split(%s, %s): %d full lots, leftover %s",
+            quantity,
+            qty_per_lot,
+            line_count,
+            leftover,
+        )
         return qty_array
 
     @api.model
@@ -462,12 +475,6 @@ class StockMoveLot(models.Model):
 
     def _get_serial_line_count(self, quantity):
         return max(int(self.product_id.uom_id.round(quantity)), 0)
-
-    def _get_serial_count_to_prefill(self):
-        self.check_singleton()
-        if self.next_serial_count:
-            return 0
-        return self._get_serial_line_count(self.product_qty)
 
     def _update_move_lines_for_lots(self):
         self.check_singleton()
@@ -603,94 +610,6 @@ class StockMoveLot(models.Model):
         if regex_fullmatch(r"[0-9]+\.?[0-9]*|\.[0-9]+", string):
             return {"quantity": float(string)}
         return False
-
-    def _update_move_lines_for_serials(
-        self,
-        next_serial,
-        next_serial_count=False,
-        location_id=False,
-    ):
-        self.check_singleton()
-        count = next_serial_count or self.next_serial_count
-        if not count:
-            raise ValidationError(
-                self.env._(
-                    "The number of Serial Numbers to generate must be greater than zero.",
-                ),
-            )
-        lot_names = self.env["stock.lot"].prepare_lot_names(next_serial, count)
-        dbg.logic.debug(
-            "[move:%s] _update_move_lines_for_serials from %s x%s -> %s",
-            self.id,
-            next_serial,
-            count,
-            lot_names[:8],
-        )
-        field_data = [{"lot_name": lot_name, "quantity": 1} for lot_name in lot_names]
-        if self._is_lot_materialization_required():
-            self._create_lot_ids_from_move_line_vals(
-                field_data,
-                self.product_id.id,
-                self.company_id.id,
-            )
-        move_lines_commands = self._prepare_serial_move_line_commands(
-            field_data,
-            location_dest_id=location_id,
-        )
-        self.move_line_ids = move_lines_commands
-        return True
-
-    def _prepare_serial_move_line_commands(
-        self,
-        field_data,
-        location_dest_id=False,
-        origin_move_line=None,
-    ):
-        self.check_singleton()
-        origin_move_line = origin_move_line or self.env["stock.move.line"]
-        loc_dest = origin_move_line.location_dest_id or location_dest_id
-        move_line_vals = {
-            "picking_id": self.picking_id.id,
-            "location_id": self.location_id.id,
-            "product_id": self.product_id.id,
-            "product_uom_id": self.product_id.uom_id.id,
-        }
-        move_lines = self.move_line_ids.filtered(
-            lambda ml: not ml.lot_id and not ml.lot_name,
-        )
-
-        if origin_move_line:
-            move_line_vals.update(
-                {
-                    "owner_id": origin_move_line.owner_id.id,
-                    "package_id": origin_move_line.package_id.id,
-                },
-            )
-
-        reused, created = field_data[: len(move_lines)], field_data[len(move_lines) :]
-        move_lines_commands = [
-            Command.update(move_lines[i].id, command_vals)
-            for i, command_vals in enumerate(reused)
-        ]
-        already_placed = defaultdict(float)
-        for line, command_vals in zip(move_lines, reused, strict=False):
-            already_placed[line.location_dest_id.id] += command_vals["quantity"]
-
-        if loc_dest:
-            locations = [loc_dest] * len(created)
-        else:
-            locations = self.location_dest_id._get_putaway_strategy_batch(
-                self.product_id,
-                [command_vals["quantity"] for command_vals in created],
-                additional_qty=already_placed,
-            )
-        move_lines_commands += [
-            Command.create(
-                {**move_line_vals, **command_vals, "location_dest_id": location.id},
-            )
-            for command_vals, location in zip(created, locations, strict=True)
-        ]
-        return move_lines_commands
 
     def _get_formatting_options(self, strings):
         return {}

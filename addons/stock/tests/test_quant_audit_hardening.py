@@ -286,25 +286,6 @@ class TestQuantRemovalStrategySeam(TestStockCommon):
     def test_every_selectable_strategy_resolves_to_one_object(self):
         methods = self.env["product.removal"].search([]).mapped("method")
         self.assertIn("fifo", methods, "the data strategies must be installed")
-        location = (
-            self.env["stock.warehouse"]
-            .search([("company_id", "=", self.env.company.id)], limit=1)
-            .lot_stock_id
-        )
-        product = self.env["product.product"].create(
-            {"name": "qsh-order", "is_storable": True}
-        )
-        quants = self.Quant.create(
-            [
-                {
-                    "product_id": product.id,
-                    "location_id": location.id,
-                    "quantity": 1.0 + index,
-                }
-                for index in range(3)
-            ]
-        )
-        self.env.flush_all()
         for method in sorted(set(methods)):
             with self.subTest(removal_strategy=method):
                 strategy = self.Quant._get_removal_strategy_record(method)
@@ -314,19 +295,7 @@ class TestQuantRemovalStrategySeam(TestStockCommon):
                     "a strategy an addon added resolved to None, so _gather read"
                     " both of its behaviour flags as False without saying so",
                 )
-                self.assertEqual(
-                    strategy.order, self.Quant._get_removal_strategy_order(method)
-                )
-                through_accessor = self.Quant._get_removal_strategy_sort_key(method)
-                self.assertEqual(
-                    strategy.resolve_sorted_arguments()[1], through_accessor[1]
-                )
-                self.assertEqual(
-                    quants.sorted(*strategy.resolve_sorted_arguments()).ids,
-                    quants.sorted(*through_accessor).ids,
-                    "the table and the accessor must order the same quants the"
-                    " same way",
-                )
+                self.assertIs(strategy, self.Quant._get_removal_strategies()[method])
 
     def test_the_table_is_the_seam_and_carries_the_behaviour_flags(self):
         registry_cls = type(self.Quant)
@@ -346,36 +315,10 @@ class TestQuantRemovalStrategySeam(TestStockCommon):
                 strategy.sorts_by_location,
                 "extending the table must be enough to reach the flags",
             )
-            self.assertIs(self.Quant._get_removal_strategy_order("qsh_byloc"), False)
-            self.assertIsNotNone(self.Quant._get_removal_strategy_sort_key("qsh_byloc"))
+            self.assertIs(strategy.order, False)
+            self.assertIsNotNone(strategy.resolve_sorted_arguments())
         finally:
             registry_cls._get_removal_strategies = base
-
-    def test_an_accessor_only_override_still_resolves(self):
-        registry_cls = type(self.Quant)
-        base_order = registry_cls._get_removal_strategy_order
-        base_key = registry_cls._get_removal_strategy_sort_key
-
-        def order(records, removal_strategy):
-            if removal_strategy == "qsh_legacy":
-                return "in_date DESC, id"
-            return base_order(records, removal_strategy)
-
-        def key(records, removal_strategy):
-            if removal_strategy == "qsh_legacy":
-                return (lambda quant: quant.id), True
-            return base_key(records, removal_strategy)
-
-        registry_cls._get_removal_strategy_order = order
-        registry_cls._get_removal_strategy_sort_key = key
-        try:
-            strategy = self.Quant._get_removal_strategy_record("qsh_legacy")
-            self.assertEqual(strategy.order, "in_date DESC, id")
-            self.assertTrue(strategy.reverse)
-            self.assertFalse(strategy.narrows_to_packages)
-        finally:
-            registry_cls._get_removal_strategy_order = base_order
-            registry_cls._get_removal_strategy_sort_key = base_key
 
     def test_an_unknown_strategy_still_names_itself(self):
         with self.assertRaises(UserError):

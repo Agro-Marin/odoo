@@ -110,7 +110,7 @@ class StockWarehouseOrderpointReplenish(models.Model):
         for orderpoint in to_compute:
             product_routes = (
                 orderpoint.product_id.route_ids
-                | orderpoint.product_id.categ_id.route_ids
+                | orderpoint.product_id.categ_id.total_route_ids
             )
             result[orderpoint.id] = next(
                 (
@@ -180,7 +180,7 @@ class StockWarehouseOrderpointReplenish(models.Model):
         self.check_singleton()
         return {
             "location": self.location_id.id,
-            "to_date": datetime.combine(self.lead_horizon_date, time.max),
+            "to_date": self._get_company_moment(self.lead_horizon_date, time.max),
         }
 
     @api.model
@@ -274,14 +274,42 @@ class StockWarehouseOrderpointReplenish(models.Model):
             )
         return False
 
-    def _get_orderpoint_procurement_date(self):
-        self.check_singleton()
+    def _get_company_timezone(self, company=None):
+        company = company or self.company_id[:1] or self.env.company
+        return timezone(company.partner_id.tz or "UTC")
+
+    def _get_company_today(self, company=None):
         return (
-            datetime.combine(self.lead_horizon_date, time(12))
-            .replace(tzinfo=timezone(self.company_id.partner_id.tz or "UTC"))
+            fields.Datetime.now()
+            .replace(tzinfo=UTC)
+            .astimezone(self._get_company_timezone(company))
+            .date()
+        )
+
+    def _get_company_moment(self, day, at, company=None):
+        return (
+            datetime.combine(day, at)
+            .replace(tzinfo=self._get_company_timezone(company))
             .astimezone(UTC)
             .replace(tzinfo=None)
         )
+
+    def _get_orderpoint_procurement_date(self):
+        self.check_singleton()
+        return self._get_company_moment(self.lead_horizon_date, time(12))
+
+    def _get_procurement_date(self):
+        self.check_singleton()
+        date = self._get_orderpoint_procurement_date()
+        horizon_days = self._get_horizon_days()
+        if horizon_days:
+            date -= relativedelta.relativedelta(days=horizon_days)
+        return date
+
+    def _get_origin_references(self):
+        self.check_singleton()
+        origin_ids = (self.env.context.get("origins") or {}).get(self.id)
+        return self.env["stock.reference"].browse(sorted(origin_ids or ()))
 
     def _get_multiple_rounded_qty(self, qty_to_order):
         replenishment_multiple = (
@@ -331,11 +359,12 @@ class StockWarehouseOrderpointReplenish(models.Model):
         )
 
     def _prepare_procurement_vals(self, date=False):
-        date_deadline = date or fields.Date.today()
+        date_deadline = date or self._get_company_today()
         dates_info = self.product_id._get_dates_info(
             date_deadline,
             self.location_id,
             route_ids=self.route_id,
+            rules=self.rule_ids,
         )
         values = {
             "route_ids": self.route_id,
@@ -345,16 +374,12 @@ class StockWarehouseOrderpointReplenish(models.Model):
             "warehouse_id": self.warehouse_id,
             "orderpoint_id": self.trigger == "auto" and self,
         }
-        reference = self.env.context.get("origins")
-        if reference:
-            values["reference_ids"] = self.env["stock.reference"].browse(
-                reference.get(self.id),
-            )
+        if self.env.context.get("origins"):
+            values["reference_ids"] = self._get_origin_references()
         return values
 
     def _prepare_procurements(self, forced_quantities):
         procurements = []
-        origins_by_orderpoint = self.env.context.get("origins", {})
         for orderpoint in self:
             quantity = forced_quantities.get(orderpoint.id, orderpoint.qty_to_order)
             if orderpoint.product_uom_id.compare(quantity, 0.0) != 1:
@@ -364,18 +389,14 @@ class StockWarehouseOrderpointReplenish(models.Model):
                     quantity,
                 )
                 continue
-            origin_ids = origins_by_orderpoint.get(orderpoint.id, False)
-            if origin_ids:
-                references = self.env["stock.reference"].browse(origin_ids)
+            references = orderpoint._get_origin_references()
+            if references:
                 origin = (
                     f"{orderpoint.display_name} - {','.join(references.mapped('name'))}"
                 )
             else:
                 origin = orderpoint.name
-            date = orderpoint._get_orderpoint_procurement_date()
-            horizon_days = orderpoint._get_horizon_days()
-            if horizon_days:
-                date -= relativedelta.relativedelta(days=horizon_days)
+            date = orderpoint._get_procurement_date()
             dbg.pipeline.debug(
                 "[orderpoint:%s] procurement product=%s qty=%s date=%s origin=%s",
                 orderpoint.id,
@@ -404,10 +425,13 @@ class StockWarehouseOrderpointReplenish(models.Model):
         raise_user_error=True,
         can_retry=False,
     ):
-        orderpoints = self
         failures = []
+        pending = [self]
         remaining_retries = self._PROCUREMENT_RETRIES
-        while orderpoints:
+        while pending:
+            orderpoints = pending.pop()
+            if not orderpoints:
+                continue
             procurements = orderpoints._prepare_procurements(forced_quantities)
             dbg.pipeline.debug(
                 "_run_procurement_batch: %d orderpoints -> %d procurements (retries left %d)",
@@ -422,31 +446,34 @@ class StockWarehouseOrderpointReplenish(models.Model):
                         raise_user_error=raise_user_error,
                     )
             except ProcurementException as errors:
-                batch_failures = [
+                attributed = [
                     (
                         procurement.values.get("orderpoint_id") or self.browse(),
                         error_msg,
                     )
                     for procurement, error_msg in errors.procurement_exceptions
                 ]
-                failures += batch_failures
-                failed = self.browse().concat(
-                    *[failure[0] for failure in batch_failures]
-                )
+                failed = self.browse().concat(*[failure[0] for failure in attributed])
                 dbg.logic.debug(
-                    "_run_procurement_batch: %d failures on %s, retrying without them",
-                    len(batch_failures),
+                    "_run_procurement_batch: %d failures, attributed to %s",
+                    len(attributed),
                     dbg.rec(failed),
                 )
-                if not failed:
-                    _logger.error(
-                        "Unable to attribute a procurement failure to an orderpoint;"
-                        " %d orderpoints were rolled back and not retried: %s",
-                        len(orderpoints),
-                        "; ".join(msg for _op, msg in batch_failures),
-                    )
-                    break
-                orderpoints -= failed
+                if failed:
+                    failures += [failure for failure in attributed if failure[0]]
+                    pending.append(orderpoints - failed)
+                    continue
+                isolated, chunks = orderpoints._split_failing_batch(
+                    "; ".join(msg for _orderpoint, msg in attributed),
+                )
+                failures += isolated
+                pending += chunks
+            except UserError as error:
+                if raise_user_error:
+                    raise
+                isolated, chunks = orderpoints._split_failing_batch(str(error))
+                failures += isolated
+                pending += chunks
             except OperationalError as error:
                 if error.sqlstate not in ("40001", "40P01") or not can_retry:
                     raise
@@ -460,14 +487,28 @@ class StockWarehouseOrderpointReplenish(models.Model):
                     _logger.error(
                         "Serialization failure while processing a batch of %d "
                         "orderpoints; giving up after %d retries.",
-                        len(orderpoints),
+                        len(self),
                         self._PROCUREMENT_RETRIES,
                     )
-                    break
+                    return []
+                failures = []
+                pending = [self]
             else:
                 orderpoints._post_process_scheduler()
-                break
         return failures
+
+    def _split_failing_batch(self, error_msg):
+        if len(self) == 1:
+            dbg.logic.debug(
+                "_run_procurement_batch: %s isolated as failing", dbg.rec(self)
+            )
+            return [(self, error_msg)], []
+        half = len(self) // 2
+        dbg.logic.debug(
+            "_run_procurement_batch: unattributed failure in %s, bisecting",
+            dbg.rec(self),
+        )
+        return [], [self[half:], self[:half]]
 
     def _schedule_procurement_failure_activities(self, failures):
         model_product_template_id = self.env.ref("product.model_product_template").id

@@ -134,23 +134,6 @@ class TestMoveReservation(TestStockCommon):
         self.assertEqual(move.move_line_ids.quantity, 1)
         self.assertEqual(move.move_line_ids.product_uom_id, uom_dozen)
 
-    def test_force_qty_reserves_exact_quantity(self):
-        p = self._product()
-        self._add_stock(p, self.stock_loc, 10)
-        move = self._move(p, self.stock_loc, self.customer_loc, 5, self.out_type)
-        move._unreserve()
-        self.assertFalse(move.move_line_ids)
-        move._action_assign(force_qty=3)
-        self.assertEqual(len(move.move_line_ids), 1)
-        self.assertEqual(move.move_line_ids.quantity, 3)
-
-    def test_force_qty_without_stock_reserves_nothing(self):
-        p = self._product()
-        move = self._move(p, self.stock_loc, self.customer_loc, 5, self.out_type)
-        move._action_assign(force_qty=3)
-        self.assertEqual(move.state, "confirmed")
-        self.assertFalse(move.move_line_ids)
-
     def _reserved(self, product, location):
         quants = self.env["stock.quant"].search(
             [("product_id", "=", product.id), ("location_id", "=", location.id)]

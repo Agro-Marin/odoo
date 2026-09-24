@@ -522,7 +522,7 @@ class StockWarehouseOrderpoint(models.Model):
         "product_id",
         "product_id.categ_id",
         "product_id.route_ids",
-        "product_id.categ_id.route_ids",
+        "product_id.categ_id.total_route_ids",
         "location_id",
     )
     def _compute_route_id_placeholder(self):
@@ -539,7 +539,7 @@ class StockWarehouseOrderpoint(models.Model):
         "product_id",
         "product_id.categ_id",
         "product_id.route_ids",
-        "product_id.categ_id.route_ids",
+        "product_id.categ_id.total_route_ids",
         "location_id",
     )
     def _compute_effective_route_id(self):
@@ -706,7 +706,7 @@ class StockWarehouseOrderpoint(models.Model):
             return domain
         return domain & (
             Domain("product_id.route_ids", "in", routes.ids)
-            | Domain("product_id.categ_id.route_ids", "in", routes.ids)
+            | Domain("product_id.categ_id.total_route_ids", "in", routes.ids)
         )
 
     def _search_effective_route_id(self, operator, value):
@@ -741,9 +741,10 @@ class StockWarehouseOrderpoint(models.Model):
         return Domain("route_id", "in", routes.ids) | Domain("id", "in", matched_ids)
 
     def _search_qty_to_order(self, operator, value):
-        if DOMAIN_PREDICATES.get(operator) is None:
+        predicate = DOMAIN_PREDICATES.get(operator)
+        if predicate is None:
             return NotImplemented
-        return Domain(
+        stored = Domain(
             [
                 "|",
                 "&",
@@ -753,4 +754,26 @@ class StockWarehouseOrderpoint(models.Model):
                 ("qty_to_order_manual_set", "=", False),
                 ("qty_to_order_computed", operator, value),
             ],
+        )
+        if self.env.context.get("global_horizon_days") is None:
+            return stored
+        candidates = self.search(Domain("qty_to_order_manual_set", "=", False))
+        what_if = candidates._get_horizon_suggestion_map()
+        if not what_if:
+            return stored
+        matched_ids = [
+            orderpoint_id
+            for orderpoint_id, quantity in what_if.items()
+            if predicate(quantity, value)
+        ]
+        dbg.logic.debug(
+            "_search_qty_to_order %s %s under horizon %s: %d of %d what-if rows match",
+            operator,
+            value,
+            self.env.context["global_horizon_days"],
+            len(matched_ids),
+            len(what_if),
+        )
+        return (stored & Domain("id", "not in", list(what_if))) | Domain(
+            "id", "in", matched_ids
         )

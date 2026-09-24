@@ -2,6 +2,8 @@ from odoo import Command, api, fields, models
 from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import groupby
 
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
+
 MAP_REPAIR_LINE_TYPE_TO_MOVE_LOCATIONS_FROM_REPAIR = {
     "add": {"location_id": "location_id", "location_dest_id": "location_dest_id"},
     "remove": {
@@ -101,14 +103,11 @@ class StockMove(models.Model):
                 vals["sale_line_id"] = False
         return vals_list
 
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_done_or_linked(self):
-        self.filtered("repair_id")._action_cancel()
-        return super()._unlink_except_done_or_linked()
-
     def unlink(self):
         _debug.lifecycle("repair_move_unlink", moves=self)
         self._clean_repair_sale_order_line()
+        if not self.env.context.get(MODULE_UNINSTALL_FLAG):
+            self.filtered("repair_id")._action_cancel()
         return super().unlink()
 
     @api.model_create_multi

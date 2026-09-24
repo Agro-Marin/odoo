@@ -22,8 +22,10 @@ class StockInventoryConflict(models.TransientModel):
             "inventory conflict: keep counted on %s", dbg.rec(self.quant_ids)
         )
         for quant in self.quant_ids:
-            quant.inventory_diff_quantity = quant.inventory_quantity - quant.quantity
-        return self.quant_ids.action_apply_inventory()
+            quant.inventory_diff_quantity = quant.product_uom_id._round_aggregate(
+                quant.inventory_quantity - quant.quantity
+            )
+        return self.quant_ids.action_apply_inventory(self._get_counting_date())
 
     def action_keep_difference(self):
         dbg.logic.debug(
@@ -31,4 +33,7 @@ class StockInventoryConflict(models.TransientModel):
         )
         for quant in self.quant_ids:
             quant.inventory_quantity = quant.quantity + quant.inventory_diff_quantity
-        return self.quant_ids.action_apply_inventory()
+        return self.quant_ids.action_apply_inventory(self._get_counting_date())
+
+    def _get_counting_date(self):
+        return self.env.context.get("counting_date")

@@ -292,13 +292,21 @@ class StockReturnPicking(models.TransientModel):
             ):
                 continue
             quantity = stock_move.quantity
-            for move in stock_move.move_dest_ids:
-                if (
-                    not move.origin_returned_move_id
-                    or move.origin_returned_move_id != stock_move
-                ):
+            for returned in stock_move.returned_move_ids:
+                if returned.state == "cancel":
                     continue
-                quantity -= move.quantity
+                # an open return holds its demand whether or not anything
+                # is reserved for it yet
+                returned_qty = (
+                    returned.quantity
+                    if returned.state == "done"
+                    else returned.product_uom_qty
+                )
+                quantity -= returned.product_uom_id._get_quantity_in_unit(
+                    returned_qty,
+                    stock_move.product_uom_id,
+                    round=False,
+                )
             quantity = max(stock_move.product_uom_id.round(quantity), 0)
             dbg.logic.debug(
                 "action_create_returns_all: move %s returnable %s",

@@ -5,11 +5,11 @@ from odoo import api, models
 from odoo.fields import Domain
 from odoo.tools import format_date, format_datetime
 
+from ..const import OPEN_PICKING_STATES
 from ..tools import debug_log as dbg
 from .stock_picking import (
     DONE_CANCEL_STATES,
     FORECAST_PICKING_CODES,
-    OPEN_PICKING_STATES,
     UNRESERVED_MOVE_STATES,
 )
 
@@ -137,9 +137,7 @@ class StockPickingAvailability(models.Model):
                     return result
         return result
 
-    def _is_allocation_shown(self, picking_type_id):
-        if not picking_type_id or picking_type_id.code == "outgoing":
-            return False
+    def _is_allocation_shown(self):
         return any(
             self._get_show_allocation_map(
                 excluded_pickings=self,

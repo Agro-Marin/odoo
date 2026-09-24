@@ -10,6 +10,7 @@ from . import test_blocked_location_enforcement
 from . import test_blocked_location_forgery
 from . import test_blocked_location_migration
 from . import test_blocked_location_visibility
+from . import test_catalog_audit_2026_09
 from . import test_followup_fixes_product_template
 from . import test_generate_lot_line_vals
 from . import test_generate_serial_numbers
@@ -71,11 +72,14 @@ from . import test_stock_move_audit_2026_08
 from . import test_stock_move_line_requant
 from . import test_stock_package_audit_2026_08
 from . import test_proc_rule_audit
+from . import test_procurement_audit_2026_09
+from . import test_picking_audit_2026_09
 from . import test_location_audit_2026_08
 from . import test_product_product_audit_2026_08
 from . import test_product_template_audit_2026_08
 from . import test_quant_audit_hardening
 from . import test_stock_move_audit_2026_08_31
+from . import test_stock_move_audit_2026_09_23
 from . import test_location_hardening
 from . import test_move_line_audit_2026_08_31
 from . import test_picking_audit_2026_08_31
@@ -85,3 +89,4 @@ from . import test_consignment_interface
 from . import test_create_computes
 from . import test_move_line_done_access
 from . import test_derived_defaults
+from . import test_reservation_audit_2026_09

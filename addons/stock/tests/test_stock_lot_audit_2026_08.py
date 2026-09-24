@@ -24,30 +24,17 @@ class TestLotNameFormatVocabulary(TransactionCase):
         self.assertGreater(len(placeholders), 14, "the three families are expected")
         for placeholder in sorted(placeholders):
             with self.subTest(placeholder=placeholder):
-                product = self._product("%%(%s)s-X" % placeholder)
+                product = self._product("%%(%s)s-%%(ref)s-X" % placeholder)
                 lot = self.Lot.create({"product_id": product.id})
                 self.assertTrue(lot.name.endswith("-X"))
 
-    def test_a_composed_name_parses_back_for_every_family(self):
-        for placeholder in ("year", "current_year", "range_month"):
-            with self.subTest(placeholder=placeholder):
-                product = self._product("%%(%s)s-%%(ref)s" % placeholder)
-                lot = self.Lot.create({"product_id": product.id})
-                self.assertIn(placeholder, lot._parse_name() or {})
-
     def test_an_unusable_format_is_a_message_not_a_traceback(self):
-        for lot_format in ("100%-%(ref)s", "%(bogus)s", "%(ref)"):
+        for lot_format in ("100%-%(ref)s", "%(bogus)s-%(ref)s", "%(ref)s-%(year)"):
             with self.subTest(lot_format=lot_format):
                 product = self._product(lot_format)
                 with self.assertRaises(UserError) as caught:
                     self.Lot.create({"product_id": product.id})
                 self.assertIn(product.display_name, str(caught.exception))
-
-    def test_reading_a_name_back_under_a_broken_format_does_not_raise(self):
-        product = self._product("%(year)s-%(ref)s")
-        lot = self.Lot.create({"product_id": product.id})
-        product.lot_name_format = "%(bogus)s"
-        self.assertIsNone(lot._parse_name())
 
     def test_a_product_with_no_sequence_at_all_says_so(self):
         product = self.env["product.product"].create(
@@ -107,48 +94,6 @@ class TestLotUniquenessSeesArchivedLots(TransactionCase):
         with self.assertRaises(ValidationError):
             archived.active = True
             self.env.flush_all()
-
-    def test_the_next_serial_is_one_nothing_holds(self):
-        for name in ("SN00001", "SN00002", "SN00003"):
-            self.Lot.create({"name": name, "product_id": self.product.id})
-        archived = self.Lot.create({"name": "SN00004", "product_id": self.product.id})
-        archived.active = False
-        self.env.flush_all()
-        proposed = self.Lot._get_next_serial(self.env.company, self.product)
-        self.assertNotEqual(proposed, "SN00004", "the archived lot holds that name")
-        self.Lot.create({"name": proposed, "product_id": self.product.id})
-        self.env.flush_all()
-
-    def test_the_next_serial_survives_an_out_of_order_import(self):
-        """The guarantee is that the proposal is FREE, not that it is highest.
-
-        `_get_next_serial` reads the most recently *created* lot
-        (`order="id DESC"`), not the highest-named one, so importing an old
-        serial after a newer block moves the proposal back to the low range --
-        SN00002 here, not SN00052. That is deliberate and matches upstream;
-        uniqueness is what `_get_free_lot_name` guarantees, by walking forward
-        until the name is free. This test asserted neither, so a change from
-        "most recent" to "highest" would have passed it silently.
-        """
-        for name in ("SN00050", "SN00051"):
-            self.Lot.create({"name": name, "product_id": self.product.id})
-        self.Lot.create({"name": "SN00001", "product_id": self.product.id})
-        self.env.flush_all()
-
-        proposed = self.Lot._get_next_serial(self.env.company, self.product)
-
-        self.assertEqual(
-            proposed, "SN00002", "the proposal follows the most recent lot"
-        )
-        self.assertFalse(
-            self.Lot.with_context(active_test=False).search_count(
-                [("name", "=", proposed), ("product_id", "=", self.product.id)]
-            ),
-            "the proposal must be free before it is offered",
-        )
-        created = self.Lot.create({"name": proposed, "product_id": self.product.id})
-        self.env.flush_all()
-        self.assertEqual(created.name, proposed)
 
     def test_prepare_next_lot_vals_is_the_one_place_that_decides(self):
         vals = self.Lot._prepare_next_lot_vals(self.env.company, self.product)

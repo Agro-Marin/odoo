@@ -15,12 +15,14 @@ class StockLotName(models.Model):
     @api.depends("product_id")
     def _compute_name(self):
         for lot in self:
-            if lot.name:
-                continue
-            if lot.product_id.lot_name_format:
-                lot.name = lot._prepare_name()
-                continue
-            lot.name = self._get_next_sequence_value(lot.product_id)
+            if not lot.name:
+                lot.name = lot._get_new_name()
+
+    def _get_new_name(self) -> str:
+        self.check_singleton()
+        if self.product_id.lot_name_format:
+            return self._prepare_name()
+        return self._get_next_sequence_value(self.product_id)
 
     @api.model
     def _get_next_sequence_value(self, product) -> str:
@@ -77,21 +79,6 @@ class StockLotName(models.Model):
                 ),
             ) from None
 
-    def _parse_name(self, name=None):
-        self.check_singleton()
-        lot_format = self.product_id.lot_name_format
-        name = self.name if name is None else name
-        if not lot_format or not name:
-            return None
-        try:
-            regex = self.env["ir.sequence"]._pattern_to_regex(
-                lot_format, self._get_lot_name_placeholders()
-            )
-        except ValueError:
-            return None
-        match = re.match(regex, name)
-        return match.groupdict() if match else None
-
     @api.model
     def prepare_lot_names(self, first_lot, count) -> list[str]:
         caught_initial_number = re.findall(r"\d+", first_lot)
@@ -138,42 +125,11 @@ class StockLotName(models.Model):
             candidates = following[1:] if following[0] == candidates[-1] else following
 
     @api.model
-    def _get_next_serial(self, company, product):
-        if product.tracking == "none":
-            return False
-        last_serial = self.with_context(active_test=False).search(
-            Domain("product_id", "=", product.id)
-            & (
-                Domain("company_id", "=", company.id) | Domain("company_id", "=", False)
-            ),
-            limit=1,
-            order="id DESC",
-        )
-        if not last_serial:
-            dbg.logic.debug("_get_next_serial: no lot yet for product %s", product.id)
-            return False
-        proposal = self._get_free_lot_name(company, product, last_serial.name)
-        # The anchor is the most recently CREATED lot, not the highest-named
-        # one, so an out-of-order import moves the proposal back into the low
-        # range. That is deliberate, and it is the question anyone debugging a
-        # surprising serial asks first -- it used to be answerable only by
-        # reading the `order="id DESC"` above.
-        dbg.logic.debug(
-            "_get_next_serial: product %s anchored on %s (id %s) -> %s",
-            product.id,
-            last_serial.name,
-            last_serial.id,
-            proposal,
-        )
-        return proposal
-
-    @api.model
     def _prepare_next_lot_vals(self, company, product) -> dict:
+        first_name = self.new({"product_id": product.id})._get_new_name()
         return {
             "product_id": product.id,
-            "name": self._get_free_lot_name(
-                company, product, self._get_next_sequence_value(product)
-            ),
+            "name": self._get_free_lot_name(company, product, first_name),
         }
 
     def _compute_delivery_ids(self):

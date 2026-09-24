@@ -5,6 +5,7 @@ from freezegun import freeze_time
 from odoo import Command
 from odoo.tools.misc import get_lang
 
+from odoo.addons.stock.tests.common import generate_lot_lines
 from odoo.addons.stock.tests.test_generate_serial_numbers import StockGenerateCommon
 from odoo.addons.stock.tests.test_picking_tours import TestStockPickingTour
 
@@ -23,12 +24,7 @@ class TestStockLot(StockGenerateCommon):
         )
 
     def _import_lots(self, lots, move):
-        location_id = move.location_id
-        move_lines_vals = move.split_lots(lots)
-        move_lines_commands = move._prepare_serial_move_line_commands(
-            move_lines_vals, location_dest_id=location_id
-        )
-        move.update({"move_line_ids": move_lines_commands})
+        generate_lot_lines(move, mode="import", lot_text=lots)
 
     def test_set_multiple_lot_name_with_expiration_date_01(self):
         user_lang = self.env["res.lang"].browse([get_lang(self.env).id])

@@ -565,8 +565,8 @@ class StockMove(models.Model):
         if procurements:
             self.env["stock.rule"].run(procurements)
 
-    def _action_assign(self, force_qty=False):
-        res = super()._action_assign(force_qty=force_qty)
+    def _action_assign(self):
+        res = super()._action_assign()
         lines_by_owner = defaultdict(list)
         for move in self.filtered("raw_material_production_id"):
             if move.move_line_ids:

@@ -8,8 +8,13 @@ from odoo.fields import Command
 from odoo.tools import SQL
 from odoo.tools.misc import OrderedSet, clean_context
 
-from ..const import INVENTORY_REFERENCE_CONFIRMED, INVENTORY_REFERENCE_UPDATED
+from ..const import (
+    INVENTORY_REFERENCE_CONFIRMED,
+    INVENTORY_REFERENCE_UPDATED,
+    is_internal_flag,
+)
 from ..tools import debug_log as dbg
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
 _logger = logging.getLogger(__name__)
 
@@ -18,6 +23,8 @@ PROCUREMENT_PRIORITIES = [("0", "Normal"), ("1", "Urgent")]
 GENERATED_LOT_VALS_MAX = 10000
 
 FIELD_DATA_IGNORED = "ignore"
+
+CONTEXT_SPLIT_DEMAND = "stock_move_split_demand"
 
 
 class StockMove(models.Model):
@@ -380,8 +387,6 @@ class StockMove(models.Model):
         compute="_compute_show_info",
         help="Whether the Generate/Import Serials-Lots buttons apply to this move.",
     )
-    next_serial = fields.Char(string="First SN/Lot")
-    next_serial_count = fields.Integer(string="Number of SN/Lots")
     orderpoint_id = fields.Many2one(
         comodel_name="stock.warehouse.orderpoint",
         string="Original Reordering Rule",
@@ -602,7 +607,10 @@ class StockMove(models.Model):
     @dbg.timed
     def unlink(self):
         dbg.lifecycle.debug("stock.move.unlink %s", dbg.rec(self))
-        self._unlink_except_done_or_linked()
+        # validate before the lines go, as the @api.ondelete hook only runs
+        # after them -- and, like it, not while a module is uninstalled
+        if not self.env.context.get(MODULE_UNINSTALL_FLAG):
+            self._unlink_except_done_or_linked()
         self.with_context(prefetch_fields=False).mapped("move_line_ids").unlink()
         orderpoints = self._get_orderpoints_to_update()
         res = super().unlink()
@@ -1194,6 +1202,11 @@ class StockMove(models.Model):
         )
         moves_to_cancel.state = "cancel"
 
+        # the whole batch is cancelled before any sibling is inspected, so the
+        # dests and origins it cascades to can be cancelled in one call each
+        dest_ids_to_cancel = OrderedSet()
+        orig_ids_to_cancel = OrderedSet()
+        detached_origs_by_dest = defaultdict(OrderedSet)
         for move in moves_to_cancel:
             siblings_states = (
                 move.move_dest_ids.mapped("move_orig_ids") - move
@@ -1212,25 +1225,39 @@ class StockMove(models.Model):
                             m.state != "done" and move.location_dest_id == m.location_id
                         )
                     )
-                    move_dest_to_cancel._action_cancel()
-                    (move.move_dest_ids - move_dest_to_cancel).write(
-                        {
-                            "procure_method": "make_to_stock",
-                            "move_orig_ids": [Command.unlink(move.id)],
-                        },
-                    )
+                    dest_ids_to_cancel.update(move_dest_to_cancel.ids)
+                    for dest in move.move_dest_ids - move_dest_to_cancel:
+                        detached_origs_by_dest[dest.id].add(move.id)
                     if cancel_moves_origin:
-                        move.move_orig_ids.sudo().filtered(
-                            lambda m: m.state != "done",
-                        )._action_cancel()
+                        orig_ids_to_cancel.update(
+                            move.move_orig_ids.sudo()
+                            .filtered(lambda m: m.state != "done")
+                            .ids,
+                        )
             elif all(state in ("done", "cancel") for state in siblings_states):
-                move_dest_ids = move.move_dest_ids
-                move_dest_ids.write(
-                    {
-                        "procure_method": "make_to_stock",
-                        "move_orig_ids": [Command.unlink(move.id)],
-                    },
-                )
+                for dest in move.move_dest_ids:
+                    detached_origs_by_dest[dest.id].add(move.id)
+        if dest_ids_to_cancel:
+            dbg.pipeline.debug(
+                "_action_cancel: propagating to dests %s", list(dest_ids_to_cancel)
+            )
+            self.browse(dest_ids_to_cancel)._action_cancel()
+        dests_by_detached_origs = defaultdict(OrderedSet)
+        for dest_id, orig_ids in detached_origs_by_dest.items():
+            if dest_id not in dest_ids_to_cancel:
+                dests_by_detached_origs[tuple(orig_ids)].add(dest_id)
+        for orig_ids, dest_ids in dests_by_detached_origs.items():
+            dbg.logic.debug(
+                "_action_cancel: detach dests %s from %s", list(dest_ids), orig_ids
+            )
+            self.browse(dest_ids).write(
+                {
+                    "procure_method": "make_to_stock",
+                    "move_orig_ids": [Command.unlink(orig_id) for orig_id in orig_ids],
+                },
+            )
+        if orig_ids_to_cancel:
+            self.env["stock.move"].sudo().browse(orig_ids_to_cancel)._action_cancel()
         if not self.env.context.get("skip_cancel_activity"):
             moves_to_cancel._log_cancel_activity()
         moves_to_cancel.write(
@@ -1294,9 +1321,16 @@ class StockMove(models.Model):
 
     def _on_demand_change(self, vals):
         new_qty = vals["product_uom_qty"]
-        for move in self.filtered(
+        logged = self.filtered(
             lambda m: m.state not in ("done", "draft") and m.picking_id,
-        ):
+        )
+        if is_internal_flag(self.env.context, CONTEXT_SPLIT_DEMAND):
+            dbg.logic.debug(
+                "_on_demand_change: %s split off, demand change not logged",
+                dbg.rec(logged),
+            )
+            logged = self.browse()
+        for move in logged:
             if move.product_uom_id.compare(new_qty, move.product_uom_qty):
                 self.env["stock.move.line"]._log_message(
                     move.picking_id,
@@ -1328,11 +1362,17 @@ class StockMove(models.Model):
             ),
         )
         receipt_moves_to_reassign -= receipt_moves_to_reassign.filtered("picked")
-        move_to_recompute_state = self - move_to_unreserve - receipt_moves_to_reassign
+        # `_unreserve` leaves picked moves alone, so nothing recomputed their state
+        kept_picked = move_to_unreserve.filtered("picked")
+        move_to_recompute_state = (
+            self - (move_to_unreserve - kept_picked) - receipt_moves_to_reassign
+        )
         dbg.logic.debug(
-            "_on_demand_change to %s: unreserve=%s reassign=%s recompute=%s",
+            "_on_demand_change to %s: unreserve=%s (picked kept %s) reassign=%s "
+            "recompute=%s",
             new_qty,
             dbg.rec(move_to_unreserve),
+            dbg.rec(kept_picked),
             dbg.rec(receipt_moves_to_reassign),
             dbg.rec(move_to_recompute_state),
         )

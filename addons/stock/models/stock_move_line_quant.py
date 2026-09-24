@@ -164,7 +164,7 @@ class StockMoveLineQuant(models.Model):
         available_qty, _in_date = self._update_quants(
             quantity=quantity, in_date=in_date, release_reserved=release_reserved
         )
-        if self.product_id.uom_id.compare(available_qty, 0) < 0:
+        if self.product_id.uom_id._compare_aggregate(available_qty, 0) < 0:
             dbg.logic.debug(
                 "[line:%s] source went negative (%s), freeing reservations",
                 self.id,
@@ -191,7 +191,7 @@ class StockMoveLineQuant(models.Model):
 
     def _update_quant_reservations(self, deltas):
         for (product, location, lot, package, owner), quantity in deltas.items():
-            if product.uom_id.is_zero(quantity):
+            if product.uom_id._is_zero_aggregate(quantity):
                 continue
             dbg.lifecycle.debug(
                 "reservation delta %s for product %s at %s lot %s package %s",
@@ -246,10 +246,13 @@ class StockMoveLineQuant(models.Model):
         product_uom = product.uom_id
         for candidate in self._get_outdated_candidates(ml_ids_to_ignore):
             move_to_reassign |= candidate.move_id
-            if product_uom.compare(candidate.quantity_product_uom, quantity) <= 0:
+            if (
+                product_uom._compare_aggregate(candidate.quantity_product_uom, quantity)
+                <= 0
+            ):
                 quantity -= candidate.quantity_product_uom
                 to_unlink_candidate_ids.add(candidate.id)
-                if product_uom.is_zero(quantity):
+                if product_uom._is_zero_aggregate(quantity):
                     break
             else:
                 candidate.quantity -= candidate.product_id.uom_id._get_quantity_in_unit(
@@ -393,7 +396,7 @@ class StockMoveLineQuant(models.Model):
             owner_id=owner,
             in_date=in_date,
         )
-        if lot and self.product_id.uom_id.compare(available_qty, 0) < 0:
+        if lot and self.product_id.uom_id._compare_aggregate(available_qty, 0) < 0:
             dbg.logic.debug(
                 "[line:%s] lot %s short by %s at %s, compensating from untracked",
                 self.id,
@@ -569,7 +572,7 @@ class StockMoveLineQuant(models.Model):
                         "location_dest_id": self.location_id.id,
                         "company_id": self.company_id.id or self.env.company.id,
                         "lot_id": self.lot_id.id,
-                        "package_id": self.package_id.id,
+                        "package_id": self.result_package_id.id,
                         "result_package_id": self.package_id.id,
                         "owner_id": self.owner_id.id,
                     },

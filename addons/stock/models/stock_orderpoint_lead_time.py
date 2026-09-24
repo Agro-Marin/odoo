@@ -106,7 +106,8 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         critical_orderpoints = canonical.filtered(
             lambda o: o.product_uom_id.compare(o.qty_on_hand, o.product_min_qty) < 0,
         )
-        critical_orderpoints.deadline_date = fields.Date.today()
+        for company, orderpoints in critical_orderpoints.grouped("company_id").items():
+            orderpoints.deadline_date = self._get_company_today(company)
         orderpoints_to_compute = canonical - critical_orderpoints
         dbg.logic.debug(
             "_compute_deadline_date: critical %s, timeline for %s",
@@ -120,9 +121,10 @@ class StockWarehouseOrderpointLeadTime(models.Model):
             company_orderpoints = orderpoints_to_compute.filtered(
                 lambda c, company=company: c.company_id == company,
             )
-            horizon_date = fields.Date.today() + relativedelta.relativedelta(
+            horizon = relativedelta.relativedelta(
                 days=company.stock_config_id.horizon_days,
             )
+            horizon_date = self._get_company_today(company) + horizon
             moves_by_product = company_orderpoints._read_pending_moves_by_product(
                 horizon_date,
             )
@@ -133,9 +135,15 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                 )
 
     def _get_domains_pending_moves(self, horizon_date):
-        _dummy, domain_move_in, domain_move_out = self.env[
-            "stock.location"
-        ]._get_domains_quantity(self.location_id.ids)
+        Location = self.env["stock.location"]
+        location_ids = self.location_id.ids
+        leaving = Domain("location_id", "child_of", location_ids)
+        arriving, _dummy = Location._get_domains_move_destination(
+            lambda field: Domain(field, "child_of", location_ids),
+        )
+        _dummy, domain_move_in, domain_move_out = (
+            Location._get_domains_quantity_unblocked((leaving, arriving, leaving))
+        )
         scope = Domain.AND(
             [
                 [("product_id", "in", self.product_id.ids)],
@@ -155,23 +163,26 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         domain_move_in, domain_move_out = self._get_domains_pending_moves(horizon_date)
         Move = self.env["stock.move"].with_context(active_test=False)
         moves_by_product = defaultdict(list)
-        for product, location_dest, location_final, in_date, in_qty in Move._read_group(
-            domain_move_in,
-            ["product_id", "location_dest_id", "location_final_id", "date:day"],
-            ["product_qty:sum"],
-        ):
-            arrival = location_final or location_dest
-            moves_by_product[product.id].append(
-                (arrival.parent_path or "", in_date.date(), in_qty),
-            )
-        for product, location, out_date, out_qty in Move._read_group(
-            domain_move_out,
-            ["product_id", "location_id", "date:day"],
-            ["product_qty:sum"],
-        ):
-            moves_by_product[product.id].append(
-                (location.parent_path or "", out_date.date(), -out_qty),
-            )
+        groupby = [
+            "product_id",
+            "location_id",
+            "location_dest_id",
+            "location_final_id",
+            "date:day",
+        ]
+        rows_in = Move._read_group(domain_move_in, groupby, ["product_qty:sum"])
+        rows_out = Move._read_group(domain_move_out, groupby, ["product_qty:sum"])
+        for sign, rows in ((1, rows_in), (-1, rows_out)):
+            for product, source, destination, final, day, qty in rows:
+                moves_by_product[product.id].append(
+                    (
+                        sign,
+                        source.parent_path or "",
+                        (final or destination).parent_path or "",
+                        day.date(),
+                        qty,
+                    ),
+                )
         dbg.performance.debug(
             "_read_pending_moves_by_product until %s: %d products, %d timeline rows",
             horizon_date,
@@ -184,9 +195,15 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         self.check_singleton()
         location_path = self.location_id.parent_path or ""
         qty_by_date = defaultdict(float)
-        for move_path, move_date, move_qty in timeline:
-            if location_path and move_path.startswith(location_path):
-                qty_by_date[move_date] += move_qty
+        if not location_path:
+            return False
+        for sign, source_path, arrival_path, move_date, move_qty in timeline:
+            from_inside = source_path.startswith(location_path)
+            to_inside = arrival_path.startswith(location_path)
+            if (sign > 0 and to_inside and not from_inside) or (
+                sign < 0 and from_inside and not to_inside
+            ):
+                qty_by_date[move_date] += sign * move_qty
         qty_on_hand_at_date = self.qty_on_hand
         for move_date, move_qty in sorted(qty_by_date.items()):
             qty_on_hand_at_date += move_qty
@@ -274,6 +291,10 @@ class StockWarehouseOrderpointLeadTime(models.Model):
             lambda orderpoint: orderpoint.product_id and orderpoint.location_id,
         )
         values_by_orderpoint = orderpoints_to_compute._prepare_lead_time_params_map()
+        today_by_company = {
+            company: self._get_company_today(company)
+            for company in orderpoints_to_compute.company_id
+        }
         for orderpoint in orderpoints_to_compute.with_context(
             bypass_delay_description=True,
         ):
@@ -284,11 +305,11 @@ class StockWarehouseOrderpointLeadTime(models.Model):
                 orderpoint.product_id,
                 **values,
             )
+            lead_horizon = relativedelta.relativedelta(
+                days=lead_days["total_delay"] + lead_days["horizon_time"],
+            )
             orderpoint.lead_horizon_date = (
-                fields.Date.today()
-                + relativedelta.relativedelta(
-                    days=lead_days["total_delay"] + lead_days["horizon_time"],
-                )
+                today_by_company[orderpoint.company_id] + lead_horizon
             )
             orderpoint.lead_days = lead_days["total_delay"]
             dbg.logic.debug(

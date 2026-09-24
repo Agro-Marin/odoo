@@ -7,7 +7,10 @@ from odoo.fields import Domain
 from odoo.tools import DOMAIN_PREDICATES
 
 from ..tools import debug_log as dbg
-from odoo.addons.stock.tools.quantity import get_domain_quantity_in_python
+from odoo.addons.stock.tools.quantity import (
+    QuantityFilters,
+    get_domain_quantity_in_python,
+)
 
 
 class StockLot(models.Model):
@@ -415,49 +418,31 @@ class StockLot(models.Model):
 
     @dbg.timed
     def _get_product_qty_by_lot(self, lot_domain):
-        domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
-            self.env["stock.location"]
-            .with_context(skip_in_progress=True)
-            ._get_domains_quantity_from_context()
+        Product = self.env["product.product"]
+        filters = QuantityFilters(
+            owner_id=self.env.context.get("owner_id"),
+            package_id=self.env.context.get("package_id"),
         )
-        owner_id = self.env.context.get("owner_id")
-        package_id = self.env.context.get("package_id")
-        to_date = fields.Datetime.to_datetime(self.env.context.get("to_date"))
-        dates_in_the_past = to_date and to_date < fields.Datetime.now()
-
-        domain_quant = lot_domain & domain_quant_loc
-        if owner_id is not None:
-            domain_quant &= Domain("owner_id", "=", owner_id)
-            domain_move_in_loc &= Domain("owner_id", "=", owner_id)
-            domain_move_out_loc &= Domain("owner_id", "=", owner_id)
-        if package_id is not None:
-            domain_quant &= Domain("package_id", "=", package_id)
-            domain_move_in_loc &= Domain("result_package_id", "=", package_id)
-            domain_move_out_loc &= Domain("package_id", "=", package_id)
+        domain_quant = Product._narrow_quantity_domains(
+            lot_domain
+            & self.env["stock.location"]._get_domains_quantity_from_context()[0],
+            Domain.TRUE,
+            Domain.TRUE,
+            filters,
+        )[0]
         qty_by_lot = dict(
             self.env["stock.quant"]._read_group(
                 domain_quant, ["lot_id"], ["quantity:sum"]
             )
         )
+        to_date, dates_in_the_past = Product._normalize_quantities_to_date(
+            self.env.context.get("to_date")
+        )
         if not dates_in_the_past:
             return qty_by_lot
-
-        domain_lot_done = lot_domain & Domain(
-            [("state", "=", "done"), ("move_id.date", ">", to_date)]
-        )
-        move_in_qty_by_lot = dict(
-            self.env["stock.move.line"]._read_group(
-                domain_move_in_loc & domain_lot_done,
-                ["lot_id"],
-                ["quantity_product_uom:sum"],
-            )
-        )
-        move_out_qty_by_lot = dict(
-            self.env["stock.move.line"]._read_group(
-                domain_move_out_loc & domain_lot_done,
-                ["lot_id"],
-                ["quantity_product_uom:sum"],
-            )
+        in_leaves, out_leaves = Product._get_domains_quantity_leaves(filters)
+        move_in_qty_by_lot, move_out_qty_by_lot = Product._read_done_quantities_after(
+            to_date, lot_domain & in_leaves, lot_domain & out_leaves, "lot_id"
         )
         return {
             lot: qty_by_lot.get(lot, 0.0)

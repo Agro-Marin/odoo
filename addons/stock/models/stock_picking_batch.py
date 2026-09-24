@@ -4,7 +4,9 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 
+from ..const import OPEN_PICKING_STATES
 from ..tools import debug_log as dbg
+from .stock_picking import DONE_CANCEL_STATES
 
 
 class StockPickingBatch(models.Model):
@@ -232,7 +234,7 @@ class StockPickingBatch(models.Model):
 
     def _get_domain_allowed_picking(self):
         self.check_singleton()
-        states = ["waiting", "confirmed", "assigned"]
+        states = list(OPEN_PICKING_STATES)
         if self.state == "draft":
             states.append("draft")
         domain = Domain("company_id", "=", self.company_id.id) & Domain(
@@ -288,6 +290,8 @@ class StockPickingBatch(models.Model):
         "picking_ids.partner_id.country_id",
         "picking_ids.location_id",
         "picking_ids.location_dest_id",
+        "picking_type_id",
+        "picking_type_id.wave_location_ids",
     )
     def _compute_wave_grouping(self):
         criteria = self.env["stock.picking.type"]._get_grouping_criteria()
@@ -325,13 +329,11 @@ class StockPickingBatch(models.Model):
         if not self.env.user.has_group("stock.group_reception_report"):
             return
         for batch in self:
-            batch.show_allocation = batch.picking_ids._is_allocation_shown(
-                batch.picking_type_id
-            )
+            batch.show_allocation = batch.picking_ids._is_allocation_shown()
 
     @api.depends("picking_ids", "picking_ids.state")
     def _compute_state(self):
-        batchs = self.filtered(lambda batch: batch.state not in ["done", "cancel"])
+        batchs = self.filtered(lambda batch: batch.state not in DONE_CANCEL_STATES)
         for batch in batchs:
             if not batch.picking_ids:
                 if batch.state == "in_progress":
@@ -343,7 +345,7 @@ class StockPickingBatch(models.Model):
                 )
                 batch.state = "cancel"
             elif all(
-                picking.state in ["done", "cancel"] for picking in batch.picking_ids
+                picking.state in DONE_CANCEL_STATES for picking in batch.picking_ids
             ):
                 dbg.lifecycle.debug("[batch:%s] all pickings closed -> done", batch.id)
                 batch.state = "done"
@@ -423,9 +425,20 @@ class StockPickingBatch(models.Model):
         if "user_id" in vals:
             self.picking_ids.update_batch_user(vals["user_id"])
         if vals.get("date_planned"):
-            self.picking_ids.filtered(
-                lambda picking: picking.date_planned != picking.batch_id.date_planned
-            ).date_planned = vals["date_planned"]
+            date_planned = fields.Datetime.to_datetime(vals["date_planned"])
+            to_reschedule = self.picking_ids.filtered(
+                lambda picking: (
+                    picking.state not in DONE_CANCEL_STATES
+                    and picking.date_planned != date_planned
+                )
+            )
+            dbg.logic.debug(
+                "write: batches %s reschedule %s to %s",
+                dbg.rec(self),
+                dbg.rec(to_reschedule),
+                date_planned,
+            )
+            to_reschedule.date_planned = date_planned
         return res
 
     @api.ondelete(at_uninstall=False)
@@ -462,20 +475,20 @@ class StockPickingBatch(models.Model):
             return all(
                 not m.picked or m.product_uom_id.is_zero(m.quantity)
                 for m in picking.move_ids
-                if m.state not in ("done", "cancel")
+                if m.state not in DONE_CANCEL_STATES
             )
 
         def is_empty(picking):
             return all(
                 m.product_uom_id.is_zero(m.quantity)
                 for m in picking.move_ids
-                if m.state not in ("done", "cancel")
+                if m.state not in DONE_CANCEL_STATES
             )
 
         self.check_singleton()
         self._check_company()
         pickings = self.picking_ids.filtered(
-            lambda picking: picking.state not in ("done", "cancel")
+            lambda picking: picking.state not in DONE_CANCEL_STATES
         )
         empty_waiting_pickings = self.picking_ids.filtered(
             lambda p: (
@@ -540,7 +553,7 @@ class StockPickingBatch(models.Model):
         self, *, package_id=False, package_type_id=False, package_name=False
     ):
         self.check_singleton()
-        if self.state not in ("done", "cancel"):
+        if self.state not in DONE_CANCEL_STATES:
             return self.move_line_ids.action_put_in_pack(
                 package_id=package_id,
                 package_type_id=package_type_id,
@@ -555,68 +568,13 @@ class StockPickingBatch(models.Model):
         return action
 
     def action_view_label_layout(self):
-        if (
-            self.env.user.has_group("stock.group_production_lot")
-            and self.move_line_ids.lot_id
-        ):
-            view = self.env.ref("stock.picking_label_type_form")
-            return {
-                "name": self.env._("Choose Type of Labels To Print"),
-                "type": "ir.actions.act_window",
-                "res_model": "picking.label.type",
-                "views": [(view.id, "form")],
-                "target": "new",
-                "context": {"default_picking_ids": self.picking_ids.ids},
-            }
-        view = self.env.ref("stock.product_label_layout_form_picking")
-        return {
-            "name": self.env._("Choose Labels Layout"),
-            "type": "ir.actions.act_window",
-            "view_mode": "form",
-            "res_model": "product.label.layout",
-            "views": [(view.id, "form")],
-            "view_id": view.id,
-            "target": "new",
-            "context": {
-                "default_product_ids": self.move_line_ids.product_id.ids,
-                "default_move_ids": self.move_ids.ids,
-                "default_move_quantity": "move",
-            },
-        }
+        return self.picking_ids.action_view_label_type()
 
     def action_view_packages(self):
         self.check_singleton()
         if self.state == "done":
-            return {
-                "name": self.env._("Packages"),
-                "res_model": "stock.package.history",
-                "view_mode": "list",
-                "views": [(False, "list")],
-                "type": "ir.actions.act_window",
-                "domain": [("picking_ids", "in", self.picking_ids.ids)],
-                "context": {
-                    "search_default_main_packages": True,
-                },
-            }
-
-        return {
-            "name": self.env._("Packages"),
-            "res_model": "stock.package",
-            "view_mode": "list,kanban,form",
-            "views": [
-                (self.env.ref("stock.view_stock_package_list_editable").id, "list"),
-                (False, "kanban"),
-                (False, "form"),
-            ],
-            "type": "ir.actions.act_window",
-            "domain": [("picking_ids", "in", self.picking_ids.ids)],
-            "context": {
-                "picking_ids": self.picking_ids.ids,
-                "location_id": self.picking_ids[:1].location_id.id,
-                "can_add_entire_packs": self.picking_type_code != "incoming",
-                "search_default_main_packages": True,
-            },
-        }
+            return self.picking_ids._get_action_view_package_histories()
+        return self.picking_ids._get_action_view_packages()
 
     @api.model
     def _prepare_name(self, picking_type, sequence_code, company_id):

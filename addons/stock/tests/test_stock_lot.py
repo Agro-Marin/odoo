@@ -579,29 +579,3 @@ class TestLotNameFormat(TestStockCommon):
         lot = self.env["stock.lot"].create({"product_id": plain.id})
         self.assertTrue(lot.name)
         self.assertNotIn(" - ", lot.name)
-
-    def test_a_composed_name_parses_back(self):
-        lot = self.env["stock.lot"].create(
-            {
-                "product_id": self.product.id,
-                "ref": "AYE4B1501C",
-            }
-        )
-        parsed = lot._parse_name()
-        self.assertIsNotNone(parsed, f"{lot.name!r} does not match its own format")
-        self.assertEqual(parsed["ref"], "AYE4B1501C")
-        self.assertEqual(
-            parsed["y"],
-            fields.Datetime.context_timestamp(lot, fields.Datetime.now()).strftime(
-                "%y"
-            ),
-        )
-
-    def test_a_legacy_name_parses_to_nothing(self):
-        lot = self.env["stock.lot"].create(
-            {
-                "product_id": self.product.id,
-                "name": "OLD-STYLE-NAME",
-            }
-        )
-        self.assertIsNone(lot._parse_name())

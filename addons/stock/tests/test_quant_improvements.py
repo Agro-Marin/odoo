@@ -9,6 +9,7 @@ from odoo.addons.stock.models.stock_quant_reservation import LOCKED_QUANTS_CACHE
 from odoo.addons.stock.tests.common import TestStockCommon
 from odoo.addons.stock.tools.reservation import (
     LeastPackagesPriorityQueue,
+    RemovalStrategy,
     ReservationCandidate,
     distribute_reservation,
     get_least_packages,
@@ -63,33 +64,33 @@ class TestLeastPackagesSearch(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDistributeReservation(TransactionCase):
-    DIGITS = 2
+    ROUNDING = 0.01
 
     def _cand(self, handle, on_hand, reserved, key=None):
         return ReservationCandidate(handle, on_hand, reserved, key or handle)
 
     def test_zero_quantity_is_noop(self):
         cands = [self._cand("a", 10, 0)]
-        self.assertEqual(distribute_reservation(cands, 0, self.DIGITS), [])
+        self.assertEqual(distribute_reservation(cands, 0, self.ROUNDING), [])
 
     def test_reserve_stops_at_quantity(self):
         cands = [self._cand("a", 10, 0), self._cand("b", 10, 0)]
-        res = distribute_reservation(cands, 8, self.DIGITS)
+        res = distribute_reservation(cands, 8, self.ROUNDING)
         self.assertEqual(res, [("a", 8)])
 
     def test_reserve_spans_multiple_candidates(self):
         cands = [self._cand("a", 5, 0), self._cand("b", 5, 0)]
-        res = distribute_reservation(cands, 8, self.DIGITS)
+        res = distribute_reservation(cands, 8, self.ROUNDING)
         self.assertEqual(res, [("a", 5), ("b", 3)])
 
     def test_reserve_skips_fully_reserved(self):
         cands = [self._cand("a", 5, 5), self._cand("b", 5, 0)]
-        res = distribute_reservation(cands, 3, self.DIGITS)
+        res = distribute_reservation(cands, 3, self.ROUNDING)
         self.assertEqual(res, [("b", 3)])
 
     def test_reserve_exactly_all_available_slack(self):
         cands = [self._cand("a", 4, 1), self._cand("b", 5, 0)]
-        res = distribute_reservation(cands, 8, self.DIGITS)
+        res = distribute_reservation(cands, 8, self.ROUNDING)
         self.assertEqual(res, [("a", 3), ("b", 5)])
 
     def test_reserve_not_truncated_by_unrelated_negative_quant(self):
@@ -98,28 +99,28 @@ class TestDistributeReservation(TransactionCase):
             self._cand("b", 8, 0, key="kb"),
             self._cand("c", 1, 9, key="kc"),
         ]
-        res = distribute_reservation(cands, 12, self.DIGITS)
+        res = distribute_reservation(cands, 12, self.ROUNDING)
         self.assertEqual(res, [("a", 4), ("b", 8)])
         self.assertEqual(sum(qty for _handle, qty in res), 12)
 
     def test_negative_available_absorbed_within_group(self):
         cands = [self._cand("a", 2, 5, key="g"), self._cand("b", 10, 0, key="g")]
-        res = distribute_reservation(cands, 4, self.DIGITS)
+        res = distribute_reservation(cands, 4, self.ROUNDING)
         self.assertEqual(res, [("b", 4)])
 
     def test_negative_available_not_absorbed_across_groups(self):
         cands = [self._cand("a", 2, 5, key="g1"), self._cand("b", 10, 0, key="g2")]
-        res = distribute_reservation(cands, 4, self.DIGITS)
+        res = distribute_reservation(cands, 4, self.ROUNDING)
         self.assertEqual(res, [("b", 4)])
 
     def test_non_positive_quantity_allocates_nothing(self):
         cands = [self._cand("a", 10, 0), self._cand("b", 10, 4)]
         for quantity in (0, -4, -0.0001):
-            self.assertEqual(distribute_reservation(cands, quantity, self.DIGITS), [])
+            self.assertEqual(distribute_reservation(cands, quantity, self.ROUNDING), [])
 
     def test_negative_reserved_candidate_never_yields_a_negative_delta(self):
         cands = [self._cand("neg", 0, -5, key="g"), self._cand("pos", 10, 6, key="g")]
-        res = distribute_reservation(cands, 6, self.DIGITS)
+        res = distribute_reservation(cands, 6, self.ROUNDING)
         self.assertTrue(res)
         self.assertTrue(all(amount > 0 for _handle, amount in res), res)
         self.assertAlmostEqual(sum(amount for _handle, amount in res), 6.0)
@@ -131,31 +132,31 @@ class TestDistributeReservation(TransactionCase):
             ReservationCandidate("c", 1.0, 0.0, "k"),
         ]
         self.assertEqual(
-            distribute_reservation(candidates, 3.0, 2, whole_units=True),
+            distribute_reservation(candidates, 3.0, 0.01, whole_units=True),
             [("a", 1.0), ("c", 1.0)],
         )
 
     def test_whole_units_floors_a_partial_candidate(self):
         candidates = [ReservationCandidate("a", 2.5, 0.0, "k")]
         self.assertEqual(
-            distribute_reservation(candidates, 2.0, 2, whole_units=True),
+            distribute_reservation(candidates, 2.0, 0.01, whole_units=True),
             [("a", 2.0)],
         )
         self.assertEqual(
-            distribute_reservation(candidates, 5.0, 2, whole_units=True),
+            distribute_reservation(candidates, 5.0, 0.01, whole_units=True),
             [("a", 2.0)],
         )
 
     def test_whole_units_survives_float_representation(self):
         candidates = [ReservationCandidate("a", 0.30000000000000004 * 10 / 3, 0.0, "k")]
         self.assertEqual(
-            distribute_reservation(candidates, 1.0, 2, whole_units=True),
+            distribute_reservation(candidates, 1.0, 0.01, whole_units=True),
             [("a", 1.0)],
         )
 
     def test_whole_units_off_is_unchanged(self):
         candidates = [ReservationCandidate("a", 0.5, 0.0, "k")]
-        self.assertEqual(distribute_reservation(candidates, 1.0, 2), [("a", 0.5)])
+        self.assertEqual(distribute_reservation(candidates, 1.0, 0.01), [("a", 0.5)])
 
 
 @tagged("post_install", "-at_install")
@@ -1005,7 +1006,7 @@ class TestStockQuantImprovements(TestStockCommon):
         # the reservation above locked the row for this transaction; the
         # simulated miss only makes sense once that lock is forgotten
         self.env.cr.cache.pop(LOCKED_QUANTS_CACHE_KEY, None)
-        with patch.object(type(self.Quant), "try_lock_for_update", lock_nothing):
+        with patch.object(type(self.Quant), "_try_lock", lock_nothing):
             self.Quant._update_reserved_quantity(product, self.loc, -6.0)
 
         quants = self.Quant.search(domain)
@@ -1181,12 +1182,13 @@ class TestStockQuantImprovements(TestStockCommon):
         methods = set(self.env["product.removal"].search([]).mapped("method"))
         self.assertIn("fifo", methods, "the data strategies must be installed")
         for method in sorted(methods):
-            sort_key = self.Quant._get_removal_strategy_sort_key(method)
+            strategy = self.Quant._get_removal_strategy_record(method)
+            sort_key = strategy.resolve_sorted_arguments()
             if sort_key is None:
                 continue
             with self.subTest(removal_strategy=method):
                 key, reverse = sort_key
-                order = self.Quant._get_removal_strategy_order(method)
+                order = strategy.order
                 from_sql = self.Quant.search(
                     [("id", "in", quants.ids)], order=order or None
                 )
@@ -1259,25 +1261,24 @@ class TestStockQuantImprovements(TestStockCommon):
         )
         self.env.cr.flush()
 
-        self.assertIsNone(
-            self.Quant._get_removal_strategy_sort_key("qimp_custom"),
-            "unknown strategies must have no sort key by default",
-        )
+        with self.assertRaises(UserError):
+            self.Quant._get_removal_strategy_record("qimp_custom")
 
         registry_cls = type(self.Quant)
-        orig_order = registry_cls._get_removal_strategy_order
+        orig_strategies = registry_cls._get_removal_strategies
 
         def custom_strategy(records, product_id, location_id):
             return "qimp_custom"
 
-        def custom_order(records, removal_strategy):
-            if removal_strategy == "qimp_custom":
-                return "id DESC"
-            return orig_order(records, removal_strategy)
+        def custom_strategies(records):
+            return {
+                **orig_strategies(records),
+                "qimp_custom": RemovalStrategy(order="id DESC"),
+            }
 
         with (
             patch.object(registry_cls, "_get_removal_strategy", custom_strategy),
-            patch.object(registry_cls, "_get_removal_strategy_order", custom_order),
+            patch.object(registry_cls, "_get_removal_strategies", custom_strategies),
         ):
             search_ids = self.Quant._gather(product, self.loc, strict=True).ids
             cache = self.Quant._get_quants_by_products_locations(product, self.loc)

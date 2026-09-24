@@ -10,7 +10,6 @@ from odoo.addons.stock.models.stock_move import PROCUREMENT_PRIORITIES
 
 DONE_CANCEL_STATES = frozenset(("done", "cancel"))
 DRAFT_DONE_CANCEL_STATES = DONE_CANCEL_STATES | {"draft"}
-OPEN_PICKING_STATES = frozenset(("waiting", "confirmed", "assigned"))
 UNRESERVED_MOVE_STATES = frozenset(("waiting", "confirmed", "partially_available"))
 FORECAST_PICKING_CODES = frozenset(("outgoing", "internal"))
 INBOUND_PICKING_CODES = frozenset(("incoming", "internal"))
@@ -457,6 +456,13 @@ class StockPicking(models.Model):
                 )
                 for picking in pickings_changing_type:
                     picking.name = picking_type.sequence_id.next_by_id()
+            if pickings_changing_type and "move_type" not in vals:
+                dbg.logic.debug(
+                    "write: %s take the shipping policy %s of their new type",
+                    dbg.rec(pickings_changing_type),
+                    picking_type.move_type,
+                )
+                pickings_changing_type.move_type = picking_type.move_type
 
         locations_before = {}
         if not self._get_location_trigger_fields().isdisjoint(vals):
@@ -573,7 +579,10 @@ class StockPicking(models.Model):
         # are ready" came back "As soon as possible" after
         # `write({"picking_type_id": <its own type>})`.
         for record in self:
-            if not record.move_type:
+            if (
+                not record.move_type
+                or record.picking_type_id != record._origin.picking_type_id
+            ):
                 record.move_type = record.picking_type_id.move_type
 
     @api.depends("signature")
@@ -695,12 +704,7 @@ class StockPicking(models.Model):
                     default=False,
                 )
 
-    @api.depends(
-        "picking_type_id",
-        "picking_type_id.default_location_src_id",
-        "partner_id",
-        "partner_id.property_stock_supplier",
-    )
+    @api.depends("picking_type_id", "partner_id")
     def _compute_location_id(self):
         for picking in self:
             if picking.location_id and (
@@ -710,12 +714,7 @@ class StockPicking(models.Model):
             if picking.picking_type_id:
                 picking.location_id = picking._get_type_default_location_id()
 
-    @api.depends(
-        "picking_type_id",
-        "picking_type_id.default_location_dest_id",
-        "partner_id",
-        "partner_id.property_stock_customer",
-    )
+    @api.depends("picking_type_id", "partner_id")
     def _compute_location_dest_id(self):
         for picking in self:
             if picking.location_dest_id and (
@@ -989,6 +988,7 @@ class StockPicking(models.Model):
             pickings_not_to_backorder.with_context(cancel_backorder=True)._action_done()
         if pickings_to_backorder:
             pickings_to_backorder.with_context(cancel_backorder=False)._action_done()
+        self._detach_from_batches_after_validation()._rebatch_after_validation()
         report_actions = self._prepare_actions_autoprint()
         another_action = self._get_reception_report_action()
         dbg.logic.debug(

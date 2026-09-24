@@ -38,20 +38,6 @@ class StockMove(models.Model):
                 vals["expiration_date"] = vals.get("expiration_date") or expiration_date
         return vals_list
 
-    def _prepare_serial_move_line_commands(
-        self, field_data, location_dest_id=False, origin_move_line=None
-    ):
-        move_lines_commands = super()._prepare_serial_move_line_commands(
-            field_data, location_dest_id, origin_move_line
-        )
-        date = self.product_id._get_expiration_date_from(self.picking_id.date_planned)
-        if date:
-            for move_line_command in move_lines_commands:
-                move_line_vals = move_line_command[2]
-                if "expiration_date" not in move_line_vals:
-                    move_line_vals["expiration_date"] = date
-        return move_lines_commands
-
     def _str_to_field_data(self, string, options):
         res = super()._str_to_field_data(string, options)
         if not res:

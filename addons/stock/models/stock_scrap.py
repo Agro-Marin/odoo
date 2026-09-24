@@ -190,17 +190,7 @@ class StockScrap(models.Model):
         for location in locations:
             locations_per_company.setdefault(location.company_id.id, location)
         for company in self.company_id:
-            designated = self.env.ref(
-                f"stock.stock_location_scrap_company_{company.id}",
-                raise_if_not_found=False,
-            )
-            if (
-                designated is not None
-                and designated._name == "stock.location"
-                and designated.usage == "inventory"
-                and designated.company_id == company
-                and designated.active
-            ):
+            if designated := company._get_scrap_location():
                 locations_per_company[company.id] = designated
         for scrap in self:
             if scrap.company_id:

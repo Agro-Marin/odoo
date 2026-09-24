@@ -4,6 +4,9 @@ from odoo import api, fields, models, modules
 
 from ..tools import debug_log as dbg
 
+SCRAP_LOCATION_XMLID = "stock.stock_location_scrap_company_%s"
+SCRAP_LOCATION_NAME = "Scrap"
+
 
 class ResCompany(models.Model):
     _inherit = "res.company"
@@ -119,6 +122,50 @@ class ResCompany(models.Model):
             self.env._("Production"), "production", "property_stock_production"
         )
 
+    def _get_scrap_location(self):
+        self.check_singleton()
+        location = self.env.ref(
+            SCRAP_LOCATION_XMLID % self.id, raise_if_not_found=False
+        )
+        if (
+            location is not None
+            and location._name == "stock.location"
+            and location.usage == "inventory"
+            and location.company_id == self
+            and location.active
+        ):
+            return location
+        return self.env["stock.location"]
+
+    def _create_scrap_location(self):
+        locations = self.env["stock.location"].create(
+            [
+                {
+                    "name": SCRAP_LOCATION_NAME,
+                    "usage": "inventory",
+                    "company_id": company.id,
+                }
+                for company in self
+            ],
+        )
+        self._designate_scrap_locations(locations)
+        return locations
+
+    def _designate_scrap_locations(self, locations):
+        dbg.lifecycle.debug(
+            "_designate_scrap_locations: %s -> %s", dbg.rec(self), dbg.rec(locations)
+        )
+        self.env["ir.model.data"]._update_xmlids(
+            [
+                {
+                    "xml_id": SCRAP_LOCATION_XMLID % company.id,
+                    "record": location,
+                    "noupdate": True,
+                }
+                for company, location in zip(self, locations, strict=True)
+            ],
+        )
+
     def _create_scrap_sequence(self):
         return self.env["ir.sequence"].create(
             [
@@ -200,6 +247,36 @@ class ResCompany(models.Model):
         self._get_companies_without(having)._create_production_location()
 
     @api.model
+    def create_missing_scrap_location(self):
+        missing = self._get_all_companies().filtered(
+            lambda company: not company._get_scrap_location()
+        )
+        if not missing:
+            return
+        adoptable = {}
+        for location in self.env["stock.location"].search(
+            [
+                ("company_id", "in", missing.ids),
+                ("usage", "=", "inventory"),
+                ("name", "=", SCRAP_LOCATION_NAME),
+            ],
+            order="id",
+        ):
+            adoptable.setdefault(location.company_id, location)
+        adopting = missing.filtered(lambda company: company in adoptable)
+        dbg.lifecycle.debug(
+            "create_missing_scrap_location: adopting for %s, creating for %s",
+            dbg.rec(adopting),
+            dbg.rec(missing - adopting),
+        )
+        adopting._designate_scrap_locations(
+            self.env["stock.location"].union(
+                *(adoptable[company] for company in adopting)
+            )
+        )
+        (missing - adopting)._create_scrap_location()
+
+    @api.model
     def create_missing_scrap_sequence(self):
         having = (
             self.env["ir.sequence"]
@@ -225,6 +302,7 @@ class ResCompany(models.Model):
         self._create_transit_location()
         self._create_inventory_loss_location()
         self._create_production_location()
+        self._create_scrap_location()
 
     def _create_per_company_sequences(self):
         self._create_scrap_sequence()

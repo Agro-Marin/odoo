@@ -13,6 +13,7 @@ from ..const import (
     is_internal_flag,
 )
 from ..tools import debug_log as dbg
+from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
 
 LOGGED_RELATIONS = [
     ("lot_id", "lot_name"),
@@ -498,8 +499,12 @@ class StockMoveLine(models.Model):
     @dbg.timed
     def unlink(self):
         dbg.lifecycle.debug("stock.move.line.unlink %s", dbg.rec(self))
-        self._unlink_except_done_or_cancel()
-        self._release_quants()
+        # validate before the reservations are released, as the @api.ondelete
+        # hook only runs after them -- and, like it, not while a module is
+        # uninstalled, when done lines go too and hold no reservation
+        if not self.env.context.get(MODULE_UNINSTALL_FLAG):
+            self._unlink_except_done_or_cancel()
+        self.filtered(lambda ml: ml.state not in ("done", "cancel"))._release_quants()
         moves = self.mapped("move_id")
         packages = self._get_package_dests()
         res = super().unlink()
@@ -1018,10 +1023,10 @@ class StockMoveLine(models.Model):
 
     def _get_new_quantity_product_uom(self, vals, updates):
         self.check_singleton()
-        return updates.get("product_uom_id", self.product_uom_id)._get_quantity_in_unit(
-            vals.get("quantity", self.quantity),
+        line_uom = updates.get("product_uom_id", self.product_uom_id)
+        return line_uom._get_quantity_stored(
+            line_uom.round(vals.get("quantity", self.quantity)),
             self.product_id.uom_id,
-            rounding_method="HALF-UP",
         )
 
     def _link_or_create_moves(self):

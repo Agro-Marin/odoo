@@ -235,19 +235,22 @@ class TestAuditFixesPicking(TestStockCommon):
             order="id",
             limit=1,
         )
-        self.assertEqual(baseline.scrap_location_id, default_loss)
+        self.assertEqual(baseline.scrap_location_id, company._get_scrap_location())
+        self.assertNotEqual(
+            baseline.scrap_location_id,
+            default_loss,
+            "scrapped goods stay apart from inventory adjustments",
+        )
 
         dedicated = self.StockLocationObj.create(
             {"name": "Audit Casse", "usage": "inventory", "company_id": company.id}
         )
-        self.env["ir.model.data"].create(
-            {
-                "module": "stock",
-                "name": f"stock_location_scrap_company_{company.id}",
-                "model": "stock.location",
-                "res_id": dedicated.id,
-            }
-        )
+        self.env["ir.model.data"].search(
+            [
+                ("module", "=", "stock"),
+                ("name", "=", f"stock_location_scrap_company_{company.id}"),
+            ]
+        ).res_id = dedicated.id
         designated = self.env["stock.scrap"].create({"product_id": self.product_2.id})
         self.assertEqual(
             designated.scrap_location_id,

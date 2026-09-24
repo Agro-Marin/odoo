@@ -8,6 +8,7 @@ from odoo import api, fields, models
 from odoo.api import MODULE_UNINSTALL_FLAG
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.tools import SQL
 
 from ..const import (
     BLOCK_TYPE_SELECTION,
@@ -637,17 +638,28 @@ class StockLocation(models.Model):
     def _search_is_empty(self, operator, value):
         if operator != "in" or set(value) != {True}:
             return NotImplemented
-        return [("id", "not in", list(self._get_occupied_location_ids()))]
+        occupied = self.env["stock.quant"]._search(self._get_domain_occupied())
+        return [
+            (
+                "id",
+                "not in",
+                occupied.subselect(SQL.identifier(occupied.table, "location_id")),
+            )
+        ]
 
     @api.model
     def _get_domain_occupancy(self):
         return Domain("quantity", "!=", 0) | Domain("reserved_quantity", "!=", 0)
 
     @api.model
-    def _get_occupied_location_ids(self, locations=None):
-        domain = self._get_domain_occupancy() & Domain(
+    def _get_domain_occupied(self):
+        return self._get_domain_occupancy() & Domain(
             "location_id.usage", "in", STOCKED_USAGES
         )
+
+    @api.model
+    def _get_occupied_location_ids(self, locations=None):
+        domain = self._get_domain_occupied()
         if locations is not None:
             domain &= Domain("location_id", "in", locations.ids)
         return {

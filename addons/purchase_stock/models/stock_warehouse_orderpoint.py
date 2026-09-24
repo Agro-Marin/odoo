@@ -1,5 +1,3 @@
-from dateutil import relativedelta
-
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
@@ -231,14 +229,9 @@ class StockWarehouseOrderpoint(models.Model):
             StockWarehouseOrderpoint,
             self - bought,
         )._get_replenishment_multiple_alternative_map(qty_by_orderpoint)
-        today = fields.Date.today()
         for orderpoint in bought:
-            planned_date = orderpoint._get_orderpoint_procurement_date()
-            horizon_days = orderpoint._get_horizon_days()
-            if horizon_days:
-                planned_date -= relativedelta.relativedelta(days=horizon_days)
             dates_info = orderpoint.product_id._get_dates_info(
-                planned_date or today,
+                orderpoint._get_procurement_date(),
                 orderpoint.location_id,
                 route_ids=orderpoint.route_id,
                 rules=orderpoint.rule_ids,
@@ -247,7 +240,9 @@ class StockWarehouseOrderpoint(models.Model):
                 orderpoint.company_id,
             )._select_seller(
                 quantity=qty_by_orderpoint.get(orderpoint.id),
-                date=max(dates_info["date_order"].date(), today),
+                date=max(
+                    dates_info["date_order"].date(), orderpoint._get_company_today()
+                ),
                 uom_id=orderpoint.product_uom_id,
             )
             result[orderpoint.id] = supplier.product_uom_id

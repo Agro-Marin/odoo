@@ -46,21 +46,18 @@ class StockForecasted_Product_Product(models.AbstractModel):
     def _get_domain_move(self, product_template_ids, product_ids, wh_location_ids):
         move_domain = self._get_domain_product(product_template_ids, product_ids)
         move_domain += [("product_uom_qty", "!=", 0)]
-        out_domain = move_domain + [
-            "&",
-            ("location_id", "in", wh_location_ids),
-            "|",
-            ("location_dest_id", "not in", wh_location_ids),
-            "&",
-            ("location_final_id", "!=", False),
-            ("location_final_id", "not in", wh_location_ids),
+        __, in_loc, out_loc = self.env["stock.location"]._get_domains_quantity(
+            self._get_root_location_ids(wh_location_ids)
+        )
+        return [*move_domain, *in_loc], [*move_domain, *out_loc]
+
+    def _get_root_location_ids(self, location_ids):
+        scope = set(location_ids)
+        return [
+            location.id
+            for location in self.env["stock.location"].browse(location_ids)
+            if not scope.intersection(location._get_ancestor_ids())
         ]
-        in_domain = move_domain + [
-            "&",
-            ("location_id", "not in", wh_location_ids),
-            ("location_dest_id", "in", wh_location_ids),
-        ]
-        return in_domain, out_domain
 
     def _get_domain_move_draft(
         self, product_template_ids, product_ids, wh_location_ids
@@ -384,6 +381,16 @@ class StockForecasted_Product_Product(models.AbstractModel):
             "linked_moves": linked_moves,
         }
 
+    @api.model
+    def _done_quantity_in_product_uom(self, moves):
+        return sum(
+            move.product_uom_id._get_quantity_report(
+                move.quantity, move.product_id.uom_id
+            )
+            for move in moves
+            if move.state == "done"
+        )
+
     def _get_out_taken_from_stock(self, out, reserved_data, ctx):
         reserved_out = reserved_data["reserved"]
         demand_out = out.product_qty - reserved_out
@@ -400,17 +407,9 @@ class StockForecasted_Product_Product(models.AbstractModel):
             if move.product_id.uom_id.is_zero(demand):
                 continue
             if move.move_orig_ids:
-                move_in_qty = sum(
-                    move.move_orig_ids.filtered(lambda m: m.state == "done").mapped(
-                        "quantity"
-                    )
-                )
+                move_in_qty = self._done_quantity_in_product_uom(move.move_orig_ids)
                 sibling_moves = move.move_orig_ids.move_dest_ids - move
-                move_out_qty = sum(
-                    sibling_moves.filtered(lambda m: m.state == "done").mapped(
-                        "quantity"
-                    )
-                )
+                move_out_qty = self._done_quantity_in_product_uom(sibling_moves)
                 move_available_qty = move_in_qty - move_out_qty - reserved
             else:
                 move_available_qty = ctx.currents[

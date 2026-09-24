@@ -8,7 +8,9 @@ from odoo.fields import Command
 from odoo.libs.numbers import float_round
 from odoo.tools.misc import groupby
 
+from ..const import INTERNAL_CONTEXT_FLAG
 from ..tools import debug_log as dbg
+from .stock_move import CONTEXT_SPLIT_DEMAND
 
 _logger = logging.getLogger(__name__)
 
@@ -17,7 +19,6 @@ class StockMoveMerge(models.Model):
     _inherit = "stock.move"
 
     def _prepare_merge_moves_vals(self):
-        state = self._get_relevant_state_among_moves()
         origin = "/".join(
             dict.fromkeys(self.filtered(lambda m: m.origin).mapped("origin")),
         )
@@ -30,7 +31,6 @@ class StockMoveMerge(models.Model):
             ),
             "move_dest_ids": [Command.link(m.id) for m in self.move_dest_ids],
             "move_orig_ids": [Command.link(m.id) for m in self.move_orig_ids],
-            "state": state,
             "origin": origin,
         }
 
@@ -134,8 +134,11 @@ class StockMoveMerge(models.Model):
         return (self | merged_moves) - moves_to_unlink
 
     def _update_candidate_moves_list(self, candidate_moves_set):
+        products = self.product_id
         for picking in self.mapped("picking_id"):
-            candidate_moves_set.add(picking.move_ids)
+            candidate_moves_set.add(
+                picking.move_ids.filtered(lambda m: m.product_id in products)
+            )
 
     def _merge_positive_moves(
         self,
@@ -149,11 +152,14 @@ class StockMoveMerge(models.Model):
         moves_by_neg_key = defaultdict(lambda: self.env["stock.move"])
         merge_key = self._get_merge_key(distinct_fields)
         for candidate_moves in candidate_moves_set:
+            # the sets may overlap (mrp adds the pickings of the productions
+            # it feeds): a move already merged away must not be summed twice
             candidate_moves = (
                 candidate_moves.filtered(
                     lambda m: m.state not in ("done", "cancel", "draft"),
                 )
                 - neg_qty_moves
+                - moves_to_unlink
             )
             for __, g in groupby(candidate_moves, key=merge_key):
                 moves = self.env["stock.move"].concat(*g)
@@ -362,7 +368,10 @@ class StockMoveMerge(models.Model):
             defaults["product_uom_qty"],
             uom_qty is not None,
         )
-        self.with_context(do_not_unreserve=True).write(
+        self.with_context(
+            do_not_unreserve=True,
+            **{CONTEXT_SPLIT_DEMAND: INTERNAL_CONTEXT_FLAG},
+        ).write(
             {"product_uom_qty": new_product_qty},
         )
         self._recompute_state()
@@ -424,10 +433,19 @@ class StockMoveMerge(models.Model):
                 )
                 < 0
             ):
-                qty_split = move.product_uom_id._get_quantity_stored(
-                    move.product_uom_qty - move.quantity,
-                    move.product_id.uom_id,
+                # `quantity` is stored at the move unit's precision: four units
+                # of a dozen read back as 0.33 dozen, and the remainder derived
+                # from it (0.67 dozen) is 8.04 units, not 8
+                qty_split = move.product_qty - sum(
+                    move.move_line_ids.mapped("quantity_product_uom")
                 )
+                if move.product_id.uom_id.compare(qty_split, 0) <= 0:
+                    dbg.logic.debug(
+                        "[move:%s] _create_backorder: lines cover %s, nothing split",
+                        move.id,
+                        move.product_qty,
+                    )
+                    continue
                 new_move_vals = move._split(qty_split)
                 backorder_moves_vals += new_move_vals
         backorder_moves = self.env["stock.move"].create(backorder_moves_vals)

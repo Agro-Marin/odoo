@@ -18,17 +18,20 @@ from odoo.addons.stock.tools.quantity import (
 
 _logger = logging.getLogger(__name__)
 
+TODO_STATES = ("waiting", "confirmed", "assigned", "partially_available")
+ON_HAND_FIELDS = frozenset({"qty_available", "qty_free", "qty_available_virtual"})
+PLANNED_FIELDS = frozenset({"qty_incoming", "qty_outgoing", "qty_available_virtual"})
+
 
 class QuantityScope(NamedTuple):
     quant: Domain
     expired_quant: Domain | None
     move_in_todo: Domain
     move_out_todo: Domain
-    move_in_done: Domain
-    move_out_done: Domain
     dates_in_the_past: bool
-    move_in_done_lines: Domain | None = None
-    move_out_done_lines: Domain | None = None
+    to_date: datetime | None = None
+    done_in_leaves: Domain | None = None
+    done_out_leaves: Domain | None = None
 
 
 class QuantityReads(NamedTuple):
@@ -186,6 +189,7 @@ class ProductProductQuantity(models.Model):
                 ]
         if not vals_list:
             return
+        self._net_out_stock_held_elsewhere(vals_list)
         dbg.pipeline.debug(
             "_update_qty_available: %d inventory quants (scoped location %s)",
             len(vals_list),
@@ -197,6 +201,57 @@ class ProductProductQuantity(models.Model):
             .create(vals_list)
         )
         quants._apply_inventory()
+
+    def _net_out_stock_held_elsewhere(self, vals_list):
+        products = self.browse([vals["product_id"] for vals in vals_list])
+        displayed = products._prepare_quantities_vals(
+            QuantityFilters.from_context(self.env),
+        )
+        counted_quant_qty = {
+            (product.id, location.id): quantity
+            for product, location, quantity in self.env["stock.quant"]
+            .sudo()
+            ._read_group(
+                [
+                    ("product_id", "in", products.ids),
+                    ("location_id", "in", [vals["location_id"] for vals in vals_list]),
+                    ("lot_id", "=", False),
+                    ("package_id", "=", False),
+                    ("owner_id", "=", False),
+                ],
+                ["product_id", "location_id"],
+                ["quantity:sum"],
+            )
+        }
+        for vals in vals_list:
+            product = self.browse(vals["product_id"])
+            held_elsewhere = displayed[product.id][
+                "qty_available"
+            ] - counted_quant_qty.get((product.id, vals["location_id"]), 0.0)
+            requested = vals["inventory_quantity"]
+            if product.uom_id.compare(requested, held_elsewhere) < 0:
+                raise UserError(
+                    self.env._(
+                        "%(held)s %(uom)s of %(product)s are held in sublocations,"
+                        " packages, lots or other warehouses, so its quantity on hand"
+                        " cannot be set to %(requested)s. Use an inventory adjustment"
+                        " to change those quantities.",
+                        held=held_elsewhere,
+                        uom=product.uom_id.name,
+                        product=product.display_name,
+                        requested=requested,
+                    ),
+                )
+            vals["inventory_quantity"] = requested - held_elsewhere
+        dbg.logic.debug(
+            "_net_out_stock_held_elsewhere: %s",
+            dbg.lazy(
+                lambda: [
+                    (vals["product_id"], vals["inventory_quantity"])
+                    for vals in vals_list
+                ]
+            ),
+        )
 
     def _resolve_inventory_location(self):
         Location = self.env["stock.location"]
@@ -264,7 +319,7 @@ class ProductProductQuantity(models.Model):
             or self.env["stock.location"]._get_domains_quantity_from_context()
         )
         candidates = self._get_quantity_search_candidates(
-            location_domains=location_domains
+            location_domains=location_domains, field=field
         )
         vals_by_product = candidates.with_context(
             prefetch_fields=False
@@ -281,6 +336,11 @@ class ProductProductQuantity(models.Model):
     def _get_domain_quantity_search(self, totals, op, operator, value, field):
         matched = [record_id for record_id, total in totals.items() if op(total, value)]
         zero_matches = bool(op(0.0, value))
+        if zero_matches:
+            matched_ids = set(matched)
+            failing = [
+                record_id for record_id in totals if record_id not in matched_ids
+            ]
         if _logger.isEnabledFor(logging.DEBUG):
             _logger.debug(
                 "quantity search %s %s %r: %s of %s candidates matched; records "
@@ -295,7 +355,7 @@ class ProductProductQuantity(models.Model):
                 else "do not match",
             )
         if zero_matches:
-            return ["|", ("id", "in", matched), ("id", "not in", list(totals))]
+            return [("id", "not in", failing)]
         return [("id", "in", matched)]
 
     def _get_domain_product_quantity(self, operator, value, field):
@@ -388,26 +448,23 @@ class ProductProductQuantity(models.Model):
         return quant, move_in, move_out
 
     def _get_domains_quantity_leaves(self, filters):
-        in_leaves = Domain.TRUE
-        out_leaves = Domain.TRUE
-        narrowed = False
+        in_leaves = out_leaves = Domain.TRUE
         if filters.lot_id is not None:
-            leaf = Domain([("lot_id", "=", filters.lot_id)])
+            leaf = Domain("lot_id", "=", filters.lot_id)
             in_leaves &= leaf
             out_leaves &= leaf
-            narrowed = True
+        if filters.owner_id is not None:
+            leaf = Domain("owner_id", "=", filters.owner_id)
+            in_leaves &= leaf
+            out_leaves &= leaf
         if filters.owners is not None:
             owner_leaf = ("in", filters.owners) if filters.owners else ("=", False)
-            leaf = Domain([("owner_id", *owner_leaf)])
+            leaf = Domain("owner_id", *owner_leaf)
             in_leaves &= leaf
             out_leaves &= leaf
-            narrowed = True
         if filters.package_id is not None:
-            in_leaves &= Domain([("result_package_id", "=", filters.package_id)])
-            out_leaves &= Domain([("package_id", "=", filters.package_id)])
-            narrowed = True
-        if not narrowed:
-            return None, None
+            in_leaves &= Domain("result_package_id", "=", filters.package_id)
+            out_leaves &= Domain("package_id", "=", filters.package_id)
         return in_leaves, out_leaves
 
     def _prepare_quantities_scope(self, filters, location_domains=None):
@@ -428,8 +485,6 @@ class ProductProductQuantity(models.Model):
             domain_move_out,
             filters,
         )
-        domain_move_in_done = domain_move_in
-        domain_move_out_done = domain_move_out
         if from_date:
             date_domain_from = Domain([("date", ">=", from_date)])
             domain_move_in &= date_domain_from
@@ -438,31 +493,13 @@ class ProductProductQuantity(models.Model):
             date_domain_to = Domain([("date", "<=", to_date)])
             domain_move_in &= date_domain_to
             domain_move_out &= date_domain_to
-        state_todo = Domain(
-            [
-                (
-                    "state",
-                    "in",
-                    ("waiting", "confirmed", "assigned", "partially_available"),
-                ),
-            ]
-        )
+        state_todo = Domain("state", "in", TODO_STATES)
         expired_quant = self._get_expired_quant_domain_at_date(domain_quant, to_date)
-        domain_move_in_done_lines = domain_move_out_done_lines = None
+        done_in_leaves = done_out_leaves = None
         if dates_in_the_past:
-            state_done_future = Domain([("state", "=", "done"), ("date", ">", to_date)])
-            domain_move_in_done = state_done_future & domain_move_in_done
-            domain_move_out_done = state_done_future & domain_move_out_done
             in_leaves, out_leaves = self._get_domains_quantity_leaves(filters)
-            if in_leaves is not None:
-                domain_move_in_done_lines = (
-                    Domain([("move_id", "any", domain_move_in_done)]) & in_leaves
-                )
-                domain_move_out_done_lines = (
-                    Domain([("move_id", "any", domain_move_out_done)]) & out_leaves
-                )
-        else:
-            domain_move_in_done = domain_move_out_done = Domain.FALSE
+            done_in_leaves = product_domain & in_leaves
+            done_out_leaves = product_domain & out_leaves
         dbg.logic.debug(
             "_prepare_quantities_scope: %d products from=%s to=%s past=%s",
             len(self),
@@ -475,11 +512,10 @@ class ProductProductQuantity(models.Model):
             expired_quant=expired_quant,
             move_in_todo=state_todo & domain_move_in,
             move_out_todo=state_todo & domain_move_out,
-            move_in_done=domain_move_in_done,
-            move_out_done=domain_move_out_done,
             dates_in_the_past=dates_in_the_past,
-            move_in_done_lines=domain_move_in_done_lines,
-            move_out_done_lines=domain_move_out_done_lines,
+            to_date=to_date,
+            done_in_leaves=done_in_leaves,
+            done_out_leaves=done_out_leaves,
         )
 
     def _get_expired_quant_domain_at_date(self, domain_quant, to_date):
@@ -535,33 +571,50 @@ class ProductProductQuantity(models.Model):
         return reads
 
     def _read_past_quantities(self, scope):
-        moves_in_res_past = defaultdict(float)
-        moves_out_res_past = defaultdict(float)
-        if scope.dates_in_the_past and scope.move_in_done_lines is not None:
-            MoveLine = self.env["stock.move.line"]
-            for target, domain in (
-                (moves_in_res_past, scope.move_in_done_lines),
-                (moves_out_res_past, scope.move_out_done_lines),
-            ):
-                for product, quantity in MoveLine._read_group(  # noqa: E8507 - two literal branches, not one query per record
-                    domain, ["product_id"], ["quantity_product_uom:sum"]
-                ):
-                    target[product.id] += quantity
-        elif scope.dates_in_the_past:
-            Move = self.env["stock.move"]
-            groupby = ["product_id", "product_uom_id"]
-            past_in = Move._read_group(scope.move_in_done, groupby, ["quantity:sum"])
-            past_out = Move._read_group(scope.move_out_done, groupby, ["quantity:sum"])
-            for target, groups in (
-                (moves_in_res_past, past_in),
-                (moves_out_res_past, past_out),
-            ):
-                for product, uom, quantity in groups:
-                    target[product.id] += uom._get_quantity_in_unit(
-                        quantity,
-                        product.uom_id,
-                    )
-        return moves_in_res_past, moves_out_res_past
+        if not scope.dates_in_the_past:
+            return {}, {}
+        moves_in, moves_out = self._read_done_quantities_after(
+            scope.to_date,
+            scope.done_in_leaves,
+            scope.done_out_leaves,
+            "product_id",
+        )
+        return (
+            {product.id: quantity for product, quantity in moves_in.items()},
+            {product.id: quantity for product, quantity in moves_out.items()},
+        )
+
+    @api.model
+    def _read_done_quantities_after(self, to_date, in_leaves, out_leaves, groupby):
+        __, line_in_loc, line_out_loc = (
+            self.env["stock.location"]
+            .with_context(skip_in_progress=True)
+            ._get_domains_quantity_from_context()
+        )
+        done_after = Domain("state", "=", "done") & Domain("move_id.date", ">", to_date)
+        MoveLine = self.env["stock.move.line"]
+        moves_in = dict(
+            MoveLine._read_group(
+                done_after & line_in_loc & in_leaves,
+                [groupby],
+                ["quantity_product_uom:sum"],
+            )
+        )
+        moves_out = dict(
+            MoveLine._read_group(
+                done_after & line_out_loc & out_leaves,
+                [groupby],
+                ["quantity_product_uom:sum"],
+            )
+        )
+        dbg.logic.debug(
+            "_read_done_quantities_after %s by %s: %d in, %d out",
+            to_date,
+            groupby,
+            len(moves_in),
+            len(moves_out),
+        )
+        return moves_in, moves_out
 
     def _log_quantity_reads(self, reads):
         if not _logger.isEnabledFor(logging.DEBUG):
@@ -628,27 +681,44 @@ class ProductProductQuantity(models.Model):
 
         return res
 
-    def _get_quantity_search_candidates(self, location_domains=None):
+    def _get_quantity_search_candidates(self, location_domains=None, field=None):
         domain_quant_loc, domain_move_in_loc, domain_move_out_loc = (
             location_domains
             or self.env["stock.location"]._get_domains_quantity_from_context()
         )
-        Quant = self.env["stock.quant"]
-        Move = self.env["stock.move"]
-        product_ids = {
-            product.id
-            for [product] in Quant._read_group(domain_quant_loc, ["product_id"])
-        }
-        product_ids |= {
-            product.id
-            for [product] in Move._read_group(
-                (domain_move_in_loc | domain_move_out_loc)
-                & Domain("state", "not in", ("draft", "cancel")),
-                ["product_id"],
+        on_hand = field is None or field in ON_HAND_FIELDS
+        planned = field is None or field in PLANNED_FIELDS
+        product_ids = set()
+        if on_hand:
+            product_ids |= {
+                product.id
+                for [product] in self.env["stock.quant"]._read_group(
+                    domain_quant_loc, ["product_id"]
+                )
+            }
+            to_date, dates_in_the_past = self._normalize_quantities_to_date(
+                QuantityFilters.from_context(self.env).to_date
             )
-        }
+            if dates_in_the_past:
+                for moved in self._read_done_quantities_after(
+                    to_date, Domain.TRUE, Domain.TRUE, "product_id"
+                ):
+                    product_ids |= {product.id for product in moved}
+        if planned:
+            product_ids |= {
+                product.id
+                for [product] in self.env["stock.move"]._read_group(
+                    (domain_move_in_loc | domain_move_out_loc)
+                    & Domain("state", "in", TODO_STATES),
+                    ["product_id"],
+                )
+            }
         dbg.performance.debug(
-            "_get_quantity_search_candidates: %d products with stock data",
+            "_get_quantity_search_candidates(%s): %d products with stock data "
+            "(on hand %s, planned %s)",
+            field,
             len(product_ids),
+            on_hand,
+            planned,
         )
         return self.env["product.product"].browse(product_ids)

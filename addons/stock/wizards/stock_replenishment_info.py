@@ -127,9 +127,9 @@ class StockReplenishmentInfo(models.TransientModel):
     @api.depends("orderpoint_id")
     @api.depends_context("lang")
     def _compute_json_lead_days(self):
-        def _format_description(description):
+        def _format_description(description, today):
             formatted_description = []
-            intermediary_date = fields.Date.today()
+            intermediary_date = today
             for line in reversed(description):
                 if isinstance(line[1], str):
                     formatted_description.append((line[0], line[1], False))
@@ -151,18 +151,21 @@ class StockReplenishmentInfo(models.TransientModel):
             ):
                 continue
             orderpoint = replenishment_report.orderpoint_id
+            today = orderpoint._get_company_today()
             __, lead_days_description = (
                 replenishment_report._get_lead_days_and_description()
             )
             if lead_days_description:
-                lead_days_description = _format_description(lead_days_description)
+                lead_days_description = _format_description(
+                    lead_days_description, today
+                )
             replenishment_report.json_lead_days = dumps(
                 {
                     "lead_horizon_date": format_date(
                         self.env, orderpoint.lead_horizon_date
                     ),
                     "lead_days_description": lead_days_description,
-                    "today": format_date(self.env, fields.Date.today()),
+                    "today": format_date(self.env, today),
                     "trigger": orderpoint.trigger,
                     "qty_forecast": qty_to_html(orderpoint.qty_forecast, precision),
                     "qty_to_order": qty_to_html(orderpoint.qty_to_order, precision),

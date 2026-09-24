@@ -725,14 +725,16 @@ class StockWarehouseRoute(models.Model):
                 ("location_dest_id.usage", "=", "transit"),
             ]
         )
-        transit_legs.write(
-            {
-                "location_src_id": new_location.id,
-                "procure_method": "make_to_order"
-                if change_to_multiple
-                else "make_to_stock",
-            }
-        )
+        for transit, legs in transit_legs.grouped("location_dest_id").items():
+            legs.write(
+                {
+                    "name": self._format_rulename(new_location, transit, ""),
+                    "location_src_id": new_location.id,
+                    "procure_method": "make_to_order"
+                    if change_to_multiple
+                    else "make_to_stock",
+                }
+            )
         if change_to_multiple:
             existing = Rule.with_context(active_test=False).search(
                 self._get_domain_resupply_pick_leg(routes)

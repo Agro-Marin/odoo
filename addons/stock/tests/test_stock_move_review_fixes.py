@@ -501,33 +501,6 @@ class TestStockMoveReviewFixes(TestStockCommon):
         self.assertEqual(created.picking_type_id, self.picking_type_in)
         self.assertEqual(created.location_dest_id, sub)
 
-    def test_force_qty_honoured_on_chained_move(self):
-        product = self.env["product.product"].create(
-            {"name": "Force Qty Product", "type": "consu", "is_storable": True},
-        )
-        inbound = self._done_receipt(product, 10)
-        chained = self.MoveObj.create(
-            {
-                "product_id": product.id,
-                "product_uom_qty": 10,
-                "product_uom_id": product.uom_id.id,
-                "location_id": self.stock_location.id,
-                "location_dest_id": self.customer_location.id,
-                "picking_type_id": self.picking_type_out.id,
-                "move_orig_ids": [Command.set(inbound.ids)],
-            },
-        )
-        chained._action_confirm()
-        chained.move_line_ids.unlink()
-        self.assertTrue(chained.move_orig_ids, "the move must be chained")
-
-        chained._action_assign(force_qty=3)
-        self.assertEqual(
-            chained.quantity,
-            3,
-            "force_qty must bound the reservation on the chained branch too",
-        )
-
     def test_write_skips_orderpoint_refresh_when_scope_unchanged(self):
         move = self.MoveObj.create(
             {

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import NamedTuple
 
 from odoo import api, fields, models
@@ -317,8 +318,20 @@ class StockPickingType(models.Model):
         warehouse_before = {
             picking_type.id: picking_type.warehouse_id.id for picking_type in self
         }
+        defaults_before = (
+            {
+                picking_type.id: (
+                    picking_type.default_location_src_id,
+                    picking_type.default_location_dest_id,
+                )
+                for picking_type in self
+            }
+            if {"default_location_src_id", "default_location_dest_id"} & vals.keys()
+            else {}
+        )
 
         res = super().write(vals)
+        self._propagate_default_locations_to_draft_pickings(defaults_before)
 
         moved = self.filtered(
             lambda picking_type: (
@@ -426,6 +439,49 @@ class StockPickingType(models.Model):
                 priority_days,
             )
             moves._update_date_reservation_from_days(common_days, priority_days)
+
+    def _propagate_default_locations_to_draft_pickings(self, defaults_before):
+        changed = self.filtered(
+            lambda picking_type: (
+                picking_type.id in defaults_before
+                and defaults_before[picking_type.id]
+                != (
+                    picking_type.default_location_src_id,
+                    picking_type.default_location_dest_id,
+                )
+            )
+        )
+        if not changed:
+            return
+        pickings = self.env["stock.picking"].search(
+            [
+                ("picking_type_id", "in", changed.ids),
+                ("state", "=", "draft"),
+                ("move_ids", "=", False),
+            ]
+        )
+        pickings_by_vals = defaultdict(lambda: self.env["stock.picking"])
+        for picking in pickings:
+            source_before, destination_before = defaults_before[
+                picking.picking_type_id.id
+            ]
+            vals = {}
+            if picking.location_id == source_before:
+                vals["location_id"] = picking._get_type_default_location_id()
+            if picking.location_dest_id == destination_before:
+                vals["location_dest_id"] = picking._get_type_default_location_dest_id()
+            vals = {
+                name: value for name, value in vals.items() if picking[name].id != value
+            }
+            if vals:
+                pickings_by_vals[tuple(sorted(vals.items()))] |= picking
+        for vals, to_update in pickings_by_vals.items():
+            dbg.logic.debug(
+                "_propagate_default_locations_to_draft_pickings: %s <- %s",
+                dbg.rec(to_update),
+                dict(vals),
+            )
+            to_update.write(dict(vals))
 
     def _update_default_locations_for_warehouse(self, vals):
         new_warehouse = self.warehouse_id
@@ -626,8 +682,6 @@ class StockPickingType(models.Model):
                 )
             else:
                 picking_type.display_name = picking_type.name
-
-    _OPEN_PICKING_STATES = ("assigned", "waiting", "confirmed")
 
     @api.model
     def _search_display_name(self, operator, value):

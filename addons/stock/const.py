@@ -33,6 +33,8 @@ BLOCK_TYPE_SELECTION = [
 INCOMING_BLOCK_TYPES = ("soft_in", "soft_both", "hard")
 OUTGOING_BLOCK_TYPES = ("soft_out", "soft_both", "hard")
 
+OPEN_PICKING_STATES = frozenset(("waiting", "confirmed", "assigned"))
+
 PARTNER_LOCATION_USAGES = ("supplier", "customer")
 PARTNER_USAGE_BY_PICKING_CODE = {"incoming": "supplier", "outgoing": "customer"}
 

@@ -297,6 +297,9 @@ class StockPickingReport(models.Model):
 
     def action_view_packages(self):
         self.check_singleton()
+        return self._get_action_view_packages()
+
+    def _get_action_view_packages(self):
         return {
             "name": self.env._("Packages"),
             "res_model": "stock.package",
@@ -310,21 +313,24 @@ class StockPickingReport(models.Model):
             "domain": [("picking_ids", "in", self.ids)],
             "context": {
                 "picking_ids": self.ids,
-                "location_id": self.location_id.id,
-                "can_add_entire_packs": self.picking_type_code != "incoming",
+                "location_id": self[:1].location_id.id,
+                "can_add_entire_packs": self[:1].picking_type_code != "incoming",
                 "search_default_main_packages": True,
             },
         }
 
     def action_view_package_histories(self):
         self.check_singleton()
+        return self._get_action_view_package_histories()
+
+    def _get_action_view_package_histories(self):
         return {
             "name": self.env._("Packages"),
             "res_model": "stock.package.history",
             "view_mode": "list",
             "views": [(False, "list")],
             "type": "ir.actions.act_window",
-            "domain": [("picking_ids", "=", self.id)],
+            "domain": [("picking_ids", "in", self.ids)],
             "context": {
                 "search_default_main_packages": 1,
             },

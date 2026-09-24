@@ -8,10 +8,14 @@ from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import OrderedSet
+from odoo.tools import OrderedSet, TransactionMemo
 
 _logger = logging.getLogger(__name__)
 _debug = DebugLog(__name__)
+
+MANUFACTURABLE = TransactionMemo(
+    "mrp.stock.rule.manufacturable", invalidated_by=("mrp.bom",)
+)
 
 
 class StockRule(models.Model):
@@ -114,10 +118,31 @@ class StockRule(models.Model):
 
     def _is_route_usable_for(self, product, route):
         if route._has_manufacture_rule():
-            return any(
-                bom.type == "normal" for bom in product.bom_ids
-            ) and super()._is_route_usable_for(product, route)
+            product = product._origin
+            batch = product.browse(product._prefetch_ids) | product
+            if not self._get_manufacturable(batch).get(product.id):
+                return False
         return super()._is_route_usable_for(product, route)
+
+    @api.model
+    def _get_manufacturable(self, products):
+        memo = MANUFACTURABLE(self.env)
+        scope = (self.env.uid, self.env.su, tuple(self.env.companies.ids))
+        missing = products.filtered(lambda product: (scope, product.id) not in memo)
+        for company, company_products in missing.grouped("company_id").items():
+            boms = self.env["mrp.bom"]._get_bom_by_product(
+                company_products,
+                bom_type="normal",
+                company_id=(company or self.env.company).id,
+            )
+            for product in company_products:
+                memo[scope, product.id] = bool(boms.get(product))
+        _debug.perf.count(
+            "manufacturable_memo",
+            products=len(products),
+            misses=len(missing),
+        )
+        return {product.id: memo[scope, product.id] for product in products}
 
     @api.model
     def _get_action_runners(self):

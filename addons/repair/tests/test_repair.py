@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo import Command, fields
 from odoo.exceptions import UserError
 from odoo.tests import Form, HttpCase, common, tagged
@@ -1242,6 +1244,25 @@ class TestRepair(TestRepairCommon):
         repair.unlink()
         self.assertFalse(repair.exists())
         self.assertFalse(moves.exists())
+
+    def test_unlinking_a_confirmed_part_cancels_it_once(self):
+        repair = self._create_simple_repair_order()
+        part = self._create_simple_part_move(repair.id, 1.0)
+        repair.action_validate()
+        self.assertNotIn(part.state, ("draft", "cancel"))
+        StockMove = type(self.env["stock.move"])
+        original = StockMove._action_cancel
+        cancelled = []
+
+        def counting(moves):
+            cancelled.extend(moves.ids)
+            return original(moves)
+
+        with patch.object(StockMove, "_action_cancel", counting):
+            part.unlink()
+
+        self.assertFalse(part.exists())
+        self.assertEqual(cancelled.count(part.id), 1)
 
 
 @tagged("post_install", "-at_install")

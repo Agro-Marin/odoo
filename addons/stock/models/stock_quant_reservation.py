@@ -1,5 +1,6 @@
 import logging
 import math
+from collections import defaultdict
 from decimal import Decimal
 
 from psycopg import Error
@@ -17,7 +18,6 @@ from ..const import (
 from ..tools import debug_log as dbg
 from ..tools.reservation import (
     QuantsCache,
-    RemovalStrategy,
     ReservationCandidate,
     distribute_reservation,
     get_least_packages,
@@ -59,28 +59,11 @@ class StockQuantReservation(models.Model):
     @api.model
     def _get_removal_strategy_record(self, removal_strategy):
         strategy = self._get_removal_strategies().get(removal_strategy)
-        if strategy is not None:
-            return strategy
-        sorted_arguments = self._get_removal_strategy_sort_key(removal_strategy)
-        order = self._get_removal_strategy_order(removal_strategy)
-        if sorted_arguments is None:
-            return RemovalStrategy(order=order)
-        sort_key, reverse = sorted_arguments
-        return RemovalStrategy(order=order, sort_key=sort_key, reverse=reverse)
-
-    @api.model
-    def _get_removal_strategy_order(self, removal_strategy):
-        strategy = self._get_removal_strategies().get(removal_strategy)
         if strategy is None:
             raise UserError(
                 self.env._("Removal strategy %s not implemented.", removal_strategy)
             )
-        return strategy.order
-
-    @api.model
-    def _get_removal_strategy_sort_key(self, removal_strategy):
-        strategy = self._get_removal_strategies().get(removal_strategy)
-        return strategy.resolve_sorted_arguments() if strategy else None
+        return strategy
 
     def _run_least_packages_removal_strategy_astar(self, domain, qty):
         domain = Domain(domain).optimize(self)
@@ -94,13 +77,18 @@ class StockQuantReservation(models.Model):
             )
         )
 
+        pending_by_package = self._get_pending_by_package(domain)
         real_packages = []
         singles_count = 0
         for package_id, available_qty in qty_by_package:
+            available_qty -= pending_by_package.get(package_id, 0.0)
+            if available_qty <= 0:
+                continue
             if package_id is None:
                 singles_count += math.ceil(available_qty)
             else:
                 real_packages.append((package_id, available_qty))
+        real_packages.sort(key=lambda package: package[1], reverse=True)
         singles_count = min(singles_count, math.ceil(qty))
         dbg.logic.debug(
             "least_packages: qty=%s, %d packages, %d singles",
@@ -127,7 +115,23 @@ class StockQuantReservation(models.Model):
             )
             return domain
 
+    def _get_pending_by_package(self, domain):
+        ledger = self.env.context.get("reservation_ledger")
+        pending_ids = ledger.get_pending_quant_ids() if ledger is not None else []
+        pending_by_package = defaultdict(float)
+        if pending_ids:
+            for quant in self.search(Domain("id", "in", pending_ids) & domain):
+                pending_by_package[quant.package_id.id or None] += ledger.get_pending(
+                    quant
+                )
+            dbg.logic.debug(
+                "least_packages: pending in this run by package %s",
+                dict(pending_by_package),
+            )
+        return pending_by_package
+
     def _get_domain_least_packages(self, taken_packages, domain):
+        ledger = self.env.context.get("reservation_ledger")
         single_count = sum(1 for pkg in taken_packages if pkg[0] is None)
         selected_single_items = []
         if single_count:
@@ -137,6 +141,8 @@ class StockQuantReservation(models.Model):
                 if single_count <= 0:
                     break
                 available = quant.quantity - quant.reserved_quantity
+                if ledger is not None:
+                    available -= ledger.get_pending(quant)
                 if available <= 0:
                     continue
                 selected_single_items.append(quant.id)
@@ -399,7 +405,9 @@ class StockQuantReservation(models.Model):
         lockable = self
         if reserved_quantity and reserved_quantity < 0:
             reserved_rows = self.filtered(
-                lambda q: q.product_uom_id.compare(q.reserved_quantity, 0) > 0
+                lambda q: (
+                    q.product_uom_id._compare_aggregate(q.reserved_quantity, 0) > 0
+                )
             )
             if reserved_rows:
                 lockable = reserved_rows
@@ -407,15 +415,37 @@ class StockQuantReservation(models.Model):
         first = lockable[:1]
         if first.id in held:
             return first
-        quant = lockable.try_lock_for_update(allow_referencing=True, limit=1)
+        quant = lockable._try_lock(limit=1)
         if quant:
-            held.update(quant.ids)
-            # the row may have changed before the lock was ours: re-read the
-            # two columns alone, a bare attribute read after the invalidation
-            # would prefetch every column of the row
-            quant.invalidate_recordset(["quantity", "reserved_quantity"])
-            quant.fetch(["quantity", "reserved_quantity"])
+            held.add(quant.id)
         return quant
+
+    def _try_lock(self, limit=None):
+        # the row may have changed before the lock was ours: the lock query
+        # returns the two columns it guards, so no second read is needed
+        fnames = ["quantity", "reserved_quantity"]
+        self.flush_recordset(fnames)
+        lockable_ids = list(self.ids)
+        rows = self.env.execute_query(
+            SQL(
+                """SELECT id, quantity, reserved_quantity FROM stock_quant
+                    WHERE id = ANY(%s)
+                    ORDER BY array_position(%s, id)
+                    %s
+                    FOR NO KEY UPDATE SKIP LOCKED""",
+                lockable_ids,
+                lockable_ids,
+                SQL("LIMIT %s", limit) if limit else SQL(),
+            )
+        )
+        locked = self.browse(row[0] for row in rows)
+        locked.invalidate_recordset(fnames, flush=False)
+        for index, fname in enumerate(fnames, start=1):
+            field = self._fields[fname]
+            field._insert_cache(
+                locked, [field.convert_to_cache(row[index], locked) for row in rows]
+            )
+        return locked
 
     def _update_reserved_delta(self, delta):
         quant = self.sudo()._lock_one_for_reservation(delta)
@@ -480,7 +510,7 @@ class StockQuantReservation(models.Model):
                 return available_quantity
             return (
                 available_quantity
-                if product_id.uom_id.compare(available_quantity, 0.0) >= 0.0
+                if product_id.uom_id._compare_aggregate(available_quantity, 0.0) > 0
                 else 0.0
             )
         available_quantities = dict.fromkeys(set(quants.mapped("lot_id")), 0.0)
@@ -498,7 +528,7 @@ class StockQuantReservation(models.Model):
         return sum(
             available_quantity
             for available_quantity in available_quantities.values()
-            if product_id.uom_id.compare(available_quantity, 0) > 0
+            if product_id.uom_id._compare_aggregate(available_quantity, 0) > 0
         )
 
     def _get_on_hand_shortfall(
@@ -517,15 +547,13 @@ class StockQuantReservation(models.Model):
             for quant in quants
             if quant.lot_id and quant.lot_id == lot_id
         )
-        return -on_hand if product_id.uom_id.compare(on_hand, 0) < 0 else 0.0
+        return -on_hand if product_id.uom_id._compare_aggregate(on_hand, 0) < 0 else 0.0
 
     @api.model
-    def _get_reservable_serial_quantity(
-        self, product_id, requested, quantity, precision_digits
-    ):
+    def _get_reservable_serial_quantity(self, product_id, requested, quantity):
         if product_id.uom_id.compare(requested, float(int(requested))) != 0:
             return 0.0
-        return float(math.floor(round(quantity, precision_digits)))
+        return float(math.floor(product_id.uom_id._round_aggregate(quantity)))
 
     def _get_reservation_candidates(self, quants):
         ledger = self.env.context.get("reservation_ledger")
@@ -566,6 +594,65 @@ class StockQuantReservation(models.Model):
         )
 
         strategy = self._get_removal_strategy_record(removal_strategy)
+        excluded = self.env["stock.quant"]
+        while True:
+            reserved = self._distribute_reservable_quantity(
+                quants - excluded,
+                excluded,
+                strategy,
+                product_id,
+                location_id,
+                quantity,
+                uom_id=uom_id,
+                lot_id=lot_id,
+                package_id=package_id,
+                owner_id=owner_id,
+                strict=strict,
+            )
+            unlocked = self._lock_reserved_quants(reserved)
+            if not unlocked:
+                break
+            dbg.logic.debug(
+                "_get_reserve_quantity: %s held by another transaction, "
+                "distributing again without them",
+                dbg.rec(unlocked),
+            )
+            excluded |= unlocked
+        if reserved and _logger.isEnabledFor(logging.DEBUG):
+            _logger.debug(
+                "reserve product=%s location=%s asked=%s -> %s",
+                product_id.id,
+                location_id.id,
+                quantity,
+                [(quant.id, qty) for quant, qty in reserved],
+            )
+        return reserved
+
+    def _lock_reserved_quants(self, reserved):
+        held = self.env.cr.cache.setdefault(LOCKED_QUANTS_CACHE_KEY, set())
+        to_lock = self.browse(
+            dict.fromkeys(quant.id for quant, _qty in reserved if quant.id not in held)
+        )
+        if not to_lock:
+            return to_lock
+        locked = to_lock._try_lock()
+        held.update(locked.ids)
+        return to_lock - locked
+
+    def _distribute_reservable_quantity(
+        self,
+        quants,
+        excluded,
+        strategy,
+        product_id,
+        location_id,
+        quantity,
+        uom_id=None,
+        lot_id=None,
+        package_id=None,
+        owner_id=None,
+        strict=False,
+    ):
         if strategy.narrows_to_packages:
             available_quantity = self._get_available_quantity(
                 product_id,
@@ -575,6 +662,14 @@ class StockQuantReservation(models.Model):
                 owner_id=owner_id,
                 strict=strict,
             )
+            if excluded:
+                available_quantity -= self._get_available_quantity_from_quants(
+                    excluded,
+                    product_id,
+                    lot_id=lot_id,
+                    strict=strict,
+                    allow_negative=True,
+                )
         else:
             available_quantity = self._get_available_quantity_from_quants(
                 quants, product_id, lot_id=lot_id, strict=strict, allow_negative=False
@@ -593,20 +688,16 @@ class StockQuantReservation(models.Model):
         requested = quantity
         quantity = min(quantity, available_quantity)
 
-        precision_digits = self.env["decimal.precision"].get_precision("Product Unit")
-
         if not strict and uom_id and product_id.uom_id != uom_id:
             quantity_move_uom = product_id.uom_id._get_quantity_in_unit(
                 quantity, uom_id, rounding_method="DOWN"
             )
-            quantity = uom_id._get_quantity_in_unit(
-                quantity_move_uom, product_id.uom_id, rounding_method="HALF-UP"
-            )
+            quantity = uom_id._get_quantity_stored(quantity_move_uom, product_id.uom_id)
 
         whole_units = product_id.tracking == "serial"
         if whole_units:
             quantity = self._get_reservable_serial_quantity(
-                product_id, requested, quantity, precision_digits
+                product_id, requested, quantity
             )
 
         dbg.logic.debug(
@@ -620,24 +711,15 @@ class StockQuantReservation(models.Model):
             strict,
             len(quants),
         )
-        if product_id.uom_id.compare(quantity, 0) <= 0:
+        if product_id.uom_id._compare_aggregate(quantity, 0) <= 0:
             return []
 
-        reserved = distribute_reservation(
+        return distribute_reservation(
             self._get_reservation_candidates(quants),
             quantity,
-            precision_digits,
+            product_id.uom_id._aggregate_rounding(),
             whole_units=whole_units,
         )
-        if reserved and _logger.isEnabledFor(logging.DEBUG):
-            _logger.debug(
-                "reserve product=%s location=%s asked=%s -> %s",
-                product_id.id,
-                location_id.id,
-                quantity,
-                [(quant.id, qty) for quant, qty in reserved],
-            )
-        return reserved
 
     @api.model
     def _update_available_quantity(
@@ -680,12 +762,18 @@ class StockQuantReservation(models.Model):
         )
         quants = gathered
         if lot_id:
-            if product_id.uom_id.compare(quantity, 0) > 0:
+            if product_id.uom_id._compare_aggregate(quantity, 0) > 0:
                 quants = quants.filtered(lambda q: q.lot_id)
             else:
                 quants = quants.filtered(
-                    lambda q: product_id.uom_id.compare(q.quantity, 0) > 0 or q.lot_id,
+                    lambda q: (
+                        product_id.uom_id._compare_aggregate(q.quantity, 0) > 0
+                        or q.lot_id
+                    ),
                 )
+        # a release must reach the row that holds the reservation, whatever its
+        # lot or quantity: the reservation of a lot can sit on an untracked quant
+        reserved_quants = gathered if reserved_quantity < 0 else quants
 
         if location_id.is_reservation_bypass_required():
             incoming_dates = []
@@ -693,7 +781,8 @@ class StockQuantReservation(models.Model):
             incoming_dates = [
                 quant.in_date
                 for quant in quants
-                if quant.in_date and quant.product_uom_id.compare(quant.quantity, 0) > 0
+                if quant.in_date
+                and quant.product_uom_id._compare_aggregate(quant.quantity, 0) > 0
             ]
         if in_date:
             incoming_dates += [in_date]
@@ -702,39 +791,56 @@ class StockQuantReservation(models.Model):
         else:
             in_date = fields.Datetime.now()
 
-        quant = quants._lock_one_for_reservation(reserved_quantity)
+        empty = self.env["stock.quant"]
+        quant = quants._lock_one_for_reservation(False) if quantity else empty
+        reserved_quant = (
+            reserved_quants._lock_one_for_reservation(reserved_quantity)
+            if reserved_quantity
+            else empty
+        )
 
-        new_quant = self.env["stock.quant"]
+        vals_by_quant = {}
         if quant:
-            vals = {}
-            if quantity:
-                vals["in_date"] = in_date
-                vals["quantity"] = quant.quantity + quantity
-            if reserved_quantity:
-                vals["reserved_quantity"] = max(
-                    0, quant.reserved_quantity + reserved_quantity
-                )
-            dbg.lifecycle.debug(
-                "[quant:%s] updated: %s (of %d gathered)", quant.id, vals, len(gathered)
-            )
-            quant.write(vals)
-        else:
-            dbg.lifecycle.debug(
-                "no quant to update among %d gathered, creating one", len(gathered)
-            )
-            vals = {
-                "product_id": product_id.id,
-                "location_id": location_id.id,
-                "lot_id": lot_id and lot_id.id,
-                "package_id": package_id and package_id.id,
-                "owner_id": owner_id and owner_id.id,
+            vals_by_quant[quant] = {
                 "in_date": in_date,
+                "quantity": quant.quantity + quantity,
             }
-            if quantity:
-                vals["quantity"] = quantity
-            if reserved_quantity:
-                vals["reserved_quantity"] = reserved_quantity
-            new_quant = self.create(vals)
+        if reserved_quant:
+            vals_by_quant.setdefault(reserved_quant, {})["reserved_quantity"] = max(
+                0, reserved_quant.reserved_quantity + reserved_quantity
+            )
+        for target, vals in vals_by_quant.items():
+            dbg.lifecycle.debug(
+                "[quant:%s] updated: %s (of %d gathered)",
+                target.id,
+                vals,
+                len(gathered),
+            )
+            target.write(vals)
+
+        missing = {}
+        if quantity and not quant:
+            missing["quantity"] = quantity
+        if reserved_quantity and not reserved_quant:
+            missing["reserved_quantity"] = reserved_quantity
+        new_quant = empty
+        if missing:
+            dbg.lifecycle.debug(
+                "no quant to take %s among %d gathered, creating one",
+                sorted(missing),
+                len(gathered),
+            )
+            new_quant = self.create(
+                {
+                    "product_id": product_id.id,
+                    "location_id": location_id.id,
+                    "lot_id": lot_id and lot_id.id,
+                    "package_id": package_id and package_id.id,
+                    "owner_id": owner_id and owner_id.id,
+                    "in_date": in_date,
+                    **missing,
+                }
+            )
         avail_quants = gathered | new_quant._filtered_not_expired()
         return (
             self._get_available_quantity_from_quants(
@@ -911,7 +1017,7 @@ class StockQuantReservation(models.Model):
                     dbg.rec(quants),
                 )
                 quants._update_reserved_delta(-reserved_quantity)
-            elif product.uom_id.compare(reserved_quantity, ml_reserved_qty) != 0:
+            elif product.uom_id._compare_aggregate(reserved_quantity, ml_reserved_qty):
                 dbg.logic.debug(
                     "sync: product %s location %s quant reserved %s vs lines %s on %s",
                     product.id,

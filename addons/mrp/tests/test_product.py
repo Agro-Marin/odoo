@@ -348,6 +348,69 @@ class TestMrpProductRoutes(TestMrpCommon):
         )
         self.assertFalse(manufacture & kit._get_total_routes_by_product()[kit.id])
 
+    def test_rule_selection_agrees_with_the_manufacture_route_key(self):
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)], limit=1
+        )
+        warehouse.manufacture_to_resupply = True
+        attribute = self.env["product.attribute"].create(
+            {
+                "name": "Rule Size",
+                "value_ids": [
+                    Command.create({"name": "S"}),
+                    Command.create({"name": "L"}),
+                ],
+            }
+        )
+        template = self.env["product.template"].create(
+            {
+                "name": "Rule Sized",
+                "is_storable": True,
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": attribute.id,
+                            "value_ids": [Command.set(attribute.value_ids.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        small, large = template.product_variant_ids
+        self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": template.id,
+                "product_id": small.id,
+                "product_qty": 1.0,
+                "type": "normal",
+            }
+        )
+        plain = self.env["product.product"].create(
+            {"name": "Rule Plain", "is_storable": True}
+        )
+        manufacture = warehouse.manufacture_pull_id.route_id
+        Rule = self.env["stock.rule"]
+        self.assertTrue(Rule._is_route_usable_for(small, manufacture))
+        self.assertFalse(
+            Rule._is_route_usable_for(large, manufacture),
+            "a sibling variant the BoM does not cover cannot be manufactured",
+        )
+        stock = warehouse.lot_stock_id
+        alone = {
+            product: product._get_rules_from_location(stock)
+            for product in (large, plain)
+        }
+        orderpoints = self.env["stock.warehouse.orderpoint"].create(
+            [{"product_id": product.id} for product in (small, large, plain)]
+        )
+        self.env.invalidate_all()
+        by_product = {
+            orderpoint.product_id: orderpoint.rule_ids
+            for orderpoint in orderpoints.browse(orderpoints.ids)
+        }
+        self.assertEqual(by_product[large], alone[large])
+        self.assertEqual(by_product[plain], alone[plain])
+
 
 @tagged("post_install", "-at_install")
 class TestMrpProductUpdateUom(TestMrpCommon):

@@ -34,70 +34,13 @@ class StockPicking(models.Model):
             picking._resolve_auto_batch()
         return res
 
-    def button_validate(self):
-        res = super().button_validate()
-        to_assign_ids = set()
-        if not any(picking.state == "done" for picking in self):
-            _debug.logic("batch_validate_stopped_early", pickings=self)
-            return res
-        if self and self.env.context.get("pickings_to_detach"):
-            pickings_to_detach = self.env["stock.picking"].browse(
-                self.env.context["pickings_to_detach"]
-            )
-            _debug.pipeline("batch_validate_detach_empty", pickings=pickings_to_detach)
-            pickings_to_detach.batch_id = False
-            pickings_to_detach.move_ids.filtered(
-                lambda m: not m.quantity
-            ).picked = False
-            to_assign_ids.update(self.env.context["pickings_to_detach"])
-
+    def _rebatch_after_validation(self):
+        super()._rebatch_after_validation()
+        _debug.pipeline("batch_validate_rebatch", pickings=self)
         for picking in self:
-            if picking.state != "done":
-                continue
-            if picking.batch_id and any(
-                p.state != "done" for p in picking.batch_id.picking_ids
-            ):
-                _debug.pipeline(
-                    "batch_validate_detach_done",
-                    picking=picking,
-                    batch=picking.batch_id,
-                )
-                picking.batch_id = None
-            to_assign_ids.update(picking.backorder_ids.ids)
-
-        assignable_pickings = self.env["stock.picking"].browse(to_assign_ids)
-        _debug.pipeline("batch_validate_rebatch", pickings=assignable_pickings)
-        for picking in assignable_pickings:
             picking._resolve_auto_batch()
-        if lines := assignable_pickings.move_line_ids:
+        if lines := self.move_line_ids:
             lines.with_context(skip_auto_waveable=True)._auto_wave()
-
-        return res
-
-    def _create_backorder(self, backorder_moves=None):
-        pickings_to_detach = self.env["stock.picking"].browse(
-            self.env.context.get("pickings_to_detach")
-        )
-        for picking in self:
-            if (
-                picking.batch_id
-                and picking.state != "done"
-                and any(
-                    p not in self
-                    for p in picking.batch_id.picking_ids - pickings_to_detach
-                )
-            ):
-                _debug.pipeline(
-                    "backorder_detach", picking=picking, batch=picking.batch_id
-                )
-                picking.batch_id = None
-        return super()._create_backorder(backorder_moves)
-
-    def _is_transfer_display_required(self):
-        detached = self.browse(self.env.context.get("pickings_to_detach"))
-        if len(self.batch_id) == 1 and self == self.batch_id.picking_ids - detached:
-            return False
-        return super()._is_transfer_display_required()
 
     @_debug.perf.timed
     def _resolve_auto_batch(self):
@@ -230,31 +173,8 @@ class StockPicking(models.Model):
                 description_items.append(label)
         return ", ".join(description_items)
 
-    def _is_single_transfer(self):
-        return super()._is_single_transfer() or len(self.batch_id) == 1
-
     def _add_to_wave_post_picking_split_hook(self):
         pass
-
-    def update_batch_user(self, user_id):
-        pickings = self.filtered(lambda p: p.user_id.id != user_id)
-        _debug.lifecycle(
-            "batch_user_propagate",
-            pickings=pickings,
-            user=user_id,
-            unchanged=len(self) - len(pickings),
-        )
-        pickings.write({"user_id": user_id})
-        for pick in pickings:
-            if user_id:
-                log_message = self.env._(
-                    "Assigned to %s Responsible", pick.batch_id._get_html_link()
-                )
-            else:
-                log_message = self.env._(
-                    "Unassigned responsible from %s", pick.batch_id._get_html_link()
-                )
-            pick.message_post(body=log_message)
 
     def action_view_batch(self):
         self.check_singleton()

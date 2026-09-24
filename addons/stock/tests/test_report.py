@@ -2935,6 +2935,66 @@ class TestReports(TestReportsCommon):
         self.assertEqual(linked_out.product_qty, 6.0)
         self.assertEqual(len(delivery.move_ids), 2)
 
+    def test_forecast_converts_a_done_upstream_move_to_the_product_unit(self):
+        warehouse = self.env["stock.warehouse"].search(
+            [("company_id", "=", self.env.company.id)], limit=1
+        )
+        Location = self.env["stock.location"]
+        pack = Location.create(
+            {"name": "Dozen pack", "location_id": warehouse.view_location_id.id}
+        )
+        output = Location.create(
+            {"name": "Dozen out", "location_id": warehouse.view_location_id.id}
+        )
+        self.env["stock.quant"]._update_available_quantity(
+            self.product, warehouse.lot_stock_id, 12
+        )
+        Move = self.env["stock.move"]
+        pick = Move.create(
+            {
+                "product_id": self.product.id,
+                "product_uom_id": self.env.ref("uom.product_uom_dozen").id,
+                "product_uom_qty": 1,
+                "location_id": warehouse.lot_stock_id.id,
+                "location_dest_id": pack.id,
+            }
+        )
+        pack_move = Move.create(
+            {
+                "product_id": self.product.id,
+                "product_uom_qty": 12,
+                "location_id": pack.id,
+                "location_dest_id": output.id,
+                "move_orig_ids": [Command.link(pick.id)],
+            }
+        )
+        ship = Move.create(
+            {
+                "product_id": self.product.id,
+                "product_uom_qty": 12,
+                "location_id": output.id,
+                "location_dest_id": self.env.ref("stock.stock_location_customers").id,
+                "move_orig_ids": [Command.link(pack_move.id)],
+            }
+        )
+        (pick | pack_move | ship)._action_confirm()
+        pick._action_assign()
+        pick.picked = True
+        pick._action_done()
+        pack_move._unreserve()
+
+        lines = (
+            self.env["stock.forecasted_product_product"]
+            .with_context(warehouse_id=warehouse.id)
+            ._get_report_data(product_ids=self.product.ids)["lines"]
+        )
+
+        self.assertEqual(
+            [(line["quantity"], line["in_transit"]) for line in lines],
+            [(12.0, False)],
+            "a dozen picked upstream is twelve units taken from stock, not one",
+        )
+
 
 class TestPickingPrint(TestReportsCommon):
     def _picking(self):

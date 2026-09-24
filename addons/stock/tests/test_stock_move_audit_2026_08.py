@@ -63,7 +63,7 @@ class TestStockMoveAudit202608(TransactionCase):
             },
         )
 
-    def test_prefilled_serial_count_is_a_number_of_units(self):
+    def test_prefilled_serial_lines_count_units(self):
         dozen = self.env.ref("uom.product_uom_dozen")
         units = self.env.ref("uom.product_uom_unit")
         product = self._product(
@@ -76,46 +76,7 @@ class TestStockMoveAudit202608(TransactionCase):
         move._action_confirm()
         move._action_assign()
 
-        self.assertEqual(len(move.move_line_ids), 24, "sanity: 2 dozen is 24 serials")
-        self.assertEqual(
-            move.next_serial_count,
-            24,
-            "next_serial_count counts units; it was filled from the move's UoM quantity",
-        )
-
-    def test_prefilled_serial_count_generates_the_whole_demand(self):
-        dozen = self.env.ref("uom.product_uom_dozen")
-        units = self.env.ref("uom.product_uom_unit")
-        product = self._product(
-            "sn-dozen-gen",
-            tracking="serial",
-            uom_id=units.id,
-            uom_ids=[(4, dozen.id)],
-        )
-        move = self._incoming_move(product, 2, uom=dozen)
-        move._action_confirm()
-        move._action_assign()
-        move.move_line_ids.unlink()
-
-        move._update_move_lines_for_serials("SN-0001", move.next_serial_count)
-        self.assertEqual(len(move.move_line_ids), 24)
-
-    def test_an_explicit_serial_count_survives_reservation(self):
-        product = self._product("sn-explicit", tracking="serial")
-        move = self._incoming_move(
-            product,
-            3,
-            next_serial="SN-1",
-            next_serial_count=7,
-        )
-        move._action_confirm()
-        move._action_assign()
-
-        self.assertEqual(
-            move.next_serial_count,
-            7,
-            "reservation overwrote a count the user had already entered",
-        )
+        self.assertEqual(len(move.move_line_ids), 24, "2 dozen is 24 serials")
 
     def test_generated_lot_lines_consume_capacity_as_they_are_placed(self):
         product = self._product("gen-cap", tracking="serial")
@@ -140,17 +101,6 @@ class TestStockMoveAudit202608(TransactionCase):
             3,
             f"6 serials, 3 shelves of capacity 2, but they were placed as {placed}",
         )
-
-    def test_the_server_side_generator_is_the_control(self):
-        product = self._product("gen-cap-ctl", tracking="serial")
-        self._capped_shelves(product, cap=2, n=3)
-        move = self._incoming_move(product, 6)
-        move._action_confirm()
-        move.move_line_ids.unlink()
-
-        move._update_move_lines_for_serials("CTL-0001", 6)
-        placed = Counter(move.move_line_ids.mapped("location_dest_id").ids)
-        self.assertEqual(len(placed), 3, f"control path placed {placed}")
 
     def test_generation_excludes_the_lines_it_is_replacing(self):
         product = self._product("gen-stale", tracking="serial")

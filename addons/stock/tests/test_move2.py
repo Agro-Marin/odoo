@@ -3443,8 +3443,9 @@ class TestStockUOM(TestStockCommon):
         )
         self.assertEqual(
             back_order_in.move_ids.product_qty,
-            91640.000032,
-            "There should be one back order created",
+            91640.0,
+            "134400 lbs less the 42760 received is 91640, not the drift of a "
+            "remainder derived from 19.09 T-GT",
         )
 
     def test_move_product_with_different_uom(self):

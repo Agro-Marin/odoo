@@ -21,6 +21,8 @@ class StockMoveProcurement(models.Model):
         quantities = self.with_context(
             consumed_from_stock_dict=consumed_from_stock_dict,
         )._prepare_procurement_qty()
+        # (quantity, unit) pairs: a remainder the move's unit cannot express
+        # is procured in the product's unit
         dbg.pipeline.debug(
             "_run_procurements: %s -> quantities %s", dbg.rec(self), quantities[:8]
         )
@@ -28,14 +30,14 @@ class StockMoveProcurement(models.Model):
             self.env["stock.rule"].Procurement(
                 move.product_id,
                 quantity,
-                move.product_uom_id,
+                uom,
                 move.location_id,
                 (move.rule_id and move.rule_id.name) or "/",
                 move._prepare_procurement_origin(),
                 move.company_id,
                 move._prepare_procurement_vals(),
             )
-            for move, quantity in zip(self, quantities, strict=True)
+            for move, (quantity, uom) in zip(self, quantities, strict=True)
         ]
         self.env["stock.rule"].with_context(
             consumed_from_stock_dict=consumed_from_stock_dict,
@@ -182,11 +184,11 @@ class StockMoveProcurement(models.Model):
                 move.id not in mtso_moves
                 or move.product_id.uom_id.compare(move.product_qty, 0) <= 0
             ):
-                quantities.append(move.product_uom_qty)
+                quantities.append((move.product_uom_qty, move.product_uom_id))
                 continue
 
             if move._is_reservation_bypass_required():
-                quantities.append(move.product_uom_qty)
+                quantities.append((move.product_uom_qty, move.product_uom_id))
                 continue
 
             qty_free = max(
@@ -195,19 +197,23 @@ class StockMoveProcurement(models.Model):
                 0,
             )
             quantity = max(move.product_qty - qty_free, 0)
-            product_uom_qty = move.product_id.uom_id._get_quantity_in_unit(
+            product_uom_qty = move._get_uom_quantity_if_faithful(
                 quantity,
                 move.product_uom_id,
-                rounding_method="HALF-UP",
             )
+            if product_uom_qty is None:
+                procured = (quantity, move.product_id.uom_id)
+            else:
+                procured = (product_uom_qty, move.product_uom_id)
             dbg.logic.debug(
-                "[move:%s] mts_else_mto: demand %s, free %s -> procure %s",
+                "[move:%s] mts_else_mto: demand %s, free %s -> procure %s %s",
                 move.id,
                 move.product_qty,
                 qty_free,
-                product_uom_qty,
+                procured[0],
+                procured[1].name,
             )
-            quantities.append(product_uom_qty)
+            quantities.append(procured)
             consumed_from_stock_dict[move.location_id, move.product_id.id] += min(
                 move.product_qty,
                 qty_free,
@@ -281,11 +287,12 @@ class StockMoveProcurement(models.Model):
         routes = values.get("route_ids")
         warehouse = values.get("warehouse_id")
         packaging_uom = values.get("packaging_uom_id")
+        # the product itself, not only its routes: `_is_route_usable_for`
+        # decides per product (purchase_stock: sellers, mrp: BoMs)
         key = (
             self.location_dest_id.id,
+            self.product_id.id,
             tuple(sorted(routes.ids)) if routes else (),
-            tuple(sorted(self.product_id.route_ids.ids)),
-            tuple(sorted(self.product_id.categ_id.total_route_ids.ids)),
             packaging_uom.id if packaging_uom else False,
             warehouse.id if warehouse else False,
             repr(values.get("domain")),

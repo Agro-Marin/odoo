@@ -167,19 +167,19 @@ class StockQuant(models.Model):
 
     inventory_quantity = fields.Float(
         string="Counted",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         help="The product's counted quantity.",
     )
     inventory_quantity_auto_apply = fields.Float(
         string="Inventoried Quantity",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         compute="_compute_inventory_quantity_auto_apply",
         inverse="_inverse_inventory_quantity_auto_apply",
         groups="stock.group_stock_manager",
     )
     inventory_diff_quantity = fields.Float(
         string="Difference",
-        digits="Product Unit",
+        min_display_digits="Product Unit",
         compute="_compute_inventory_diff_quantity",
         store=True,
         readonly=True,
@@ -377,14 +377,9 @@ class StockQuant(models.Model):
         )
 
         def _add_to_cache(quant):
-            if "quants_cache" in self.env.context:
-                self.env.context["quants_cache"][
-                    quant.product_id.id,
-                    quant.location_id.id,
-                    quant.lot_id.id,
-                    quant.package_id.id,
-                    quant.owner_id.id,
-                ] |= quant
+            quants_cache = self.env.context.get("quants_cache")
+            if quants_cache is not None:
+                quants_cache.add(quant)
 
         is_inventory_mode = self._is_inventory_mode()
         allowed_fields = self._get_inventory_fields_create()

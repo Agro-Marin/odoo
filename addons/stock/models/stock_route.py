@@ -1,5 +1,4 @@
 from odoo import Command, api, fields, models
-from odoo.exceptions import ValidationError
 from odoo.tools import TransactionMemo
 
 from ..tools import debug_log as dbg
@@ -111,20 +110,7 @@ class StockRoute(models.Model):
 
     @api.constrains("company_id", "rule_ids")
     def _check_company_consistency(self):
-        for route in self:
-            if not route.company_id:
-                continue
-
-            for rule in route.rule_ids:
-                if route.company_id.id != rule.company_id.id:
-                    raise ValidationError(
-                        self.env._(
-                            "Rule %(rule)s belongs to %(rule_company)s while the route belongs to %(route_company)s.",
-                            rule=rule.display_name,
-                            rule_company=rule.company_id.display_name,
-                            route_company=route.company_id.display_name,
-                        ),
-                    )
+        self.filtered("company_id").rule_ids._check_company_consistency()
 
     @dbg.timed
     def write(self, vals):

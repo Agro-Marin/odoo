@@ -1,8 +1,9 @@
 from collections import defaultdict
+from datetime import time
 
 from dateutil import relativedelta
 
-from odoo import SUPERUSER_ID, api, fields, models
+from odoo import SUPERUSER_ID, api, models
 from odoo.fields import Domain
 from odoo.tools import float_compare
 
@@ -20,7 +21,7 @@ class StockReplenishmentReport(models.AbstractModel):
         dbg.pipeline.debug(
             "replenishment report: %d projected shortages", len(shortages)
         )
-        shortages = self._get_net_shortages(shortages, orderpoints)
+        shortages = self._get_net_shortages(shortages)
         dbg.pipeline.debug("replenishment report: %d net shortages", len(shortages))
         return self._create_shortage_orderpoints(shortages, orderpoints)
 
@@ -129,7 +130,6 @@ class StockReplenishmentReport(models.AbstractModel):
             horizon = lead_days["total_delay"] + lead_days["horizon_time"]
             products_by_horizon[horizon, location].add(product.id)
 
-        end_of_today = fields.Datetime.now().replace(hour=23, minute=59, second=59)
         shortages = {}
         dbg.performance.debug(
             "_get_projected_shortages: %d (horizon, location) forecast reads, %d rule lookups",
@@ -138,9 +138,12 @@ class StockReplenishmentReport(models.AbstractModel):
         )
         for (horizon, location), product_ids in products_by_horizon.items():
             candidates = self.env["product.product"].browse(product_ids)
+            company = location.company_id
+            today = Orderpoint._get_company_today(company)
+            horizon_day = today + relativedelta.relativedelta(days=horizon)
             forecasts = candidates.with_context(
                 location=location.id,
-                to_date=end_of_today + relativedelta.relativedelta(days=horizon),
+                to_date=Orderpoint._get_company_moment(horizon_day, time.max, company),
             ).read(["qty_available_virtual"])
             products_by_id = {product.id: product for product in candidates}
             for forecast in forecasts:
@@ -151,10 +154,9 @@ class StockReplenishmentReport(models.AbstractModel):
         return shortages
 
     @api.model
-    def _get_net_shortages(self, shortages, orderpoints):
+    def _get_net_shortages(self, shortages):
         if not shortages:
             return shortages
-        Orderpoint = self.env["stock.warehouse.orderpoint"]
         product_ids = list({product_id for product_id, _location in shortages})
         location_ids = list({location_id for _product, location_id in shortages})
         in_progress = (
@@ -162,24 +164,16 @@ class StockReplenishmentReport(models.AbstractModel):
             .browse(product_ids)
             ._get_quantity_in_progress(location_ids=location_ids)[0]
         )
-        suggested = {
-            (product.id, location.id): sum(group.mapped("qty_to_order"))
-            for product, location, group in Orderpoint._read_group(
-                [("id", "in", orderpoints.ids), ("product_id", "in", product_ids)],
-                ["product_id", "location_id"],
-                ["id:recordset"],
-            )
-        }
         precision_digits = self.env["decimal.precision"].get_precision("Product Unit")
         netted = {}
         for key, quantity in shortages.items():
-            covered = (in_progress.get(key) or 0.0) + suggested.get(key, 0.0)
+            covered = in_progress.get(key) or 0.0
             remaining = quantity + covered
             if float_compare(remaining, 0.0, precision_digits=precision_digits) < 0:
                 netted[key] = remaining
             else:
                 dbg.logic.debug(
-                    "shortage %s of %s covered by in-progress/suggested %s",
+                    "shortage %s of %s covered by in-progress %s",
                     key,
                     quantity,
                     covered,

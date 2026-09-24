@@ -56,6 +56,7 @@ class StockPickingBackorder(models.Model):
 
     @dbg.timed
     def _create_backorder(self, backorder_moves=None):
+        self._detach_from_batch_before_backorder()
         moves_by_picking = {}
         for picking in self:
             if backorder_moves:
@@ -179,4 +180,7 @@ class StockPickingBackorder(models.Model):
         )
 
     def _is_transfer_display_required(self):
+        detached = self._get_pickings_detached_from_batch()
+        if len(self.batch_id) == 1 and self == self.batch_id.picking_ids - detached:
+            return False
         return len(self) > 1

@@ -1,5 +1,6 @@
 from odoo import api, models
 
+from ..const import OPEN_PICKING_STATES
 from ..tools import debug_log as dbg
 
 
@@ -15,7 +16,7 @@ class HomeMenuBadge(models.AbstractModel):
                 "stock.menu_stock_root",
                 "stock.picking",
                 [
-                    ("state", "in", ("assigned", "waiting", "confirmed")),
+                    ("state", "in", tuple(OPEN_PICKING_STATES)),
                     "|",
                     ("has_deadline_issue", "=", True),
                     ("date_category", "in", ["before", "yesterday"]),

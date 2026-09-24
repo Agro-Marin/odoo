@@ -16,6 +16,7 @@ class PutawayCapacity(NamedTuple):
     forecast_weight: dict
     foreign_inbound_ids: frozenset
     package_weight: float
+    inbound_ids: frozenset = frozenset()
 
 
 class PutawayScan:
@@ -285,12 +286,13 @@ class StockLocationPutaway(models.Model):
                 + scan.get_staged_weight(location_id)
                 for location_id in self.ids
             },
+            inbound_ids=stored.inbound_ids
+            | {location_id for location_id, qty in scan.placed.items() if qty},
         )
 
     def _get_stored_putaway_capacity(self, product, package):
-        weight_by_location = self._get_weight(
-            self.env.context.get("exclude_sml_ids", set()),
-        )
+        exclude_sml_ids = self.env.context.get("exclude_sml_ids", set())
+        weight_by_location = self._get_weight(exclude_sml_ids)
         return PutawayCapacity(
             forecast_weight={
                 location.id: weights["forecast_weight"]
@@ -302,6 +304,9 @@ class StockLocationPutaway(models.Model):
                 ),
             ),
             package_weight=self._get_package_weight(package),
+            inbound_ids=frozenset(
+                self._get_inbound_location_ids(self, exclude_sml_ids),
+            ),
         )
 
     @api.model
@@ -387,9 +392,7 @@ class StockLocationPutaway(models.Model):
             return True
         if capacity is None:
             capacity = self._get_putaway_capacity(product, package)
-        if not self._can_store_new_product(
-            product, package, capacity.foreign_inbound_ids
-        ):
+        if not self._can_store_new_product(product, package, capacity):
             dbg.logic.debug(
                 "[location:%s] _can_be_used: refuses new product %s (policy %s)",
                 self.id,
@@ -417,7 +420,7 @@ class StockLocationPutaway(models.Model):
         )
         return usable
 
-    def _can_store_new_product(self, product, package, foreign_inbound_ids=None):
+    def _can_store_new_product(self, product, package, capacity=None):
         self.check_singleton()
         policy = self.storage_category_id.allow_new_product
         if policy not in ("empty", "same"):
@@ -425,16 +428,36 @@ class StockLocationPutaway(models.Model):
         positive_quant = self.quant_ids.filtered(
             lambda q: q.product_id.uom_id.compare(q.quantity, 0) > 0,
         )
+        if capacity is None:
+            capacity = self._get_putaway_capacity(product, package)
         if policy == "empty":
+            if self.id in capacity.inbound_ids:
+                dbg.logic.debug(
+                    "[location:%s] empty-only: goods already on their way in",
+                    self.id,
+                )
+                return False
             return not positive_quant
         product = self._get_effective_product(product)
         if (positive_quant and positive_quant.product_id != product) or len(
             product
         ) > 1:
             return False
-        if foreign_inbound_ids is None:
-            foreign_inbound_ids = self._get_foreign_inbound_location_ids(self, product)
-        return self.id not in foreign_inbound_ids
+        return self.id not in capacity.foreign_inbound_ids
+
+    @api.model
+    def _get_inbound_location_ids(self, locations, exclude_sml_ids):
+        return {
+            location.id
+            for (location,) in self.env["stock.move.line"]._read_group(
+                [
+                    ("id", "not in", list(exclude_sml_ids)),
+                    ("state", "not in", ("done", "cancel")),
+                    ("location_dest_id", "in", locations.ids),
+                ],
+                ["location_dest_id"],
+            )
+        }
 
     @api.model
     def _get_foreign_inbound_location_ids(self, locations, products):

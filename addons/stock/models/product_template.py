@@ -74,7 +74,8 @@ class ProductTemplate(models.Model):
         string="Lot/Serial Name Format",
         help="Shape this product's lot/serial names take, in the same "
         "placeholder form as a sequence prefix (%(year)s, %(month)s, %(day)s, "
-        "...) plus %(ref)s for the manufacturer's lot number.\n"
+        "...) plus the mandatory %(ref)s: the manufacturer's lot number, or the "
+        "next number of the lot sequence when there is none.\n"
         "Set it when the name has to carry information — a manufacturing date, "
         "a supplier's own lot number — rather than just be unique. Left empty, "
         "names are drawn from the sequence as usual.",
@@ -233,6 +234,20 @@ class ProductTemplate(models.Model):
                         "%(product)s does not track inventory, so it cannot be"
                         " tracked by lot or serial number. Enable Track Inventory"
                         " first.",
+                        product=template.display_name,
+                    ),
+                )
+
+    @api.constrains("lot_name_format")
+    def _check_lot_name_format_is_unique(self):
+        for template in self:
+            if template.lot_name_format and "%(ref)s" not in template.lot_name_format:
+                raise ValidationError(
+                    self.env._(
+                        "The Lot/Serial Name Format of %(product)s must contain"
+                        " %%(ref)s: it is what keeps the names apart, the"
+                        " manufacturer's lot number or, without one, the next"
+                        " number of the lot sequence.",
                         product=template.display_name,
                     ),
                 )
@@ -652,13 +667,10 @@ class ProductTemplate(models.Model):
 
     @dbg.timed
     def _apply_zero_inventory(self):
+        variant_ids = self.with_context(active_test=False).product_variant_ids.ids
         move_line_domain = Domain(
             [
-                (
-                    "product_id",
-                    "in",
-                    self.with_context(active_test=False).product_variant_ids.ids,
-                ),
+                ("product_id", "in", variant_ids),
                 ("state", "=", "done"),
                 "|",
                 ("location_usage", "in", ("internal", "transit")),
@@ -684,6 +696,15 @@ class ProductTemplate(models.Model):
                 inventory_ledger[move_line.product_id, move_line.location_dest_id] += (
                     move_line.quantity_product_uom
                 )
+        for product, location, on_hand in self.env["stock.quant"]._read_group(
+            [
+                ("product_id", "in", variant_ids),
+                ("location_id.usage", "in", ("internal", "transit")),
+            ],
+            ["product_id", "location_id"],
+            ["quantity:sum"],
+        ):
+            inventory_ledger[product, location] -= on_hand
         dbg.logic.debug(
             "_apply_zero_inventory on %s: %d done lines -> %d (product, location) balances",
             dbg.rec(self),

@@ -220,10 +220,13 @@ class TestLocationPackageFixes(TestStockCommon):
             order="id",
             limit=1,
         )
-        scrap_wo_designated = self.env["stock.scrap"].create(
+        designated = company._get_scrap_location()
+        self.assertTrue(designated)
+        self.assertNotEqual(designated, adjustment)
+        scrap_default = self.env["stock.scrap"].create(
             {"product_id": self.productA.id, "company_id": company.id}
         )
-        self.assertEqual(scrap_wo_designated.scrap_location_id, adjustment)
+        self.assertEqual(scrap_default.scrap_location_id, designated)
 
         scrap_location = self.StockLocationObj.create(
             {"name": "Scrap", "usage": "inventory", "company_id": company.id}
@@ -231,16 +234,18 @@ class TestLocationPackageFixes(TestStockCommon):
         scrap_w_named = self.env["stock.scrap"].create(
             {"product_id": self.productA.id, "company_id": company.id}
         )
-        self.assertEqual(scrap_w_named.scrap_location_id, adjustment)
-
-        self.env["ir.model.data"].create(
-            {
-                "module": "stock",
-                "name": f"stock_location_scrap_company_{company.id}",
-                "model": "stock.location",
-                "res_id": scrap_location.id,
-            }
+        self.assertEqual(
+            scrap_w_named.scrap_location_id,
+            designated,
+            "a name is not a designation",
         )
+
+        self.env["ir.model.data"].search(
+            [
+                ("module", "=", "stock"),
+                ("name", "=", f"stock_location_scrap_company_{company.id}"),
+            ]
+        ).res_id = scrap_location.id
         scrap_w_designated = self.env["stock.scrap"].create(
             {"product_id": self.productA.id, "company_id": company.id}
         )

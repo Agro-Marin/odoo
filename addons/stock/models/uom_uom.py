@@ -31,52 +31,46 @@ class UomUom(models.Model):
                 ),
             )
             if changed:
+                rescaled = (
+                    self.sudo()
+                    .with_context(active_test=False)
+                    .search([("id", "child_of", changed.ids)])
+                )
                 dbg.logic.debug(
-                    "uom.write: ratio change on %s, checking stock usage",
+                    "uom.write: ratio change on %s rescales %s, checking stock usage",
                     dbg.rec(changed),
+                    dbg.rec(rescaled),
                 )
-                error_msg = self.env._(
-                    "You cannot change the ratio of this unit of measure"
-                    " as some products with this UoM have already been moved"
-                    " or are currently reserved.",
-                )
-                if (
-                    self.env["stock.move"]
-                    .sudo()
-                    .search_count(
-                        [
-                            ("product_uom_id", "in", changed.ids),
-                            ("state", "not in", ("cancel", "done")),
-                        ],
-                        limit=1,
+                if rescaled._is_used_in_stock():
+                    raise UserError(
+                        self.env._(
+                            "You cannot change the ratio of this unit of measure"
+                            " as some products with this UoM, or with a unit"
+                            " defined from it, have already been moved or are"
+                            " currently reserved.",
+                        ),
                     )
-                ):
-                    raise UserError(error_msg)
-                if (
-                    self.env["stock.move.line"]
-                    .sudo()
-                    .search_count(
-                        [
-                            ("product_uom_id", "in", changed.ids),
-                            ("state", "not in", ("cancel", "done")),
-                        ],
-                        limit=1,
-                    )
-                ):
-                    raise UserError(error_msg)
-                if (
-                    self.env["stock.quant"]
-                    .sudo()
-                    .search_count(
-                        [
-                            ("product_id.product_tmpl_id.uom_id", "in", changed.ids),
-                            ("quantity", "!=", 0),
-                        ],
-                        limit=1,
-                    )
-                ):
-                    raise UserError(error_msg)
         return super().write(vals)
+
+    def _is_used_in_stock(self):
+        open_state = ("state", "not in", ("cancel", "done"))
+        return bool(
+            self.env["stock.move"]
+            .sudo()
+            .search_count([("product_uom_id", "in", self.ids), open_state], limit=1)
+            or self.env["stock.move.line"]
+            .sudo()
+            .search_count([("product_uom_id", "in", self.ids), open_state], limit=1)
+            or self.env["stock.quant"]
+            .sudo()
+            .search_count(
+                [
+                    ("product_id.product_tmpl_id.uom_id", "in", self.ids),
+                    ("quantity", "!=", 0),
+                ],
+                limit=1,
+            )
+        )
 
     def _get_procurement_qty_and_uom(self, qty, quant_uom):
         get_param = self.env["ir.config_parameter"].sudo().get_param

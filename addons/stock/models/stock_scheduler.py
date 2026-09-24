@@ -13,6 +13,8 @@ class StockScheduler(models.AbstractModel):
     _name = "stock.scheduler"
     _description = "Stock Scheduler"
 
+    _BATCH_SIZE = 1000
+
     @dbg.timed
     @api.model
     def run(self, use_new_cursor=False, company_id=False):
@@ -52,13 +54,18 @@ class StockScheduler(models.AbstractModel):
 
     @api.model
     def _update_orderpoint_values(self, use_new_cursor=False, company_id=False):
-        orderpoints = self.env["stock.warehouse.orderpoint"].search(
+        Orderpoint = self.env["stock.warehouse.orderpoint"]
+        orderpoints = Orderpoint.search(
             self._get_domain_orderpoint(company_id=company_id, only_automatic=False),
         )
-        dbg.pipeline.debug(
-            "scheduler -> _update_stored_values on %s", dbg.rec(orderpoints)
-        )
-        orderpoints.sudo()._update_stored_values()
+        for batch_ids in batched(orderpoints.ids, self._BATCH_SIZE, strict=False):
+            batch = Orderpoint.browse(batch_ids).sudo()
+            dbg.pipeline.debug(
+                "scheduler -> _update_stored_values on %s", dbg.rec(batch)
+            )
+            batch._update_stored_values()
+            if use_new_cursor:
+                self.env["ir.cron"]._commit_progress()
 
     @api.model
     def _replenish(self, use_new_cursor=False, company_id=False):
@@ -84,7 +91,7 @@ class StockScheduler(models.AbstractModel):
         dbg.pipeline.debug(
             "scheduler -> _reserve_due_moves: %d moves due", len(moves_to_assign)
         )
-        for moves_chunk in batched(moves_to_assign.ids, 1000, strict=False):
+        for moves_chunk in batched(moves_to_assign.ids, self._BATCH_SIZE, strict=False):
             self.env["stock.move"].browse(moves_chunk).sudo()._action_assign()
             if not use_new_cursor:
                 continue

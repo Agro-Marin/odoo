@@ -353,6 +353,7 @@ class StockMoveLinePackage(models.Model):
 
     def _prepare_package_history_vals(self):
         packages = self._get_package_dests()
+        packages._prefetch_move_line_ids()
         return [
             {
                 "location_id": package.location_id.id,
@@ -372,6 +373,10 @@ class StockMoveLinePackage(models.Model):
                 "parent_dest_id": package.package_dest_id.id,
                 "parent_dest_name": package.package_dest_id.dest_complete_name,
                 "outermost_dest_id": package.outermost_package_id.id,
+                "company_id": (
+                    (package.picking_ids.company_id or self.company_id)[:1]
+                    or self.env.company
+                ).id,
             }
             for package in packages
         ]
