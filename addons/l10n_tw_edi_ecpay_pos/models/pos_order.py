@@ -30,6 +30,17 @@ class PoSOrder(models.Model):
         compute="_compute_l10n_tw_edi_is_b2b",
     )
 
+    @api.model
+    def _load_pos_data_fields(self, config):
+        return [
+            *super()._load_pos_data_fields(config),
+            "l10n_tw_edi_is_print",
+            "l10n_tw_edi_love_code",
+            "l10n_tw_edi_carrier_type",
+            "l10n_tw_edi_carrier_number",
+            "l10n_tw_edi_carrier_number_2",
+        ]
+
     @api.depends("partner_id")
     def _compute_l10n_tw_edi_is_b2b(self):
         for rec in self:

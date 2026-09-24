@@ -38,6 +38,11 @@ class L10nTWITestEdiPosOrderUI(L10nTWITestEdiPosOrder, TestPointOfSaleHttpCommon
         }
         return mock_responses.get(endpoint, {})
 
+    def _last_order(self):
+        return self.env["pos.order"].search(
+            [("config_id", "=", self.main_pos_config.id)], order="id desc", limit=1
+        )
+
     def test_01_ecpay_b2c_check_mobile_barcode_tour(self):
         """Test input mobile barcode in ecpay popup"""
 
@@ -57,6 +62,16 @@ class L10nTWITestEdiPosOrderUI(L10nTWITestEdiPosOrder, TestPointOfSaleHttpCommon
                 "l10n_tw_edi_ecpay_pos.ecpay_b2c_check_mobile_barcode_tour",
                 login="accountman",
             )
+        self.assertRecordValues(
+            self._last_order(),
+            [
+                {
+                    "to_invoice": True,
+                    "l10n_tw_edi_carrier_type": "3",
+                    "l10n_tw_edi_carrier_number": "/1234567",
+                }
+            ],
+        )
 
     def test_02_ecpay_check_love_code_tour(self):
         """Test input love code in ecpay popup"""
@@ -77,6 +92,9 @@ class L10nTWITestEdiPosOrderUI(L10nTWITestEdiPosOrder, TestPointOfSaleHttpCommon
                 "l10n_tw_edi_ecpay_pos.ecpay_check_love_code_tour",
                 login="accountman",
             )
+        self.assertRecordValues(
+            self._last_order(), [{"to_invoice": True, "l10n_tw_edi_love_code": "123"}]
+        )
 
     def test_03_ecpay_check_print_invoice_tour(self):
         """Test default print invoice"""
