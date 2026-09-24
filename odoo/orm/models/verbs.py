@@ -103,6 +103,14 @@ def _checkpoint(verb_name: str, origin: typing.Callable) -> typing.Callable:
     return checkpoint
 
 
+def uninstall_verb_doors(model_cls: type[BaseModel]) -> None:
+    # a registry class outlives the loads that change its bases, so a door set
+    # on it before a module added an override would keep calling the old method
+    for name, value in list(vars(model_cls).items()):
+        if getattr(value, VERB_ORIGIN, None) is not None:
+            delattr(model_cls, name)
+
+
 def install_verb_doors(model_cls: type[BaseModel], verbs: dict[str, Verb]) -> None:
     for verb_name, verb in verbs.items():
         for methods, wrap in ((verb.methods, _door), (verb.checkpoints, _checkpoint)):

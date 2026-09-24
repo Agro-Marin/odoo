@@ -13,6 +13,7 @@ from . import (
     models,
 )
 from .helpers import ORM_CLASS_MEMOS
+from .models.verbs import uninstall_verb_doors
 from .primitives import LOG_ACCESS_COLUMNS
 from .validation import check_pg_name, is_manual_name
 
@@ -286,6 +287,8 @@ def _reset_setup(model_cls: type[BaseModel]) -> None:
 
     for _memo in ORM_CLASS_MEMOS:
         discardattr(model_cls, _memo)
+
+    uninstall_verb_doors(model_cls)
 
 
 def _setup(model_cls: type[BaseModel], env: Environment) -> None:
