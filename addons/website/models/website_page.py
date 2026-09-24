@@ -471,20 +471,15 @@ class WebsitePage(models.Model):
         )
         results = most_specific_pages.filtered(lambda page: page.id in candidate_ids)
 
-        # The reader's access does not change between two pages, so it is
-        # resolved once for the whole candidate set rather than per page.
-        page_rule_domain = self.env["website.page"].sudo(False)._access_domain("read")
-        view_rule_domain = self.env["ir.ui.view"].sudo(False)._access_domain("read")
+        # what a visitor may find is the base domain's publication, date,
+        # visibility and group criteria: no reader below the designer holds a
+        # read grant on website.page or its views, pages are served through sudo
         search_pattern = None
         if search and with_description:
             terms = "|".join(re.escape(term) for term in search.split())
             search_pattern = terms and re.compile(f"({terms})", re.IGNORECASE)
 
         def is_page_accessible(page):
-            if not page.filtered_domain(page_rule_domain):
-                return False
-            if not page.view_id.filtered_domain(view_rule_domain):
-                return False
             if search and with_description:
                 if not search_pattern:
                     return False
