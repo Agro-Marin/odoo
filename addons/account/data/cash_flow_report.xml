@@ -5,6 +5,7 @@
         <field name="name">Cash Flow Statement</field>
         <field name="filter_unfold_all" eval="True" />
         <field name="filter_date_range" eval="True" />
+        <field name="default_opening_date_filter">this_month</field>
         <field name="filter_journals" eval="True" />
         <field name="filter_period_comparison" eval="False" />
         <field name="filter_multi_company">selector</field>
