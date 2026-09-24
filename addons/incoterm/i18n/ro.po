@@ -1,0 +1,186 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * account
+#
+# Translators:
+# Sorin Trifu <sorin.trifu@bizconsulting.ro>, 2022
+# Fekete Mihai <mihai.fekete@forestandbiomass.ro>, 2022
+# Marian Heiner <heinermarian@gmail.com>, 2022
+# Hongu Cosmin <cosmin513@gmail.com>, 2022
+# Foldi Robert <foldirobert@nexterp.ro>, 2022
+# Cozmin Candea <office@terrabit.ro>, 2023
+# Dorin Hongu <dhongu@gmail.com>, 2023, 2025.
+# Martin Trigaux, 2023
+# "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+# Cuciureanu Larisa <larisa.cuciureanu@nexterp.ro>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+# Ciocoiu Beatrice-Flavia <ciocoiuflavia008@gmail.com>, 2025.
+# Adrian Cocos <adrian.cocos@capps.ai>, 2025.
+# Comaniciu Ioana <ioana@dakai.ro>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2026-02-02 13:44+0000\n"
+"Last-Translator: Comaniciu Ioana <ioana@dakai.ro>\n"
+"Language-Team: Romanian <https://translate.odoo.com/projects/odoo-19/account/ro/>\n"
+"Language: ro\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=3; plural=n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < 20)) ? 1 : 2;\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__active
+msgid "Active"
+msgstr "Activ"
+
+#. module: incoterm
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_form
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_view_search
+msgid "Archived"
+msgstr "Arhivat"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__active
+msgid ""
+"By unchecking the active field, you may hide an INCOTERM you will not use."
+msgstr ""
+"Lăsând câmpul activ nebifat, puteți ascunde un INCOTERM fără să-l ștergeți."
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CIP
+msgid "CARRIAGE AND INSURANCE PAID TO"
+msgstr "TRANSPORTUL ȘI ASIGURAREA PLĂTITE CĂTRE"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CPT
+msgid "CARRIAGE PAID TO"
+msgstr "TRANSPORT PLĂTIT CĂTRE"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CFR
+msgid "COST AND FREIGHT"
+msgstr "COST ȘI ÎNCĂRCĂTURĂ"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CIF
+msgid "COST, INSURANCE AND FREIGHT"
+msgstr "COST, ASIGURARE ȘI ÎNCĂRCĂTURĂ"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__code
+msgid "Code"
+msgstr "Cod"
+
+#. module: incoterm
+#: model_terms:ir.actions.act_window,help:incoterm.action_incoterms_tree
+msgid "Create a new incoterm"
+msgstr "Creați un nou incoterm"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__create_uid
+msgid "Created by"
+msgstr "Creat de"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__create_date
+msgid "Created on"
+msgstr "Creat în"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DAP
+msgid "DELIVERED AT PLACE"
+msgstr "LIVRAT LA LOCATIE"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DPU
+msgid "DELIVERED AT PLACE UNLOADED"
+msgstr "LIVRAT LA LOC NEDESCĂRCAT"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DDP
+msgid "DELIVERED DUTY PAID"
+msgstr "Taxa Livrare Plătită"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__display_name
+msgid "Display Name"
+msgstr "Nume afișat"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_EXW
+msgid "EX WORKS"
+msgstr "EX WORKS"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FAS
+msgid "FREE ALONGSIDE SHIP"
+msgstr "LIVRARE LA PORT"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FCA
+msgid "FREE CARRIER"
+msgstr "Transport gratuit"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FOB
+msgid "FREE ON BOARD"
+msgstr "LIVRARE LA BORD"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__id
+msgid "ID"
+msgstr "ID"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__code
+msgid "Incoterm Standard Code"
+msgstr "Cod standard incotermen"
+
+#. module: incoterm
+#: model:ir.actions.act_window,name:incoterm.action_incoterms_tree
+#: model:ir.model,name:incoterm.model_account_incoterms
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_form
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_view_search
+#: model_terms:ir.ui.view,arch_db:incoterm.view_incoterms_tree
+msgid "Incoterms"
+msgstr "Incotermeni"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__name
+msgid ""
+"Incoterms are series of sales terms. They are used to divide transaction "
+"costs and responsibilities between buyer and seller and reflect state-of-"
+"the-art transportation practices."
+msgstr ""
+"Incotermele sunt o serie de condiții de vânzare. Acestea sunt utilizate "
+"pentru a împărți costurile și responsabilitățile de tranzacție între "
+"cumpărător și vânzător și reflectă practicile de transport de ultimă "
+"generație."
+
+#. module: incoterm
+#: model_terms:ir.actions.act_window,help:incoterm.action_incoterms_tree
+msgid ""
+"Incoterms are used to divide transaction costs and responsibilities between "
+"buyer and seller."
+msgstr ""
+"Incotermele sunt folosite pentru a împărți costurile și responsabilitățile "
+"tranzacției între cumpărător și vânzător."
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__write_uid
+msgid "Last Updated by"
+msgstr "Ultima actualizare făcută de"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__write_date
+msgid "Last Updated on"
+msgstr "Ultima actualizare pe"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__name
+msgid "Name"
+msgstr "Nume"

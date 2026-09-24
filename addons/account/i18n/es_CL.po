@@ -127,7 +127,6 @@ msgstr "Compañía"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_tax__create_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_uid
 #: model:ir.model.fields,field_description:account.field_account_group__create_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_uid
 #: model:ir.model.fields,field_description:account.field_account_move__create_uid
@@ -182,7 +181,6 @@ msgstr "Creado por"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_tax__create_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_date
 #: model:ir.model.fields,field_description:account.field_account_group__create_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_date
 #: model:ir.model.fields,field_description:account.field_account_move__create_date
@@ -293,7 +291,6 @@ msgstr "Descuento (%)"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_tax__display_name
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__display_name
 #: model:ir.model.fields,field_description:account.field_account_group__display_name
-#: model:ir.model.fields,field_description:account.field_account_incoterms__display_name
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal_group__display_name
@@ -385,7 +382,6 @@ msgstr "Agrupar por"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_tax__id
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__id
 #: model:ir.model.fields,field_description:account.field_account_group__id
-#: model:ir.model.fields,field_description:account.field_account_incoterms__id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__id
 #: model:ir.model.fields,field_description:account.field_account_journal__id
 #: model:ir.model.fields,field_description:account.field_account_journal_group__id
@@ -537,7 +533,6 @@ msgstr "Facturando"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_tax__write_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_uid
 #: model:ir.model.fields,field_description:account.field_account_group__write_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_uid
 #: model:ir.model.fields,field_description:account.field_account_move__write_uid
@@ -592,7 +587,6 @@ msgstr "Última actualización de"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_tax__write_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_date
 #: model:ir.model.fields,field_description:account.field_account_group__write_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_date
 #: model:ir.model.fields,field_description:account.field_account_move__write_date

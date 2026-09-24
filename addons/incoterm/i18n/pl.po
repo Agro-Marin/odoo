@@ -1,0 +1,220 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * account
+#
+# Translators:
+# Zdzisław Krajewski <zdzichucb@gmail.com>, 2022
+# Wiktor Kaźmierczak <wik92tor@wp.pl>, 2022
+# Mateusz Kopeć, 2022
+# IT WEDOO, 2022
+# Grzegorz Krukar <grzegorzgk1@gmail.com>, 2022
+# Patryk Openglobe <patryk.walentowicz@openglobe.pl>, 2022
+# Radosław Biegalski <radoslaw.biegalski@openglobe.pl>, 2022
+# Maciej Wichowski <maciej.wichowski@openglobe.pl>, 2022
+# Jaroslaw Kaczmarski, 2022
+# Monika Motyczyńska <m.monia@op.pl>, 2022
+# Grzegorz Michrowski <grzegorz.michrowski@openglobe.pl>, 2022
+# Jan Dziurz <jan.dziurzynski@openglobe.pl>, 2022
+# Jakobus Buntownikus <buntownix@gmail.com>, 2022
+# Mariusz, 2022
+# Dawid Prus, 2022
+# Marcin Młynarczyk <mlynarczyk@gmail.com>, 2022
+# Karol Rybak <karolrybak85@gmail.com>, 2022
+# Wojciech Warczakowski <w.warczakowski@gmail.com>, 2022
+# Andrzej Wiśniewski <a.wisniewski@hadron.eu.com>, 2022
+# Monika Grzelak <m.e.grzelak@gmail.com>, 2022
+# Natalia Gros <nag@odoo.com>, 2022
+# Maja Stawicka <mjstwck@wp.pl>, 2022
+# Tomasz Leppich <t.leppich@gmail.com>, 2022
+# taksun <taksun@o2.pl>, 2022
+# Krystian Harkot <kharkot@trilab.pl>, 2022
+# Jacek Michalski <michalski.jck@gmail.com>, 2022
+# Paweł Michoń <michon.pawel@wp.pl>, 2022
+# zieloo <zieloo@gmail.com>, 2022
+# Piotr Strębski <strebski@gmail.com>, 2022
+# Rafał Kozak <rafal.kozak@openglobe.pl>, 2022
+# Ludwik Trammer <ludwik@gmail.com>, 2022
+# Piotr Cierkosz <piotr.w.cierkosz@gmail.com>, 2022
+# Piotr Szlązak <szlazakpiotr@gmail.com>, 2022
+# Judyta Kaźmierczak <judyta.kazmierczak@openglobe.pl>, 2022
+# Dariusz Żbikowski <darek@krokus.com.pl>, 2022
+# Cezary Drożak, 2022
+# Łukasz Grzenkowicz <lukasz.grzenkowicz@gmail.com>, 2022
+# Cécile Collart <cco@odoo.com>, 2022
+# Grzegorz Grzelak <grzegorz.grzelak@openglobe.pl>, 2023
+# Anita Kosobucka, 2023
+# Maksym <ms@myodoo.pl>, 2023
+# Paweł Wodyński <pw@myodoo.pl>, 2023
+# przemekjaroc, 2023
+# Martin Trigaux, 2023
+# danielkowalczyk007, 2023
+# Tadeusz Karpiński <tadeuszkarpinski@gmail.com>, 2023
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# Dawid Gacek <dawid.gacek@adapt-it.pl>, 2025.
+# "Marta (wacm)" <wacm@odoo.com>, 2025, 2026.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2026-02-11 17:41+0000\n"
+"Last-Translator: \"Marta (wacm)\" <wacm@odoo.com>\n"
+"Language-Team: Polish <https://translate.odoo.com/projects/odoo-19/account/pl/>\n"
+"Language: pl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=4; plural=(n==1 ? 0 : (n%10>=2 && n%10<=4) && (n%100<12 || n%100>14) ? 1 : n!=1 && (n%10>=0 && n%10<=1) || (n%10>=5 && n%10<=9) || (n%100>=12 && n%100<=14) ? 2 : 3);\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__active
+msgid "Active"
+msgstr "Aktywne"
+
+#. module: incoterm
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_form
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_view_search
+msgid "Archived"
+msgstr "Zarchiwizowane"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__active
+msgid ""
+"By unchecking the active field, you may hide an INCOTERM you will not use."
+msgstr "Odznaczając pole aktywne możesz ukryć INCOTERM, których nie używasz."
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CIP
+msgid "CARRIAGE AND INSURANCE PAID TO"
+msgstr "PRZEWÓZ I UBEZPIECZENIE WYPŁACONE NA RZECZ"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CPT
+msgid "CARRIAGE PAID TO"
+msgstr "PRZEWÓZ OPŁACONY DO"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CFR
+msgid "COST AND FREIGHT"
+msgstr "KOSZT I FRACHT"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CIF
+msgid "COST, INSURANCE AND FREIGHT"
+msgstr "Koszt, ubezpieczenie i ładunek"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__code
+msgid "Code"
+msgstr "Kod"
+
+#. module: incoterm
+#: model_terms:ir.actions.act_window,help:incoterm.action_incoterms_tree
+msgid "Create a new incoterm"
+msgstr "Utwórz nowy incoterm"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__create_uid
+msgid "Created by"
+msgstr "Utworzył(a)"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__create_date
+msgid "Created on"
+msgstr "Data utworzenia"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DAP
+msgid "DELIVERED AT PLACE"
+msgstr "DOSTARCZONY NA MIEJSCE"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DPU
+msgid "DELIVERED AT PLACE UNLOADED"
+msgstr "DOSTARCZONY NA MIEJSCE ROZŁADUNKU"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DDP
+msgid "DELIVERED DUTY PAID"
+msgstr "DOSTARCZONE ZAPŁACONE CŁO"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__display_name
+msgid "Display Name"
+msgstr "Nazwa wyświetlana"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_EXW
+msgid "EX WORKS"
+msgstr "EX WORKS (z zakładu)"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FAS
+msgid "FREE ALONGSIDE SHIP"
+msgstr "DARMOWA WYSYŁKA OBOK"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FCA
+msgid "FREE CARRIER"
+msgstr "BEZPŁATNY PRZEWOŹNIK"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FOB
+msgid "FREE ON BOARD"
+msgstr "WOLNY NA POKŁADZIE"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__id
+msgid "ID"
+msgstr "ID"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__code
+msgid "Incoterm Standard Code"
+msgstr "Standardowy kod Incoterm"
+
+#. module: incoterm
+#: model:ir.actions.act_window,name:incoterm.action_incoterms_tree
+#: model:ir.model,name:incoterm.model_account_incoterms
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_form
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_view_search
+#: model_terms:ir.ui.view,arch_db:incoterm.view_incoterms_tree
+msgid "Incoterms"
+msgstr "Incoterms"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__name
+msgid ""
+"Incoterms are series of sales terms. They are used to divide transaction "
+"costs and responsibilities between buyer and seller and reflect state-of-"
+"the-art transportation practices."
+msgstr ""
+"Incoterms to seria warunków sprzedaży. Są one wykorzystywane do dzielenia "
+"kosztów transakcji i odpowiedzialności między kupującego i sprzedającego i "
+"odzwierciedlają najnowocześniejsze praktyki transportowe."
+
+#. module: incoterm
+#: model_terms:ir.actions.act_window,help:incoterm.action_incoterms_tree
+msgid ""
+"Incoterms are used to divide transaction costs and responsibilities between "
+"buyer and seller."
+msgstr ""
+"Incoterms służą do podziału kosztów transakcji i odpowiedzialności pomiędzy "
+"kupującego i sprzedającego."
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__write_uid
+msgid "Last Updated by"
+msgstr "Ostatnio aktualizowane przez"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__write_date
+msgid "Last Updated on"
+msgstr "Data ostatniej aktualizacji"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__name
+msgid "Name"
+msgstr "Nazwa"

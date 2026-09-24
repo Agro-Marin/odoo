@@ -75,7 +75,7 @@ class TestMyUBLPint(AccountTestInvoicingCommon):
 
         invoice.write(
             {
-                "invoice_incoterm_id": self.env.ref("account.incoterm_CFR").id,
+                "invoice_incoterm_id": self.env.ref("incoterm.incoterm_CFR").id,
             }
         )
 

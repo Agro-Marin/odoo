@@ -3173,7 +3173,6 @@ msgstr "판매 영수증 생성 기능을 활성화합니다."
 #: model:ir.model.fields,field_description:account.field_account_account__active
 #: model:ir.model.fields,field_description:account.field_account_account_tag__active
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
-#: model:ir.model.fields,field_description:account.field_account_incoterms__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
 #: model:ir.model.fields,field_description:account.field_account_payment_term__active
@@ -4048,8 +4047,6 @@ msgid "April"
 msgstr "4월"
 
 #. module: account
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_form
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_view_search
 #: model_terms:ir.ui.view,arch_db:account.account_tag_view_form
 #: model_terms:ir.ui.view,arch_db:account.account_tag_view_search
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -4958,36 +4955,10 @@ msgid ""
 msgstr "활성화되어 있는 필드의 선택을 취소하면, 삭제하지 않고 재정 위치를 숨길 수 있습니다."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__active
-msgid ""
-"By unchecking the active field, you may hide an INCOTERM you will not use."
-msgstr "활성화한 필드를 선택 취소할 경우에는 사용하지 않을 인코텀즈를 숨길 수 있습니다."
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/chart_template.py:0
 msgid "CABA"
 msgstr "CABA"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CIP
-msgid "CARRIAGE AND INSURANCE PAID TO"
-msgstr "CIP"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CPT
-msgid "CARRIAGE PAID TO"
-msgstr "CPT"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CFR
-msgid "COST AND FREIGHT"
-msgstr "CFR"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CIF
-msgid "COST, INSURANCE AND FREIGHT"
-msgstr "CIF"
 
 #. module: account
 #. odoo-python
@@ -5544,7 +5515,6 @@ msgstr "마감하기"
 #: model:ir.model.fields,field_description:account.field_account_account__code
 #: model:ir.model.fields,field_description:account.field_account_analytic_line__code
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__code
-#: model:ir.model.fields,field_description:account.field_account_incoterms__code
 #: model:ir.model.fields,field_description:account.field_account_move_line__account_code
 #: model:ir.model.fields,field_description:account.field_account_payment__payment_method_code
 #: model:ir.model.fields,field_description:account.field_account_payment_method__code
@@ -6189,11 +6159,6 @@ msgid "Create a new fiscal position"
 msgstr "새로운 재정 위치 항목을 생성합니다."
 
 #. module: account
-#: model_terms:ir.actions.act_window,help:account.action_incoterms_tree
-msgid "Create a new incoterm"
-msgstr "새로운 인코텀즈를 생성합니다."
-
-#. module: account
 #: model_terms:ir.actions.act_window,help:account.product_product_action_purchasable
 msgid "Create a new purchasable product"
 msgstr "새로운 구매 가능 품목을 생성합니다."
@@ -6328,7 +6293,6 @@ msgstr "작성일자"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_uid
 #: model:ir.model.fields,field_description:account.field_account_group__create_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_uid
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__create_uid
@@ -6397,7 +6361,6 @@ msgstr "작성자"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_date
 #: model:ir.model.fields,field_description:account.field_account_group__create_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_date
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__create_date
@@ -6869,21 +6832,6 @@ msgstr "컷오프 {label}"
 #: code:addons/account/wizard/account_automatic_entry_wizard.py:0
 msgid "Cut-off {label} {percent}%"
 msgstr "컷오프 {label} {percent}%"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DAP
-msgid "DELIVERED AT PLACE"
-msgstr "도착지 인도 조건 (DELIVERED AT PLACE)"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DPU
-msgid "DELIVERED AT PLACE UNLOADED"
-msgstr "도착지 양하 인도 조건 (DELIVERED AT PLACE UNLOADED)"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DDP
-msgid "DELIVERED DUTY PAID"
-msgstr "관세 지급 인도 조건 (DELIVERED DUTY PAID)"
 
 #. module: account
 #: model:ir.actions.act_window,name:account.open_account_journal_dashboard_kanban
@@ -7642,7 +7590,6 @@ msgstr "매핑 탭 표시"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__display_name
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__display_name
 #: model:ir.model.fields,field_description:account.field_account_group__display_name
-#: model:ir.model.fields,field_description:account.field_account_incoterms__display_name
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal_group__display_name
@@ -8181,11 +8128,6 @@ msgstr "EDI 양식"
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "EU Intra-community Distance Selling"
 msgstr "EU 커뮤니티 내 원거리 판매"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_EXW
-msgid "EX WORKS"
-msgstr "EXW"
 
 #. module: account
 #. odoo-python
@@ -8749,21 +8691,6 @@ msgstr "추가 Edis"
 #: model:ir.model.fields,field_description:account.field_account_move_line__extra_tax_data
 msgid "Extra Tax Data"
 msgstr "추가 세금 데이터"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FAS
-msgid "FREE ALONGSIDE SHIP"
-msgstr "선측 인도 조건 (FREE ALONGSIDE SHIP)"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FCA
-msgid "FREE CARRIER"
-msgstr "운송인 인도 조건 (FREE CARRIER)"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FOB
-msgid "FREE ON BOARD"
-msgstr "본선 인도 조건 (FREE ON BOARD)"
 
 #. module: account
 #. odoo-python
@@ -9785,7 +9712,6 @@ msgstr "ICE:"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__id
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__id
 #: model:ir.model.fields,field_description:account.field_account_group__id
-#: model:ir.model.fields,field_description:account.field_account_incoterms__id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__id
 #: model:ir.model.fields,field_description:account.field_account_journal__id
 #: model:ir.model.fields,field_description:account.field_account_journal_group__id
@@ -10409,36 +10335,9 @@ msgid "Incoterm Location"
 msgstr "인코텀즈 지역"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__code
-msgid "Incoterm Standard Code"
-msgstr "인코텀즈 표준 코드"
-
-#. module: account
-#: model:ir.actions.act_window,name:account.action_incoterms_tree
-#: model:ir.model,name:account.model_account_incoterms
 #: model:ir.ui.menu,name:account.menu_action_incoterm_open
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_form
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_view_search
-#: model_terms:ir.ui.view,arch_db:account.view_incoterms_tree
 msgid "Incoterms"
 msgstr "인코텀즈"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__name
-msgid ""
-"Incoterms are series of sales terms. They are used to divide transaction "
-"costs and responsibilities between buyer and seller and reflect state-of-"
-"the-art transportation practices."
-msgstr ""
-"인코텀즈란 국제적으로 통용되는 상업 용어 모음입니다. 구매자와 판매자 간의 거래 비용과 책임을 배분하는데 사용하며, 최근의 운송 관행도 "
-"반영하게 됩니다."
-
-#. module: account
-#: model_terms:ir.actions.act_window,help:account.action_incoterms_tree
-msgid ""
-"Incoterms are used to divide transaction costs and responsibilities between "
-"buyer and seller."
-msgstr "인코텀즈는 구매자와 판매자 간의 거래 비용과 책임을 배분하는데 사용됩니다."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_move_line__tax_line_id
@@ -11647,7 +11546,6 @@ msgstr "최근 명세서"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_uid
 #: model:ir.model.fields,field_description:account.field_account_group__write_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_uid
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__write_uid
@@ -11716,7 +11614,6 @@ msgstr "최근 갱신한 사람"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_date
 #: model:ir.model.fields,field_description:account.field_account_group__write_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_date
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__write_date
@@ -12656,7 +12553,6 @@ msgstr "내 청구서"
 #: model:ir.model.fields,field_description:account.field_account_autopost_bills_wizard__partner_name
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__name
 #: model:ir.model.fields,field_description:account.field_account_group__name
-#: model:ir.model.fields,field_description:account.field_account_incoterms__name
 #: model:ir.model.fields,field_description:account.field_account_payment_method__name
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__name
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__name

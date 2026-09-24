@@ -2852,7 +2852,6 @@ msgstr "सेल रसीद बनाने के लिए ऐक्टि�
 #: model:ir.model.fields,field_description:account.field_account_account__active
 #: model:ir.model.fields,field_description:account.field_account_account_tag__active
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
-#: model:ir.model.fields,field_description:account.field_account_incoterms__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
 #: model:ir.model.fields,field_description:account.field_account_payment_term__active
@@ -3763,8 +3762,6 @@ msgid "April"
 msgstr "अप्रैल"
 
 #. module: account
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_form
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_view_search
 #: model_terms:ir.ui.view,arch_db:account.account_tag_view_form
 #: model_terms:ir.ui.view,arch_db:account.account_tag_view_search
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -4685,38 +4682,10 @@ msgstr ""
 "सकते हैं।"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__active
-msgid ""
-"By unchecking the active field, you may hide an INCOTERM you will not use."
-msgstr ""
-"अगर आप 'चालू' वाले बॉक्स को खाली छोड़ दें, तो आप उस INCOTERM को छिपा सकते "
-"हैं जिसका आप उपयोग नहीं करेंगेय"
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/chart_template.py:0
 msgid "CABA"
 msgstr "CABA"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CIP
-msgid "CARRIAGE AND INSURANCE PAID TO"
-msgstr "कैरिज और इंश्योरेंस इनको चुकाया गया"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CPT
-msgid "CARRIAGE PAID TO"
-msgstr "कैरिज चुकाया गया"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CFR
-msgid "COST AND FREIGHT"
-msgstr "लागत और माल भाड़ा"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CIF
-msgid "COST, INSURANCE AND FREIGHT"
-msgstr "लागत, इंश्योरेंस और माल भाड़ा"
 
 #. module: account
 #. odoo-python
@@ -5291,7 +5260,6 @@ msgstr "क्लोजिंग"
 #: model:ir.model.fields,field_description:account.field_account_account__code
 #: model:ir.model.fields,field_description:account.field_account_analytic_line__code
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__code
-#: model:ir.model.fields,field_description:account.field_account_incoterms__code
 #: model:ir.model.fields,field_description:account.field_account_move_line__account_code
 #: model:ir.model.fields,field_description:account.field_account_payment__payment_method_code
 #: model:ir.model.fields,field_description:account.field_account_payment_method__code
@@ -5949,11 +5917,6 @@ msgid "Create a new fiscal position"
 msgstr "एक नया वित्तीय स्थिति बनाएं"
 
 #. module: account
-#: model_terms:ir.actions.act_window,help:account.action_incoterms_tree
-msgid "Create a new incoterm"
-msgstr "एक नया इंकोटर्म बनाएं"
-
-#. module: account
 #: model_terms:ir.actions.act_window,help:account.product_product_action_purchasable
 msgid "Create a new purchasable product"
 msgstr "एक नया परचेज़ किया जा सकने वाला प्रॉडक्ट बनाएं"
@@ -6094,7 +6057,6 @@ msgstr "इस तारीख को बनाया गया"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_uid
 #: model:ir.model.fields,field_description:account.field_account_group__create_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_uid
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__create_uid
@@ -6163,7 +6125,6 @@ msgstr "इन्होंने बनाया"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_date
 #: model:ir.model.fields,field_description:account.field_account_group__create_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_date
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__create_date
@@ -6637,21 +6598,6 @@ msgstr "कट-ऑफ़ {लेबल}"
 #: code:addons/account/wizard/account_automatic_entry_wizard.py:0
 msgid "Cut-off {label} {percent}%"
 msgstr "कट-ऑफ़ {लेबल} {प्रतिशत}%"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DAP
-msgid "DELIVERED AT PLACE"
-msgstr "जगह पर डिलीवरी की गई"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DPU
-msgid "DELIVERED AT PLACE UNLOADED"
-msgstr "बिना सामान उतारे ही जगह पर डिलीवरी की गई"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DDP
-msgid "DELIVERED DUTY PAID"
-msgstr "डिलीवरी के लिए भुगतान किया गया"
 
 #. module: account
 #: model:ir.actions.act_window,name:account.open_account_journal_dashboard_kanban
@@ -7431,7 +7377,6 @@ msgstr "मैपिंग टैब दिखाएं"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__display_name
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__display_name
 #: model:ir.model.fields,field_description:account.field_account_group__display_name
-#: model:ir.model.fields,field_description:account.field_account_incoterms__display_name
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal_group__display_name
@@ -7977,11 +7922,6 @@ msgstr "ईडीआई फ़ॉर्मैट"
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "EU Intra-community Distance Selling"
 msgstr "ईयू इंट्रा-कम्यूनिटी डिस्टेंस सेलिंग"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_EXW
-msgid "EX WORKS"
-msgstr "EX WORKS"
 
 #. module: account
 #. odoo-python
@@ -8554,21 +8494,6 @@ msgstr "एक्स्ट्रा ईडीआई"
 #: model:ir.model.fields,field_description:account.field_account_move_line__extra_tax_data
 msgid "Extra Tax Data"
 msgstr "एक्स्ट्रा टैक्स डेटा"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FAS
-msgid "FREE ALONGSIDE SHIP"
-msgstr "फ्री अलांगसाइड शिप"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FCA
-msgid "FREE CARRIER"
-msgstr "फ्री कैरियर"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FOB
-msgid "FREE ON BOARD"
-msgstr "फ्री ऑन बोर्ड"
 
 #. module: account
 #. odoo-python
@@ -9601,7 +9526,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__id
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__id
 #: model:ir.model.fields,field_description:account.field_account_group__id
-#: model:ir.model.fields,field_description:account.field_account_incoterms__id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__id
 #: model:ir.model.fields,field_description:account.field_account_journal__id
 #: model:ir.model.fields,field_description:account.field_account_journal_group__id
@@ -10252,39 +10176,9 @@ msgid "Incoterm Location"
 msgstr "इन्कोटर्म लोकेशन"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__code
-msgid "Incoterm Standard Code"
-msgstr "इन्कोटर्म स्टैंडर्ड कोड"
-
-#. module: account
-#: model:ir.actions.act_window,name:account.action_incoterms_tree
-#: model:ir.model,name:account.model_account_incoterms
 #: model:ir.ui.menu,name:account.menu_action_incoterm_open
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_form
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_view_search
-#: model_terms:ir.ui.view,arch_db:account.view_incoterms_tree
 msgid "Incoterms"
 msgstr "इन्कोटर्म"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__name
-msgid ""
-"Incoterms are series of sales terms. They are used to divide transaction "
-"costs and responsibilities between buyer and seller and reflect state-of-"
-"the-art transportation practices."
-msgstr ""
-"इनकोटर्म्स व्यापार में इस्तेमाल होने वाले सेल्स के नियम हैं. ये खरीदने वाले "
-"और बेचने वाले के बीच खर्चों और जिम्मेदारियों को बांटते हैं और आज के परिवहन "
-"के तरीकों को बताते हैं।"
-
-#. module: account
-#: model_terms:ir.actions.act_window,help:account.action_incoterms_tree
-msgid ""
-"Incoterms are used to divide transaction costs and responsibilities between "
-"buyer and seller."
-msgstr ""
-"इनकोटर्म्स का मुख्य उद्देश्य खरीदार और विक्रेता के बीच माल के परिवहन से "
-"जुड़े खर्चों और जिम्मेदारियों को स्पष्ट रूप से बांटना है।"
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_move_line__tax_line_id
@@ -11537,7 +11431,6 @@ msgstr "आखिरी स्टेटमेंट"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_uid
 #: model:ir.model.fields,field_description:account.field_account_group__write_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_uid
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__write_uid
@@ -11606,7 +11499,6 @@ msgstr "इन्होंने आखिरी बार अपडेट क�
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_date
 #: model:ir.model.fields,field_description:account.field_account_group__write_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_date
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__write_date
@@ -12553,7 +12445,6 @@ msgstr "मेरे इनवॉइस"
 #: model:ir.model.fields,field_description:account.field_account_autopost_bills_wizard__partner_name
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__name
 #: model:ir.model.fields,field_description:account.field_account_group__name
-#: model:ir.model.fields,field_description:account.field_account_incoterms__name
 #: model:ir.model.fields,field_description:account.field_account_payment_method__name
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__name
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__name

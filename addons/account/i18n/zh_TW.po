@@ -2918,7 +2918,6 @@ msgstr "啟用以建立銷售收據"
 #: model:ir.model.fields,field_description:account.field_account_account__active
 #: model:ir.model.fields,field_description:account.field_account_account_tag__active
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
-#: model:ir.model.fields,field_description:account.field_account_incoterms__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
 #: model:ir.model.fields,field_description:account.field_account_payment_term__active
@@ -3790,8 +3789,6 @@ msgid "April"
 msgstr "四月"
 
 #. module: account
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_form
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_view_search
 #: model_terms:ir.ui.view,arch_db:account.account_tag_view_form
 #: model_terms:ir.ui.view,arch_db:account.account_tag_view_search
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -4697,36 +4694,10 @@ msgid ""
 msgstr "如不勾選有效欄位，可以隱藏而不刪除此財務狀況."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__active
-msgid ""
-"By unchecking the active field, you may hide an INCOTERM you will not use."
-msgstr "如不勾選有效欄位，您能隱藏不再使用國際貿易術語."
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/chart_template.py:0
 msgid "CABA"
 msgstr "CABA"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CIP
-msgid "CARRIAGE AND INSURANCE PAID TO"
-msgstr "運費及保險支付給"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CPT
-msgid "CARRIAGE PAID TO"
-msgstr "運費支付給"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CFR
-msgid "COST AND FREIGHT"
-msgstr "成本和運費"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CIF
-msgid "COST, INSURANCE AND FREIGHT"
-msgstr "成本、保險費和運費"
 
 #. module: account
 #. odoo-python
@@ -5281,7 +5252,6 @@ msgstr "正關閉"
 #: model:ir.model.fields,field_description:account.field_account_account__code
 #: model:ir.model.fields,field_description:account.field_account_analytic_line__code
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__code
-#: model:ir.model.fields,field_description:account.field_account_incoterms__code
 #: model:ir.model.fields,field_description:account.field_account_move_line__account_code
 #: model:ir.model.fields,field_description:account.field_account_payment__payment_method_code
 #: model:ir.model.fields,field_description:account.field_account_payment_method__code
@@ -5925,11 +5895,6 @@ msgid "Create a new fiscal position"
 msgstr "建立新的財務狀況"
 
 #. module: account
-#: model_terms:ir.actions.act_window,help:account.action_incoterms_tree
-msgid "Create a new incoterm"
-msgstr "建立一條新的國際貿易術語"
-
-#. module: account
 #: model_terms:ir.actions.act_window,help:account.product_product_action_purchasable
 msgid "Create a new purchasable product"
 msgstr "建立一種新的可採購產品"
@@ -6064,7 +6029,6 @@ msgstr "建立於"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_uid
 #: model:ir.model.fields,field_description:account.field_account_group__create_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_uid
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__create_uid
@@ -6133,7 +6097,6 @@ msgstr "建立人員"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_date
 #: model:ir.model.fields,field_description:account.field_account_group__create_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_date
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__create_date
@@ -6603,21 +6566,6 @@ msgstr "截數 {label}"
 #: code:addons/account/wizard/account_automatic_entry_wizard.py:0
 msgid "Cut-off {label} {percent}%"
 msgstr "截數 {label} {percent}%"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DAP
-msgid "DELIVERED AT PLACE"
-msgstr "現場交貨"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DPU
-msgid "DELIVERED AT PLACE UNLOADED"
-msgstr "在卸貨地點交貨"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DDP
-msgid "DELIVERED DUTY PAID"
-msgstr "完稅後交貨"
 
 #. module: account
 #: model:ir.actions.act_window,name:account.open_account_journal_dashboard_kanban
@@ -7371,7 +7319,6 @@ msgstr "顯示對應分頁"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__display_name
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__display_name
 #: model:ir.model.fields,field_description:account.field_account_group__display_name
-#: model:ir.model.fields,field_description:account.field_account_incoterms__display_name
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal_group__display_name
@@ -7910,11 +7857,6 @@ msgstr "EDI 格式"
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "EU Intra-community Distance Selling"
 msgstr "歐盟共同體內部跨境銷售"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_EXW
-msgid "EX WORKS"
-msgstr "出廠價"
 
 #. module: account
 #. odoo-python
@@ -8477,21 +8419,6 @@ msgstr "額外Edis"
 #: model:ir.model.fields,field_description:account.field_account_move_line__extra_tax_data
 msgid "Extra Tax Data"
 msgstr "額外稅務數據"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FAS
-msgid "FREE ALONGSIDE SHIP"
-msgstr "船邊交貨"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FCA
-msgid "FREE CARRIER"
-msgstr "交貨承運人"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FOB
-msgid "FREE ON BOARD"
-msgstr "船上交貨"
 
 #. module: account
 #. odoo-python
@@ -9504,7 +9431,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__id
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__id
 #: model:ir.model.fields,field_description:account.field_account_group__id
-#: model:ir.model.fields,field_description:account.field_account_incoterms__id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__id
 #: model:ir.model.fields,field_description:account.field_account_journal__id
 #: model:ir.model.fields,field_description:account.field_account_journal_group__id
@@ -10119,34 +10045,9 @@ msgid "Incoterm Location"
 msgstr "國際貿易術語位置"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__code
-msgid "Incoterm Standard Code"
-msgstr "國際貿易術語標準代碼"
-
-#. module: account
-#: model:ir.actions.act_window,name:account.action_incoterms_tree
-#: model:ir.model,name:account.model_account_incoterms
 #: model:ir.ui.menu,name:account.menu_action_incoterm_open
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_form
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_view_search
-#: model_terms:ir.ui.view,arch_db:account.view_incoterms_tree
 msgid "Incoterms"
 msgstr "國際貿易術語"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__name
-msgid ""
-"Incoterms are series of sales terms. They are used to divide transaction "
-"costs and responsibilities between buyer and seller and reflect state-of-"
-"the-art transportation practices."
-msgstr "貿易術語是一系列的銷售術語，用來劃分交易成本和買賣雙方的責任，並反映運輸方法的發展."
-
-#. module: account
-#: model_terms:ir.actions.act_window,help:account.action_incoterms_tree
-msgid ""
-"Incoterms are used to divide transaction costs and responsibilities between "
-"buyer and seller."
-msgstr "貿易條款用來在買家和賣家之間區分交易成本和責任."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_move_line__tax_line_id
@@ -11351,7 +11252,6 @@ msgstr "上期結單"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_uid
 #: model:ir.model.fields,field_description:account.field_account_group__write_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_uid
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__write_uid
@@ -11420,7 +11320,6 @@ msgstr "最後更新者"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_date
 #: model:ir.model.fields,field_description:account.field_account_group__write_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_date
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__write_date
@@ -12350,7 +12249,6 @@ msgstr "我的發票"
 #: model:ir.model.fields,field_description:account.field_account_autopost_bills_wizard__partner_name
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__name
 #: model:ir.model.fields,field_description:account.field_account_group__name
-#: model:ir.model.fields,field_description:account.field_account_incoterms__name
 #: model:ir.model.fields,field_description:account.field_account_payment_method__name
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__name
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__name

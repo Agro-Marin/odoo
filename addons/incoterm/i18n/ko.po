@@ -1,0 +1,175 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * account
+#
+# Translators:
+# Link Up링크업 <linkup.way@gmail.com>, 2022
+# Linkup <link-up@naver.com>, 2022
+# JH CHOI <hwangtog@gmail.com>, 2022
+# Martin Trigaux, 2023
+# Sarah Park, 2023
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Kwanghee Park (kwpa)" <kwpa@odoo.com>, 2025, 2026.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2026-02-13 07:42+0000\n"
+"Last-Translator: \"Kwanghee Park (kwpa)\" <kwpa@odoo.com>\n"
+"Language-Team: Korean <https://translate.odoo.com/projects/odoo-19/account/ko/>\n"
+"Language: ko\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__active
+msgid "Active"
+msgstr "활성화"
+
+#. module: incoterm
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_form
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_view_search
+msgid "Archived"
+msgstr "보관됨"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__active
+msgid ""
+"By unchecking the active field, you may hide an INCOTERM you will not use."
+msgstr "활성화한 필드를 선택 취소할 경우에는 사용하지 않을 인코텀즈를 숨길 수 있습니다."
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CIP
+msgid "CARRIAGE AND INSURANCE PAID TO"
+msgstr "CIP"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CPT
+msgid "CARRIAGE PAID TO"
+msgstr "CPT"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CFR
+msgid "COST AND FREIGHT"
+msgstr "CFR"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CIF
+msgid "COST, INSURANCE AND FREIGHT"
+msgstr "CIF"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__code
+msgid "Code"
+msgstr "코드"
+
+#. module: incoterm
+#: model_terms:ir.actions.act_window,help:incoterm.action_incoterms_tree
+msgid "Create a new incoterm"
+msgstr "새로운 인코텀즈를 생성합니다."
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__create_uid
+msgid "Created by"
+msgstr "작성자"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__create_date
+msgid "Created on"
+msgstr "작성일자"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DAP
+msgid "DELIVERED AT PLACE"
+msgstr "도착지 인도 조건 (DELIVERED AT PLACE)"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DPU
+msgid "DELIVERED AT PLACE UNLOADED"
+msgstr "도착지 양하 인도 조건 (DELIVERED AT PLACE UNLOADED)"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DDP
+msgid "DELIVERED DUTY PAID"
+msgstr "관세 지급 인도 조건 (DELIVERED DUTY PAID)"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__display_name
+msgid "Display Name"
+msgstr "표시명"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_EXW
+msgid "EX WORKS"
+msgstr "EXW"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FAS
+msgid "FREE ALONGSIDE SHIP"
+msgstr "선측 인도 조건 (FREE ALONGSIDE SHIP)"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FCA
+msgid "FREE CARRIER"
+msgstr "운송인 인도 조건 (FREE CARRIER)"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FOB
+msgid "FREE ON BOARD"
+msgstr "본선 인도 조건 (FREE ON BOARD)"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__id
+msgid "ID"
+msgstr "ID"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__code
+msgid "Incoterm Standard Code"
+msgstr "인코텀즈 표준 코드"
+
+#. module: incoterm
+#: model:ir.actions.act_window,name:incoterm.action_incoterms_tree
+#: model:ir.model,name:incoterm.model_account_incoterms
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_form
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_view_search
+#: model_terms:ir.ui.view,arch_db:incoterm.view_incoterms_tree
+msgid "Incoterms"
+msgstr "인코텀즈"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__name
+msgid ""
+"Incoterms are series of sales terms. They are used to divide transaction "
+"costs and responsibilities between buyer and seller and reflect state-of-"
+"the-art transportation practices."
+msgstr ""
+"인코텀즈란 국제적으로 통용되는 상업 용어 모음입니다. 구매자와 판매자 간의 거래 비용과 책임을 배분하는데 사용하며, 최근의 운송 관행도 "
+"반영하게 됩니다."
+
+#. module: incoterm
+#: model_terms:ir.actions.act_window,help:incoterm.action_incoterms_tree
+msgid ""
+"Incoterms are used to divide transaction costs and responsibilities between "
+"buyer and seller."
+msgstr "인코텀즈는 구매자와 판매자 간의 거래 비용과 책임을 배분하는데 사용됩니다."
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__write_uid
+msgid "Last Updated by"
+msgstr "최근 갱신한 사람"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__write_date
+msgid "Last Updated on"
+msgstr "최근 갱신 일자"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__name
+msgid "Name"
+msgstr "이름"

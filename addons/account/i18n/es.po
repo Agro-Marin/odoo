@@ -3259,7 +3259,6 @@ msgstr "Activar para crear un recibo de venta"
 #: model:ir.model.fields,field_description:account.field_account_account__active
 #: model:ir.model.fields,field_description:account.field_account_account_tag__active
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
-#: model:ir.model.fields,field_description:account.field_account_incoterms__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
 #: model:ir.model.fields,field_description:account.field_account_payment_term__active
@@ -4182,8 +4181,6 @@ msgid "April"
 msgstr "Abril"
 
 #. module: account
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_form
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_view_search
 #: model_terms:ir.ui.view,arch_db:account.account_tag_view_form
 #: model_terms:ir.ui.view,arch_db:account.account_tag_view_search
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -5113,36 +5110,10 @@ msgstr ""
 "Al deseleccionar el campo actual ocultará la posición fiscal sin borrarla."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__active
-msgid ""
-"By unchecking the active field, you may hide an INCOTERM you will not use."
-msgstr "Al deseleccionar el campo activo ocultará un INCOTERM que no use."
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/chart_template.py:0
 msgid "CABA"
 msgstr "CABA"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CIP
-msgid "CARRIAGE AND INSURANCE PAID TO"
-msgstr "TRANSPORTE Y SEGUROS PAGADOS HASTA"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CPT
-msgid "CARRIAGE PAID TO"
-msgstr "TRANSPORTE PAGADO HASTA"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CFR
-msgid "COST AND FREIGHT"
-msgstr "COSTE Y FLETE"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CIF
-msgid "COST, INSURANCE AND FREIGHT"
-msgstr "COSTE, SEGURO Y FLETE"
 
 #. module: account
 #. odoo-python
@@ -5721,7 +5692,6 @@ msgstr "Cerrando"
 #: model:ir.model.fields,field_description:account.field_account_account__code
 #: model:ir.model.fields,field_description:account.field_account_analytic_line__code
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__code
-#: model:ir.model.fields,field_description:account.field_account_incoterms__code
 #: model:ir.model.fields,field_description:account.field_account_move_line__account_code
 #: model:ir.model.fields,field_description:account.field_account_payment__payment_method_code
 #: model:ir.model.fields,field_description:account.field_account_payment_method__code
@@ -6390,11 +6360,6 @@ msgid "Create a new fiscal position"
 msgstr "Crear una nueva posición fiscal"
 
 #. module: account
-#: model_terms:ir.actions.act_window,help:account.action_incoterms_tree
-msgid "Create a new incoterm"
-msgstr "Crear un nuevo incoterm"
-
-#. module: account
 #: model_terms:ir.actions.act_window,help:account.product_product_action_purchasable
 msgid "Create a new purchasable product"
 msgstr "Crear un nuevo producto comprable"
@@ -6533,7 +6498,6 @@ msgstr "Creado el"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_uid
 #: model:ir.model.fields,field_description:account.field_account_group__create_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_uid
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__create_uid
@@ -6602,7 +6566,6 @@ msgstr "Creado por"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_date
 #: model:ir.model.fields,field_description:account.field_account_group__create_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_date
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__create_date
@@ -7075,21 +7038,6 @@ msgstr "Cierre {label}"
 #: code:addons/account/wizard/account_automatic_entry_wizard.py:0
 msgid "Cut-off {label} {percent}%"
 msgstr "Cierre {label} {percent}%"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DAP
-msgid "DELIVERED AT PLACE"
-msgstr "ENTREGA EN LUGAR"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DPU
-msgid "DELIVERED AT PLACE UNLOADED"
-msgstr "ENTREGADO EN LUGAR DESCARGADO"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DDP
-msgid "DELIVERED DUTY PAID"
-msgstr "ENTREGADO CON DERECHOS PAGADOS"
 
 #. module: account
 #: model:ir.actions.act_window,name:account.open_account_journal_dashboard_kanban
@@ -7870,7 +7818,6 @@ msgstr "Mostrar pestaña de mapeo"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__display_name
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__display_name
 #: model:ir.model.fields,field_description:account.field_account_group__display_name
-#: model:ir.model.fields,field_description:account.field_account_incoterms__display_name
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal_group__display_name
@@ -8419,11 +8366,6 @@ msgstr "Formato EDI"
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "EU Intra-community Distance Selling"
 msgstr "Venta a distancia intracomunitaria de la UE"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_EXW
-msgid "EX WORKS"
-msgstr "ENTREGA EN FÁBRICA"
 
 #. module: account
 #. odoo-python
@@ -9011,21 +8953,6 @@ msgstr "EDI adicionales"
 #: model:ir.model.fields,field_description:account.field_account_move_line__extra_tax_data
 msgid "Extra Tax Data"
 msgstr "Datos adicionales sobre impuestos"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FAS
-msgid "FREE ALONGSIDE SHIP"
-msgstr "FRANCO AL COSTADO DEL BUQUE"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FCA
-msgid "FREE CARRIER"
-msgstr "FRANCO TRANSPORTISTA"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FOB
-msgid "FREE ON BOARD"
-msgstr "GRATIS A BORDO"
 
 #. module: account
 #. odoo-python
@@ -10067,7 +9994,6 @@ msgstr "ICE:"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__id
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__id
 #: model:ir.model.fields,field_description:account.field_account_group__id
-#: model:ir.model.fields,field_description:account.field_account_incoterms__id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__id
 #: model:ir.model.fields,field_description:account.field_account_journal__id
 #: model:ir.model.fields,field_description:account.field_account_journal_group__id
@@ -10728,39 +10654,9 @@ msgid "Incoterm Location"
 msgstr "Ubicación del Incoterm"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__code
-msgid "Incoterm Standard Code"
-msgstr "Código estándar del Incoterm"
-
-#. module: account
-#: model:ir.actions.act_window,name:account.action_incoterms_tree
-#: model:ir.model,name:account.model_account_incoterms
 #: model:ir.ui.menu,name:account.menu_action_incoterm_open
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_form
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_view_search
-#: model_terms:ir.ui.view,arch_db:account.view_incoterms_tree
 msgid "Incoterms"
 msgstr "Incoterms"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__name
-msgid ""
-"Incoterms are series of sales terms. They are used to divide transaction "
-"costs and responsibilities between buyer and seller and reflect state-of-"
-"the-art transportation practices."
-msgstr ""
-"Los Incoterms son una serie de términos de venta. Se usan para dividir los "
-"costes de la transacción y las responsabilidades entre el comprador y el "
-"vendedor y reflejan las últimas prácticas en el transporte."
-
-#. module: account
-#: model_terms:ir.actions.act_window,help:account.action_incoterms_tree
-msgid ""
-"Incoterms are used to divide transaction costs and responsibilities between "
-"buyer and seller."
-msgstr ""
-"Los Incoterms son usados para dividir los costes de transacción y las "
-"responsabilidades entre comprador y vendedor."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_move_line__tax_line_id
@@ -12014,7 +11910,6 @@ msgstr "Último extracto bancario"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_uid
 #: model:ir.model.fields,field_description:account.field_account_group__write_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_uid
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__write_uid
@@ -12083,7 +11978,6 @@ msgstr "Última actualización por"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_date
 #: model:ir.model.fields,field_description:account.field_account_group__write_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_date
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__write_date
@@ -13038,7 +12932,6 @@ msgstr "Mis facturas"
 #: model:ir.model.fields,field_description:account.field_account_autopost_bills_wizard__partner_name
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__name
 #: model:ir.model.fields,field_description:account.field_account_group__name
-#: model:ir.model.fields,field_description:account.field_account_incoterms__name
 #: model:ir.model.fields,field_description:account.field_account_payment_method__name
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__name
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__name

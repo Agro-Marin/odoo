@@ -1,0 +1,196 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * account
+#
+# Translators:
+# Ondřej Janovský <ondrej.janovsky@alarex.cz>, 2022
+# Ondřej Skuhravý <ondra.sk@volny.cz>, 2022
+# Chris, 2022
+# Jaroslav Helemik Nemec <nemec@helemik.cz>, 2022
+# Damian Brencic <brencicdamian12313@gmail.com>, 2022
+# milda dvorak <milda.dvorak@optimal4.cz>, 2022
+# Marek Reichstädter, 2022
+# David Kliment <daklime@gmail.com>, 2022
+# Ladislav Tomm <tomm@helemik.cz>, 2022
+# Jan Horzinka <jan.horzinka@centrum.cz>, 2022
+# Michal Veselý <michal@veselyberanek.net>, 2022
+# Martin Trigaux, 2022
+# Rastislav Brencic <rastislav.brencic@azet.sk>, 2023
+# Petr Hemza, 2023
+# Aleš Fiala <f.ales1@seznam.cz>, 2023
+# karolína schusterová <karolina.schusterova@vdp.sk>, 2023
+# Jiří Podhorecký, 2023
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+# Tomáš Píšek <Tomas.Pisek@seznam.cz>, 2025.
+# "Marta (wacm)" <wacm@odoo.com>, 2025, 2026.
+# "Malaz Siddig Elsayed Abuidris (msea)" <msea@odoo.com>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+# Marek Jasanský <zahiro@ashtechnology.eu>, 2026.
+# Stanislav Kurinec <stenly.kurinec@gmail.com>, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2026-01-29 09:06+0000\n"
+"Last-Translator: \"Marta (wacm)\" <wacm@odoo.com>\n"
+"Language-Team: Czech <https://translate.odoo.com/projects/odoo-19/account/cs/>\n"
+"Language: cs\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=4; plural=(n == 1 && n % 1 == 0) ? 0 : (n >= 2 && n <= 4 && n % 1 == 0) ? 1: (n % 1 != 0 ) ? 2 : 3;\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__active
+msgid "Active"
+msgstr "Aktivní"
+
+#. module: incoterm
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_form
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_view_search
+msgid "Archived"
+msgstr "Archivováno"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__active
+msgid ""
+"By unchecking the active field, you may hide an INCOTERM you will not use."
+msgstr ""
+"Odškrtnutím pole aktivní můžete skrýt INCOTERM, který nebudete používat."
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CIP
+msgid "CARRIAGE AND INSURANCE PAID TO"
+msgstr "PŘEPRAVA A POJIŠTĚNÍ PLACENO DO"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CPT
+msgid "CARRIAGE PAID TO"
+msgstr "PŘEPRAVA PLACENA DO"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CFR
+msgid "COST AND FREIGHT"
+msgstr "NÁKLADY A PŘEPRAVNÉ"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CIF
+msgid "COST, INSURANCE AND FREIGHT"
+msgstr "NÁKLADY, POJIŠTĚNÍ A PŘEPRAVNÉ"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__code
+msgid "Code"
+msgstr "Kód"
+
+#. module: incoterm
+#: model_terms:ir.actions.act_window,help:incoterm.action_incoterms_tree
+msgid "Create a new incoterm"
+msgstr "Vytvořte nový incoterm"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__create_uid
+msgid "Created by"
+msgstr "Vytvořeno uživatelem"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__create_date
+msgid "Created on"
+msgstr "Vytvořeno dne"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DAP
+msgid "DELIVERED AT PLACE"
+msgstr "S DODÁNÍM DO URČITÉHO MÍSTA"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DPU
+msgid "DELIVERED AT PLACE UNLOADED"
+msgstr "S DODÁNÍM DO URČITÉHO MÍSTA VČETNĚ VYKLÁDKY"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DDP
+msgid "DELIVERED DUTY PAID"
+msgstr "S DODÁNÍM CLO PLACENO"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__display_name
+msgid "Display Name"
+msgstr "Zobrazovací název"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_EXW
+msgid "EX WORKS"
+msgstr "ZE ZÁVODU"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FAS
+msgid "FREE ALONGSIDE SHIP"
+msgstr "VYPLACENĚ K BOKU LODI"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FCA
+msgid "FREE CARRIER"
+msgstr "VYPLACENĚ DOPRAVCI"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FOB
+msgid "FREE ON BOARD"
+msgstr "VYPLACENĚ NA LOĎ"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__id
+msgid "ID"
+msgstr "ID"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__code
+msgid "Incoterm Standard Code"
+msgstr "Standardní kód Incoterm"
+
+#. module: incoterm
+#: model:ir.actions.act_window,name:incoterm.action_incoterms_tree
+#: model:ir.model,name:incoterm.model_account_incoterms
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_form
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_view_search
+#: model_terms:ir.ui.view,arch_db:incoterm.view_incoterms_tree
+msgid "Incoterms"
+msgstr "Incoterms"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__name
+msgid ""
+"Incoterms are series of sales terms. They are used to divide transaction "
+"costs and responsibilities between buyer and seller and reflect state-of-"
+"the-art transportation practices."
+msgstr ""
+"Incoterms je řada prodejních podmínek. Používají se k rozdělení transakčních"
+" nákladů a odpovědnosti mezi kupujícím a prodávajícím a odrážejí "
+"nejmodernější přepravní standardy."
+
+#. module: incoterm
+#: model_terms:ir.actions.act_window,help:incoterm.action_incoterms_tree
+msgid ""
+"Incoterms are used to divide transaction costs and responsibilities between "
+"buyer and seller."
+msgstr ""
+"Incoterms slouží k rozdělení transakčních nákladů a odpovědnosti mezi "
+"kupujícím a prodávajícím."
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__write_uid
+msgid "Last Updated by"
+msgstr "Naposledy upraveno uživatelem"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__write_date
+msgid "Last Updated on"
+msgstr "Naposledy upraveno dne"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__name
+msgid "Name"
+msgstr "Název"

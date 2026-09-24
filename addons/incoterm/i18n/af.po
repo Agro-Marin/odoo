@@ -1,0 +1,166 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* incoterm
+#
+# Translators:
+# Martin Trigaux, 2022
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-05-16 13:48+0000\n"
+"PO-Revision-Date: 2022-09-22 05:44+0000\n"
+"Last-Translator: Martin Trigaux, 2022\n"
+"Language-Team: Afrikaans (https://www.transifex.com/odoo/teams/41243/af/)\n"
+"Language: af\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__active
+msgid "Active"
+msgstr "Aktief"
+
+#. module: incoterm
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_form
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_view_search
+msgid "Archived"
+msgstr ""
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__active
+msgid ""
+"By unchecking the active field, you may hide an INCOTERM you will not use."
+msgstr ""
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CIP
+msgid "CARRIAGE AND INSURANCE PAID TO"
+msgstr ""
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CPT
+msgid "CARRIAGE PAID TO"
+msgstr ""
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CFR
+msgid "COST AND FREIGHT"
+msgstr ""
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_CIF
+msgid "COST, INSURANCE AND FREIGHT"
+msgstr ""
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__code
+msgid "Code"
+msgstr "Kode"
+
+#. module: incoterm
+#: model_terms:ir.actions.act_window,help:incoterm.action_incoterms_tree
+msgid "Create a new incoterm"
+msgstr ""
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__create_uid
+msgid "Created by"
+msgstr "Geskep deur"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__create_date
+msgid "Created on"
+msgstr "Geskep op"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DAP
+msgid "DELIVERED AT PLACE"
+msgstr ""
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DPU
+msgid "DELIVERED AT PLACE UNLOADED"
+msgstr ""
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_DDP
+msgid "DELIVERED DUTY PAID"
+msgstr ""
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__display_name
+msgid "Display Name"
+msgstr "Vertoningsnaam"
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_EXW
+msgid "EX WORKS"
+msgstr ""
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FAS
+msgid "FREE ALONGSIDE SHIP"
+msgstr ""
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FCA
+msgid "FREE CARRIER"
+msgstr ""
+
+#. module: incoterm
+#: model:incoterm.incoterms,name:incoterm.incoterm_FOB
+msgid "FREE ON BOARD"
+msgstr ""
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__id
+msgid "ID"
+msgstr "ID"
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__code
+msgid "Incoterm Standard Code"
+msgstr ""
+
+#. module: incoterm
+#: model:ir.actions.act_window,name:incoterm.action_incoterms_tree
+#: model:ir.model,name:incoterm.model_account_incoterms
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_form
+#: model_terms:ir.ui.view,arch_db:incoterm.account_incoterms_view_search
+#: model_terms:ir.ui.view,arch_db:incoterm.view_incoterms_tree
+msgid "Incoterms"
+msgstr ""
+
+#. module: incoterm
+#: model:ir.model.fields,help:incoterm.field_account_incoterms__name
+msgid ""
+"Incoterms are series of sales terms. They are used to divide transaction "
+"costs and responsibilities between buyer and seller and reflect state-of-"
+"the-art transportation practices."
+msgstr ""
+
+#. module: incoterm
+#: model_terms:ir.actions.act_window,help:incoterm.action_incoterms_tree
+msgid ""
+"Incoterms are used to divide transaction costs and responsibilities between "
+"buyer and seller."
+msgstr ""
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__write_uid
+msgid "Last Updated by"
+msgstr "Laas Opgedateer deur"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__write_date
+msgid "Last Updated on"
+msgstr "Laas Opgedateer op"
+
+#. module: incoterm
+#: model:ir.model.fields,field_description:incoterm.field_account_incoterms__name
+msgid "Name"
+msgstr "Naam"

@@ -216,7 +216,7 @@
                     sequence="10" />
                 <menuitem
                     id="menu_action_incoterm_open"
-                    action="action_incoterms_tree"
+                    action="incoterm.action_incoterms_tree"
                     sequence="20"
                     groups="base.group_no_one" />
                 <menuitem

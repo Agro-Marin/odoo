@@ -2773,7 +2773,6 @@ msgstr "Įjungti, kad sukurtumėte pardavimo kvitą"
 #: model:ir.model.fields,field_description:account.field_account_account__active
 #: model:ir.model.fields,field_description:account.field_account_account_tag__active
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
-#: model:ir.model.fields,field_description:account.field_account_incoterms__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
 #: model:ir.model.fields,field_description:account.field_account_payment_term__active
@@ -3662,8 +3661,6 @@ msgid "April"
 msgstr "Balandis"
 
 #. module: account
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_form
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_view_search
 #: model_terms:ir.ui.view,arch_db:account.account_tag_view_form
 #: model_terms:ir.ui.view,arch_db:account.account_tag_view_search
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -4582,37 +4579,10 @@ msgstr ""
 " jų neištrinant."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__active
-msgid ""
-"By unchecking the active field, you may hide an INCOTERM you will not use."
-msgstr ""
-"Atžymėjus aktyvų lauką, galite paslėpti INCOTERM sąlygas, kurių nenaudosite."
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/chart_template.py:0
 msgid "CABA"
 msgstr "CABA"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CIP
-msgid "CARRIAGE AND INSURANCE PAID TO"
-msgstr "PERVEŽIMAS IR DRAUDIMAS SUMOKĖTAS"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CPT
-msgid "CARRIAGE PAID TO"
-msgstr "PERVEŽIMAS SUMOKĖTAS"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CFR
-msgid "COST AND FREIGHT"
-msgstr "KAŠTAI IR KROVINYS"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_CIF
-msgid "COST, INSURANCE AND FREIGHT"
-msgstr "KAŠTAI, DRAUDIMAS IR KROVINYS"
 
 #. module: account
 #. odoo-python
@@ -5182,7 +5152,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_account__code
 #: model:ir.model.fields,field_description:account.field_account_analytic_line__code
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__code
-#: model:ir.model.fields,field_description:account.field_account_incoterms__code
 #: model:ir.model.fields,field_description:account.field_account_move_line__account_code
 #: model:ir.model.fields,field_description:account.field_account_payment__payment_method_code
 #: model:ir.model.fields,field_description:account.field_account_payment_method__code
@@ -5831,11 +5800,6 @@ msgid "Create a new fiscal position"
 msgstr "Sukurkite naują mokestinę aplinką"
 
 #. module: account
-#: model_terms:ir.actions.act_window,help:account.action_incoterms_tree
-msgid "Create a new incoterm"
-msgstr "Sukurkite naują Incoterm"
-
-#. module: account
 #: model_terms:ir.actions.act_window,help:account.product_product_action_purchasable
 msgid "Create a new purchasable product"
 msgstr "Sukurkite naują perkamą produktą"
@@ -5970,7 +5934,6 @@ msgstr "Sukurta"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_uid
 #: model:ir.model.fields,field_description:account.field_account_group__create_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__create_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_uid
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__create_uid
@@ -6039,7 +6002,6 @@ msgstr "Sukūrė"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_date
 #: model:ir.model.fields,field_description:account.field_account_group__create_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal__create_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__create_date
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__create_date
@@ -6509,21 +6471,6 @@ msgstr ""
 #: code:addons/account/wizard/account_automatic_entry_wizard.py:0
 msgid "Cut-off {label} {percent}%"
 msgstr ""
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DAP
-msgid "DELIVERED AT PLACE"
-msgstr "PRISTATYTA Į VIETĄ"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DPU
-msgid "DELIVERED AT PLACE UNLOADED"
-msgstr ""
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_DDP
-msgid "DELIVERED DUTY PAID"
-msgstr "Pristatymo mokestis sumokėtas"
 
 #. module: account
 #: model:ir.actions.act_window,name:account.open_account_journal_dashboard_kanban
@@ -7281,7 +7228,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__display_name
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__display_name
 #: model:ir.model.fields,field_description:account.field_account_group__display_name
-#: model:ir.model.fields,field_description:account.field_account_incoterms__display_name
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal__display_name
 #: model:ir.model.fields,field_description:account.field_account_journal_group__display_name
@@ -7822,11 +7768,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "EU Intra-community Distance Selling"
 msgstr ""
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_EXW
-msgid "EX WORKS"
-msgstr "EX WORKS"
 
 #. module: account
 #. odoo-python
@@ -8388,21 +8329,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_move_line__extra_tax_data
 msgid "Extra Tax Data"
 msgstr ""
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FAS
-msgid "FREE ALONGSIDE SHIP"
-msgstr "NEMOKAMAS SIUNTIMAS KARTU"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FCA
-msgid "FREE CARRIER"
-msgstr "NEMOKAMAS SIUNTĖJAS"
-
-#. module: account
-#: model:account.incoterms,name:account.incoterm_FOB
-msgid "FREE ON BOARD"
-msgstr "FREE ON BOARD"
 
 #. module: account
 #. odoo-python
@@ -9421,7 +9347,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__id
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__id
 #: model:ir.model.fields,field_description:account.field_account_group__id
-#: model:ir.model.fields,field_description:account.field_account_incoterms__id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__id
 #: model:ir.model.fields,field_description:account.field_account_journal__id
 #: model:ir.model.fields,field_description:account.field_account_journal_group__id
@@ -10047,39 +9972,9 @@ msgid "Incoterm Location"
 msgstr "Incoterm vieta"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__code
-msgid "Incoterm Standard Code"
-msgstr "Incoterm standartinis kodas"
-
-#. module: account
-#: model:ir.actions.act_window,name:account.action_incoterms_tree
-#: model:ir.model,name:account.model_account_incoterms
 #: model:ir.ui.menu,name:account.menu_action_incoterm_open
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_form
-#: model_terms:ir.ui.view,arch_db:account.account_incoterms_view_search
-#: model_terms:ir.ui.view,arch_db:account.view_incoterms_tree
 msgid "Incoterms"
 msgstr "Incoterm sąlygos"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_incoterms__name
-msgid ""
-"Incoterms are series of sales terms. They are used to divide transaction "
-"costs and responsibilities between buyer and seller and reflect state-of-"
-"the-art transportation practices."
-msgstr ""
-"Incoterm sąlygos yra pardavimo sąlygų rinkinys. Jos yra naudojamos "
-"operacijos kaštų ir atsakomybių pasidalijimui tarp pirkėjo ir pardavėjo bei "
-"transportavimo praktikoms aprašyti."
-
-#. module: account
-#: model_terms:ir.actions.act_window,help:account.action_incoterms_tree
-msgid ""
-"Incoterms are used to divide transaction costs and responsibilities between "
-"buyer and seller."
-msgstr ""
-"Incoterm yra naudojami operacijos kaštų ir atsakomybių pasidalijimui tarp "
-"pirkėjo ir pardavėjo."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_move_line__tax_line_id
@@ -11293,7 +11188,6 @@ msgstr "Paskutinis išrašas"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_uid
 #: model:ir.model.fields,field_description:account.field_account_group__write_uid
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal__write_uid
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_uid
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__write_uid
@@ -11362,7 +11256,6 @@ msgstr "Paskutinį kartą atnaujino"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_date
 #: model:ir.model.fields,field_description:account.field_account_group__write_date
-#: model:ir.model.fields,field_description:account.field_account_incoterms__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal__write_date
 #: model:ir.model.fields,field_description:account.field_account_journal_group__write_date
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__write_date
@@ -12292,7 +12185,6 @@ msgstr "Mano sąskaitos"
 #: model:ir.model.fields,field_description:account.field_account_autopost_bills_wizard__partner_name
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__name
 #: model:ir.model.fields,field_description:account.field_account_group__name
-#: model:ir.model.fields,field_description:account.field_account_incoterms__name
 #: model:ir.model.fields,field_description:account.field_account_payment_method__name
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__name
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__name

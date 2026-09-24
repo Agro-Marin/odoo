@@ -474,7 +474,7 @@ class TestAr(AccountTestInvoicingCommon):
     def _create_test_invoices_like_demo(cls, use_current_date=True):
         """Create in the unit tests the same invoices created in demo data"""
         payment_term = cls.env.ref("account.account_payment_term_end_following_month")
-        incoterm = cls.env.ref("account.incoterm_EXW")
+        incoterm = cls.env.ref("incoterm.incoterm_EXW")
 
         decimal_price = cls.env.ref("product.decimal_price")
         decimal_price.digits = 4

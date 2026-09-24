@@ -1,0 +1,3 @@
+id,name,model_id/id,group_id/id,kind,operation,domain
+access_account_incoterms_all,account.incoterms all,model_account_incoterms,base.group_user,permission,r,
+access_account_incoterms_system,account.incoterms system,model_account_incoterms,base.group_system,permission,cud,

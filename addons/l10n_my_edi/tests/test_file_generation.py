@@ -263,7 +263,7 @@ class L10nMyEDITestFileGeneration(AccountTestInvoicingCommon):
         )
         invoice.write(
             {
-                "invoice_incoterm_id": self.env.ref("account.incoterm_CFR").id,
+                "invoice_incoterm_id": self.env.ref("incoterm.incoterm_CFR").id,
                 "l10n_my_edi_custom_form_reference": "E12345678912",
             }
         )
