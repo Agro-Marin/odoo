@@ -653,6 +653,11 @@ patch(PosStore.prototype, {
             return;
         }
 
+        if (reward_product_domain.some((c) => this.isUnevaluableProductCondition(c))) {
+            this.rejectRewardDomain(reward);
+            return;
+        }
+
         const domain = new Domain(reward_product_domain);
 
         try {
@@ -665,20 +670,42 @@ patch(PosStore.prototype, {
             if (!(error instanceof InvalidDomainError || error instanceof TypeError)) {
                 throw error;
             }
-            const index = this.models["loyalty.reward"].indexOf(reward);
-            if (index !== -1) {
-                this.dialog.add(AlertDialog, {
-                    title: _t("A reward could not be loaded"),
-                    body: _t(
-                        'The reward "%s" contain an error in its domain, your domain must be compatible with the PoS client',
-                        this.models["loyalty.reward"].getAll()[index].description,
-                    ),
-                    showReloadButton: true,
-                });
-
-                reward.delete();
-            }
+            this.rejectRewardDomain(reward);
         }
+    },
+    isUnevaluableProductCondition(condition) {
+        if (
+            !Array.isArray(condition) ||
+            condition.length !== 3 ||
+            typeof condition[0] !== "string" ||
+            condition[0] === "id"
+        ) {
+            return false;
+        }
+        const [path, operator] = condition;
+        const field = this.models["product.product"].fields[path.split(".")[0]];
+        if (!field) {
+            return true;
+        }
+        return (
+            ["many2one", "many2many", "one2many"].includes(field.type) &&
+            operator.includes("like")
+        );
+    },
+    rejectRewardDomain(reward) {
+        const index = this.models["loyalty.reward"].indexOf(reward);
+        if (index === -1) {
+            return;
+        }
+        this.dialog.add(AlertDialog, {
+            title: _t("A reward could not be loaded"),
+            body: _t(
+                'The reward "%s" contain an error in its domain, your domain must be compatible with the PoS client',
+                this.models["loyalty.reward"].getAll()[index].description,
+            ),
+            showReloadButton: true,
+        });
+        reward.delete();
     },
     async initServerData() {
         await super.initServerData(...arguments);
