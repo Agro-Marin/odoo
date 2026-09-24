@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { LinkPreview } from "@mail/core/common/link_preview";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component } from "@odoo/owl";
 
 /**
@@ -12,4 +13,9 @@ export class MessageLinkPreviewList extends Component {
     static template = "mail.MessageLinkPreviewList";
     static props = ["messageLinkPreviews"];
     static components = { LinkPreview };
+
+    setup() {
+        super.setup();
+        this.mailContext = useMailContext();
+    }
 }

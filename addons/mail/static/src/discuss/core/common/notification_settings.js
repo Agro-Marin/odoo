@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { ActionPanel } from "@mail/core/common/action_panel";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component, xml } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -27,6 +28,7 @@ export class NotificationSettings extends Component {
     static template = "discuss.NotificationSettings";
 
     setup() {
+        this.mailContext = useMailContext();
         this.store = useService("mail.store");
         this.dialog = useService("dialog");
         this.ui = useService("ui");

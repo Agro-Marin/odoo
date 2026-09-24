@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
 
 <t t-name="mail.MessagingMenu">
-    <t t-if="this.env.inDiscussApp" t-call="mail.MessagingMenu.content"/>
+    <t t-if="this.mailContext.inDiscussApp" t-call="mail.MessagingMenu.content"/>
 </t>
 
 <t t-name="mail.MessagingMenu.content">

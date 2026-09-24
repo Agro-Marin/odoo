@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { attClassObjectToString } from "@mail/utils/common/format";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component, onWillUnmount } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
@@ -32,7 +33,7 @@ class Action extends Component {
     }
 
     get Dropdown() {
-        if (this.env.inDiscussCallView?.isPip) {
+        if (this.mailContext.inDiscussCallView?.isPip) {
             return discussComponentRegistry.get("CallDropdown", Dropdown);
         }
         return Dropdown;
@@ -40,6 +41,7 @@ class Action extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.store = useService("mail.store");
         this.ui = useService("ui");
         this.attClassObjectToString = attClassObjectToString;
@@ -68,7 +70,7 @@ class Action extends Component {
      */
     onSelected(action, ev) {
         action.onSelected?.(ev);
-        this.env.inCallDropdown?.close();
+        this.mailContext.inCallDropdown?.close();
     }
 }
 

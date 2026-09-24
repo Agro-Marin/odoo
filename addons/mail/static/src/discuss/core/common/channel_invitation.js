@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { ImStatus } from "@mail/core/common/im_status";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { makeSequential } from "@mail/utils/common/misc";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -25,6 +26,7 @@ export class ChannelInvitation extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.orm = useService("orm");
         this.store = useService("mail.store");
         this.rtc = useService("discuss.rtc");
@@ -203,7 +205,7 @@ export class ChannelInvitation extends Component {
         let notification = _t("Invitation link copied!");
         /** @type {"success" | "danger"} */
         let type = "success";
-        const clipboard = this.env.inDiscussCallView?.isPip
+        const clipboard = this.mailContext.inDiscussCallView?.isPip
             ? this.rtc.pipService.pipWindow?.navigator.clipboard
             : navigator.clipboard;
         try {

@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { Thread } from "@mail/core/common/thread";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import {
     Component,
     onMounted,
@@ -44,6 +45,7 @@ export class Chatter extends Component {
     static defaultProps = { composer: true, threadId: false, twoColumns: false };
 
     setup() {
+        this.mailContext = useMailContext();
         useLifecycleLog(log);
         this.store = useService("mail.store");
         /** @type {S} */
@@ -71,11 +73,11 @@ export class Chatter extends Component {
                 if (threadChanged) {
                     this.changeThread(nextProps.threadModel, nextProps.threadId);
                 }
-                const staleDataRequested = this.env.chatter
-                    ? this.env.chatter.fetchThreadData
+                const staleDataRequested = this.mailContext.chatter
+                    ? this.mailContext.chatter.fetchThreadData
                     : true;
-                if (this.env.chatter) {
-                    this.env.chatter.fetchThreadData = false;
+                if (this.mailContext.chatter) {
+                    this.mailContext.chatter.fetchThreadData = false;
                 }
                 if (threadChanged || staleDataRequested) {
                     this.load(this.state.thread, this.requestList);
@@ -171,9 +173,9 @@ export class Chatter extends Component {
 
     _onMounted() {
         this.changeThread(this.props.threadModel, this.props.threadId);
-        if (!this.env.chatter || this.env.chatter?.fetchThreadData) {
-            if (this.env.chatter) {
-                this.env.chatter.fetchThreadData = false;
+        if (!this.mailContext.chatter || this.mailContext.chatter?.fetchThreadData) {
+            if (this.mailContext.chatter) {
+                this.mailContext.chatter.fetchThreadData = false;
             }
             this.load(this.state.thread, this.requestList);
         }

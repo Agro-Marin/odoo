@@ -13,7 +13,7 @@
                     <i t-else="" class="fa-solid fa-circle-notch fa-spin" aria-label="Search in progress" title="Search in progress"/>
                 </button>
             </div>
-            <Dropdown t-if="this.env.inChatter">
+            <Dropdown t-if="this.mailContext.inChatter">
                 <button class="btn btn-outline-secondary ms-3" aria-label="Filter Messages" title="Filter Messages">
                     <i class="fa-solid fa-filter" role="img"/>
                 </button>
@@ -26,7 +26,7 @@
                     </t>
                 </t>
             </Dropdown>
-            <button t-if="this.env.inChatter" class="btn btn-outline-secondary ms-3" t-on-click="() => this.clear()" aria-label="Close button">
+            <button t-if="this.mailContext.inChatter" class="btn btn-outline-secondary ms-3" t-on-click="() => this.clear()" aria-label="Close button">
                 <i class="o_searchview_icon oi oi-close cursor-pointer" role="img" aria-label="Close search" title="Close"/>
             </button>
         </div>

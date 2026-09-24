@@ -13,12 +13,10 @@ import {
     useMessageScrolling,
 } from "@mail/utils/common/hooks";
 import {
-    Component,
-    onMounted,
-    onWillUnmount,
-    useChildSubEnv,
-    useSubEnv,
-} from "@odoo/owl";
+    provideChildMailContext,
+    provideMailContext,
+} from "@mail/utils/common/mail_context";
+import { Component, onMounted, onWillUnmount } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
 
@@ -55,7 +53,7 @@ export class Meeting extends Component {
             }
         });
         useInDiscussCallView();
-        useSubEnv({
+        provideMailContext({
             inMeetingView: {
                 openChat: () =>
                     this.threadActions.actions
@@ -69,7 +67,7 @@ export class Meeting extends Component {
         });
         this.messageHighlight = useMessageScrolling();
         this.messageSearch = useMessageSearch(this.thread);
-        useChildSubEnv({
+        provideChildMailContext({
             closeActionPanel: () => this.threadActions.activeAction?.close(),
             messageHighlight: this.messageHighlight,
             messageSearch: this.messageSearch,

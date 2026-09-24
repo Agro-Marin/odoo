@@ -10,13 +10,11 @@ import { useThreadActions } from "@mail/core/common/thread_actions";
 import { ThreadIcon } from "@mail/core/common/thread_icon";
 import { useHover, useMessageScrolling } from "@mail/utils/common/hooks";
 import {
-    Component,
-    toRaw,
-    useChildSubEnv,
-    useRef,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
+    provideChildMailContext,
+    provideMailContext,
+    useMailContext,
+} from "@mail/utils/common/mail_context";
+import { Component, toRaw, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
@@ -51,7 +49,8 @@ export class ChatWindow extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
-        useSubEnv({ inChatWindow: true });
+        provideMailContext({ inChatWindow: true });
+        this.mailContext = useMailContext();
         this.store = useService("mail.store");
         this.messageHighlight = useMessageScrolling();
         this.state = useState({
@@ -70,7 +69,7 @@ export class ChatWindow extends Component {
         this.parentChannelHover = useHover("parentChannel");
         this.isMobileOS = isMobileOS();
 
-        useChildSubEnv({
+        provideChildMailContext({
             closeActionPanel: () => this.threadActions.activeAction?.close(),
             messageHighlight: this.messageHighlight,
         });

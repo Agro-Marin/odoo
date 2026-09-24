@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
-import { EventBus, useSubEnv } from "@odoo/owl";
+import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
+import { EventBus } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { x2ManyCommands } from "@web/core/network";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
@@ -19,12 +20,13 @@ patch(FormController.prototype, {
         super.setup();
         this.bus = useEventBus();
         this.mailStore = useOptionalService("mail.store");
-        useSubEnv({
+        provideMailContext({
             chatter: {
                 fetchThreadData: true,
                 fetchMessages: true,
             },
         });
+        this.mailContext = useMailContext();
     },
     /** @param {{resId: number, resModel: string}} nextConfiguration */
     onWillLoadRoot(nextConfiguration) {
@@ -38,9 +40,9 @@ patch(FormController.prototype, {
             isSameThread,
         }));
         if (isSameThread) {
-            this.env.chatter.fetchThreadData = true;
+            this.mailContext.chatter.fetchThreadData = true;
         }
-        this.env.chatter.fetchMessages = true;
+        this.mailContext.chatter.fetchMessages = true;
         if (isSameThread) {
             const { resModel, resId } = this.model.root;
             this.bus.trigger("MAIL:RELOAD-THREAD", { model: resModel, id: resId });

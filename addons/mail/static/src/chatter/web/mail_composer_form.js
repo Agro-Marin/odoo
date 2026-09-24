@@ -3,7 +3,8 @@
 /** @import { SuggestedRecipient } from "@mail/core/common/thread_model" */
 import { MailAttachmentDropzone } from "@mail/core/common/mail_attachment_dropzone";
 import { getComposerTargetThreads } from "@mail/core/web/composer_target_threads";
-import { EventBus, toRaw, useEffect, useRef, useSubEnv } from "@odoo/owl";
+import { provideMailContext } from "@mail/utils/common/mail_context";
+import { EventBus, toRaw, useEffect, useRef } from "@odoo/owl";
 import { useCustomDropzone } from "@web/components/dropzone";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
@@ -21,7 +22,7 @@ export class MailComposerFormController extends formView.Controller {
         super.setup();
         toRaw(this.env.dialogData).model = this.props.resModel;
         this.fullComposerBus = this.props.fullComposerBus ?? new EventBus();
-        useSubEnv({
+        provideMailContext({
             fullComposerBus: this.fullComposerBus,
         });
     }

@@ -1,5 +1,6 @@
 // @ts-check
 /** @odoo-module native */
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { loadEmoji, useEmojiPicker } from "@web/components/emoji_picker";
@@ -27,6 +28,7 @@ export class QuickReactionMenu extends Component {
     static DEFAULT_EMOJIS = ["👍", "❤️", "🤣", "😯", "😅", "🙏"];
 
     setup() {
+        this.mailContext = useMailContext();
         this.toggle = useRef("toggle");
         this.store = useService("mail.store");
         this.ui = useService("ui");
@@ -44,7 +46,7 @@ export class QuickReactionMenu extends Component {
         this.dropdown = useState(
             useDropdownState({
                 onClose: () => {
-                    const currentThread = this.env.getCurrentThread?.();
+                    const currentThread = this.mailContext.getCurrentThread?.();
                     if (
                         !currentThread ||
                         currentThread.notEq(this.props.message.thread)

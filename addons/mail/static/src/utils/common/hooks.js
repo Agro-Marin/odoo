@@ -1,5 +1,6 @@
 // @ts-check
 /** @odoo-module native */
+import { provideMailContext } from "@mail/utils/common/mail_context";
 import { monitorAudio } from "@mail/utils/common/media_monitoring";
 import { awaitScrollEnd, onChange } from "@mail/utils/common/misc";
 import {
@@ -13,7 +14,6 @@ import {
     useEffect,
     useRef,
     useState,
-    useSubEnv,
     xml,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -794,7 +794,7 @@ export function useLongPress(refName, { action, predicate = () => true } = {}) {
 export const inDiscussCallViewProps = ["isPip?"];
 export function useInDiscussCallView() {
     const props = useProps();
-    useSubEnv({
+    provideMailContext({
         inDiscussCallView: {
             get isPip() {
                 return props.isPip;

@@ -31,18 +31,18 @@
  <t t-name="im_livechat.LivechatStatusLabelOfThread">
  <t t-set="livechatThread" t-value="templateParams.livechatThread"/>
  <span t-if="livechatThread.channel_type === 'livechat' and (['waiting', 'need_help'].includes(livechatThread.livechat_status) or livechatThread.livechat_end_dt)" class="o-livechat-LivechatStatusLabel" t-att-title="livechatThread.livechatStatusLabel" t-att-class="{
- 'position-absolute top-0 start-0': this.env.inDiscussSidebar or this.env.inChatBubble or this.env.inNotificationItem,
- 'o-livechat-LivechatStatusLabel-Sidebar end-0 bottom-0 rounded-2 border': this.env.inDiscussSidebar,
- 'm-n2 z-1 bg-opacity-100': this.env.inChatBubble or this.env.inNotificationItem,
+ 'position-absolute top-0 start-0': this.mailContext.inDiscussSidebar or this.mailContext.inChatBubble or this.mailContext.inNotificationItem,
+ 'o-livechat-LivechatStatusLabel-Sidebar end-0 bottom-0 rounded-2 border': this.mailContext.inDiscussSidebar,
+ 'm-n2 z-1 bg-opacity-100': this.mailContext.inChatBubble or this.mailContext.inNotificationItem,
  'text-warning': livechatThread.livechat_status === 'waiting',
  'o-help': livechatThread.livechat_status === 'need_help',
- 'bg-warning': livechatThread.livechat_status === 'waiting' and this.env.inDiscussSidebar,
- 'bg-info': livechatThread.livechat_status === 'need_help' and this.env.inDiscussSidebar,
+ 'bg-warning': livechatThread.livechat_status === 'waiting' and this.mailContext.inDiscussSidebar,
+ 'bg-info': livechatThread.livechat_status === 'need_help' and this.mailContext.inDiscussSidebar,
  }">
  <i class="o-livechat-LivechatStatusLabel-icon" t-attf-class="{{ livechatThread.livechat_end_dt ? 'fa-solid fa-flag-checkered' : this.store.livechatStatusButtons.find(btn => btn.status === livechatThread.livechat_status)?.icon }}" t-att-class="{
  'o-white': livechatThread.livechat_end_dt,
- 'position-absolute start-0 top-0 z-1 o-inDiscussSidebar rounded-circle o-px-0_5 m-n1': this.env.inDiscussSidebar,
- '': !this.env.inDiscussSidebar,
+ 'position-absolute start-0 top-0 z-1 o-inDiscussSidebar rounded-circle o-px-0_5 m-n1': this.mailContext.inDiscussSidebar,
+ '': !this.mailContext.inDiscussSidebar,
  }"/>
  </span>
  </t>

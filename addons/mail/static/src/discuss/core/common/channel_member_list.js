@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { ImStatus } from "@mail/core/common/im_status";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
@@ -15,6 +16,7 @@ export class ChannelMemberList extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.store = useService("mail.store");
         onWillStart(() => {
             if (this.props.thread.fetchMembersState === "not_fetched") {

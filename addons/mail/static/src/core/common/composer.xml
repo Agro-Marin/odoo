@@ -14,14 +14,14 @@
                     'pb-2': extended and !this.props.composer.message,
                     'o-extended': extended,
                     'o-isUiSmall': this.ui.isSmall,
-                    'ps-2 pe-4 pb-2': normal and !this.env.inDiscussApp and !this.env.inMeetingView,
-                    'ps-0 pe-3 pb-2': normal and this.env.inMeetingView,
+                    'ps-2 pe-4 pb-2': normal and !this.mailContext.inDiscussApp and !this.mailContext.inMeetingView,
+                    'ps-0 pe-3 pb-2': normal and this.mailContext.inMeetingView,
                     'o-hasSelfAvatar': this.showComposerAvatar,
                     'o-focused': this.props.composer.isFocused,
                     'o-editing': this.props.composer.message,
-                    'o-chatWindow mx-2 my-1': this.env.inChatWindow,
-                    'mb-2': this.env.inChatWindow and !this.props.composer.message,
-                    'o-discussApp pt-1 ps-2 pe-4 o-pb-2_5': this.env.inDiscussApp,
+                    'o-chatWindow mx-2 my-1': this.mailContext.inChatWindow,
+                    'mb-2': this.mailContext.inChatWindow and !this.props.composer.message,
+                    'o-discussApp pt-1 ps-2 pe-4 o-pb-2_5': this.mailContext.inDiscussApp,
                 }" t-attf-class="{{ this.props.className }}">
             <FileUploader t-if="this.allowUpload" multiUpload="this.isMultiUpload" onUploaded.bind="(data) => { this.attachmentUploader.uploadData(data) }">
                 <t t-set-slot="toggler">
@@ -33,7 +33,7 @@
             </div>
             <div class="o-mail-Composer-coreHeader">
                 <div t-if="this.props.composer.replyToMessage" class="text-truncate small p-2">
-                    <span class="cursor-pointer" t-on-click="() => this.env.messageHighlight?.highlightMessage(this.props.composer.replyToMessage, this.props.composer.thread)">
+                    <span class="cursor-pointer" t-on-click="() => this.mailContext.messageHighlight?.highlightMessage(this.props.composer.replyToMessage, this.props.composer.thread)">
                         Replying to <b t-out="this.props.composer.replyToMessage.authorName"/>
                     </span>
                     <span t-if="this.props.composer.replyToMessage.thread?.notEq(this.props.composer.thread)">
@@ -136,8 +136,8 @@
         t-att-class="{
             'btn-primary btn-sm': extended,
             'btn-link rounded-circle p-0': !extended,
-            'me-2': this.env.inDiscussApp,
-            'border-start-0': this.env.inDiscussApp and !this.props.composer.message,
+            'me-2': this.mailContext.inDiscussApp,
+            'border-start-0': this.mailContext.inDiscussApp and !this.props.composer.message,
             'border-0': this.props.composer.message,
         }"
         t-on-click="this.sendMessage"

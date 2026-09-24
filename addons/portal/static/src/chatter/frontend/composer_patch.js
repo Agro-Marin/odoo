@@ -1,8 +1,14 @@
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { patch } from "@web/core/utils/patch";
 
 patch(Composer.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.mailContext = useMailContext();
+    },
+
     get showComposerAvatar() {
         return (
             super.showComposerAvatar ||
@@ -12,7 +18,8 @@ patch(Composer.prototype, {
 
     get shouldHideFromMessageListOnDelete() {
         return (
-            this.env.inFrontendPortalChatter || super.shouldHideFromMessageListOnDelete
+            this.mailContext.inFrontendPortalChatter ||
+            super.shouldHideFromMessageListOnDelete
         );
     },
 });

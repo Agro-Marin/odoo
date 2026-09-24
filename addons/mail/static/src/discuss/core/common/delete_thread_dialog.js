@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { ActionPanel } from "@mail/core/common/action_panel";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
@@ -15,6 +16,7 @@ export class DeleteThreadDialog extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.notification = useService("notification");
         this.store = useService("mail.store");
     }
@@ -24,7 +26,7 @@ export class DeleteThreadDialog extends Component {
         const threadName = this.props.thread.name;
         if (
             this.store.discuss?.thread?.eq(this.props.thread) ||
-            this.env.inChatWindow
+            this.mailContext.inChatWindow
         ) {
             toOpenThread = this.props.thread.parent_channel_id;
         }

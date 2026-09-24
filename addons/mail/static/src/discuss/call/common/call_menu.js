@@ -2,7 +2,8 @@
 /** @odoo-module native */
 import { ActionList } from "@mail/core/common/action_list";
 import { useCallActions } from "@mail/discuss/call/common/call_actions";
-import { Component, useSubEnv } from "@odoo/owl";
+import { provideMailContext } from "@mail/utils/common/mail_context";
+import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -18,7 +19,7 @@ export class CallMenu extends Component {
             thread: () => this.rtc.channel,
         });
         this.isEnterprise = odoo.info && odoo.info.isEnterprise;
-        useSubEnv({ inCallMenu: true });
+        provideMailContext({ inCallMenu: true });
     }
 
     get icon() {

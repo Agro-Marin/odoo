@@ -8,6 +8,7 @@ import { useCallActions } from "@mail/discuss/call/common/call_actions";
 import { CallParticipantCard } from "@mail/discuss/call/common/call_participant_card";
 import { PttAdBanner } from "@mail/discuss/call/common/ptt_ad_banner";
 import { inDiscussCallViewProps, useInDiscussCallView } from "@mail/utils/common/hooks";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import {
     Component,
     onMounted,
@@ -59,6 +60,7 @@ export class Call extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.mailContext = useMailContext();
         this.grid = useRef("grid");
         this.root = useRef("root");
         this.notification = useService("notification");

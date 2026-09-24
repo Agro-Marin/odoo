@@ -1,10 +1,16 @@
 /** @odoo-module native */
 import { Message } from "@mail/core/common/message";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { patch } from "@web/core/utils/patch";
 
 const PORTAL_AVATAR_SIZE = "50x50";
 
 patch(Message.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.mailContext = useMailContext();
+    },
+
     get authorAvatarUrl() {
         if (this.message.author_avatar_url) {
             return this.message.author_avatar_url;
@@ -17,7 +23,8 @@ patch(Message.prototype, {
 
     get shouldHideFromMessageListOnDelete() {
         return (
-            this.env.inFrontendPortalChatter || super.shouldHideFromMessageListOnDelete
+            this.mailContext.inFrontendPortalChatter ||
+            super.shouldHideFromMessageListOnDelete
         );
     },
 });

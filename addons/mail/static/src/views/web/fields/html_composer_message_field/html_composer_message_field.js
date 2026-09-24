@@ -4,6 +4,7 @@ import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
 import { fillEmpty } from "@html_editor/utils/dom";
 import { isEmpty } from "@html_editor/utils/dom_info";
 import { getComposerTargetThreads } from "@mail/core/web/composer_target_threads";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { markup, toRaw } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
@@ -18,10 +19,11 @@ const log = makeLogger("mail.composer.form");
 export class HtmlComposerMessageField extends HtmlMailField {
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.store = toRaw(useOptionalService("mail.store"));
-        if (this.env.fullComposerBus) {
+        if (this.mailContext.fullComposerBus) {
             useBus(
-                this.env.fullComposerBus,
+                this.mailContext.fullComposerBus,
                 "ACCIDENTAL_DISCARD",
                 /** @param {CustomEvent<{onAccidentalDiscard: (isEmpty: boolean) => void}>} ev */
                 (ev) => {
@@ -33,7 +35,7 @@ export class HtmlComposerMessageField extends HtmlMailField {
                 },
             );
             useBus(
-                this.env.fullComposerBus,
+                this.mailContext.fullComposerBus,
                 "SAVE_CONTENT",
                 /** @param {CustomEvent<{onSaveContent: (content: Object) => void}>} ev */
                 (ev) => {
@@ -51,7 +53,7 @@ export class HtmlComposerMessageField extends HtmlMailField {
                 },
             );
             useBus(
-                this.env.fullComposerBus,
+                this.mailContext.fullComposerBus,
                 "ATTACHMENT_REMOVED",
                 /** @param {CustomEvent<{id: number}>} ev */
                 (ev) => {

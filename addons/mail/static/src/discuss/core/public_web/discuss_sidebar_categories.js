@@ -6,7 +6,8 @@ import { ThreadIcon } from "@mail/core/common/thread_icon";
 import { discussSidebarItemsRegistry } from "@mail/core/public_web/discuss_sidebar";
 import { DiscussSidebarChannelActions } from "@mail/discuss/core/public_web/discuss_sidebar_channel_actions";
 import { useHover, UseHoverOverlay } from "@mail/utils/common/hooks";
-import { Component, useSubEnv } from "@odoo/owl";
+import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
+import { Component } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
@@ -77,6 +78,7 @@ export class DiscussSidebarChannel extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.store = useService("mail.store");
         this.hover = useHover(["root"], {
             onHover: () => {
@@ -127,7 +129,9 @@ export class DiscussSidebarChannel extends Component {
     get bordered() {
         return (
             this.store.discuss.isSidebarCompact &&
-            Boolean(this.env.filteredThreads?.(this.thread.sub_channel_ids)?.length)
+            Boolean(
+                this.mailContext.filteredThreads?.(this.thread.sub_channel_ids)?.length,
+            )
         );
     }
 
@@ -156,7 +160,7 @@ export class DiscussSidebarChannel extends Component {
     }
 
     get subChannels() {
-        return this.env.filteredThreads?.(this.thread.sub_channel_ids) ?? [];
+        return this.mailContext.filteredThreads?.(this.thread.sub_channel_ids) ?? [];
     }
 
     /**
@@ -258,7 +262,7 @@ export class DiscussSidebarCategories extends Component {
         super.setup();
         this.store = useService("mail.store");
         this.orm = useService("orm");
-        useSubEnv({
+        provideMailContext({
             /** @param {import("models").Thread[]} threads */
             filteredThreads: (threads) => this.filteredThreads(threads),
         });

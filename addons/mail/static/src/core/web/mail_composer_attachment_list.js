@@ -1,5 +1,6 @@
 // @ts-check
 /** @odoo-module native */
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import {
@@ -10,6 +11,7 @@ export class MailComposerAttachmentList extends Many2ManyBinaryField {
     static template = "mail.MailComposerAttachmentList";
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.mailStore = useService("mail.store");
         this.attachmentUploadService = useService("mail.attachment_upload");
     }
@@ -20,7 +22,7 @@ export class MailComposerAttachmentList extends Many2ManyBinaryField {
         if (attachment && attachment.res_model === "mail.compose.message") {
             await this.attachmentUploadService.unlink(attachment);
         }
-        this.env.fullComposerBus?.trigger("ATTACHMENT_REMOVED", {
+        this.mailContext.fullComposerBus?.trigger("ATTACHMENT_REMOVED", {
             id: attachment.id,
         });
     }

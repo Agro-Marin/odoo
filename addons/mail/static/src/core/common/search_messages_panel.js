@@ -3,6 +3,7 @@
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { SearchMessageInput } from "@mail/core/common/search_message_input";
 import { SearchMessageResult } from "@mail/core/common/search_message_result";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component, onWillUpdateProps } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -19,13 +20,14 @@ export class SearchMessagesPanel extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.store = useService("mail.store");
         this.messageSearch =
-            this.env.messageSearch ?? useMessageSearch(this.props.thread);
+            this.mailContext.messageSearch ?? useMessageSearch(this.props.thread);
         onWillUpdateProps(
             /** @param {{thread: import("models").Thread}} nextProps */ (nextProps) => {
                 if (this.props.thread.notEq(nextProps.thread)) {
-                    this.env.searchMenu?.close();
+                    this.mailContext.searchMenu?.close();
                 }
             },
         );

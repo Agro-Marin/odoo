@@ -4,7 +4,8 @@ import { CountryFlag } from "@mail/core/common/country_flag";
 import { ImStatus } from "@mail/core/common/im_status";
 import { baseImStatus } from "@mail/core/common/presence_status";
 import { useHover } from "@mail/utils/common/hooks";
-import { Component, useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
+import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
+import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useBus, useChildRef, useEventBus, useService } from "@web/core/utils/hooks";
@@ -80,7 +81,8 @@ export class ChatBubble extends Component {
             },
             () => [this.thread?.importantCounter],
         );
-        useSubEnv({ inChatBubble: true });
+        provideMailContext({ inChatBubble: true });
+        this.mailContext = useMailContext();
     }
 
     /** @returns {import("models").Thread} */

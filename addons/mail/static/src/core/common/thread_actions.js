@@ -2,7 +2,8 @@
 /** @odoo-module native */
 import { Action, UseActions } from "@mail/core/common/action";
 import { SearchMessagesPanel } from "@mail/core/common/search_messages_panel";
-import { useState, useSubEnv } from "@odoo/owl";
+import { provideMailContext } from "@mail/utils/common/mail_context";
+import { useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -92,7 +93,7 @@ registerThreadAction("search-messages", {
     sequenceGroup: 20,
     /** @param {ActionParams} params */
     setup: ({ action }) =>
-        useSubEnv({
+        provideMailContext({
             searchMenu: {
                 open: () => action.open(),
                 close: () => {

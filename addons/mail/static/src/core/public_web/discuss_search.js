@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { useHover } from "@mail/utils/common/hooks";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -19,6 +20,7 @@ export class DiscussSearch extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.store = useService("mail.store");
         this.command = useService("command");
         this.ui = useService("ui");
@@ -69,8 +71,8 @@ export class DiscussSearch extends Component {
             supported: Boolean(this.store.startMeeting),
         }));
         this.store.startMeeting?.();
-        if (this.env.inMessagingMenu) {
-            this.env.inMessagingMenu.dropdown.close();
+        if (this.mailContext.inMessagingMenu) {
+            this.mailContext.inMessagingMenu.dropdown.close();
         }
     }
 

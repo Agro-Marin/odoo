@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { Gif } from "@mail/core/common/gif";
 import { LinkPreviewConfirmDelete } from "@mail/core/common/link_preview_confirm_delete";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 /**
@@ -20,6 +21,7 @@ export class LinkPreview extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.dialogService = useService("dialog");
         this.state = useState({ startVideo: false, videoLoaded: false });
         this.videoRef = useRef("video");
@@ -50,6 +52,6 @@ export class LinkPreview extends Component {
     }
 
     onImageLoaded() {
-        this.env.onImageLoaded?.();
+        this.mailContext.onImageLoaded?.();
     }
 }

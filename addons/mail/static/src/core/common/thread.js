@@ -4,6 +4,10 @@ import { DateSection } from "@mail/core/common/date_section";
 import { Message } from "@mail/core/common/message";
 import { useThreadScroll } from "@mail/core/common/thread_scroll_hook";
 import { useVisible } from "@mail/utils/common/hooks";
+import {
+    provideChildMailContext,
+    useMailContext,
+} from "@mail/utils/common/mail_context";
 import { markThreadAsReadIfAtBottom } from "@mail/utils/common/thread_read";
 import {
     Component,
@@ -14,7 +18,6 @@ import {
     onWillUpdateProps,
     reactive,
     toRaw,
-    useChildSubEnv,
     useEffect,
     useRef,
     useState,
@@ -87,8 +90,8 @@ export class Thread extends Component {
         });
         this.lastJumpPresent = this.props.jumpPresent;
         /** @type {ReturnType<import('@mail/utils/common/hooks').useMessageScrolling>|null} */
-        this.messageHighlight = this.env.messageHighlight
-            ? useState(this.env.messageHighlight)
+        this.messageHighlight = this.mailContext.messageHighlight
+            ? useState(this.mailContext.messageHighlight)
             : null;
         this.scrollingToHighlight = false;
         /** @type {HTMLElement|null|undefined} */
@@ -130,7 +133,7 @@ export class Thread extends Component {
             getMountedAndLoaded: () => this.state.mountedAndLoaded,
             getMessageHighlight: () => this.messageHighlight,
             getHighlightedMessageId: () =>
-                this.env.messageHighlight?.highlightedMessageId,
+                this.mailContext.messageHighlight?.highlightedMessageId,
             /** @param {import("models").Thread} thread */
             applyScrollContextually: (thread) => this.applyScrollContextually(thread),
             onReset: () => {
@@ -142,7 +145,7 @@ export class Thread extends Component {
             onResize: () => this.computeJumpPresentPosition(),
             onScroll: this.onScroll,
         });
-        useChildSubEnv({
+        provideChildMailContext({
             getCurrentThread: () => this.props.thread,
             onImageLoaded: this.threadScroll.applyScroll,
         });
@@ -207,7 +210,7 @@ export class Thread extends Component {
             if (this.consumeChatterFetchRequest()) {
                 log.lifecycle("mounted fetch", () => ({
                     thread: this.props.thread.localId,
-                    inChatter: Boolean(this.env.chatter),
+                    inChatter: Boolean(this.mailContext.chatter),
                 }));
                 this.fetchMessages();
             }
@@ -298,6 +301,7 @@ export class Thread extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.mailContext = useMailContext();
         this.bus = useEventBus();
         this._setupServicesAndRefs();
         this._setupScrollTracking();
@@ -326,11 +330,14 @@ export class Thread extends Component {
                 const pt = parseInt(computedStyle.getPropertyValue("padding-top"));
                 const pb = parseInt(computedStyle.getPropertyValue("padding-bottom"));
                 transform = `translate(${
-                    this.env.inChatter ? 22 : width - ps - pe - 22
+                    this.mailContext.inChatter ? 22 : width - ps - pe - 22
                 }px, ${
-                    this.env.inChatter && !this.env.inChatter.aside
+                    this.mailContext.inChatter && !this.mailContext.inChatter.aside
                         ? -22
-                        : height - pt - pb - (this.env.inChatter?.aside ? 75 : 0)
+                        : height -
+                          pt -
+                          pb -
+                          (this.mailContext.inChatter?.aside ? 75 : 0)
                 }px)`;
             }
             mutate(() => {
@@ -365,7 +372,7 @@ export class Thread extends Component {
 
     /** @returns {boolean} whether the messages of the thread should be fetched now */
     consumeChatterFetchRequest() {
-        const chatter = this.env.chatter;
+        const chatter = this.mailContext.chatter;
         if (!chatter) {
             return true;
         }
@@ -438,7 +445,10 @@ export class Thread extends Component {
             targetThread: targetThread.localId,
         }));
         if (targetThread.eq(this.props.thread)) {
-            this.env.messageHighlight?.highlightMessage(parentMessage, targetThread);
+            this.mailContext.messageHighlight?.highlightMessage(
+                parentMessage,
+                targetThread,
+            );
         } else {
             targetThread.highlightMessage = parentMessage;
             await targetThread.open({ focus: true });
@@ -499,7 +509,11 @@ export class Thread extends Component {
         if (this.props.thread.isMailbox) {
             return false;
         }
-        if (!prevMsg || prevMsg.message_type === "notification" || this.env.inChatter) {
+        if (
+            !prevMsg ||
+            prevMsg.message_type === "notification" ||
+            this.mailContext.inChatter
+        ) {
             return false;
         }
 

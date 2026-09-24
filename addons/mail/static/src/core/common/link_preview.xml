@@ -14,7 +14,7 @@
     </t>
 
     <t t-name="mail.LinkPreviewCard">
-        <div class="o-mail-LinkPreviewCard card position-relative w-100 mb-2 rounded bg-view shadow-sm overflow-hidden" t-att-class="{ 'me-2': this.env.inChatter }" t-attf-class="{{ this.className }}">
+        <div class="o-mail-LinkPreviewCard card position-relative w-100 mb-2 rounded bg-view shadow-sm overflow-hidden" t-att-class="{ 'me-2': this.mailContext.inChatter }" t-attf-class="{{ this.className }}">
             <div class="row g-0 flex-row-reverse h-100">
                 <div class="col min-w-0" t-att-class="{ 'd-flex align-items-center': !this.props.linkPreview.og_description }">
                     <div class="px-3 py-2">
@@ -40,7 +40,7 @@
     </t>
 
     <t t-name="mail.LinkPreviewImage">
-        <div class="o-mail-LinkPreviewImage position-relative mb-2 rounded" t-att-class="{ 'me-2': this.env.inChatter }" t-attf-class="{{ this.className }}">
+        <div class="o-mail-LinkPreviewImage position-relative mb-2 rounded" t-att-class="{ 'me-2': this.mailContext.inChatter }" t-attf-class="{{ this.className }}">
             <a t-if="this.props.linkPreview.imageUrl" t-att-href="this.props.linkPreview.imageUrl" target="_blank">
                 <Gif t-if="this.props.linkPreview.isGif" paused="this.props.gifPaused" class="'h-auto w-auto rounded'" src="this.props.linkPreview.imageUrl" onLoad.bind="this.onImageLoaded"/>
                 <img t-else="" class="h-auto w-auto rounded" t-att-src="this.props.linkPreview.imageUrl" t-on-load="this.onImageLoaded"/>
@@ -51,7 +51,7 @@
     </t>
 
     <t t-name="mail.LinkPreviewVideo">
-        <div class="o-mail-LinkPreviewVideo card position-relative w-100 mb-2 rounded bg-view shadow-sm overflow-hidden" t-att-data-provider="this.props.linkPreview.videoProvider" t-att-class="{ 'me-2': this.env.inChatter, 'o-mail-LinkPreviewVideo-embed': this.props.linkPreview.videoURL, 'o-mail-LinkPreviewVideo-started': this.state.startVideo }" t-attf-class="{{ this.className }}">
+        <div class="o-mail-LinkPreviewVideo card position-relative w-100 mb-2 rounded bg-view shadow-sm overflow-hidden" t-att-data-provider="this.props.linkPreview.videoProvider" t-att-class="{ 'me-2': this.mailContext.inChatter, 'o-mail-LinkPreviewVideo-embed': this.props.linkPreview.videoURL, 'o-mail-LinkPreviewVideo-started': this.state.startVideo }" t-attf-class="{{ this.className }}">
             <div class="row g-0 flex-row-reverse">
                 <div class="col min-w-0" t-att-class="{ 'd-flex align-items-center': !this.props.linkPreview.og_description }">
                     <div class="d-flex flex-column gap-1 px-3 py-1 bg-view">

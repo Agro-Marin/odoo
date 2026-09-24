@@ -2,7 +2,7 @@
 /** @odoo-module native */
 import { registerThreadAction } from "@mail/core/common/thread_actions";
 import { PinnedMessagesPanel } from "@mail/discuss/message_pin/common/pinned_messages_panel";
-import { useChildSubEnv } from "@odoo/owl";
+import { provideChildMailContext } from "@mail/utils/common/mail_context";
 import { _t } from "@web/core/translation";
 
 /** @typedef {import("@mail/core/common/thread_actions").ActionParams} ActionParams */
@@ -21,7 +21,7 @@ registerThreadAction("pinned-messages", {
     sequence: 20,
     sequenceGroup: 10,
     setup() {
-        useChildSubEnv({
+        provideChildMailContext({
             pinMenu: {
                 open: () => this.open(),
                 close: () => {

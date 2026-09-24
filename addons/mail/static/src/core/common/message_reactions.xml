@@ -3,8 +3,8 @@
 <t t-name="mail.MessageReactions">
     <div class="o-mail-MessageReactions position-relative d-flex flex-wrap"
         t-att-class="{
-            'flex-row-reverse me-3': this.env.inChatWindow and this.env.alignedRight,
-            'ms-3': !(this.env.inChatWindow and this.env.alignedRight) and (this.props.message.isDiscussion),
+            'flex-row-reverse me-3': this.mailContext.inChatWindow and this.mailContext.alignedRight,
+            'ms-3': !(this.mailContext.inChatWindow and this.mailContext.alignedRight) and (this.props.message.isDiscussion),
             'o-emojiPickerOpen': this.emojiPicker.isOpen,
             'mt-n1': this.props.message.message_type === 'comment' and !this.props.message.attachment_ids.length,
             'o-mt-0_5': this.props.message.attachment_ids.length,

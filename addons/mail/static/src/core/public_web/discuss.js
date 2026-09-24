@@ -4,6 +4,7 @@ import { DiscussContent } from "@mail/core/public_web/discuss_content";
 import { DiscussSidebar } from "@mail/core/public_web/discuss_sidebar";
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { useMessageScrolling } from "@mail/utils/common/hooks";
+import { provideMailContext } from "@mail/utils/common/mail_context";
 import {
     Component,
     onMounted,
@@ -11,7 +12,6 @@ import {
     useEffect,
     useExternalListener,
     useRef,
-    useSubEnv,
 } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -43,7 +43,7 @@ export class Discuss extends Component {
         this.orm = useService("orm");
         this.effect = useService("effect");
         this.ui = useService("ui");
-        useSubEnv({
+        provideMailContext({
             inDiscussApp: true,
             messageHighlight: this.messageHighlight,
         });

@@ -14,6 +14,21 @@ _XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 ENV_KEYS = {
     "owl_env_is_small": re.compile(r"\bthis\.env\.isSmall\b"),
     "owl_env_model": re.compile(r"\bthis\.env\.model\b"),
+    "owl_env_mail_context": re.compile(
+        r"\bthis\.env\.(?:"
+        r"inChatter|inChatWindow|inChatBubble|inComposer|"
+        r"inDiscussActionPanel|inDiscussApp|inDiscussCallView|"
+        r"inDiscussSidebar|inLivechatInfoPanel|inMeetingChat|"
+        r"inMeetingSideActions|inMeetingView|inMessage|"
+        r"inMessagingMenu|inNotificationItem|inWelcomePage|"
+        r"inCallDropdown|inCallInvitation|inCallMenu|"
+        r"isDiscussPipBanner|inFrontendPortalChatter|alignedRight|"
+        r"chatter|closeActionPanel|embedLivechat|filteredThreads|"
+        r"fullComposerBus|getCurrentThread|message|messageCard|"
+        r"messageHighlight|messageSearch|onImageLoaded|pinMenu|"
+        r"searchMenu|subChannelMenu|threadHeights|pipWindow"
+        r")\b"
+    ),
     "owl_env_builder_context": re.compile(
         r"\bthis\.env\.(?:editor|editorBus|triggerDomUpdated|editColorCombination|"
         r"dependencyManager|getEditingElements?|weContext|selectableContext|imgGroup|"
@@ -128,6 +143,17 @@ class TestOwl3Api(lint_case.LintCase):
             "this.env.isSmall reads in static/src (JS and templates)",
             "A component reads this.ui.isSmall from this.ui = useService(\"ui\") "
             "in setup; OWL 3 components have no env",
+        )
+
+    def test_no_env_mail_context(self):
+        self.assert_ratchet(
+            _env_findings("owl_env_mail_context"),
+            "owl_env_mail_context",
+            "this.env.<mail context key> reads in static/src (JS and templates)",
+            "A mail component reads this.mailContext = useMailContext() from "
+            "setup, and a mail scope provides its keys with provideMailContext / "
+            "provideChildMailContext (@mail/utils/common/mail_context); OWL 3 "
+            "components have no env",
         )
 
     def test_no_env_model(self):

@@ -18,7 +18,7 @@
                 <div class="o-mail-Message-jumpTarget position-absolute top-0 pe-none"/>
                 <div t-if="this.props.asCard and this.isMobileOS" class="position-absolute end-0 z-1 m-n2"><t t-call="mail.Message.actions"/></div>
                 <div class="o-mail-Message-core position-relative d-flex flex-shrink-0 bg-inherit">
-                    <div class="o-mail-Message-sidebar d-flex flex-shrink-0 align-items-center flex-column bg-inherit" t-att-class="{ 'align-items-start': !this.isAlignedRight, 'o-inChatWindow': this.env.inChatWindow }">
+                    <div class="o-mail-Message-sidebar d-flex flex-shrink-0 align-items-center flex-column bg-inherit" t-att-class="{ 'align-items-start': !this.isAlignedRight, 'o-inChatWindow': this.mailContext.inChatWindow }">
                         <t t-if="!this.props.squashed">
                             <div class="o-mail-Message-avatarContainer position-relative bg-inherit rounded-3" t-att-class="this.getAvatarContainerAttClass()">
                                 <img class="o-mail-Message-avatar w-100 h-100 rounded-3" t-att-src="this.authorAvatarUrl" t-att-class="this.authorAvatarAttClass"/>
@@ -97,7 +97,7 @@
                                                 <MessageInReply t-if="this.message.parent_id" class="'mx-2 p-1 pb-0 ' + (showTextVisually ? 'mt-1' : 'my-1')" message="this.message" onClick="this.props.onParentMessageClick"/>
                                                 <div class="position-relative text-break o-mail-Message-body" t-att-class="{
                                                             'p-1': this.message.isNote,
-                                                            'fs-1': !this.isEditing and !this.env.inChatter and this.message.onlyEmojis,
+                                                            'fs-1': !this.isEditing and !this.mailContext.inChatter and this.message.onlyEmojis,
                                                             'mb-0': !this.message.isNote,
                                                             'py-2': !this.message.isNote and !this.isEditing and showTextVisually,
                                                             'pt-2 pb-1': !this.message.isNote and this.isEditing,
@@ -126,7 +126,7 @@
                                             </div>
                                         </t>
                                     </t>
-                                    <t t-if="this.message.bubbleColor and this.message.hasTextContent and !this.env.inChatWindow and !(this.props.asCard and this.isMobileOS)" t-call="mail.Message.actions"/>
+                                    <t t-if="this.message.bubbleColor and this.message.hasTextContent and !this.mailContext.inChatWindow and !(this.props.asCard and this.isMobileOS)" t-call="mail.Message.actions"/>
                                 </div>
                                 <div class="position-relative">
                                     <AttachmentList
@@ -137,7 +137,7 @@
                                 </div>
                                 <MessageLinkPreviewList t-if="(this.message.message_link_preview_ids.length > 0 and this.store.hasLinkPreviewFeature and !this.message.linkPreviewSquash) or (!this.isEditing and this.message.linkPreviewSquash and this.message.parent_id)" messageLinkPreviews="this.message.message_link_preview_ids"/>
                             </div>
-                            <t t-if="this.message.bubbleColor and (!this.message.hasTextContent or this.env.inChatWindow) and !(this.props.asCard and this.isMobileOS)" t-call="mail.Message.actions"/>
+                            <t t-if="this.message.bubbleColor and (!this.message.hasTextContent or this.mailContext.inChatWindow) and !(this.props.asCard and this.isMobileOS)" t-call="mail.Message.actions"/>
                         </div>
                         <MessageReactions message="this.message" openReactionMenu="this.openReactionMenu" t-if="this.message.reactions.length"/>
                         <t name="after-reactions"/>
@@ -152,7 +152,7 @@
 </t>
 
 <t t-name="mail.Message.actions">
-    <div t-if="this.props.hasActions and this.message.hasActions and !this.isEditing and !this.env.inChatter?.disabled" class="o-mail-Message-actions d-print-none d-flex align-items-start"
+    <div t-if="this.props.hasActions and this.message.hasActions and !this.isEditing and !this.mailContext.inChatter?.disabled" class="o-mail-Message-actions d-print-none d-flex align-items-start"
         t-att-class="{
             'start-0': this.isAlignedRight,
             'mt-1': this.message.bubbleColor and !this.props.asCard and !this.isMobileOS,
@@ -171,7 +171,7 @@
                 </t>
             </Dropdown>
         </t>
-        <t t-set="isReverse" t-value="this.env.inChatWindow and this.isAlignedRight"/>
+        <t t-set="isReverse" t-value="this.mailContext.inChatWindow and this.isAlignedRight"/>
         <t t-if="this.isMobileOS and isReverse" t-call="mail.Message.emptyQuickAction"/>
         <div class="d-flex rounded-1 overflow-hidden gap-1" t-att-class="{ 'flex-row-reverse': isReverse }">
             <ActionList actions="this.actions" inline="true" fw="false"/>

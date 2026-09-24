@@ -4,6 +4,7 @@ import { ACTION_TAGS } from "@mail/core/common/action";
 import { ActionList } from "@mail/core/common/action_list";
 import { useCallActions } from "@mail/discuss/call/common/call_actions";
 import { CALL_PROMOTE_FULLSCREEN } from "@mail/discuss/call/common/thread_model_patch";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component, toRaw, useRef } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { _t } from "@web/core/translation";
@@ -17,6 +18,7 @@ export class CallActionList extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.store = useService("mail.store");
         this.rtc = useService("discuss.rtc");
         this.pipService = useService("discuss.pip_service");
@@ -66,7 +68,7 @@ export class CallActionList extends Component {
 
     get isPromotingFullscreen() {
         return Boolean(
-            !this.env.pipWindow &&
+            !this.mailContext.pipWindow &&
             this.props.thread.promoteFullscreen === CALL_PROMOTE_FULLSCREEN.ACTIVE,
         );
     }

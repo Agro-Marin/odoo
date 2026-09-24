@@ -8,7 +8,7 @@ import {
     removeLocalStorageItem,
     setLocalStorageItem,
 } from "@mail/utils/common/local_storage";
-import { useChildSubEnv } from "@odoo/owl";
+import { provideChildMailContext } from "@mail/utils/common/mail_context";
 import { _t } from "@web/core/translation";
 import { usePopover } from "@web/ui/popover";
 
@@ -35,7 +35,7 @@ registerThreadAction("show-threads", {
                 class: this.panelOuterClass,
             });
         }
-        useChildSubEnv({ subChannelMenu: { open: () => this.open() } });
+        provideChildMailContext({ subChannelMenu: { open: () => this.open() } });
     },
     /** @param {ActionParams} params */
     open({ owner, thread }) {

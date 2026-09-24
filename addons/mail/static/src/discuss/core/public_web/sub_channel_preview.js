@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { isToday } from "@mail/utils/common/dates";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
 
@@ -9,6 +10,11 @@ const { DateTime } = luxon;
 export class SubChannelPreview extends Component {
     static template = "mail.SubChannelPreview";
     static props = ["class?", "onClick?", "thread"];
+
+    setup() {
+        super.setup();
+        this.mailContext = useMailContext();
+    }
 
     /**
      * @param {import("models").Message} message

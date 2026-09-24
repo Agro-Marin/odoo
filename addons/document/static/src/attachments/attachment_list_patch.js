@@ -3,10 +3,12 @@ import { AttachmentList } from "@mail/core/common/attachment_list";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
+import { useMailContext } from "@mail/utils/common/mail_context";
 
 patch(AttachmentList.prototype, {
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.dialog = useService("dialog");
         this.documentService = useService("document.document");
         this.notification = useService("notification");
@@ -20,7 +22,7 @@ patch(AttachmentList.prototype, {
         return (
             this.documentService.userIsDocumentUser &&
             !attachment.uploading &&
-            !this.env.inComposer
+            !this.mailContext.inComposer
         );
     },
 

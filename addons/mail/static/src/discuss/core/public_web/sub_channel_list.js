@@ -4,6 +4,7 @@ import { ActionPanel } from "@mail/core/common/action_panel";
 import { NotificationItem } from "@mail/core/public_web/notification_item";
 import { SubChannelPreview } from "@mail/discuss/core/public_web/sub_channel_preview";
 import { useVisible } from "@mail/utils/common/hooks";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { makeSequential } from "@mail/utils/common/misc";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -26,6 +27,7 @@ export class SubChannelList extends Component {
     static props = ["thread", "close?"];
 
     setup() {
+        this.mailContext = useMailContext();
         this.store = useService("mail.store");
         this.state = useState({
             loading: false,
@@ -76,7 +78,7 @@ export class SubChannelList extends Component {
             await rpc("/discuss/channel/join", { channel_id: subThread.id });
         }
         subThread.open({ focus: true });
-        if (this.env.inChatWindow) {
+        if (this.mailContext.inChatWindow) {
             this.props.close?.();
         }
     }

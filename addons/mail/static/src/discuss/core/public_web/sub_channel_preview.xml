@@ -14,7 +14,7 @@
                     <t t-out="message?.inlineBody"/>
                 </div>
             </div>
-            <i t-if="this.env.inMessage" class="oi oi-chevron-right ms-2 opacity-50"/>
+            <i t-if="this.mailContext.inMessage" class="oi oi-chevron-right ms-2 opacity-50"/>
         </button>
     </t>
 </templates>

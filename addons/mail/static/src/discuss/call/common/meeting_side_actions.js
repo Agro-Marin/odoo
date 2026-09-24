@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 import { ActionList } from "@mail/core/common/action_list";
-import { Component, useSubEnv } from "@odoo/owl";
+import { provideMailContext } from "@mail/utils/common/mail_context";
+import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 /** @typedef {"chat"|"invite"} MeetingPanel */
 
@@ -17,7 +18,7 @@ export class MeetingSideActions extends Component {
 
     setup() {
         this.store = useService("mail.store");
-        useSubEnv({ inMeetingSideActions: true });
+        provideMailContext({ inMeetingSideActions: true });
     }
 
     get actions() {

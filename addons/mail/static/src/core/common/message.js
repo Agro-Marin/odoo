@@ -12,17 +12,13 @@ import { MessageReactionMenu } from "@mail/core/common/message_reaction_menu";
 import { MessageReactions } from "@mail/core/common/message_reactions";
 import { htmlToTextContentInline } from "@mail/utils/common/format";
 import { useLongPress, useRegisterMessageRef } from "@mail/utils/common/hooks";
-import { loadCssFromBundle } from "@mail/utils/common/misc";
 import {
-    Component,
-    status,
-    toRaw,
-    useChildSubEnv,
-    useEffect,
-    useRef,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
+    provideChildMailContext,
+    provideMailContext,
+    useMailContext,
+} from "@mail/utils/common/mail_context";
+import { loadCssFromBundle } from "@mail/utils/common/misc";
+import { Component, status, toRaw, useEffect, useRef, useState } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
@@ -145,8 +141,8 @@ export class Message extends Component {
         this.ui = useService("ui");
         this.openReactionMenu = this.openReactionMenu.bind(this);
         this.optionsDropdown = useDropdownState();
-        useSubEnv({ inMessage: true });
-        useChildSubEnv({
+        provideMailContext({ inMessage: true });
+        provideChildMailContext({
             message: this.props.message,
             alignedRight: this.isAlignedRight,
         });
@@ -213,6 +209,7 @@ export class Message extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.mailContext = useMailContext();
         this._setupServicesAndRefs();
         this._setupMessageEffects();
     }
@@ -335,7 +332,8 @@ export class Message extends Component {
                 this.props.asCard,
             "pt-1": !this.props.asCard && !this.props.squashed,
             "o-pt-0_5": !this.props.asCard && this.props.squashed,
-            "o-selfAuthored": this.message.isSelfAuthored && !this.env.messageCard,
+            "o-selfAuthored":
+                this.message.isSelfAuthored && !this.mailContext.messageCard,
             "o-selected": this.props.message.composerAsReplyToMessage?.thread.eq(
                 this.props.thread,
             ),
@@ -343,7 +341,7 @@ export class Message extends Component {
             "mt-1":
                 !this.props.squashed &&
                 this.props.thread &&
-                !this.env.messageCard &&
+                !this.mailContext.messageCard &&
                 !this.props.asCard,
             "px-1": this.props.isInChatWindow,
             "o-actionMenuMobileOpen": this.ui.isSmall && this.optionsDropdown.isOpen,
@@ -389,7 +387,7 @@ export class Message extends Component {
         if (isMobileOS()) {
             return 1;
         }
-        return this.env.inChatWindow || this.env.inMeetingChat ? 2 : 4;
+        return this.mailContext.inChatWindow || this.mailContext.inMeetingChat ? 2 : 4;
     }
 
     get showSubtypeDescription() {
@@ -441,7 +439,9 @@ export class Message extends Component {
     }
 
     get isAlignedRight() {
-        return Boolean(this.env.inChatWindow && this.props.message.isSelfAuthored);
+        return Boolean(
+            this.mailContext.inChatWindow && this.props.message.isSelfAuthored,
+        );
     }
 
     get isMobileOS() {
@@ -477,7 +477,7 @@ export class Message extends Component {
 
     /** @returns {boolean} */
     get shouldDisplayAuthorName() {
-        if (!this.env.inChatWindow) {
+        if (!this.mailContext.inChatWindow) {
             return true;
         }
         if (this.message.isSelfAuthored) {
@@ -556,7 +556,7 @@ export class Message extends Component {
     getAvatarContainerAttClass() {
         return {
             "opacity-50": this.message.isPending,
-            "o-inChatWindow": this.env.inChatWindow,
+            "o-inChatWindow": this.mailContext.inChatWindow,
         };
     }
 

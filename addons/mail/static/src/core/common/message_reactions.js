@@ -3,6 +3,7 @@
 import { useMessageActions } from "@mail/core/common/message_actions";
 import { MessageReactionList } from "@mail/core/common/message_reaction_list";
 import { QuickReactionMenu } from "@mail/core/common/quick_reaction_menu";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component, useRef } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker";
 import { isMobileOS } from "@web/core/browser/feature_detection";
@@ -14,6 +15,7 @@ export class MessageReactions extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.store = useService("mail.store");
         this.ui = useService("ui");
         this.addRef = useRef("add");

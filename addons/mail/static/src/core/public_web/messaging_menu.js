@@ -4,6 +4,7 @@ import { CountryFlag } from "@mail/core/common/country_flag";
 import { ImStatus } from "@mail/core/common/im_status";
 import { NotificationItem } from "@mail/core/public_web/notification_item";
 import { useDiscussSystray } from "@mail/utils/common/hooks";
+import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
 import { navigateIndex } from "@mail/utils/common/misc";
 import {
     Component,
@@ -11,7 +12,6 @@ import {
     useExternalListener,
     useRef,
     useState,
-    useSubEnv,
 } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import {
@@ -58,7 +58,8 @@ export class MessagingMenu extends Component {
         onWillDestroy(() => (this.store.messagingMenu.dropdown = undefined));
         this.discussSystray = useDiscussSystray(this.dropdown);
         this.notificationList = useRef("notification-list");
-        useSubEnv({ inMessagingMenu: { dropdown: this.dropdown } });
+        provideMailContext({ inMessagingMenu: { dropdown: this.dropdown } });
+        this.mailContext = useMailContext();
 
         useExternalListener(window, "keydown", this.onKeydown, true);
     }

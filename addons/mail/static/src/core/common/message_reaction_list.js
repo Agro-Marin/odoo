@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { useHover } from "@mail/utils/common/hooks";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { loadEmoji } from "@web/components/emoji_picker";
@@ -16,6 +17,7 @@ export class MessageReactionList extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.loadEmoji = loadEmoji;
         this.store = useService("mail.store");
         this.ui = useService("ui");

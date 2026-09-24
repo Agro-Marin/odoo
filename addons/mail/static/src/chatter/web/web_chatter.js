@@ -17,6 +17,7 @@ import {
     readLocalStorageItem,
     setLocalStorageItem,
 } from "@mail/utils/common/local_storage";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { assignGetter, isDragSourceExternalFile } from "@mail/utils/common/misc";
 import { status, useEffect } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
@@ -159,7 +160,7 @@ export class WebChatter extends Chatter {
                 },
             },
             () =>
-                (!this.store.meetingViewOpened || this.env.inMeetingView) &&
+                (!this.store.meetingViewOpened || this.mailContext.inMeetingView) &&
                 (this.state.thread?.isTransient || this.state.thread?.canPostMessage),
         );
     }
@@ -208,6 +209,7 @@ export class WebChatter extends Chatter {
     setup() {
         this.messageHighlight = useMessageScrolling();
         super.setup();
+        this.mailContext = useMailContext();
         this._setupServicesAndState();
         this._setupChatterDropzone();
         this._setupChatterEffects();

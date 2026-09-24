@@ -2,9 +2,9 @@
 <templates xml:space="preserve">
 
 <t t-name="mail.Thread">
-    <div class="o-mail-Thread position-relative flex-grow-1 d-flex flex-column overflow-auto o-scrollbar-thin bg-inherit" t-att-class="{ 'pb-5': this.env.inChatter?.aside, 'o-pb-3_5': !this.env.inChatter?.aside, 'ps-2 pe-3': this.env.inDiscussApp and !this.ui.isSmall, 'o-focused': this.props.thread.isFocused }" t-att-data-transient="this.props.thread.isTransient" t-ref="messages" tabindex="-1" t-on-focusin="this.onFocusin" t-on-focusout="this.onFocusout">
+    <div class="o-mail-Thread position-relative flex-grow-1 d-flex flex-column overflow-auto o-scrollbar-thin bg-inherit" t-att-class="{ 'pb-5': this.mailContext.inChatter?.aside, 'o-pb-3_5': !this.mailContext.inChatter?.aside, 'ps-2 pe-3': this.mailContext.inDiscussApp and !this.ui.isSmall, 'o-focused': this.props.thread.isFocused }" t-att-data-transient="this.props.thread.isTransient" t-ref="messages" tabindex="-1" t-on-focusin="this.onFocusin" t-on-focusout="this.onFocusout">
         <t t-if="!this.props.thread.isEmpty or this.props.thread.loadOlder or this.props.thread.hasLoadingFailed" name="content">
-            <div class="d-flex flex-column position-relative flex-grow-1 bg-inherit" t-att-class="{'justify-content-end': !this.env.inChatter and this.props.thread.model !== 'mail.box'}">
+            <div class="d-flex flex-column position-relative flex-grow-1 bg-inherit" t-att-class="{'justify-content-end': !this.mailContext.inChatter and this.props.thread.model !== 'mail.box'}">
                 <span class="position-absolute w-100 invisible" t-att-class="this.props.order === 'asc' ? 'bottom-0' : 'top-0'" t-ref="present-treshold"/>
                 <t t-set="currentDay" t-value="0"/>
                 <t t-if="this.props.order === 'asc'">
@@ -70,7 +70,7 @@
 </t>
 
 <t t-name="mail.Thread.jumpPresent">
-    <button t-if="this.props.showJumpPresent and this.state.showJumpPresent" class="o-mail-Thread-jumpPresent position-fixed p-2 rounded-circle lh-1 m-n3 user-select-none btn btn-light shadow-sm border border-secondary" t-att-class="{ 'bottom-0': this.env.inChatter and !this.env.inChatter.aside }" t-ref="jump-present" t-on-click="() => this.jumpToPresent()" title="Jump to Present"><i class="oi text-muted" t-att-class="{ 'oi-chevron-down': this.props.order === 'asc', 'oi-chevron-up': this.props.order !== 'asc' }"/></button>
+    <button t-if="this.props.showJumpPresent and this.state.showJumpPresent" class="o-mail-Thread-jumpPresent position-fixed p-2 rounded-circle lh-1 m-n3 user-select-none btn btn-light shadow-sm border border-secondary" t-att-class="{ 'bottom-0': this.mailContext.inChatter and !this.mailContext.inChatter.aside }" t-ref="jump-present" t-on-click="() => this.jumpToPresent()" title="Jump to Present"><i class="oi text-muted" t-att-class="{ 'oi-chevron-down': this.props.order === 'asc', 'oi-chevron-up': this.props.order !== 'asc' }"/></button>
 </t>
 
 <t t-name="mail.Thread.loadOlder">
@@ -96,16 +96,16 @@
 </t>
 
 <t t-name="mail.Thread.startMessage">
-    <div class="pt-4" t-att-class="{ 'px-3': this.env.inChatWindow, 'px-2': this.env.inDiscussApp or this.env.inMeetingChat }">
+    <div class="pt-4" t-att-class="{ 'px-3': this.mailContext.inChatWindow, 'px-2': this.mailContext.inDiscussApp or this.mailContext.inMeetingChat }">
         <div class="d-flex align-items-center gap-2" t-att-class="{
             'mt-2 mb-1': !this.props.thread.parent_channel_id,
             'mt-1': this.props.thread.parent_channel_id,
         }">
-            <div class="o-mail-Thread-avatar d-inline" t-att-class="{'o-mail-Thread-avatarChatWindow': this.env.inChatWindow }">
+            <div class="o-mail-Thread-avatar d-inline" t-att-class="{'o-mail-Thread-avatarChatWindow': this.mailContext.inChatWindow }">
                 <img t-if="!this.props.thread.parent_channel_id" class="rounded-3 object-fit-cover" t-att-src="this.props.thread?.avatarUrl" alt="Thread Image"/>
                 <i t-else="" class="fa-regular fa-comments text-muted" role="presentation"/>
             </div>
-            <div role="heading" aria-level="1" class="text-break" t-att-class="{ 'fs-1': !this.env.inChatWindow, 'fs-3': this.env.inChatWindow }" t-out="this.startMessageTitle"/>
+            <div role="heading" aria-level="1" class="text-break" t-att-class="{ 'fs-1': !this.mailContext.inChatWindow, 'fs-3': this.mailContext.inChatWindow }" t-out="this.startMessageTitle"/>
         </div>
         <p class="text-muted mb-0 small text-break" t-out="this.startMessageSubtitle"/>
     </div>

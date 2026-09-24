@@ -4,7 +4,8 @@ import { ActionPanel } from "@mail/core/common/action_panel";
 import { Composer } from "@mail/core/common/composer";
 import { Thread } from "@mail/core/common/thread";
 import { Typing } from "@mail/discuss/typing/common/typing";
-import { Component, useState, useSubEnv } from "@odoo/owl";
+import { provideMailContext } from "@mail/utils/common/mail_context";
+import { Component, useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 /**
@@ -29,7 +30,7 @@ export class MeetingChat extends Component {
         this.state = useState({ jumpPresent: 0 });
         this.panelContentRef = useChildRef();
         this.isMobileOS = isMobileOS();
-        useSubEnv({ inMeetingChat: true });
+        provideMailContext({ inMeetingChat: true });
     }
 
     get thread() {

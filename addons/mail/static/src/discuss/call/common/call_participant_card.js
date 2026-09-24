@@ -5,6 +5,7 @@ import { CallDropdown } from "@mail/discuss/call/common/call_dropdown";
 import { CallParticipantVideo } from "@mail/discuss/call/common/call_participant_video";
 import { CONNECTION_TYPES } from "@mail/discuss/call/common/rtc_service";
 import { useHover } from "@mail/utils/common/hooks";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import {
     Component,
     onMounted,
@@ -39,6 +40,7 @@ export class CallParticipantCard extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.debug = useDebugMode();
         this.bus = useEventBus();
         this.contextMenuAnchorRef = useRef("contextMenuAnchor");
@@ -101,7 +103,7 @@ export class CallParticipantCard extends Component {
     }
 
     get window() {
-        return this.env.pipWindow || window;
+        return this.mailContext.pipWindow || window;
     }
 
     get showPausedScreenStream() {
@@ -260,7 +262,7 @@ export class CallParticipantCard extends Component {
         const onMouseup = () => {
             const insetEl = this.root.el;
             if (insetEl) {
-                const bottomOffset = this.env.inChatWindow
+                const bottomOffset = this.mailContext.inChatWindow
                     ? this.window.innerHeight * 0.05
                     : 0;
                 if (
@@ -280,7 +282,9 @@ export class CallParticipantCard extends Component {
                     insetEl.style.top = "1vh";
                     insetEl.style.bottom = "";
                 } else {
-                    insetEl.style.bottom = this.env.inChatWindow ? "5vh" : "1vh";
+                    insetEl.style.bottom = this.mailContext.inChatWindow
+                        ? "5vh"
+                        : "1vh";
                     insetEl.style.top = "unset";
                 }
             }
@@ -317,7 +321,9 @@ export class CallParticipantCard extends Component {
         const boundingRect =
             this.parentBoundingRect ||
             (this.parentBoundingRect = parent.getBoundingClientRect());
-        const bottomOffset = this.env.inChatWindow ? this.window.innerHeight * 0.05 : 0;
+        const bottomOffset = this.mailContext.inChatWindow
+            ? this.window.innerHeight * 0.05
+            : 0;
         const clientX = Math.max(
             ("touches" in ev ? ev.touches[0].clientX : ev.clientX) - boundingRect.left,
             0,

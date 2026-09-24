@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { DiscussSearch } from "@mail/core/public_web/discuss_search";
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 Object.assign(MessagingMenu.components, { DiscussSearch });
@@ -9,6 +10,7 @@ Object.assign(MessagingMenu.components, { DiscussSearch });
 patch(MessagingMenu.prototype, {
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.command = useService("command");
     },
     beforeOpen() {
@@ -18,7 +20,7 @@ patch(MessagingMenu.prototype, {
     },
     onClickNewMessage() {
         this.command.openMainPalette({ searchValue: "@" });
-        if (!this.ui.isSmall && !this.env.inDiscussApp) {
+        if (!this.ui.isSmall && !this.mailContext.inDiscussApp) {
             this.dropdown.close();
         }
     },

@@ -22,7 +22,7 @@
                         <i t-elif="this.persona.im_status === 'bot'" class="fa-solid fa-heart text-success" title="Bot" role="img" aria-label="User is a bot"/>
                         <i t-else="" class="fa-solid fa-question-circle opacity-75" title="No IM status available"/>
                     </t>
-                    <div t-if="this.props.member?.isTyping" class="rounded-pill" style="padding: 1px;" t-att-class="{ 'bg-300': this.env.inChatBubble, 'bg-inherit': !this.env.inChatBubble }">
+                    <div t-if="this.props.member?.isTyping" class="rounded-pill" style="padding: 1px;" t-att-class="{ 'bg-300': this.mailContext.inChatBubble, 'bg-inherit': !this.mailContext.inChatBubble }">
                         <div class="bg-success rounded-pill" style="padding: 3px;">
                             <Typing member="this.props.member" channel="this.props.member.threadAsTyping" size="['sm', 'smaller'].includes(this.props.size) ? 'sm' : 'md'" displayText="false" />
                         </div>

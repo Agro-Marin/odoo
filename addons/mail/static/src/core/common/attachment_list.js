@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { Gif } from "@mail/core/common/gif";
 import { attClassObjectToString } from "@mail/utils/common/format";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component } from "@odoo/owl";
 import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
 import { useFileViewer } from "@web/components/file_viewer";
@@ -41,6 +42,7 @@ export class AttachmentList extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.ui = useService("ui");
         this.dialog = useService("dialog");
         this.fileViewer = useFileViewer();
@@ -60,7 +62,7 @@ export class AttachmentList extends Component {
 
     /** @param {import("models").Attachment} attachment */
     canDownload(attachment) {
-        return !attachment.uploading && !this.env.inComposer;
+        return !attachment.uploading && !this.mailContext.inComposer;
     }
 
     /** @param {import("models").Attachment} attachment */
@@ -76,9 +78,9 @@ export class AttachmentList extends Component {
     onClickUnlink(attachment) {
         log.logic("onClickUnlink", () => ({
             attachmentId: attachment.id,
-            inComposer: Boolean(this.env.inComposer),
+            inComposer: Boolean(this.mailContext.inComposer),
         }));
-        if (this.env.inComposer) {
+        if (this.mailContext.inComposer) {
             return this.props.unlinkAttachment(attachment);
         }
         this.dialog.add(ConfirmationDialog, {
@@ -103,11 +105,11 @@ export class AttachmentList extends Component {
     }
 
     onImageLoaded() {
-        this.env.onImageLoaded?.();
+        this.mailContext.onImageLoaded?.();
     }
 
     get isInChatWindowAndIsAlignedRight() {
-        return this.env.inChatWindow && this.env.alignedRight;
+        return this.mailContext.inChatWindow && this.mailContext.alignedRight;
     }
 
     /**
@@ -135,21 +137,23 @@ export class AttachmentList extends Component {
 
     /** @param {import("models").Attachment} attachment */
     showDelete(attachment) {
-        if (this.env.inComposer) {
+        if (this.mailContext.inComposer) {
             return true;
         }
         if (!attachment.isDeletable) {
             return false;
         }
         return (
-            !this.env.message ||
-            this.env.message.hasTextContent ||
-            (this.env.message && this.props.attachments.length > 1)
+            !this.mailContext.message ||
+            this.mailContext.message.hasTextContent ||
+            (this.mailContext.message && this.props.attachments.length > 1)
         );
     }
 
     /** @param {import("models").Attachment} attachment */
     showUploaded(attachment) {
-        return !attachment.isImage && !attachment.uploading && this.env.inComposer;
+        return (
+            !attachment.isImage && !attachment.uploading && this.mailContext.inComposer
+        );
     }
 }

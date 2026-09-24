@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 import { CallPreview } from "@mail/discuss/call/common/call_preview";
-import { Component, useState, useSubEnv } from "@odoo/owl";
+import { provideMailContext } from "@mail/utils/common/mail_context";
+import { Component, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
@@ -18,7 +19,7 @@ export class WelcomePage extends Component {
         this.store = useService("mail.store");
         this.ui = useService("ui");
         this.rtc = useService("discuss.rtc");
-        useSubEnv({ inWelcomePage: true });
+        provideMailContext({ inWelcomePage: true });
         this.state = useState({
             userName: this.store.self.name || _t("Guest"),
             hasMicrophone: undefined,

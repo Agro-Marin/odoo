@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 import { attClassObjectToString } from "@mail/utils/common/format";
-import { Component, useSubEnv } from "@odoo/owl";
+import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
+import { Component } from "@odoo/owl";
 import { ResizablePanel } from "@web/components/resizable_panel";
 import { useForwardRefToParent, useService } from "@web/core/utils/hooks";
 /**
@@ -32,15 +33,16 @@ export class ActionPanel extends Component {
         this.store = useService("mail.store");
         this.ui = useService("ui");
         useForwardRefToParent("contentRef");
-        useSubEnv({ inDiscussActionPanel: true });
+        provideMailContext({ inDiscussActionPanel: true });
+        this.mailContext = useMailContext();
     }
 
     get classNames() {
         return attClassObjectToString({
             "o-mail-ActionPanel overflow-auto o-scrollbar-thin d-flex flex-column flex-shrink-0 position-relative py-2 pt-0 h-100 bg-inherit": true,
-            "o-mail-ActionPanel-chatter": this.env.inChatter,
-            "o-chatWindow": this.env.inChatWindow,
-            "px-2": !this.env.inChatter && !this.env.inMeetingChat,
+            "o-mail-ActionPanel-chatter": this.mailContext.inChatter,
+            "o-chatWindow": this.mailContext.inChatWindow,
+            "px-2": !this.mailContext.inChatter && !this.mailContext.inMeetingChat,
             rounded: !this.props.resizable,
         });
     }

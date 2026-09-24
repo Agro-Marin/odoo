@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 import { useRegisterMessageRef } from "@mail/utils/common/hooks";
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
@@ -12,6 +13,7 @@ export class NotificationMessage extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.root = useRegisterMessageRef();
         this.escape = escape;
         this.store = useService("mail.store");
@@ -23,7 +25,7 @@ export class NotificationMessage extends Component {
         this.linkNavigation.handleClickOnLink(ev, this.props.thread);
         const { oeType, oeId } = /** @type {HTMLElement} */ (ev.target).dataset;
         if (oeType === "highlight") {
-            await this.env.messageHighlight?.highlightMessage(
+            await this.mailContext.messageHighlight?.highlightMessage(
                 this.store["mail.message"].insert({
                     id: Number(oeId),
                     res_id: this.props.thread.id,

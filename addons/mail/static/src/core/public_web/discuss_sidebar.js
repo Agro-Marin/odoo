@@ -5,7 +5,8 @@ import {
     removeLocalStorageItem,
     setLocalStorageItem,
 } from "@mail/utils/common/local_storage";
-import { Component, onMounted, useSubEnv } from "@odoo/owl";
+import { provideMailContext } from "@mail/utils/common/mail_context";
+import { Component, onMounted } from "@odoo/owl";
 import { ResizablePanel } from "@web/components/resizable_panel";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
@@ -33,7 +34,7 @@ export class DiscussSidebar extends Component {
         super.setup();
         this.store = useService("mail.store");
         this.ui = useService("ui");
-        useSubEnv({ inDiscussSidebar: true });
+        provideMailContext({ inDiscussSidebar: true });
         onMounted(() => {
             this.mounted = true;
         });

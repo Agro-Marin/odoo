@@ -28,6 +28,10 @@ import {
 import { insertAtSelection } from "@mail/utils/common/composer_insert";
 import { trimEmptyBlocksAround } from "@mail/utils/common/format";
 import { useSelection } from "@mail/utils/common/hooks";
+import {
+    provideChildMailContext,
+    useMailContext,
+} from "@mail/utils/common/mail_context";
 import { isDragSourceExternalFile } from "@mail/utils/common/misc";
 import { markThreadAsReadIfAtBottom } from "@mail/utils/common/thread_read";
 import {
@@ -38,7 +42,6 @@ import {
     reactive,
     status,
     toRaw,
-    useChildSubEnv,
     useEffect,
     useExternalListener,
     useRef,
@@ -207,12 +210,13 @@ export class Composer extends Component {
                 },
                 () =>
                     this.props.allowUpload &&
-                    (!this.store.rtc.state.isFullscreen || this.env.inMeetingView),
+                    (!this.store.rtc.state.isFullscreen ||
+                        this.mailContext.inMeetingView),
             );
         }
     }
     _setupEffects() {
-        useChildSubEnv({ inComposer: true });
+        provideChildMailContext({ inComposer: true });
         useEffect(
             /** @param {number} focus */
             (focus) => {
@@ -301,6 +305,7 @@ export class Composer extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.mailContext = useMailContext();
         this.notification = useService("notification");
         this._setupServices();
         this._setupSelection();
@@ -393,7 +398,7 @@ export class Composer extends Component {
             open_save: markup`<button class="btn btn-link fst-italic p-0 align-baseline" data-type="${EDIT_CLICK_TYPE.SAVE}">`,
             close_save: markup`</button>`,
         };
-        return this.env.inChatter
+        return this.mailContext.inChatter
             ? _t(
                   "%(open_samp)sEscape%(close_samp)s %(open_em)sto %(open_cancel)scancel%(close_cancel)s%(close_em)s, %(open_samp)sCTRL-Enter%(close_samp)s %(open_em)sto %(open_save)ssave%(close_save)s%(close_em)s",
                   tags,
@@ -412,7 +417,7 @@ export class Composer extends Component {
     }
 
     get sendKeybinds() {
-        return this.env.inChatter ? [_t("CTRL"), _t("Enter")] : [_t("Enter")];
+        return this.mailContext.inChatter ? [_t("CTRL"), _t("Enter")] : [_t("Enter")];
     }
 
     get showComposerAvatar() {
@@ -452,7 +457,7 @@ export class Composer extends Component {
     get navigableListProps() {
         const props = {
             anchorRef: this.inputContainerRef.el,
-            position: this.env.inChatter ? "bottom-fit" : "top-fit",
+            position: this.mailContext.inChatter ? "bottom-fit" : "top-fit",
             /**
              * @param {Event} ev
              * @param {Object} option
@@ -534,7 +539,7 @@ export class Composer extends Component {
         switch (ev.key) {
             case "ArrowUp":
                 if (
-                    !this.env.inChatter &&
+                    !this.mailContext.inChatter &&
                     composer.composerText === "" &&
                     composer.thread
                 ) {
@@ -556,11 +561,13 @@ export class Composer extends Component {
                 if (this.isMobileOS || ev.isComposing) {
                     return;
                 }
-                const shouldPost = this.env.inChatter ? ev.ctrlKey : !ev.shiftKey;
+                const shouldPost = this.mailContext.inChatter
+                    ? ev.ctrlKey
+                    : !ev.shiftKey;
                 log.logic("Enter", () => ({
                     thread: composer.thread?.localId,
                     shouldPost,
-                    inChatter: this.env.inChatter,
+                    inChatter: this.mailContext.inChatter,
                     editing: Boolean(composer.message),
                 }));
                 if (!shouldPost) {
@@ -831,7 +838,7 @@ export class Composer extends Component {
             /** @param {number} position */
             moveCursor: (position) => this.selection.moveCursor(position),
         });
-        if (!this.ui.isSmall || !this.env.inChatter) {
+        if (!this.ui.isSmall || !this.mailContext.inChatter) {
             composer.autofocus++;
         }
     }
@@ -862,7 +869,7 @@ export class Composer extends Component {
             /** @param {number} position */
             moveCursor: (position) => this.selection.moveCursor(position),
         });
-        if (this.ui.isSmall && !this.env.inChatter) {
+        if (this.ui.isSmall && !this.mailContext.inChatter) {
             return false;
         } else {
             composer.autofocus++;

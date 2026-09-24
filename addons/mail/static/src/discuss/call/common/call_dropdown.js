@@ -1,14 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
-import {
-    Component,
-    useEffect,
-    useExternalListener,
-    useRef,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
+import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
+import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
 import { useNavigation } from "@web/core/navigation/navigation";
 import { usePosition } from "@web/core/position/position_hook";
 import { getComponentElement } from "@web/core/utils/components";
@@ -31,6 +25,7 @@ export class CallDropdown extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.menuRef = useRef("menu");
         this.state = useState({ isOpen: this.props.openByDefault });
         usePosition("menu", () => this.triggerRef.el, {
@@ -40,7 +35,7 @@ export class CallDropdown extends Component {
         });
         useExternalListener(this.window, "click", this.onClickAway, { capture: true });
         useExternalListener(this.window, "keydown", this.onKeydown);
-        useSubEnv({ inCallDropdown: { close: () => this.close() } });
+        provideMailContext({ inCallDropdown: { close: () => this.close() } });
         this.navigation = useNavigation(this.menuRef, {
             isNavigationAvailable: () => this.state.isOpen,
             getItems: () => {
@@ -73,7 +68,7 @@ export class CallDropdown extends Component {
     }
 
     get window() {
-        return this.env.pipWindow || window;
+        return this.mailContext.pipWindow || window;
     }
 
     get isOpen() {

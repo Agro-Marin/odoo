@@ -9,7 +9,8 @@ import {
     rejectAction,
 } from "@mail/discuss/call/common/call_actions";
 import { CallPreview } from "@mail/discuss/call/common/call_preview";
-import { Component, useState, useSubEnv } from "@odoo/owl";
+import { provideMailContext } from "@mail/utils/common/mail_context";
+import { Component, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -32,7 +33,7 @@ export class CallInvitation extends Component {
             hasCamera: false,
             hasMicrophone: this.rtc.microphonePermission === "granted",
         });
-        useSubEnv({ inCallInvitation: true });
+        provideMailContext({ inCallInvitation: true });
     }
 
     joinCall() {

@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
  <t t-inherit="mail.MessagingMenu" t-inherit-mode="extension">
  <xpath expr="//*[@t-name='mail.MessagingMenu']" position="inside">
- <div t-if="!this.env.inDiscussApp" t-att-class="this.discussSystray.class">
+ <div t-if="!this.mailContext.inDiscussApp" t-att-class="this.discussSystray.class">
  <Dropdown state="this.dropdown" beforeOpen.bind="this.beforeOpen" position="'bottom-end'" menuClass="this.discussSystray.menuClass" bottomSheet="false">
  <button class="bg-transparent">
  <i class="fa-solid fa-comments fa-lg" role="img" aria-label="Messages" t-on-click="() => this.store.discuss.activeTab = this.ui.isSmall and this.store.discuss.activeTab === 'notification' ? 'notification' : this.store.discuss.activeTab"></i>
@@ -18,7 +18,7 @@
 
  <t t-inherit="mail.MessagingMenu.content" t-inherit-mode="extension">
  <xpath expr="//*[@name='before-content']" position="after">
- <div class="o-mail-MessagingMenu-header d-flex o-px-1_5" t-att-class="{'border-start-0 border-end-0': this.ui.isSmall, 'flex-shrink-0': !this.env.inDiscussApp }">
+ <div class="o-mail-MessagingMenu-header d-flex o-px-1_5" t-att-class="{'border-start-0 border-end-0': this.ui.isSmall, 'flex-shrink-0': !this.mailContext.inDiscussApp }">
  <t t-if="!this.ui.isSmall">
  <MessagingMenuQuickSearch t-if="this.state.searchOpen" onClose.bind="this.toggleSearch"/>
  <t t-else="">

@@ -2,7 +2,8 @@
 /** @odoo-module native */
 import { isToday } from "@mail/utils/common/dates";
 import { useHover } from "@mail/utils/common/hooks";
-import { Component, useRef, useSubEnv } from "@odoo/owl";
+import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
+import { Component, useRef } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper";
 import { luxon } from "@web/core/l10n/luxon";
 import { useService } from "@web/core/utils/hooks";
@@ -41,7 +42,8 @@ export class NotificationItem extends Component {
         this.store = useService("mail.store");
         this.markAsReadRef = useRef("markAsRead");
         this.rootHover = useHover("root");
-        useSubEnv({ inNotificationItem: true });
+        provideMailContext({ inNotificationItem: true });
+        this.mailContext = useMailContext();
     }
 
     get dateText() {

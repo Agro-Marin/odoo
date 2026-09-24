@@ -4,7 +4,8 @@ import { ExpertiseTagsAutocomplete } from "@im_livechat/core/web/expertise_tags_
 import { ConversationTagEdit } from "@im_livechat/core/web/livechat_conversation_tag_edit";
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { prettifyMessageContent } from "@mail/utils/common/format";
-import { Component, useEffect, useRef, useSubEnv } from "@odoo/owl";
+import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
+import { Component, useEffect, useRef } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list";
 import { startUrl } from "@web/core/browser/router";
 import { rpc } from "@web/core/network";
@@ -33,7 +34,8 @@ export class LivechatChannelInfoList extends Component {
             useBottomSheet: () => this.ui.isSmall,
         });
         this.tagsContainer = useRef("tagsContainer");
-        useSubEnv({ inLivechatInfoPanel: true });
+        provideMailContext({ inLivechatInfoPanel: true });
+        this.mailContext = useMailContext();
         useEffect(
             () => {
                 if (this.props.thread.hasFetchedLivechatSessionData) {

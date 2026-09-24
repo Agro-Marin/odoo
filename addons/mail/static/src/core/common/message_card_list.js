@@ -2,7 +2,8 @@
 /** @odoo-module native */
 import { Message } from "@mail/core/common/message";
 import { useVisible } from "@mail/utils/common/hooks";
-import { Component, useSubEnv } from "@odoo/owl";
+import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
+import { Component } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -40,7 +41,8 @@ export class MessageCardList extends Component {
         super.setup();
         this.ui = useService("ui");
         this.store = useService("mail.store");
-        useSubEnv({ messageCard: true });
+        provideMailContext({ messageCard: true });
+        this.mailContext = useMailContext();
         useVisible(
             "load-more",
             /** @param {boolean} isVisible */ (isVisible) => {
@@ -57,19 +59,26 @@ export class MessageCardList extends Component {
             messageId: message.id,
             thread: this.props.thread?.localId,
             small: this.ui.isSmall,
-            inChatWindow: Boolean(this.env.inChatWindow),
-            inMeetingView: Boolean(this.env.inMeetingView),
+            inChatWindow: Boolean(this.mailContext.inChatWindow),
+            inMeetingView: Boolean(this.mailContext.inMeetingView),
         }));
         this.props.onClickJump?.();
-        if (this.ui.isSmall || this.env.inChatWindow || this.env.inMeetingView) {
-            this.env.pinMenu?.close();
-            this.env.searchMenu?.close();
-            this.env.inMeetingView?.openChat();
+        if (
+            this.ui.isSmall ||
+            this.mailContext.inChatWindow ||
+            this.mailContext.inMeetingView
+        ) {
+            this.mailContext.pinMenu?.close();
+            this.mailContext.searchMenu?.close();
+            this.mailContext.inMeetingView?.openChat();
         }
         await new Promise((resolve) =>
             setTimeout(() => requestAnimationFrame(resolve)),
         );
-        await this.env.messageHighlight?.highlightMessage(message, this.props.thread);
+        await this.mailContext.messageHighlight?.highlightMessage(
+            message,
+            this.props.thread,
+        );
     }
 
     get emptyText() {

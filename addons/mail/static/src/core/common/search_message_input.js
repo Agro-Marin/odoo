@@ -1,5 +1,6 @@
 // @ts-check
 /** @odoo-module native */
+import { useMailContext } from "@mail/utils/common/mail_context";
 import { Component, useExternalListener, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
@@ -29,6 +30,7 @@ export class SearchMessageInput extends Component {
 
     setup() {
         super.setup();
+        this.mailContext = useMailContext();
         this.state = useState({ searchTerm: "", searchedTerm: "" });
         useAutofocus();
         useExternalListener(
