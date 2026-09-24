@@ -329,9 +329,10 @@ class TestDevice(TestHttpBase):
 
         devices, _ = self.get_devices_logs(self.user_admin)
         self.assertEqual(len(devices), 1)
-        self.assertIn("193.0.3.43", devices.linked_ip_addresses)
-        self.assertIn("192.0.2.42", devices.linked_ip_addresses)
-        self.assertIn("191.0.1.41", devices.linked_ip_addresses)
+        self.assertEqual(
+            sorted(devices.log_ids.mapped("ip_address")),
+            ["191.0.1.41", "192.0.2.42", "193.0.3.43"],
+        )
 
     def test_retrieve_linked_ip_addresses_according_to_devices(self):
         self.authenticate(self.user_admin.login, self.user_admin.login)
@@ -358,10 +359,11 @@ class TestDevice(TestHttpBase):
         self.assertEqual(len(devices), 2)
         device_chrome = devices.filtered(lambda device: device.browser == "chrome")
         device_firefox = devices.filtered(lambda device: device.browser == "firefox")
-        self.assertIn("193.0.3.43", device_chrome.linked_ip_addresses)
-        self.assertIn("192.0.2.42", device_chrome.linked_ip_addresses)
-        self.assertNotIn("191.0.1.41", device_chrome.linked_ip_addresses)
-        self.assertIn("191.0.1.41", device_firefox.linked_ip_addresses)
+        self.assertEqual(
+            sorted(device_chrome.log_ids.mapped("ip_address")),
+            ["192.0.2.42", "193.0.3.43"],
+        )
+        self.assertEqual(device_firefox.log_ids.mapped("ip_address"), ["191.0.1.41"])
 
     def test_detection_no_trace_mechanism(self):
         session = self.authenticate(self.user_admin.login, self.user_admin.login)
@@ -636,3 +638,31 @@ class TestDevice(TestHttpBase):
         self.assertEqual(len(logs.output), 2)
         identifier = session.sid[:STORED_SESSION_BYTES]
         self.assertFalse([line for line in logs.output if identifier in line])
+
+    def test_logout_archives_the_device_at_once(self):
+        self.authenticate(self.user_internal.login, self.user_internal.login)
+        self.url_open("/test_http/greeting-user?readonly=0")
+        device = self.user_internal.device_ids
+        self.assertEqual(len(device), 1)
+
+        self.url_open("/web/session/logout")
+
+        self.env.invalidate_all()
+        self.assertFalse(device.active)
+        self.assertFalse(self.user_internal.device_ids)
+        self.assertEqual(len(device.log_ids), 1, "the history outlives the session")
+
+    def test_logout_leaves_the_other_sessions_devices(self):
+        other = self.authenticate(self.user_internal.login, self.user_internal.login)
+        self.url_open("/test_http/greeting-user?readonly=0")
+        self.authenticate(self.user_internal.login, self.user_internal.login)
+        self.url_open("/test_http/greeting-user?readonly=0")
+        self.assertEqual(len(self.user_internal.device_ids), 2)
+
+        self.url_open("/web/session/logout")
+
+        self.env.invalidate_all()
+        self.assertEqual(
+            self.user_internal.device_ids.session_identifier,
+            other.sid[:STORED_SESSION_BYTES],
+        )

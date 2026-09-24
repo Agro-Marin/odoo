@@ -11,7 +11,7 @@ from odoo.libs.json import loads as _loads
 from odoo.tools import get_lang
 
 from ._protocols import get_ir_http
-from .constants import DEFAULT_LANG, prepare_default_session
+from .constants import DEFAULT_LANG, STORED_SESSION_BYTES, prepare_default_session
 from .core import request
 
 _logger = logging.getLogger(__name__)
@@ -269,6 +269,7 @@ class Session(collections.abc.MutableMapping):
 
     def logout(self, keep_db: bool = False) -> None:
         _debug.lifecycle("http.session.logout", uid=self.uid, keep_db=keep_db)
+        retired_identifier = self._retired_identifier()
         db = self.db if keep_db else None
         debug = self.debug
         self.clear()
@@ -280,7 +281,13 @@ class Session(collections.abc.MutableMapping):
 
         if request and request.env is not None:
             _debug.lifecycle("http.session.post_logout_hook", db=request.db)
-            get_ir_http(request.env)._post_logout()
+            get_ir_http(request.env)._post_logout(retired_identifier)
+
+    def _retired_identifier(self) -> str | None:
+        original = self.rotation[0] if self.rotation is not None else self
+        if original.is_new or not original.uid:
+            return None
+        return original.sid[:STORED_SESSION_BYTES]
 
     def _require_hard_rotation(self) -> None:
         self.should_rotate = True

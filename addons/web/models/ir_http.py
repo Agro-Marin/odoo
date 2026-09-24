@@ -65,8 +65,8 @@ class IrHttp(models.AbstractModel):
         cls._handle_debug()
 
     @classmethod
-    def _post_logout(cls) -> None:
-        super()._post_logout()
+    def _post_logout(cls, retired_identifier: str | None) -> None:
+        super()._post_logout(retired_identifier)
         request.future_response.set_cookie("cids", max_age=0)
         request.future_response.set_cookie("content_density", max_age=0)
         request.future_response.set_cookie("color_scheme", max_age=0)

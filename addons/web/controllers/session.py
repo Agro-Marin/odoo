@@ -108,12 +108,12 @@ class Session(http.Controller):
         }
         return "https://accounts.odoo.com/oauth2/auth?" + urlencode(params)
 
-    @http.route("/web/session/destroy", type="jsonrpc", auth="user", readonly=True)
+    @http.route("/web/session/destroy", type="jsonrpc", auth="user", readonly=False)
     def destroy(self) -> None:
         dbg.lifecycle.debug("[session] destroy: %s", dbg.req())
         request.session.logout()
 
-    @http.route("/web/session/logout", type="http", auth="none", readonly=True)
+    @http.route("/web/session/logout", type="http", auth="none", readonly=False)
     def logout(self, redirect: str = "/odoo") -> Response:
         dbg.lifecycle.debug("[session] logout: %s redirect=%r", dbg.req(), redirect)
         request.session.logout(keep_db=True)

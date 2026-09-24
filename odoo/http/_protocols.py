@@ -153,7 +153,7 @@ class HttpExtension(Protocol):
     ) -> None:
         pass
 
-    def _post_logout(self) -> None:
+    def _post_logout(self, retired_identifier: str | None) -> None:
         pass
 
     def _apply_max_upload_size(self) -> None:

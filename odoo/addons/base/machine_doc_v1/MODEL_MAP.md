@@ -1792,14 +1792,14 @@ A revoked device is archived (`active`), and kept for
 - `platform`, `browser` (Char), `device_type` (Selection: computer/mobile)
 - `ip_address`, `country`, `city` (Char: the latest address)
 - `first_activity`, `last_activity` (Datetime), `active` (Boolean)
-- `log_ids` (One2many → res.device.log), `is_current` (Boolean, computed, sortable)
-- `linked_ip_addresses` (Text, computed: the device's addresses, newest first)
+- `log_ids` (One2many → res.device.log, newest first), `is_current` (Boolean, computed, sortable)
 
 **Key Methods:**
 - `_update_device(request)` — Upsert the device and its address in one statement
 - `revoke()` — Revoke device session (`@check_identity`); reloads when it is the current one
 - `_revoke()` — Delete from session store, archive the devices
 - `_mark_revoked(session_identifiers)` — Archive every active device of those sessions
+- `_mark_logged_out(session_identifier)` — Archive at logout (`ir.http._post_logout`); a readonly cursor leaves it to the sweep
 - `_update_revoked()` — Autovacuum: archive the devices of the sessions the store lost
 - `_gc_revoked_devices()` — Autovacuum: delete archived devices past the retention
 

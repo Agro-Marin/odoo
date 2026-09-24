@@ -404,8 +404,9 @@ class IrHttp(models.AbstractModel):
         request.dispatcher.post_dispatch(response)
 
     @classmethod
-    def _post_logout(cls) -> None:
-        pass
+    def _post_logout(cls, retired_identifier: str | None) -> None:
+        if retired_identifier:
+            request.env["res.device"]._mark_logged_out(retired_identifier)
 
     @classmethod
     def _handle_error(cls, exception: Exception) -> Any:

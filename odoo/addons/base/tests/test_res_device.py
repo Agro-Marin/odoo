@@ -75,7 +75,6 @@ class TestDeviceUpsert(DeviceCase):
                 ("10.0.0.1", datetime(2026, 7, 1, 9, 0)),
             ],
         )
-        self.assertEqual(device.linked_ip_addresses, "10.0.0.2\n10.0.0.1")
 
     def test_device_id_survives_refreshes(self):
         self._seen("2026-07-01 08:00:00")
@@ -143,6 +142,22 @@ class TestDeviceModel(DeviceCase):
         self.assertEqual(res_device._device_type("Android"), "mobile")
         self.assertEqual(res_device._device_type("linux"), "computer")
         self.assertEqual(res_device._device_type(None), "computer")
+
+    def test_display_names(self):
+        cases = {
+            ("iphone", "safari"): "iPhone Safari",
+            ("windows phone", "edge"): "Windows Phone Edge",
+            ("macos", "samsung"): "macOS Samsung Internet",
+            ("linux", "firefox"): "Linux Firefox",
+            (False, False): "Unknown Unknown",
+        }
+        for (platform, browser), name in cases.items():
+            device = self._device(
+                session_identifier=f"sid_rdev_{platform}_{browser}",
+                platform=platform,
+                browser=browser,
+            )
+            self.assertEqual(device.display_name, name)
 
     def test_is_current_without_request(self):
         self.assertFalse(self._device().is_current)

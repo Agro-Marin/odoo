@@ -177,3 +177,24 @@ def test_independent_edits_before_rotation_control(store):
     store.save(peer)
     store.rotate(session, token_env(), soft=True)
     assert store.get(session.sid)["cart"] == 42
+
+
+@pytest.mark.parametrize("soft_first", [False, True])
+def test_logout_names_the_family_its_rotation_removes(store, soft_first):
+    session = authenticated(store)
+    family = session.sid[:42]
+    if soft_first:
+        store.stage_rotation(session, token_env(), soft=True)
+    retired = session._retired_identifier()
+    session.logout()
+    store.rotate(session, token_env())
+    assert retired == family
+    assert store.get_missing_session_identifiers([family]) == {family}
+
+
+def test_a_session_without_a_user_or_a_file_retires_nothing(store):
+    assert store.new()._retired_identifier() is None
+    anonymous = store.new()
+    anonymous.update(prepare_default_session())
+    store.save(anonymous)
+    assert store.get(anonymous.sid)._retired_identifier() is None

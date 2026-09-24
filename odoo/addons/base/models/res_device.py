@@ -27,6 +27,19 @@ _MOBILE_PLATFORMS = frozenset(
     {"android", "iphone", "ipad", "blackberry", "symbian", "windows phone"}
 )
 
+_DISPLAY_NAMES = {
+    "blackberry": "BlackBerry",
+    "chromeos": "ChromeOS",
+    "freebsd": "FreeBSD",
+    "ipad": "iPad",
+    "iphone": "iPhone",
+    "macos": "macOS",
+    "msie": "Internet Explorer",
+    "netbsd": "NetBSD",
+    "openbsd": "OpenBSD",
+    "samsung": "Samsung Internet",
+}
+
 DEFAULT_RETENTION_DAYS = 90
 _REVOKE_SWEEP_BATCH = 10_000
 _RETENTION_BATCH = 10_000
@@ -34,6 +47,10 @@ _RETENTION_BATCH = 10_000
 
 def _device_type(platform: str | None) -> str:
     return "mobile" if (platform or "").lower() in _MOBILE_PLATFORMS else "computer"
+
+
+def _display(name: str) -> str:
+    return _DISPLAY_NAMES.get(name) or name.title()
 
 
 def _utc_naive(timestamp: float) -> datetime:
@@ -86,10 +103,6 @@ class ResDevice(models.Model):
         compute="_compute_is_current",
         order_by_sql="_is_current_order_sql",
     )
-    linked_ip_addresses = fields.Text(
-        string="Linked IP address",
-        compute="_compute_linked_ip_addresses",
-    )
 
     _identity_uniq = models.UniqueIndex(
         "(user_id, session_identifier, platform, browser) NULLS NOT DISTINCT"
@@ -98,9 +111,10 @@ class ResDevice(models.Model):
     @api.depends("platform", "browser")
     def _compute_display_name(self) -> None:
         for device in self:
-            platform = device.platform or self.env._("Unknown")
-            browser = device.browser or self.env._("Unknown")
-            device.display_name = f"{platform.capitalize()} {browser.capitalize()}"
+            unknown = self.env._("Unknown")
+            platform = _display(device.platform) if device.platform else unknown
+            browser = _display(device.browser) if device.browser else unknown
+            device.display_name = f"{platform} {browser}"
 
     @api.depends("session_identifier")
     def _compute_is_current(self) -> None:
@@ -124,13 +138,6 @@ class ResDevice(models.Model):
             current,
             direction,
         )
-
-    @api.depends("log_ids.ip_address", "log_ids.last_activity")
-    def _compute_linked_ip_addresses(self) -> None:
-        for device in self:
-            device.linked_ip_addresses = "\n".join(
-                ip for ip in device.log_ids.mapped("ip_address") if ip
-            )
 
     @api.model
     def _update_device(self, request: Any) -> None:
@@ -276,6 +283,15 @@ class ResDevice(models.Model):
         revoked = self.env.cr.rowcount
         self.invalidate_model(["active", "write_uid", "write_date"])
         return revoked
+
+    @api.model
+    def _mark_logged_out(self, session_identifier: str) -> None:
+        if self.env.cr.readonly:
+            # the sweep archives it once the store reports the family gone
+            _debug.logic("devices_logged_out_deferred", reason="readonly_cursor")
+            return
+        archived = self._mark_revoked([session_identifier])
+        _debug.lifecycle("devices_logged_out", uid=self.env.uid, devices=archived)
 
     @api.autovacuum
     def _update_revoked(self) -> tuple[int, bool]:

@@ -63,8 +63,8 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 | JSONRPC | `/web/session/check` | user (readonly) | `check()` | Verify session is still valid |
 | JSONRPC | `/web/session/modules` | user (readonly) | `modules()` | List installed modules |
 | JSONRPC | `/web/session/account` | user (readonly) | `account()` | OAuth2 URL for Odoo account linking |
-| JSONRPC | `/web/session/destroy` | user (readonly) | `destroy()` | Logout (JSON-RPC) |
-| HTTP | `/web/session/logout` | none (readonly) | `logout()` | Logout (HTTP redirect) |
+| JSONRPC | `/web/session/destroy` | user (readonly=False) | `destroy()` | Logout (JSON-RPC); archives the session's devices |
+| HTTP | `/web/session/logout` | none (readonly=False) | `logout()` | Logout (HTTP redirect); archives the session's devices |
 
 ## Web Client Bootstrap
 
