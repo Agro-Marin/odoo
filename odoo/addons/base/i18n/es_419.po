@@ -32801,6 +32801,11 @@ msgid "Log out from all devices"
 msgstr "Cerrar sesión en todos los dispositivos"
 
 #. module: base
+#: model_terms:ir.ui.view,arch_db:base.view_users_form_simple_modif
+msgid "Log out from all other devices"
+msgstr "Cerrar sesión en todos los demás dispositivos"
+
+#. module: base
 #: model:ir.actions.act_window,name:base.ir_logging_all_act
 #: model:ir.model,name:base.model_ir_logging
 #: model:ir.ui.menu,name:base.ir_logging_all_menu

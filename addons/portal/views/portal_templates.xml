@@ -812,15 +812,16 @@
                                         This device
                                     </span>
                                 </div>
-                                <div class="small text-muted">
-                                    <t t-if="device.city or device.country">
-                                        <span
-                                            t-out="', '.join(part for part in (device.city, device.country) if part)" />
-                                        ·
-                                    </t>
-                                    <span t-field="device.ip_address" />
-                                    ·
+                                <div
+                                    class="small text-muted d-flex flex-wrap column-gap-2">
                                     <span
+                                        t-if="device.city or device.country"
+                                        t-out="', '.join(part for part in (device.city, device.country) if part)" />
+                                    <span
+                                        t-if="device.ip_address"
+                                        t-field="device.ip_address" />
+                                    <span
+                                        t-if="device.last_activity"
                                         t-field="device.last_activity"
                                         t-options="{&quot;widget&quot;: &quot;relative&quot;}" />
                                 </div>

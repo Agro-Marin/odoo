@@ -108,6 +108,11 @@ msgid "Revoke All"
 msgstr "Revocar todo"
 
 #. module: auth_portal
+#: model_terms:ir.ui.view,arch_db:auth_portal.portal_device_trusted_badge
+msgid "Trusted for 2FA"
+msgstr "De confianza para 2FA"
+
+#. module: auth_portal
 #: model_terms:ir.ui.view,arch_db:auth_portal.totp_portal_hook
 msgid "Two-factor authentication"
 msgstr "Autenticación de dos factores"

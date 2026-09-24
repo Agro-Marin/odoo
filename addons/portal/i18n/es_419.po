@@ -389,6 +389,11 @@ msgid "Company Name"
 msgstr "Nombre de la empresa"
 
 #. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid "Computer"
+msgstr "Computadora"
+
+#. module: portal
 #: model:ir.model,name:portal.model_res_config_settings
 msgid "Config Settings"
 msgstr "Ajustes de configuración"
@@ -521,6 +526,11 @@ msgstr "Detalles"
 #: model_terms:ir.ui.view,arch_db:portal.portal_my_security
 msgid "Developer API Keys"
 msgstr "Claves API del desarrollador"
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid "Devices"
+msgstr "Dispositivos"
 
 #. module: portal
 #: model_terms:ir.ui.view,arch_db:portal.portal_my_security
@@ -784,8 +794,18 @@ msgstr "Enlace"
 
 #. module: portal
 #: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid "Log out"
+msgstr "Cerrar sesión"
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
 msgid "Log out from all devices"
 msgstr "Cerrar sesión en todos los dispositivos"
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid "Log out from all other devices"
+msgstr "Cerrar sesión en todos los demás dispositivos"
 
 #. module: portal
 #: model_terms:ir.ui.view,arch_db:portal.address_card
@@ -796,6 +816,11 @@ msgstr "Dirección principal"
 #: model:ir.model,name:portal.model_mail_message
 msgid "Message"
 msgstr "Mensaje"
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid "Mobile"
+msgstr "Celular"
 
 #. module: portal
 #. odoo-python
@@ -1154,6 +1179,13 @@ msgstr ""
 "necesarios."
 
 #. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid ""
+"The browsers signed in to your account. Log out from one you do\n"
+"                        not recognize, then change your password."
+msgstr "Los navegadores con sesión iniciada en su cuenta. Cierre la sesión del que no reconozca y después cambie su contraseña."
+
+#. module: portal
 #: model_terms:ir.ui.view,arch_db:portal.address_form_fields
 msgid ""
 "The company name and VAT number can only be updated on your main account."
@@ -1221,6 +1253,11 @@ msgid ""
 msgstr ""
 "La plantilla \"portal: usuario nuevo\" no se encontró para enviar un correo "
 "al usuario del portal."
+
+#. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid "This device"
+msgstr "Este dispositivo"
 
 #. module: portal
 #. odoo-python
