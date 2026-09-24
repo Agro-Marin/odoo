@@ -1607,6 +1607,25 @@ class TestIrActionsPathReservation(TransactionCase):
         )
         self.assertEqual(self.env.cr.fetchall(), [])
 
+    def test_an_empty_path_is_no_path(self):
+        action = self.env["ir.actions.act_window"].create(
+            {"name": "audit-empty-path", "res_model": "res.partner", "path": ""}
+        )
+        self.env.flush_all()
+        self.env.cr.execute("SELECT path FROM ir_actions WHERE id = %s", [action.id])
+        self.assertEqual(self.env.cr.fetchone(), (None,))
+        action.path = "audit-empty-path"
+        self.assertTrue(
+            self.env["ir.actions.path"].search([("action_id", "=", action.id)])
+        )
+        action.path = ""
+        self.env.flush_all()
+        self.env.cr.execute("SELECT path FROM ir_actions WHERE id = %s", [action.id])
+        self.assertEqual(self.env.cr.fetchone(), (None,))
+        self.assertFalse(
+            self.env["ir.actions.path"].search([("action_id", "=", action.id)])
+        )
+
     def test_no_reservation_outlives_its_action(self):
         self.env.flush_all()
         self.env.cr.execute(

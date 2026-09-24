@@ -338,14 +338,16 @@ class IrActionsActions(models.Model):
             if vals.get("type", self._name) != self._name:
                 raise ValidationError(self._get_type_mismatch_message(vals["type"]))
         vals_list = [
-            {
-                **vals,
-                "binding_view_types": self._normalize_binding_view_types(
-                    vals["binding_view_types"]
-                ),
-            }
-            if "binding_view_types" in vals
-            else vals
+            self._normalize_path_vals(
+                {
+                    **vals,
+                    "binding_view_types": self._normalize_binding_view_types(
+                        vals["binding_view_types"]
+                    ),
+                }
+                if "binding_view_types" in vals
+                else vals
+            )
             for vals in vals_list
         ]
         res = super().create(vals_list)
@@ -360,7 +362,16 @@ class IrActionsActions(models.Model):
             self.env.registry.clear_cache(*groups)
         return res
 
+    @staticmethod
+    def _normalize_path_vals(vals: ValuesType) -> ValuesType:
+        # an empty path is no path: stored as '', it holds no reservation and
+        # reads as a path to every query that tests for NULL
+        if "path" in vals and not vals["path"]:
+            return {**vals, "path": False}
+        return vals
+
     def _write_concrete(self, vals: dict[str, Any]) -> bool:
+        vals = self._normalize_path_vals(vals)
         if "binding_view_types" in vals:
             vals = {
                 **vals,
@@ -593,8 +604,7 @@ class IrActionsActions(models.Model):
         if group_ids and not self.env.user.has_any_group_id(tuple(group_ids)):
             return "groups"
         if opens_model and (
-            opens_model not in self.env
-            or not self.env[opens_model].has_access("read")
+            opens_model not in self.env or not self.env[opens_model].has_access("read")
         ):
             return "model"
         return ""
