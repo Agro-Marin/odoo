@@ -218,9 +218,12 @@ class BaseCommon(TransactionCase):
 
     @classmethod
     def _create_company(cls, **create_values):
+        # the test company's country is the test's to choose, not whatever
+        # ir.default an installed module gives new partners
         company = cls.env["res.company"].create(
             {
                 "name": "Test Company",
+                "country_id": False,
                 **create_values,
             }
         )
