@@ -89,15 +89,16 @@ class TestResUsersLogGC(TransactionCase):
 class TestResDeviceLogCascade(TransactionCase):
     def test_device_log_row_deleted_with_its_user(self):
         user = new_test_user(self.env, login="rdl_cascade_user")
+        device = self.env["res.device"].create(
+            {"session_identifier": "rdl_cascade_session", "user_id": user.id}
+        )
         device_log = self.env["res.device.log"].create(
-            {
-                "session_identifier": "rdl_cascade_session",
-                "user_id": user.id,
-            }
+            {"device_id": device.id, "ip_address": "10.0.0.1"}
         )
 
         user.unlink()
 
+        self.assertFalse(device.exists(), "res.device row must not outlive its user")
         self.assertFalse(
             device_log.exists(), "res.device.log row must not outlive its user (AUTH-3)"
         )

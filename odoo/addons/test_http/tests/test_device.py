@@ -25,7 +25,7 @@ class TestDevice(TestHttpBase):
 
         self.Device = self.env["res.device"]
         self.DeviceLog = self.env["res.device.log"]
-        self.DeviceLog.search([]).unlink()
+        self.Device.with_context(active_test=False).search([]).unlink()
 
         self.user_admin = self.env.ref("base.user_admin")
         self.user_internal = self.env["res.users"].create(
@@ -68,20 +68,10 @@ class TestDevice(TestHttpBase):
         }
 
     def get_devices_logs(self, user=None):
+        self.env.invalidate_all()
         domain = [("user_id", "=", user.id)] if user else []
         devices = self.Device.search(domain)
-        logs = self.DeviceLog.search(
-            [
-                (
-                    "session_identifier",
-                    "in",
-                    devices.mapped("session_identifier"),
-                ),
-                ("platform", "in", devices.mapped("platform")),
-                ("browser", "in", devices.mapped("browser")),
-            ]
-        )
-        return devices, logs
+        return devices, devices.log_ids
 
     def test_detection_device_readonly(self):
         session = self.authenticate(self.user_admin.login, self.user_admin.login)
@@ -153,7 +143,8 @@ class TestDevice(TestHttpBase):
 
         devices, logs = self.get_devices_logs(self.user_admin)
         self.assertEqual(len(devices), 1)
-        self.assertEqual(len(logs), 2)
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(logs.last_activity, datetime(2024, 1, 1, 9, 0))
         session = odoo.http.root.session_store.get(session.sid)
         self.assertEqual(len(session["_trace"]), 1)
         self.assertEqual(self.info_trace(session["_trace"][0])["elapsed_time"], 3600)
@@ -162,7 +153,10 @@ class TestDevice(TestHttpBase):
 
         devices, logs = self.get_devices_logs(self.user_admin)
         self.assertEqual(len(devices), 1)
-        self.assertEqual(len(logs), 3)
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(logs.first_activity, datetime(2024, 1, 1, 8, 0))
+        self.assertEqual(logs.last_activity, datetime(2024, 1, 1, 10, 0))
+        self.assertEqual(devices.last_activity, datetime(2024, 1, 1, 10, 0))
         session = odoo.http.root.session_store.get(session.sid)
         self.assertEqual(len(session["_trace"]), 1)
         self.assertEqual(self.info_trace(session["_trace"][0])["elapsed_time"], 7200)
@@ -282,7 +276,7 @@ class TestDevice(TestHttpBase):
 
         devices, logs = self.get_devices_logs()
         self.assertEqual(len(devices), 2)
-        self.assertEqual(len(logs), 4)
+        self.assertEqual(len(logs), 2)
         self.assertEqual(len(self.user_admin.device_ids), 1)
         self.assertEqual(len(self.user_internal.device_ids), 1)
 
@@ -412,7 +406,7 @@ class TestDevice(TestHttpBase):
 
         user_internal_device = self.user_internal.device_ids
         self.assertEqual(len(user_internal_device), 1)
-        self.assertEqual(user_internal_device.revoked, False)
+        self.assertTrue(user_internal_device.active)
 
         user_internal_device._revoke()
 
@@ -463,7 +457,7 @@ class TestDevice(TestHttpBase):
 
         devices, logs = self.get_devices_logs(self.user_admin)
         self.assertEqual(len(devices), 3)
-        self.assertEqual(len(logs), 5)
+        self.assertEqual(len(logs), 3)
         self.assertEqual(len(self.user_admin.device_ids), 3)
 
         self.user_admin.device_ids.filtered(
@@ -486,31 +480,33 @@ class TestDevice(TestHttpBase):
         foreign_device = admin_device.sudo().with_user(self.user_internal)
         with self.assertRaises(AccessError):
             foreign_device._revoke()
-        self.assertFalse(admin_device.revoked)
+        self.assertTrue(admin_device.active)
 
     def test_revoke_foreign_device_allowed_for_system(self):
         self.authenticate(self.user_internal.login, self.user_internal.login)
         self.hit("2024-01-01 08:00:00", "/test_http/greeting-user?readonly=0")
         internal_device = self.user_internal.device_ids
         self.assertEqual(len(internal_device), 1)
-        self.assertFalse(internal_device.revoked)
-        session_identifier = internal_device.session_identifier
+        self.assertTrue(internal_device.active)
 
         internal_device.with_user(self.user_admin)._revoke()
-        self.DeviceLog.flush_model()
-        self.Device.invalidate_model()
-        revoked_log = self.DeviceLog.search(
-            [("session_identifier", "=", session_identifier)]
-        )
-        self.assertTrue(revoked_log.revoked)
+        self.assertFalse(internal_device.active)
 
     def _create_device_log_for_user(self, session, count):
         for _ in range(count):
+            device = self.Device.create(
+                {
+                    "session_identifier": odoo.http.root.session_store.generate_key()[
+                        :STORED_SESSION_BYTES
+                    ],
+                    "user_id": session.uid,
+                    "first_activity": datetime.now(),
+                    "last_activity": datetime.now(),
+                }
+            )
             self.DeviceLog.create(
                 {
-                    "session_identifier": odoo.http.root.session_store.generate_key(),
-                    "user_id": session.uid,
-                    "revoked": False,
+                    "device_id": device.id,
                     "first_activity": datetime.now(),
                     "last_activity": datetime.now(),
                 }
@@ -539,9 +535,8 @@ class TestDevice(TestHttpBase):
             freeze_time("2025-02-01 08:00:00"),
             patch.object(self.cr, "commit", lambda: ...),
         ):
-            self.DeviceLog.sudo()._update_revoked()
-        self.DeviceLog.flush_model()
-        self.Device.invalidate_model()
+            self.Device.sudo()._update_revoked()
+        self.env.invalidate_all()
 
         devices, _ = self.get_devices_logs(self.user_admin)
         self.assertEqual(len(devices), 0)
@@ -580,28 +575,30 @@ class TestDevice(TestHttpBase):
         with patch.object(
             type(self.env["ir.cron"]), "_commit_progress", lambda *a, **k: float("inf")
         ):
-            self.DeviceLog.sudo()._update_revoked()
+            self.Device.sudo()._update_revoked()
         self.env.invalidate_all()
 
     def test_sweep_keeps_a_live_session(self):
         session = self.authenticate(self.user_admin.login, self.user_admin.login)
         self.hit("2024-01-01 08:00:00", "/test_http/greeting-public?readonly=0")
         self._sweep_real_store()
-        devices, logs = self.get_devices_logs(self.user_admin)
+        devices, _logs = self.get_devices_logs(self.user_admin)
         self.assertEqual(len(devices), 1)
-        self.assertFalse(any(logs.mapped("revoked")))
+        self.assertTrue(devices.active)
         self.assertTrue(odoo.http.root.session_store.get(session.sid).uid)
 
-    def test_sweep_hides_a_dead_session_entirely(self):
+    def test_sweep_archives_a_dead_session(self):
         session = self.authenticate(self.user_admin.login, self.user_admin.login)
         self.hit("2024-01-01 08:00:00", "/test_http/greeting-public?readonly=0")
-        stale = self.DeviceLog.search([("user_id", "=", self.user_admin.id)])
-        self.assertEqual(len(stale), 1)
-        stale.copy({"ip_address": "10.1.1.1", "last_activity": datetime.now()})
+        self.hit(
+            "2024-01-01 08:00:01", "/test_http/greeting-public?readonly=0", ip=TEST_IP
+        )
+        devices, logs = self.get_devices_logs(self.user_admin)
+        self.assertEqual((len(devices), len(logs)), (1, 2))
         odoo.http.root.session_store.delete(session)
         self._sweep_real_store()
-        logs = self.DeviceLog.search([("user_id", "=", self.user_admin.id)])
-        self.assertEqual(logs.mapped("revoked"), [True, True])
+        self.assertFalse(devices.active)
+        self.assertEqual(len(devices.log_ids), 2, "the history outlives the session")
         self.assertFalse(self.user_admin.device_ids)
 
     def _call_kw(self, model, method, ids):

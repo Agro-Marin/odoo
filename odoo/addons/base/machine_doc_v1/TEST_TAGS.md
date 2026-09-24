@@ -5,7 +5,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 ## Quick Reference
 
 ```bash
-# All base tests (4218 methods, 849 classes, 151 files)
+# All base tests (4224 methods, 850 classes, 151 files)
 --test-tags '/base' -u base
 
 # Only post_install tests
@@ -102,7 +102,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 
 ## Test File Reference
 
-### Tagged Files (90 files, 507 classes)
+### Tagged Files (89 files, 504 classes)
 
 | File | Tags | Classes | Tests | Base Class |
 |------|------|---------|-------|------------|
@@ -172,7 +172,6 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 | `test_res_config.py` | `post_install`, `-at_install` | 3 | 12 | TransactionCase |
 | `test_res_config_install.py` | `post_install`, `-at_install` | 1 | 3 | TransactionCase |
 | `test_res_country.py` | `-at_install`, `post_install` | 2 | 4 | TransactionCase |
-| `test_res_device.py` | `post_install`, `-at_install` | 3 | 11 | DeviceLogCase |
 | `test_res_partner.py` | `res_partner`, `res_partner_address`, `post_install`, `-at_install` | 16 | 106 | TransactionCaseWithUserDemo, TransactionCase |
 | `test_res_partner_identifier.py` | `post_install`, `-at_install` | 1 | 18 | TransactionCase |
 | `test_res_partner_main_channels.py` | `post_install`, `-at_install` | 1 | 15 | TransactionCase |
@@ -197,7 +196,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 | `test_with_privilege.py` | `post_install`, `-at_install` | 2 | 13 | TransactionCase |
 | `test_x2many_cache_scope.py` | `post_install`, `-at_install` | 4 | 15 | TransactionCase |
 
-### Untagged Files (61 files)
+### Untagged Files (62 files)
 
 These run in **both** at_install and post_install phases by default.
 
@@ -247,6 +246,7 @@ These run in **both** at_install and post_install phases by default.
 - `test_query.py` — SQL query building
 - `test_qweb_field.py` — QWeb field widgets
 - `test_res_currency.py` — Currency conversion
+- `test_res_device.py` — TestDeviceUpsert, TestDeviceModel, TestUpdateRevoked, TestRevokedRetention
 - `test_res_lang.py` — Language management
 - `test_res_partner_bank_account.py` — Bank accounts
 - `test_search.py` — Search operations
@@ -268,11 +268,11 @@ These run in **both** at_install and post_install phases by default.
 | Metric | Value |
 |--------|-------|
 | Total test files | 151 |
-| Total test classes | 849 |
-| Total test methods | 4218 |
-| Files with @tagged | 90 (60%) |
-| Files without @tagged | 61 (40%) |
-| Classes using post_install | 296 |
+| Total test classes | 850 |
+| Total test methods | 4224 |
+| Files with @tagged | 89 (59%) |
+| Files without @tagged | 62 (41%) |
+| Classes using post_install | 295 |
 | Unique tags | 29 |
 | Largest test file | test_db_cursor.py (118 classes, 390 tests) |
 

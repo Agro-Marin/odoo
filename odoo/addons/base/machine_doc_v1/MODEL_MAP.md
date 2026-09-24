@@ -1780,37 +1780,33 @@ Partner bank accounts.
 
 ### models/res_device.py
 
-#### ResDeviceMixin — `res.device.mixin` (AbstractModel)
+#### ResDevice — `res.device` (`_name`)
 
-The fields and computes the log and the view share, so the view inherits no
-table, index or autovacuum of the log.
+One row per device: a browser on a platform in one session of one user
+(`_identity_uniq`, NULLS NOT DISTINCT). Its id is stable for the device's life.
+A revoked device is archived (`active`), and kept for
+`base.device_retention_days` (default 90, 0 keeps it forever).
 
 **Fields:**
-- `session_identifier` (Char, required), `platform`, `browser` (Char)
-- `ip_address`, `country`, `city` (Char)
-- `device_type` (Selection: computer/mobile)
-- `user_id` (Many2one → res.users), `first_activity`, `last_activity` (Datetime)
-- `revoked` (Boolean), `is_current` (Boolean, computed, sortable)
-- `linked_ip_addresses` (Text, computed: the device's IPs, newest first)
+- `user_id` (Many2one → res.users, required), `session_identifier` (Char, required)
+- `platform`, `browser` (Char), `device_type` (Selection: computer/mobile)
+- `ip_address`, `country`, `city` (Char: the latest address)
+- `first_activity`, `last_activity` (Datetime), `active` (Boolean)
+- `log_ids` (One2many → res.device.log), `is_current` (Boolean, computed, sortable)
+- `linked_ip_addresses` (Text, computed: the device's addresses, newest first)
+
+**Key Methods:**
+- `_update_device(request)` — Upsert the device and its address in one statement
+- `revoke()` — Revoke device session (`@check_identity`); reloads when it is the current one
+- `_revoke()` — Delete from session store, archive the devices
+- `_mark_revoked(session_identifiers)` — Archive every active device of those sessions
+- `_update_revoked()` — Autovacuum: archive the devices of the sessions the store lost
+- `_gc_revoked_devices()` — Autovacuum: delete archived devices past the retention
 
 #### ResDeviceLog — `res.device.log` (`_name`)
 
-One row per device and IP address. `_DEVICE_IDENTITY` (user, session
-identifier, platform, browser) is what one device is.
-
-**Key Methods:**
-- `_update_device(request)` — Log device info from HTTP request
-- `_mark_revoked(session_identifiers)` — Mark every unrevoked row of those sessions
-- `_gc_device_log()` — Autovacuum: keep the latest row per device and IP
-- `_update_revoked()` — Autovacuum: revoke every row of the sessions the store lost, asking it in batches
-
-#### ResDevice — `res.device` (`_name`, `_auto = False`, SQL view)
-
-Latest unrevoked row per device; `first_activity` is the device's earliest.
-
-**Key Methods:**
-- `revoke()` — Revoke device session (`@check_identity` decorated)
-- `_revoke()` — Delete from session store, mark revoked
+One row per device and address (`_device_address_uniq`), with its own first and
+last activity.
 
 ---
 
@@ -2234,7 +2230,7 @@ Quick lookup — file → model → primary role:
 | `res_config.py` | res.config, res.config.settings | Settings framework |
 | `res_country.py` | res.country, .group, .state | Geography |
 | `res_currency.py` | res.currency, .rate | Currencies + rates |
-| `res_device.py` | res.device.mixin, res.device.log, res.device | Session tracking |
+| `res_device.py` | res.device, res.device.log | Session tracking |
 | `res_groups.py` | res.groups | Security groups |
 | `res_groups_privilege.py` | res.groups.privilege | Group categories |
 | `res_lang.py` | res.lang | Languages |

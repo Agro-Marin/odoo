@@ -70,7 +70,7 @@ class TestReports(odoo.tests.HttpCase):
 
         admin = self.env.ref("base.user_admin")
         admin_device_log_count_before = self.env["res.device.log"].search_count(
-            [("user_id", "=", admin.id)]
+            [("device_id.user_id", "=", admin.id)]
         )
         report = report.with_user(admin)
         with MockRequest(report.env, is_frontend=False) as mock_request:
@@ -79,7 +79,7 @@ class TestReports(odoo.tests.HttpCase):
                 report.id, [partner_id]
             )
         admin_device_log_count_after = self.env["res.device.log"].search_count(
-            [("user_id", "=", admin.id)]
+            [("device_id.user_id", "=", admin.id)]
         )
         self.assertFalse(admin_device_log_count_after - admin_device_log_count_before)
 
@@ -103,7 +103,7 @@ class TestReports(odoo.tests.HttpCase):
         result.clear()
         public = self.env.ref("base.public_user")
         public_device_log_count_before = self.env["res.device.log"].search_count(
-            [("user_id", "=", public.id)]
+            [("device_id.user_id", "=", public.id)]
         )
         # The records bound the print (bfdd12837e3c): a user who may not read
         # the partner is refused before the PDF engine is asked for anything,
@@ -116,7 +116,7 @@ class TestReports(odoo.tests.HttpCase):
                     report.id, [partner_id]
                 )
         public_device_log_count_after = self.env["res.device.log"].search_count(
-            [("user_id", "=", public.id)]
+            [("device_id.user_id", "=", public.id)]
         )
         self.assertFalse(public_device_log_count_after - public_device_log_count_before)
         self.assertEqual(

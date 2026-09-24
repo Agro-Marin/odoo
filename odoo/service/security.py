@@ -39,7 +39,7 @@ def is_session_valid(
     if request:
         try:
             with _debug.perf("session.device_log_updated", cr=env.cr, uid=session.uid):
-                env["res.device.log"]._update_device(request)  # type: ignore[attr-defined]
+                env["res.device"]._update_device(request)  # type: ignore[attr-defined]
         except Exception:
             _logger.warning(
                 "Device-log update failed for a valid session; keeping the "

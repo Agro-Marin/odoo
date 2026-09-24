@@ -257,7 +257,7 @@ every Odoo module depends on.
 | Localization | res.country, res.country.state, res.country.group, res.lang | Geography, languages |
 | Finance | res.currency, res.currency.rate, res.bank, res.partner.bank.account | Currencies, exchange rates, banking |
 | Config | res.config, res.config.settings | Settings wizard framework |
-| Devices | res.device.mixin, res.device.log, res.device | Session/device tracking |
+| Devices | res.device, res.device.log | Session/device tracking |
 
 ### Mixins and Utilities
 

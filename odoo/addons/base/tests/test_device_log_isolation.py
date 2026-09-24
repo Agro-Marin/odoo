@@ -34,7 +34,7 @@ class TestDeviceLogIsolation(TransactionCase):
         )
         self.env.flush_all()
         self.cr.execute("""
-            ALTER TABLE res_device_log ADD CONSTRAINT service_test_device_guard
+            ALTER TABLE res_device ADD CONSTRAINT service_test_device_guard
             CHECK (session_identifier NOT LIKE 'service_test_device%')
         """)
         session = _Session(
@@ -54,11 +54,11 @@ class TestDeviceLogIsolation(TransactionCase):
         self.cr.execute("SELECT login FROM res_users WHERE id = %s", (user.id,))
         self.assertEqual(self.cr.fetchone(), ("service_device_isolation",))
         self.cr.execute(
-            "SELECT count(*) FROM res_device_log WHERE session_identifier LIKE 'service_test_device%'"
+            "SELECT count(*) FROM res_device WHERE session_identifier LIKE 'service_test_device%'"
         )
         self.assertEqual(self.cr.fetchone(), (0,))
 
     def test_unchanged_trace_does_not_open_a_savepoint(self):
         request = SimpleNamespace(session=_Session(self.env.uid, None))
         with self.assertQueryCount(0):
-            self.env["res.device.log"]._update_device(request)
+            self.env["res.device"]._update_device(request)

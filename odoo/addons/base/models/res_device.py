@@ -1,4 +1,3 @@
-import functools
 import logging
 from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
@@ -6,7 +5,6 @@ from itertools import batched
 from typing import Any
 
 from odoo import api, fields, models
-from odoo.db.schema import drop_view_if_exists
 from odoo.exceptions import AccessError
 from odoo.fields import Field
 from odoo.http import (
@@ -29,11 +27,9 @@ _MOBILE_PLATFORMS = frozenset(
     {"android", "iphone", "ipad", "blackberry", "symbian", "windows phone"}
 )
 
-# One device is one browser on one platform in one session of one user; its log
-# holds one row per IP address it was seen from.
-_DEVICE_IDENTITY = ("user_id", "session_identifier", "platform", "browser")
-
+DEFAULT_RETENTION_DAYS = 90
 _REVOKE_SWEEP_BATCH = 10_000
+_RETENTION_BATCH = 10_000
 
 
 def _device_type(platform: str | None) -> str:
@@ -51,33 +47,39 @@ def _current_session_identifier() -> str | None:
     return session.sid[:STORED_SESSION_BYTES]
 
 
-class ResDeviceMixin(models.AbstractModel):
-    _name = "res.device.mixin"
-    _description = "Device"
+class ResDevice(models.Model):
+    _name = "res.device"
+    _description = "Devices"
+    _order = "last_activity desc, id desc"
     _rec_names_search = ["platform", "browser"]
 
+    user_id = fields.Many2one(
+        comodel_name="res.users",
+        required=True,
+        ondelete="cascade",
+    )
     session_identifier = fields.Char(
         index="btree",
         required=True,
     )
     platform = fields.Char()
     browser = fields.Char()
-    ip_address = fields.Char(string="IP Address")
-    country = fields.Char()
-    city = fields.Char()
     device_type = fields.Selection(
         selection=[("computer", "Computer"), ("mobile", "Mobile")]
     )
-    user_id = fields.Many2one(
-        comodel_name="res.users",
-        index="btree",
-        ondelete="cascade",
-    )
+    ip_address = fields.Char(string="IP Address")
+    country = fields.Char()
+    city = fields.Char()
     first_activity = fields.Datetime()
-    last_activity = fields.Datetime()
-    revoked = fields.Boolean(
-        help="If True, the session file corresponding to this device"
-        " no longer exists on the filesystem."
+    last_activity = fields.Datetime(index="btree")
+    active = fields.Boolean(
+        default=True,
+        help="Unset once the session this device used no longer exists.",
+    )
+    log_ids = fields.One2many(
+        comodel_name="res.device.log",
+        inverse_name="device_id",
+        string="Addresses",
     )
     is_current = fields.Boolean(
         string="Current Device",
@@ -87,6 +89,10 @@ class ResDeviceMixin(models.AbstractModel):
     linked_ip_addresses = fields.Text(
         string="Linked IP address",
         compute="_compute_linked_ip_addresses",
+    )
+
+    _identity_uniq = models.UniqueIndex(
+        "(user_id, session_identifier, platform, browser) NULLS NOT DISTINCT"
     )
 
     @api.depends("platform", "browser")
@@ -119,62 +125,12 @@ class ResDeviceMixin(models.AbstractModel):
             direction,
         )
 
-    def _device_identity(self) -> tuple[Any, ...]:
-        return tuple(
-            self[name].id if name == "user_id" else self[name]
-            for name in _DEVICE_IDENTITY
-        )
-
-    @api.depends(*_DEVICE_IDENTITY)
+    @api.depends("log_ids.ip_address", "log_ids.last_activity")
     def _compute_linked_ip_addresses(self) -> None:
-        query = self.env["res.device.log"]._search(
-            [("session_identifier", "in", list(set(self.mapped("session_identifier"))))]
-        )
-        column = functools.partial(SQL.identifier, query.table)
-        identity = [column(name) for name in _DEVICE_IDENTITY]
-        query.order = None
-        query.groupby = SQL(", ").join(identity)
-        rows = self.env.execute_query(
-            query.select(
-                *identity,
-                SQL(
-                    "array_agg(%s ORDER BY %s DESC, %s DESC) FILTER (WHERE %s IS NOT NULL)",
-                    column("ip_address"),
-                    column("last_activity"),
-                    column("id"),
-                    column("ip_address"),
-                ),
-            )
-        )
-        ips_by_device = {
-            (
-                user_id or False,
-                session_identifier,
-                platform or False,
-                browser or False,
-            ): ips
-            for user_id, session_identifier, platform, browser, ips in rows
-        }
-        _debug.perf.count(
-            "linked_ip_addresses_computed", devices=len(self), groups=len(rows)
-        )
         for device in self:
             device.linked_ip_addresses = "\n".join(
-                OrderedSet(ips_by_device.get(device._device_identity()) or ())
+                ip for ip in device.log_ids.mapped("ip_address") if ip
             )
-
-
-class ResDeviceLog(models.Model):
-    _name = "res.device.log"
-    _inherit = ["res.device.mixin"]
-    _description = "Device Log"
-
-    _composite_idx = models.Index(
-        "(user_id, session_identifier, platform, browser, last_activity, id) WHERE revoked IS NOT TRUE"
-    )
-    _active_last_activity_idx = models.Index(
-        "(last_activity) WHERE revoked IS NOT TRUE"
-    )
 
     @api.model
     def _update_device(self, request: Any) -> None:
@@ -184,57 +140,133 @@ class ResDeviceLog(models.Model):
             return
 
         geoip = GeoIP(trace["ip_address"], app=request.app)
-        row = {
+        values = {
+            "user_id": request.session.uid,
             "session_identifier": request.session.sid[:STORED_SESSION_BYTES],
             "platform": trace["platform"],
             "browser": trace["browser"],
+            "device_type": _device_type(trace["platform"]),
             "ip_address": trace["ip_address"],
             "country": geoip.get("country_name"),
             "city": geoip.get("city"),
-            "device_type": _device_type(trace["platform"]),
-            "user_id": request.session.uid,
             "first_activity": _utc_naive(trace["first_activity"]),
             "last_activity": _utc_naive(trace["last_activity"]),
-            "revoked": False,
+            "now": self.env.cr.now(),
         }
-        insert = SQL(
-            "INSERT INTO res_device_log (%s) VALUES %s",
-            SQL(", ").join(map(SQL.identifier, row)),
-            tuple(row.values()),
+        upsert = SQL(
+            """
+            WITH device AS (
+                INSERT INTO res_device AS d (
+                    user_id, session_identifier, platform, browser, device_type,
+                    ip_address, country, city, first_activity, last_activity, active,
+                    create_uid, create_date, write_uid, write_date
+                )
+                VALUES (
+                    %(user_id)s, %(session_identifier)s, %(platform)s, %(browser)s,
+                    %(device_type)s, %(ip_address)s, %(country)s, %(city)s,
+                    %(first_activity)s, %(last_activity)s, TRUE,
+                    %(user_id)s, %(now)s, %(user_id)s, %(now)s
+                )
+                ON CONFLICT (user_id, session_identifier, platform, browser)
+                DO UPDATE SET
+                    ip_address = CASE WHEN d.last_activity > EXCLUDED.last_activity
+                        THEN d.ip_address ELSE EXCLUDED.ip_address END,
+                    country = CASE WHEN d.last_activity > EXCLUDED.last_activity
+                        THEN d.country ELSE EXCLUDED.country END,
+                    city = CASE WHEN d.last_activity > EXCLUDED.last_activity
+                        THEN d.city ELSE EXCLUDED.city END,
+                    first_activity = LEAST(d.first_activity, EXCLUDED.first_activity),
+                    last_activity = GREATEST(d.last_activity, EXCLUDED.last_activity),
+                    active = TRUE,
+                    write_uid = EXCLUDED.write_uid,
+                    write_date = EXCLUDED.write_date
+                RETURNING id
+            )
+            INSERT INTO res_device_log AS l (
+                device_id, ip_address, country, city, first_activity, last_activity,
+                create_uid, create_date, write_uid, write_date
+            )
+            SELECT id, %(ip_address)s, %(country)s, %(city)s,
+                   %(first_activity)s, %(last_activity)s,
+                   %(user_id)s, %(now)s, %(user_id)s, %(now)s
+            FROM device
+            ON CONFLICT (device_id, ip_address) DO UPDATE SET
+                country = EXCLUDED.country,
+                city = EXCLUDED.city,
+                first_activity = LEAST(l.first_activity, EXCLUDED.first_activity),
+                last_activity = GREATEST(l.last_activity, EXCLUDED.last_activity),
+                write_uid = EXCLUDED.write_uid,
+                write_date = EXCLUDED.write_date
+            """,
+            **values,
         )
         own_cursor = self.env.cr.readonly
         if own_cursor:
             with self.env.registry.cursor(readonly=False) as cr:
-                cr.execute(insert)
+                cr.execute(upsert)
         else:
             # Contain this optional write without flushing unrelated pending
             # ORM work: a failure must not abort the request's transaction.
             with self.env.cr.savepoint(flush=False):
-                self.env.cr.execute(insert)
+                self.env.cr.execute(upsert)
         _logger.info(
-            "User %d device log added for %s %s",
-            row["user_id"],
-            row["platform"],
-            row["browser"],
+            "User %d device seen: %s %s",
+            values["user_id"],
+            values["platform"],
+            values["browser"],
         )
         _debug.lifecycle(
-            "device_log_inserted",
-            uid=row["user_id"],
-            platform=row["platform"],
-            browser=row["browser"],
-            device_type=row["device_type"],
+            "device_upserted",
+            uid=values["user_id"],
+            platform=values["platform"],
+            browser=values["browser"],
+            device_type=values["device_type"],
             own_cursor=own_cursor,
         )
 
+    @check_identity
+    def revoke(self) -> dict[str, Any] | None:
+        if self._revoke():
+            return {"type": "ir.actions.client", "tag": "reload"}
+        return None
+
+    def _revoke(self) -> bool:
+        if not self:
+            _debug.logic("revoke_skipped", uid=self.env.uid, reason="empty_recordset")
+            return False
+        if not self.env.is_system() and self.mapped("user_id") != self.env.user:
+            _debug.logic("revoke_refused", uid=self.env.uid, devices=self.ids)
+            raise AccessError(self.env._("You can only revoke your own devices."))
+        session_identifiers = list(OrderedSet(self.mapped("session_identifier")))
+        must_logout = any(self.mapped("is_current"))
+        root.session_store.remove_sessions_for_identifiers(session_identifiers)
+        revoked = self._mark_revoked(session_identifiers)
+        _logger.info(
+            "User %d revokes %d session(s) of user(s) %s",
+            self.env.uid,
+            len(session_identifiers),
+            self.mapped("user_id").ids,
+        )
+        _debug.lifecycle(
+            "devices_revoked",
+            uid=self.env.uid,
+            sessions=len(session_identifiers),
+            devices=revoked,
+            logout=must_logout,
+        )
+        if must_logout:
+            request.session.logout()
+        return must_logout
+
     @api.model
     def _mark_revoked(self, session_identifiers: Collection[str]) -> int:
-        self.flush_model(["session_identifier", "revoked"])
+        self.flush_model(["session_identifier", "active"])
         self.env.cr.execute(
             SQL(
                 """
-                UPDATE res_device_log
-                SET revoked = TRUE, write_uid = %s, write_date = %s
-                WHERE session_identifier = ANY(%s) AND revoked IS NOT TRUE
+                UPDATE res_device
+                SET active = FALSE, write_uid = %s, write_date = %s
+                WHERE session_identifier = ANY(%s) AND active
                 """,
                 self.env.uid,
                 self.env.cr.now(),
@@ -242,36 +274,8 @@ class ResDeviceLog(models.Model):
             )
         )
         revoked = self.env.cr.rowcount
-        self.invalidate_model(["revoked", "write_uid", "write_date"])
-        self.env["res.device"].invalidate_model(["revoked"])
+        self.invalidate_model(["active", "write_uid", "write_date"])
         return revoked
-
-    @api.autovacuum
-    def _gc_device_log(self) -> tuple[int, bool]:
-        self.env.cr.execute(
-            SQL(
-                """
-                DELETE FROM res_device_log
-                WHERE id IN (
-                    SELECT id
-                    FROM (
-                        SELECT id,
-                            row_number() OVER (
-                                PARTITION BY %s
-                                ORDER BY last_activity DESC, id DESC
-                            ) AS rn
-                        FROM res_device_log
-                    ) ranked
-                    WHERE ranked.rn > 1
-                )
-                """,
-                SQL(", ").join(map(SQL.identifier, (*_DEVICE_IDENTITY, "ip_address"))),
-            )
-        )
-        deleted = self.env.cr.rowcount
-        _logger.info("GC device logs delete %d entries", deleted)
-        _debug.lifecycle("gc_device_logs", count=deleted)
-        return deleted, False
 
     @api.autovacuum
     def _update_revoked(self) -> tuple[int, bool]:
@@ -282,9 +286,8 @@ class ResDeviceLog(models.Model):
             SQL(
                 """
                 SELECT DISTINCT session_identifier
-                FROM res_device_log
-                WHERE revoked IS NOT TRUE
-                    AND last_activity < %s
+                FROM res_device
+                WHERE active AND last_activity < %s
                 """,
                 inactive_since,
             )
@@ -301,104 +304,63 @@ class ResDeviceLog(models.Model):
                 continue
             count = self._mark_revoked(missing)
             revoked += count
-            _debug.lifecycle("device_logs_revoked", count=count, by="gc")
+            _debug.lifecycle("devices_revoked", count=count, by="gc")
             if not self.env["ir.cron"]._commit_progress(count):
                 _debug.logic("revoke_sweep_stopped", reason="time_budget")
                 return revoked, True
         _debug.lifecycle("revoke_sweep_done", revoked=revoked)
         return revoked, False
 
-
-class ResDevice(models.Model):
-    _name = "res.device"
-    _inherit = ["res.device.mixin"]
-    _description = "Devices"
-    _auto = False
-    _order = "last_activity desc"
-
-    @check_identity
-    def revoke(self) -> dict[str, Any] | None:
-        if self._revoke():
-            return {"type": "ir.actions.client", "tag": "reload"}
-        return None
-
-    def _revoke(self) -> bool:
-        if not self:
-            _debug.logic("revoke_skipped", uid=self.env.uid, reason="empty_recordset")
-            return False
-        if not self.env.is_system() and self.mapped("user_id") != self.env.user:
-            _debug.logic("revoke_refused", uid=self.env.uid, devices=self.ids)
-            raise AccessError(self.env._("You can only revoke your own devices."))
-        session_identifiers = list(OrderedSet(self.mapped("session_identifier")))
-        root.session_store.remove_sessions_for_identifiers(session_identifiers)
-        revoked = self.env["res.device.log"]._mark_revoked(session_identifiers)
-        _logger.info(
-            "User %d revokes %d session(s) of user(s) %s",
-            self.env.uid,
-            len(session_identifiers),
-            self.mapped("user_id").ids,
+    @api.autovacuum
+    def _gc_revoked_devices(self) -> tuple[int, bool] | None:
+        retention_days = self.env["ir.config_parameter"].get_param_int(
+            "base.device_retention_days", DEFAULT_RETENTION_DAYS
         )
-
-        must_logout = any(self.mapped("is_current"))
-        _debug.lifecycle(
-            "devices_revoked",
-            uid=self.env.uid,
-            sessions=len(session_identifiers),
-            logs=revoked,
-            logout=must_logout,
-        )
-        if must_logout:
-            request.session.logout()
-        return must_logout
-
-    def _view_query(self) -> SQL:
-        def same_device(alias: str) -> SQL:
-            return SQL(" AND ").join(
-                SQL(
-                    "%s = %s"
-                    if self._fields[name].required
-                    else "%s IS NOT DISTINCT FROM %s",
-                    SQL.identifier(alias, name),
-                    SQL.identifier("device", name),
-                )
-                for name in _DEVICE_IDENTITY
-            )
-
-        columns = SQL(", ").join(
-            SQL(
-                "(SELECT min(earliest.first_activity) FROM res_device_log earliest"
-                " WHERE %s AND earliest.revoked IS NOT TRUE) AS first_activity",
-                same_device("earliest"),
-            )
-            if name == "first_activity"
-            else SQL.identifier("device", name)
-            for name, field in self._fields.items()
-            if field.store and field.column_type
-        )
-        return SQL(
-            """
-            SELECT %s
-            FROM res_device_log device
-            WHERE device.revoked IS NOT TRUE
-              AND NOT EXISTS (
-                SELECT 1
-                FROM res_device_log newer
-                WHERE %s
-                    AND newer.revoked IS NOT TRUE
-                    AND (newer.last_activity, newer.id) > (device.last_activity, device.id)
-              )
-            """,
-            columns,
-            same_device("newer"),
-        )
-
-    def init(self) -> None:
-        drop_view_if_exists(self.env.cr, self._table)
-        _debug.lifecycle("view_recreated", table=self._table)
+        if retention_days <= 0:
+            _debug.logic("gc_revoked_devices_skipped", retention_days=retention_days)
+            return None
         self.env.cr.execute(
             SQL(
-                "CREATE VIEW %s AS (%s)",
-                SQL.identifier(self._table),
-                self._view_query(),
+                """
+                DELETE FROM res_device
+                WHERE id IN (
+                    SELECT id
+                    FROM res_device
+                    WHERE active IS NOT TRUE
+                      AND (last_activity IS NULL OR last_activity < %s)
+                    ORDER BY id
+                    LIMIT %s
+                )
+                """,
+                self.env.cr.now() - timedelta(days=retention_days),
+                _RETENTION_BATCH,
             )
         )
+        deleted = self.env.cr.rowcount
+        _logger.info("GC revoked devices delete %d entries", deleted)
+        _debug.lifecycle(
+            "gc_revoked_devices", retention_days=retention_days, count=deleted
+        )
+        return deleted, deleted == _RETENTION_BATCH
+
+
+class ResDeviceLog(models.Model):
+    _name = "res.device.log"
+    _description = "Device Address"
+    _order = "last_activity desc, id desc"
+    _rec_name = "ip_address"
+
+    device_id = fields.Many2one(
+        comodel_name="res.device",
+        required=True,
+        ondelete="cascade",
+    )
+    ip_address = fields.Char(string="IP Address")
+    country = fields.Char()
+    city = fields.Char()
+    first_activity = fields.Datetime()
+    last_activity = fields.Datetime()
+
+    _device_address_uniq = models.UniqueIndex(
+        "(device_id, ip_address) NULLS NOT DISTINCT"
+    )

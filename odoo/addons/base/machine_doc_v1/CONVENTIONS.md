@@ -202,7 +202,7 @@ class MyModel(models.Model):
 - `ir.actions.server.history` — Keep last 100 code revisions
 - `res.users.apikeys` — Expired API keys
 - `res.users.log` — Keep latest log per user
-- `res.device.log` — Old device entries (×2: duplicate rows + revoked sessions)
+- `res.device` — Devices (×2: sessions the store lost + archived devices past retention)
 
 ## Sequence Implementation
 
@@ -266,9 +266,9 @@ ir.actions.report._render_qweb_pdf(docids, data)
 
 ### Tag Strategy
 
-- **40% of test files have no `@tagged` decorator** — they run in all phases by default
-- **60% use `@tagged`** — typically `@tagged('post_install', '-at_install', 'feature_tag')`
-- `post_install` always travels with `-at_install`; 296 classes carry it
+- **41% of test files have no `@tagged` decorator** — they run in all phases by default
+- **59% use `@tagged`** — typically `@tagged('post_install', '-at_install', 'feature_tag')`
+- `post_install` always travels with `-at_install`; 295 classes carry it
 - The three figures above are derived by `factcheck.sh` from `_test_inventory.py`
 
 See `machine_doc_v1/TEST_TAGS.md` for full reference.
@@ -290,9 +290,8 @@ See `machine_doc_v1/TEST_TAGS.md` for full reference.
    all use heavy caching. Changes to these models require `clear_caches()` or the
    change won't take effect until server restart.
 
-5. **`_auto = False` models** — `res.device` and `res.users.apikeys` don't use
-   standard ORM table creation. `res.device` is a SQL view, `res.users.apikeys`
-   has a custom table with encrypted key storage.
+5. **`_auto = False` models** — `res.users.apikeys` doesn't use standard ORM
+   table creation: it has a custom table with encrypted key storage.
 
 6. **Partner commercial hierarchy** — `commercial_partner_id` is the top-level
    company in a parent-child chain. It's computed, stored, and recursive. Many

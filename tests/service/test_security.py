@@ -37,7 +37,7 @@ def _make_env(expected_token: str, device_log=None):
     def getitem(key):
         if key == "res.users":
             return users
-        if key == "res.device.log" and device_log is not None:
+        if key == "res.device" and device_log is not None:
             return device_log
         return MagicMock()
 
@@ -76,7 +76,7 @@ class TestCheckSession:
         result = sec.is_session_valid(session, env)
         assert result is True
         accessed_keys = [c.args[0] for c in env.__getitem__.call_args_list]
-        assert "res.device.log" not in accessed_keys
+        assert "res.device" not in accessed_keys
 
     def test_valid_session_with_request_updates_device(self, sec) -> None:
         session = _FakeSession(uid=1, sid="abc", token="good_token")
