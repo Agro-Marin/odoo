@@ -3726,7 +3726,7 @@ class TestMrpOrder(TestMrpCommon):
 
         mo_2 = mo.production_group_id.production_ids - mo
         wo_4, wo_5, wo_6 = (
-            mo_2.workorder_ids.filtered(lambda wo, op=operation: wo.operation_id == op)
+            mo_2.workorder_ids.filtered_domain([("operation_id", "=", operation.id)])
             for operation in bom.operation_ids
         )
 
@@ -3758,7 +3758,7 @@ class TestMrpOrder(TestMrpCommon):
 
         mo_3 = mo.production_group_id.production_ids - (mo | mo_2)
         wo_7, wo_8, wo_9 = (
-            mo_3.workorder_ids.filtered(lambda wo, op=operation: wo.operation_id == op)
+            mo_3.workorder_ids.filtered_domain([("operation_id", "=", operation.id)])
             for operation in bom.operation_ids
         )
 

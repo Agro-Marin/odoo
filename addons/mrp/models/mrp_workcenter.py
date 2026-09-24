@@ -810,10 +810,11 @@ class MrpWorkcenter(models.Model):
         rank = -1  # debuglog
         for wanted_product, wanted_unit in ranked:
             rank += 1  # debuglog
-            capacity = self.capacity_ids.filtered(
-                lambda c, p=wanted_product, u=wanted_unit: (
-                    c.product_id == p and c.product_uom_id == u
-                )
+            capacity = self.capacity_ids.filtered_domain(
+                [
+                    ("product_id", "=", wanted_product.id),
+                    ("product_uom_id", "=", wanted_unit.id),
+                ]
             )[:1]
             if not capacity:
                 continue

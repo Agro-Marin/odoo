@@ -214,11 +214,11 @@ class StockRule(models.Model):
                     "production_qty_increased", mo=mo, qty=procurement_product_uom_qty
                 )
                 if procurement.values.get("move_dest_ids"):
-                    mo.move_finished_ids.filtered(
-                        lambda m, procurement=procurement: (
-                            m.product_id == procurement.product_id
-                            and m.state not in ("done", "cancel")
-                        )
+                    mo.move_finished_ids.filtered_domain(
+                        [
+                            ("product_id", "=", procurement.product_id.id),
+                            ("state", "not in", ("done", "cancel")),
+                        ]
                     ).move_dest_ids = [
                         Command.link(m.id) for m in procurement.values["move_dest_ids"]
                     ]

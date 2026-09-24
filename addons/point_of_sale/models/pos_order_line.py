@@ -529,8 +529,8 @@ class PosOrderLine(models.Model):
                 pickings_to_confirm.action_confirm()
                 for product_id, lines in lines_by_tracked_product:
                     lines = self.env["pos.order.line"].concat(*lines)
-                    moves = pickings_to_confirm.move_ids.filtered(
-                        lambda m, product_id=product_id: m.product_id.id == product_id
+                    moves = pickings_to_confirm.move_ids.filtered_domain(
+                        [("product_id", "=", product_id)]
                     )
                     moves.move_line_ids.unlink()
                     moves._add_move_lines_from_pos_order_lines(

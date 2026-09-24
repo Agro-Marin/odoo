@@ -94,11 +94,11 @@ class PurchaseOrderLine(models.Model):
 
         if "price_unit" in vals:
             for line in lines:
-                moves = line.move_ids.filtered(
-                    lambda s, line=line: (
-                        s.state not in ("cancel", "done")
-                        and s.product_id == line.product_id
-                    ),
+                moves = line.move_ids.filtered_domain(
+                    [
+                        ("state", "not in", ("cancel", "done")),
+                        ("product_id", "=", line.product_id.id),
+                    ]
                 )
                 moves.write({"price_unit": line._get_price_unit()})
 
@@ -612,10 +612,11 @@ class PurchaseOrderLine(models.Model):
                     user_id=self.env.uid,
                 )
 
-            moves_to_assign = line.order_id.picking_ids.move_ids.filtered(
-                lambda m, line=line: (
-                    not m.purchase_line_id and line.product_id == m.product_id
-                ),
+            moves_to_assign = line.order_id.picking_ids.move_ids.filtered_domain(
+                [
+                    ("purchase_line_id", "=", False),
+                    ("product_id", "=", line.product_id.id),
+                ]
             )
             moves_to_assign.purchase_line_id = line.id
             line_pickings = line.move_ids.picking_id.filtered(

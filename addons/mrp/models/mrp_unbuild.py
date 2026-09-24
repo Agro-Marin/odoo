@@ -345,8 +345,8 @@ class MrpUnbuild(models.Model):
                 original_move = self.mo_id.move_raw_ids
             else:
                 original_move = self.mo_id.move_finished_ids
-            original_move = original_move.filtered(
-                lambda m, move=move: m.product_id == move.product_id
+            original_move = original_move.filtered_domain(
+                [("product_id", "=", move.product_id.id)]
             )
             if not original_move:
                 move.quantity = move.product_uom_id.round(move.product_uom_qty)

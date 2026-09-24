@@ -127,18 +127,18 @@ class ChangeProductionQty(models.TransientModel):
                             "costs_hour": wo.workcenter_id.costs_hour,
                         }
                     )
-                moves_raw = production.move_raw_ids.filtered(
-                    lambda move, operation=operation: (
-                        move.operation_id == operation
-                        and move.state not in ("done", "cancel")
-                    )
+                moves_raw = production.move_raw_ids.filtered_domain(
+                    [
+                        ("operation_id", "=", operation.id),
+                        ("state", "not in", ("done", "cancel")),
+                    ]
                 )
                 if wo == production.workorder_ids[-1]:
                     moves_raw |= production.move_raw_ids.filtered(
                         lambda move: not move.operation_id
                     )
-                moves_finished = production.move_finished_ids.filtered(
-                    lambda move, operation=operation: move.operation_id == operation
+                moves_finished = production.move_finished_ids.filtered_domain(
+                    [("operation_id", "=", operation.id)]
                 )
                 moves_raw.mapped("move_line_ids").write({"workorder_id": wo.id})
                 (moves_finished + moves_raw).write({"workorder_id": wo.id})

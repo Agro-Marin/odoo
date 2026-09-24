@@ -48,8 +48,8 @@ class StockWarehouseRoute(models.Model):
                 route = self[route_field]
                 if "route_update_values" in route_data:
                     route.write(route_data["route_update_values"])
-                obsolete = route.rule_ids.filtered(
-                    lambda rule, role=route_field: rule.warehouse_role == role
+                obsolete = route.rule_ids.filtered_domain(
+                    [("warehouse_role", "=", route_field)]
                 )
                 if _debug.lifecycle.enabled:
                     _debug.lifecycle(

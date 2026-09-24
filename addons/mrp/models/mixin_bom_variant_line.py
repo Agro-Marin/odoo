@@ -32,3 +32,6 @@ class MixinBomVariantLine(models.AbstractModel):
             self.bom_product_template_attribute_value_ids,
             never_attribute_values,
         )
+
+    def _filtered_applicable_to(self, product):
+        return self.filtered(lambda row: not row._is_bom_line_skipped(product))

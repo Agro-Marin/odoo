@@ -67,8 +67,8 @@ class MrpProduction(models.Model):
                 )
                 move["additional"] = True
                 production.move_raw_ids = [Command.create(move)]
-                production.move_raw_ids.filtered(
-                    lambda m, product_id=product_id: m.product_id == product_id
+                production.move_raw_ids.filtered_domain(
+                    [("product_id", "=", product_id.id)]
                 )[:1].move_line_ids = lines
 
     def write(self, vals):
@@ -132,8 +132,8 @@ class MrpProduction(models.Model):
                 if not sbc_move:
                     continue
                 if mo.product_tracking in ("lot", "serial"):
-                    sbc_move_lines = sbc_move.move_line_ids.filtered(
-                        lambda m, old_lot=old_lot: m.lot_id == old_lot
+                    sbc_move_lines = sbc_move.move_line_ids.browse(
+                        [ml.id for ml in sbc_move.move_line_ids if ml.lot_id == old_lot]
                     )
                     sbc_move_line = sbc_move_lines[0]
                     sbc_move_line.quantity = mo.product_qty

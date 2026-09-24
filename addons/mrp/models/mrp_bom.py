@@ -314,9 +314,7 @@ class MrpBom(models.Model):
         for product in unknown:
             subcomponents[product] = (
                 bom_by_product[product]
-                .bom_line_ids.filtered(
-                    lambda line, product=product: not line._is_bom_line_skipped(product)
-                )
+                .bom_line_ids._filtered_applicable_to(product)
                 .product_id
             )
 
@@ -327,9 +325,7 @@ class MrpBom(models.Model):
             return [(self.bom_line_ids.product_id, finished_products)]
         grouped_by_components = defaultdict(lambda: self.env["product.product"])
         for finished in finished_products:
-            components = self.bom_line_ids.filtered(
-                lambda line, finished=finished: not line._is_bom_line_skipped(finished)
-            ).product_id
+            components = self.bom_line_ids._filtered_applicable_to(finished).product_id
             grouped_by_components[components] |= finished
         return list(grouped_by_components.items())
 
@@ -391,9 +387,7 @@ class MrpBom(models.Model):
                 variants = variants[:1]
             for product in variants:
                 total_variant_cost_share = sum(
-                    byproducts.filtered(
-                        lambda bp, product=product: not bp._is_bom_line_skipped(product)
-                    ).mapped("cost_share")
+                    byproducts._filtered_applicable_to(product).mapped("cost_share")
                 )
                 if float_compare(total_variant_cost_share, 100, precision_digits=2) > 0:
                     raise ValidationError(

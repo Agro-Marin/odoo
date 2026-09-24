@@ -538,11 +538,12 @@ class TestBoM(TestMrpCommon):
             sofa_blue + sofa_medium: product_B,
         }
 
+        variants_by_combination = product_template.product_variant_ids.grouped(
+            "product_template_attribute_value_ids"
+        )
         for combination, consumed_products in dict_consumed_products.items():
-            product = product_template.product_variant_ids.filtered(
-                lambda p, combination=combination: (
-                    p.product_template_attribute_value_ids == combination
-                )
+            product = variants_by_combination.get(
+                combination, product_template.product_variant_ids.browse()
             )
             mrp_order_form = Form(self.env["mrp.production"])
             mrp_order_form.product_id = product

@@ -85,8 +85,8 @@ class StockMove(models.Model):
 
             product = move.product_id
 
-            if line := purchase_order.line_ids.filtered(
-                lambda l, product=product: l.product_id == product,
+            if line := purchase_order.line_ids.filtered_domain(
+                [("product_id", "=", product.id)]
             ):
                 move.purchase_line_id = line[:1]
                 continue

@@ -252,12 +252,7 @@ class MrpRoutingWorkcenter(models.Model):
                 "product", operation.bom_id.product_id
             ) or self.env.context.get(
                 "action_button_product",
-                operation.bom_id.product_tmpl_id.product_variant_ids.filtered(
-                    lambda p, operation=operation: (
-                        p.product_template_attribute_value_ids
-                        <= operation.bom_product_template_attribute_value_ids
-                    )
-                ),
+                operation._get_applicable_variants(),
             )
             if len(product) > 1:
                 product = product[0]
@@ -350,14 +345,14 @@ class MrpRoutingWorkcenter(models.Model):
             )._update_outdated_bom_in_productions()
         if "bom_id" in vals:
             for op in self:
-                op.bom_id.bom_line_ids.filtered(
-                    lambda line, op=op: line.operation_id == op
+                op.bom_id.bom_line_ids.filtered_domain(
+                    [("operation_id", "=", op.id)]
                 ).operation_id = False
-                op.bom_id.byproduct_ids.filtered(
-                    lambda byproduct, op=op: byproduct.operation_id == op
+                op.bom_id.byproduct_ids.filtered_domain(
+                    [("operation_id", "=", op.id)]
                 ).operation_id = False
-                op.bom_id.operation_ids.filtered(
-                    lambda operation, op=op: op in operation.blocked_by_operation_ids
+                op.bom_id.operation_ids.filtered_domain(
+                    [("blocked_by_operation_ids", "in", op.ids)]
                 ).blocked_by_operation_ids = [Command.unlink(op.id)]
         return super().write(vals)
 
@@ -423,6 +418,15 @@ class MrpRoutingWorkcenter(models.Model):
                 "list_view_ref": "mrp.mrp_routing_workcenter_copy_to_bom_tree_view",
             },
         }
+
+    def _get_applicable_variants(self):
+        self.check_singleton()
+        return self.bom_id.product_tmpl_id.product_variant_ids.filtered(
+            lambda product: (
+                product.product_template_attribute_value_ids
+                <= self.bom_product_template_attribute_value_ids
+            )
+        )
 
     def _is_bom_line_skipped(self, product, never_attribute_values=False):
         self.check_singleton()

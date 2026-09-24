@@ -1,3 +1,4 @@
+import functools
 import re
 from datetime import datetime, timedelta
 
@@ -10,6 +11,11 @@ from odoo.tests import Form, tagged
 
 from .common import TestMrpCommon
 from odoo.addons.mail.tests.common import mail_new_test_user
+
+
+def _read_field(records, field):
+    records.invalidate_recordset([field])
+    records.mapped(field)
 
 
 @tagged("post_install", "-at_install")
@@ -940,12 +946,9 @@ class TestMrpAuditFixes(TestMrpCommon):
         self.env.flush_all()
 
         for field in ("bom_count", "used_in_bom_count"):
-
-            def read_field(field=field):
-                products.invalidate_recordset([field])
-                products.mapped(field)
-
-            queries = self._count_queries(read_field, r"\bmrp_bom")
+            queries = self._count_queries(
+                functools.partial(_read_field, products, field), r"\bmrp_bom"
+            )
             self.assertLessEqual(
                 queries,
                 3,
@@ -2879,8 +2882,8 @@ class TestMrpAuditFixes(TestMrpCommon):
                 order = self.env["mrp.production"].create(
                     {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1.0}
                 )
-                workorder = order.workorder_ids.filtered(
-                    lambda w, operation=operation: w.operation_id == operation
+                workorder = order.workorder_ids.filtered_domain(
+                    [("operation_id", "=", operation.id)]
                 )[:1]
                 if not workorder:
                     continue

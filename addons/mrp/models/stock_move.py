@@ -906,9 +906,7 @@ class StockMove(models.Model):
                 continue
             if bom_line.product_uom_id.is_zero(bom_line_data["qty"]):
                 continue
-            bom_line_moves = self.filtered(
-                lambda m, bom_line=bom_line: m.bom_line_id == bom_line
-            )
+            bom_line_moves = self.filtered_domain([("bom_line_id", "=", bom_line.id)])
             if bom_line_moves:
                 uom_qty_per_kit = bom_line_data["qty"] / (bom_line_data["original_qty"])
                 qty_per_kit = bom_line.product_uom_id._get_quantity_in_unit(

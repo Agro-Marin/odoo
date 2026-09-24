@@ -1162,11 +1162,11 @@ class MrpProduction(models.Model):
                     picking_type=production.bom_id.picking_type_id,
                 )[0]
             ]
-            deleted_workorders_ids = production.workorder_ids.filtered(
-                lambda wo, relevant_boms=relevant_boms: (
-                    wo.operation_id and wo.operation_id.bom_id not in relevant_boms
-                )
-            ).mapped("id")
+            deleted_workorders_ids = [
+                wo.id
+                for wo in production.workorder_ids
+                if wo.operation_id and wo.operation_id.bom_id not in relevant_boms
+            ]
             workorders_list += [
                 Command.delete(wo_id) for wo_id in deleted_workorders_ids
             ]
@@ -1217,11 +1217,11 @@ class MrpProduction(models.Model):
                             else bom_data["parent_line"]["product_id"],
                             production.never_product_template_attribute_value_ids,
                         ):
-                            workorder = production.workorder_ids.filtered(
-                                lambda wo, operation=operation, bom=bom: (
-                                    wo.operation_id == operation
-                                    and wo.operation_id.bom_id == bom
-                                )
+                            workorder = production.workorder_ids.filtered_domain(
+                                [
+                                    ("operation_id", "=", operation.id),
+                                    ("operation_id.bom_id", "=", bom.id),
+                                ]
                             )
                             if workorder:
                                 workorders_list += [Command.delete(workorder.id)]
@@ -1338,10 +1338,11 @@ class MrpProduction(models.Model):
     )
     def _compute_qty_produced(self):
         for production in self:
-            done_moves = production.move_finished_ids.filtered(
-                lambda x, production=production: (
-                    x.state != "cancel" and x.product_id.id == production.product_id.id
-                )
+            done_moves = production.move_finished_ids.filtered_domain(
+                [
+                    ("state", "!=", "cancel"),
+                    ("product_id", "=", production.product_id.id),
+                ]
             )
             production.qty_produced = sum(
                 done_moves.filtered(lambda m: m.picked).mapped("quantity")
@@ -1359,8 +1360,8 @@ class MrpProduction(models.Model):
     @api.depends("move_finished_ids")
     def _compute_move_byproduct_ids(self):
         for order in self:
-            order.move_byproduct_ids = order.move_finished_ids.filtered(
-                lambda m, order=order: m.product_id != order.product_id
+            order.move_byproduct_ids = order.move_finished_ids.filtered_domain(
+                [("product_id", "!=", order.product_id.id)]
             )
 
     def _inverse_move_byproduct_ids(self):
@@ -1976,8 +1977,8 @@ class MrpProduction(models.Model):
                 continue
             previous_name = production.name
             production.name = picking_type.sequence_id.next_by_id()
-            production.move_raw_ids.reference_ids.filtered(
-                lambda r, previous_name=previous_name: r.name == previous_name
+            production.move_raw_ids.reference_ids.filtered_domain(
+                [("name", "=", previous_name)]
             ).name = production.name
             moves_to_reassign |= production.move_raw_ids
         return moves_to_reassign
@@ -2080,10 +2081,8 @@ class MrpProduction(models.Model):
         for rec, vals in zip(res, vals_list, strict=True):
             if vals.get("move_dest_ids"):
                 rec.move_finished_ids.move_dest_ids = vals.get("move_dest_ids")
-            regrouped = (rec.move_raw_ids | rec.move_finished_ids).filtered(
-                lambda move, group=rec.production_group_id: (
-                    move.production_group_id != group
-                )
+            regrouped = (rec.move_raw_ids | rec.move_finished_ids).filtered_domain(
+                [("production_group_id", "!=", rec.production_group_id.id)]
             )
             if regrouped:
                 moves_by_group[rec.production_group_id.id] |= regrouped
@@ -2825,10 +2824,8 @@ class MrpProduction(models.Model):
                         "product_uom_id": production.product_id.uom_id,
                     }
                 )
-                for move_finish in production.move_finished_ids.filtered(
-                    lambda m, production=production: (
-                        m.product_id == production.product_id
-                    )
+                for move_finish in production.move_finished_ids.filtered_domain(
+                    [("product_id", "=", production.product_id.id)]
                 ):
                     move_finish.write(
                         {
@@ -3276,11 +3273,11 @@ class MrpProduction(models.Model):
             ],
         )
         for order in self:
-            finish_moves = order.move_finished_ids.filtered(
-                lambda m, order=order: (
-                    m.product_id == order.product_id
-                    and m.state not in ("done", "cancel")
-                )
+            finish_moves = order.move_finished_ids.filtered_domain(
+                [
+                    ("product_id", "=", order.product_id.id),
+                    ("state", "not in", ("done", "cancel")),
+                ]
             )
             for move in finish_moves:
                 if move.has_tracking != "none" and not move.lot_ids:
@@ -4432,10 +4429,8 @@ class MrpProduction(models.Model):
             move_raw.product_uom_id = bom_line.product_uom_id
             if move_raw.operation_id != bom_line.operation_id:
                 move_raw.operation_id = bom_line.operation_id
-                move_raw.workorder_id = self.workorder_ids.filtered(
-                    lambda wo, move_raw=move_raw: (
-                        wo.operation_id == move_raw.operation_id
-                    )
+                move_raw.workorder_id = self.workorder_ids.filtered_domain(
+                    [("operation_id", "=", move_raw.operation_id.id)]
                 )
             move_raw.manual_consumption = move_raw._is_manual_consumption_from_bom_line(
                 bom_line
@@ -4576,8 +4571,8 @@ class MrpProduction(models.Model):
                 consumed_sn_ids.append(sml_sn.id)
                 sn_error_msg[sml_sn.id] = message
                 duplicates = (
-                    self.move_raw_ids.move_line_ids.filtered(
-                        lambda ml, sml_sn=sml_sn: ml.quantity and ml.lot_id == sml_sn
+                    self.move_raw_ids.move_line_ids.filtered_domain(
+                        [("quantity", "!=", 0), ("lot_id", "=", sml_sn.id)]
                     )
                     - move_line
                 )

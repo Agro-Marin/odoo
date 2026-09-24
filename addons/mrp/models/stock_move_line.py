@@ -39,9 +39,10 @@ class StockMoveLine(models.Model):
     def create(self, vals_list):
         res = super().create(vals_list)
         if self.env.context.get("force_manual_consumption"):
+            lines_by_move = res.grouped("move_id")
             for move in res.move_id:
                 move.picked = True
-                lines = res.filtered(lambda line, move=move: line.move_id == move)
+                lines = lines_by_move[move]
                 if not any(lines.mapped("quantity")):
                     continue
                 if move._is_quantity_edited(
@@ -57,8 +58,8 @@ class StockMoveLine(models.Model):
             if line.move_id.raw_material_production_id and line.state == "done":
                 mo = line.move_id.raw_material_production_id
                 finished_lots = mo.lot_producing_ids
-                finished_lots |= mo.move_finished_ids.filtered(
-                    lambda m, mo=mo: m.product_id != mo.product_id
+                finished_lots |= mo.move_finished_ids.filtered_domain(
+                    [("product_id", "!=", mo.product_id.id)]
                 ).move_line_ids.lot_id
                 _debug.logic(
                     "consume_line_traced",
@@ -68,10 +69,8 @@ class StockMoveLine(models.Model):
                 )
                 produced_move_lines = mo.move_finished_ids.move_line_ids
                 if finished_lots:
-                    produced_move_lines = produced_move_lines.filtered(
-                        lambda sml, finished_lots=finished_lots: (
-                            sml.lot_id in finished_lots
-                        )
+                    produced_move_lines = produced_move_lines.filtered_domain(
+                        [("lot_id", "in", finished_lots.ids)]
                     )
                 line.produce_line_ids = [Command.set(produced_move_lines.ids)]
         return res

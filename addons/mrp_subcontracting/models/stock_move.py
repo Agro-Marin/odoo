@@ -1,3 +1,4 @@
+import functools
 from collections import defaultdict
 
 from odoo import api, fields, models
@@ -6,6 +7,16 @@ from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import OrderedSet
 
 _debug = DebugLog(__name__)
+
+
+def _is_orphan_production(qty_by_lot, production):
+    return (
+        production.lot_producing_ids
+        and production.lot_producing_ids[0] not in qty_by_lot
+    ) or (
+        not production.lot_producing_ids
+        and production.env["stock.lot"] not in qty_by_lot
+    )
 
 
 class StockMove(models.Model):
@@ -163,11 +174,7 @@ class StockMove(models.Model):
                 )
                 moves_todo = self.env.context.get("moves_todo")
                 not_todo_productions = (
-                    active_productions.filtered(
-                        lambda p, moves_todo=moves_todo: (
-                            p not in moves_todo.move_orig_ids.production_id
-                        )
-                    )
+                    active_productions - moves_todo.move_orig_ids.production_id
                     if moves_todo
                     else active_productions
                 )
@@ -350,10 +357,8 @@ class StockMove(models.Model):
                     ).change_prod_qty()
                     productions.action_assign()
                     if already_covered:
-                        productions.move_raw_ids.filtered(
-                            lambda raw, already_covered=already_covered: (
-                                raw.id in already_covered
-                            )
+                        productions.move_raw_ids.filtered_domain(
+                            [("id", "in", list(already_covered))]
                         )._run_procurement(already_covered)
             else:
                 qty_by_lot = defaultdict(float)
@@ -362,13 +367,11 @@ class StockMove(models.Model):
                 mos_to_assign = self.env["mrp.production"]
 
                 mos_to_create = {}
+                productions_by_first_lot = productions.grouped(
+                    lambda p: p.lot_producing_ids[:1]
+                )
                 for lot_id, ml_qty in qty_by_lot.items():
-                    lot_mo = productions.filtered(
-                        lambda p, lot_id=lot_id: (
-                            (p.lot_producing_ids and p.lot_producing_ids[0] == lot_id)
-                            or (not lot_id and not p.lot_producing_ids)
-                        )
-                    )
+                    lot_mo = productions_by_first_lot.get(lot_id, productions.browse())
                     if not lot_mo:
                         mos_to_create[lot_id] = ml_qty
                     elif lot_mo.product_uom_id.compare(lot_mo.product_qty, ml_qty) != 0:
@@ -398,16 +401,7 @@ class StockMove(models.Model):
 
                 productions = move._get_subcontract_production()
                 orphan_productions = productions.filtered(
-                    lambda p, qty_by_lot=qty_by_lot: (
-                        (
-                            p.lot_producing_ids
-                            and p.lot_producing_ids[0] not in qty_by_lot
-                        )
-                        or (
-                            not p.lot_producing_ids
-                            and self.env["stock.lot"] not in qty_by_lot
-                        )
-                    )
+                    functools.partial(_is_orphan_production, qty_by_lot)
                 )
                 if len(productions) == len(orphan_productions):
                     production_to_keep = orphan_productions[-1]

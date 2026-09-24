@@ -224,8 +224,8 @@ class StockPicking(models.Model):
             ).action_confirm()
             for mo, move in zip(grouped_mo, moves, strict=True):
                 mo.date_end = move.date
-                finished_move = mo.move_finished_ids.filtered(
-                    lambda m, move=move: m.product_id == move.product_id
+                finished_move = mo.move_finished_ids.filtered_domain(
+                    [("product_id", "=", move.product_id.id)]
                 )
                 finished_move.move_dest_ids = [Command.link(move.id)]
             grouped_mo.action_assign()

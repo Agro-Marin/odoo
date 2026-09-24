@@ -239,7 +239,9 @@ class StockWarehouseOrderpoint(models.Model):
                 bom_type="normal",
                 company_id=company.id,
             )
-            unmatched = products.filtered(lambda product, boms=boms: not boms[product])
+            unmatched = products.browse(
+                [product.id for product in products if not boms[product]]
+            )
             _debug.logic(
                 "orderpoint_default_boms",
                 orderpoints=orderpoints,
@@ -280,10 +282,9 @@ class StockWarehouseOrderpoint(models.Model):
         if not manufactured:
             return result
         boms_by_product = defaultdict(lambda: self.env["mrp.bom"])
+        manufactured_by_company = manufactured.grouped("company_id")
         for company in manufactured.company_id:
-            in_company = manufactured.filtered(
-                lambda orderpoint, company=company: orderpoint.company_id == company,
-            )
+            in_company = manufactured_by_company[company]
             boms_by_product.update(
                 self.env["mrp.bom"]._get_bom_by_product(
                     in_company.product_id,
