@@ -8,16 +8,17 @@ import {
     onWillDestroy,
     onWillUnmount,
     status,
-    useChildSubEnv,
     xml,
 } from "@odoo/owl";
 import {
     CallbackRecorder,
     provideChildActionCallbackRecorders,
+    provideChildPushStateBeforeReload,
 } from "@web/core/action_hook";
 import { useDebugCategory } from "@web/core/debug/debug_context";
 import { AppEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";
+import { provideChildViewConfig } from "@web/core/view_config_hooks";
 import { View } from "@web/views/view";
 
 const ControllerComponentTemplate = xml`<t t-component="this.Component" t-props="this.componentProps"/>`;
@@ -62,14 +63,12 @@ export function makeControllerComponent(am) {
             const { controller, action, nextStack } = this.props.dispatch;
             this.Component = controller.Component;
             useDebugCategory("action", { action });
-            useChildSubEnv({
-                config: controller.config,
-                pushStateBeforeReload: () => {
-                    if (controller.isMounted) {
-                        return;
-                    }
-                    am.pushState(nextStack, { sync: true });
-                },
+            provideChildViewConfig(controller.config);
+            provideChildPushStateBeforeReload(() => {
+                if (controller.isMounted) {
+                    return;
+                }
+                am.pushState(nextStack, { sync: true });
             });
             useControllerStateRecorders(this, action, am);
             onMounted(this.onMounted);

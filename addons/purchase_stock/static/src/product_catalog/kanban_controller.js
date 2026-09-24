@@ -1,6 +1,9 @@
 /** @odoo-module native */
-import { useEnv, useSubEnv } from "@odoo/owl";
 import { ProductCatalogKanbanController } from "@product/product_catalog/kanban_controller";
+import {
+    provideProductCatalogContext,
+    useProductCatalogContext,
+} from "@product/product_catalog/product_catalog_context";
 import { browser } from "@web/core/browser/browser";
 import { useDebounced } from "@web/core/utils/timing";
 import { useSearchModel } from "@web/search/search_model";
@@ -11,8 +14,9 @@ export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanban
     setup() {
         super.setup();
         this.searchModel = useSearchModel();
-        this.suggest = useEnv().suggest;
-        this._computeTotalEstimatedPrice = useEnv()._computeTotalEstimatedPrice;
+        const parentCatalog = useProductCatalogContext();
+        this.suggest = parentCatalog.suggest;
+        this._computeTotalEstimatedPrice = parentCatalog._computeTotalEstimatedPrice;
         Object.assign(this.suggest, {
             currencyId: this.props.context.product_catalog_currency_id,
             digits: this.props.context.product_catalog_digits,
@@ -21,7 +25,7 @@ export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanban
             warehouse_id: this.props.context.warehouse_id,
         });
 
-        useSubEnv({
+        provideProductCatalogContext({
             addAllProducts: () => this.onAddAll(),
             toggleSuggest: () => this.toggleSuggest(),
             reloadKanban: () => this._kanbanReload(),

@@ -1,14 +1,17 @@
 /** @odoo-module native */
-import { useEnv, useRef, useState } from "@odoo/owl";
+import { useRef, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime";
 import { serializeDate } from "@web/core/l10n/dates";
 import { ListController } from "@web/views/list";
 
+import { useAccrualContext } from "./accrual_list_search_model.js";
+
 import { DateTime } from "luxon";
+
 export class AccrualListController extends ListController {
     setup() {
         super.setup();
-        this.accrualContext = useEnv().accrualContext;
+        this.accrualContext = useAccrualContext();
         this.state = useState({
             date: DateTime.now(),
         });

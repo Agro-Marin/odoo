@@ -1,8 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onMounted, useChildSubEnv } from "@odoo/owl";
+import { Component, onMounted } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { provideChildViewConfig } from "@web/core/view_config_hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 
 export class BlankComponent extends Component {
@@ -12,7 +13,7 @@ export class BlankComponent extends Component {
 
     setup() {
         this.ui = useService("ui");
-        useChildSubEnv({ config: { breadcrumbs: [], noBreadcrumbs: true } });
+        provideChildViewConfig({ breadcrumbs: [], noBreadcrumbs: true });
         onMounted(() => this.props.onMounted());
     }
 }

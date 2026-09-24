@@ -2,15 +2,11 @@
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { Thread } from "@mail/core/common/thread";
-import { useMailContext } from "@mail/utils/common/mail_context";
 import {
-    Component,
-    onMounted,
-    onWillUpdateProps,
-    useChildSubEnv,
-    useRef,
-    useState,
-} from "@odoo/owl";
+    provideChildMailContext,
+    useMailContext,
+} from "@mail/utils/common/mail_context";
+import { Component, onMounted, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
@@ -60,7 +56,7 @@ export class Chatter extends Component {
         );
         this.rootRef = useRef("root");
         this.onScrollDebounced = useThrottleForAnimation(this.onScroll.bind(this));
-        useChildSubEnv(this.childSubEnv);
+        provideChildMailContext(this.childMailContext);
 
         onMounted(this._onMounted);
         onWillUpdateProps(
@@ -90,7 +86,7 @@ export class Chatter extends Component {
         return ["messages"];
     }
 
-    get childSubEnv() {
+    get childMailContext() {
         return { inChatter: this.state };
     }
 

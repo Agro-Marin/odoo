@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { provideBuilderContext } from "@html_builder/core/builder_context";
 import { BlockTab } from "@html_builder/sidebar/block_tab";
 import { CustomizeTab } from "@html_builder/sidebar/customize_tab";
 import { InvisibleElementsPanel } from "@html_builder/sidebar/invisible_elements_panel";
@@ -20,7 +21,6 @@ import {
     status,
     useRef,
     useState,
-    useSubEnv,
 } from "@odoo/owl";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/translation";
@@ -258,7 +258,7 @@ export class Builder extends Component {
             this.editor.attachTo(this.editableEl);
         });
 
-        useSubEnv({
+        provideBuilderContext({
             editor: this.editor,
             editorBus: this.editorBus,
             triggerDomUpdated: this.triggerDomUpdated.bind(this),

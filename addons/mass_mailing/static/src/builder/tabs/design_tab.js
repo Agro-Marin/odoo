@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { useBuilderContext } from "@html_builder/core/builder_context";
 import { OptionsContainer } from "@html_builder/sidebar/option_container";
-import { useOptionsSubEnv } from "@html_builder/utils/utils";
+import { provideBuilderOptionsContext } from "@html_builder/utils/utils";
 import { Component, useState } from "@odoo/owl";
 
 export class DesignTab extends Component {
@@ -12,7 +12,7 @@ export class DesignTab extends Component {
     };
 
     setup() {
-        useOptionsSubEnv(() => [this.builderContext.editor.document.body]);
+        provideBuilderOptionsContext(() => [this.builderContext.editor.document.body]);
         this.builderContext = useBuilderContext();
         this.state = useState({
             fontsData: {},

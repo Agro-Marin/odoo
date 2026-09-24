@@ -14,7 +14,6 @@ import {
     useEffect,
     useRef,
     useState,
-    useSubEnv,
 } from "@odoo/owl";
 import { ResizablePanel } from "@web/components/resizable_panel";
 import { LazyComponent, loadBundle } from "@web/core/assets";
@@ -104,9 +103,6 @@ export class WebsiteBuilderClientAction extends Component {
         this.snippetsTemplate = "website.snippets";
         this.isNavigatingToAnotherPage = null;
 
-        useSubEnv({
-            builderRef: useRef("container"),
-        });
         this.state = useState({
             isEditing: false,
             showSidebar: true,

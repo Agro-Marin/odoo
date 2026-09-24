@@ -319,8 +319,8 @@ export class WebChatter extends Chatter {
         return this.state.thread?.attachments ?? [];
     }
 
-    get childSubEnv() {
-        const res = Object.assign(super.childSubEnv, {
+    get childMailContext() {
+        const res = Object.assign(super.childMailContext, {
             messageHighlight: this.messageHighlight,
         });
         assignGetter(res.inChatter, { aside: () => this.props.isChatterAside });

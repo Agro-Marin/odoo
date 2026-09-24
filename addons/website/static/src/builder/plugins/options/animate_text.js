@@ -1,18 +1,13 @@
 /** @odoo-module native */
+import { provideChildBuilderContext } from "@html_builder/core/builder_context";
 import { DependencyManager } from "@html_builder/core/dependency_manager";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
-import {
-    Component,
-    onMounted,
-    onWillDestroy,
-    useChildSubEnv,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onMounted, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { usePositionBus } from "@web/core/position/position_hook";
+import { provideChildServices } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover";
 
 import { AnimateOption } from "./animate_option.js";
@@ -65,15 +60,15 @@ export class AnimateText extends Component {
         this.updateState();
 
         this.root = useRef("root");
-        useChildSubEnv({
+        provideChildBuilderContext({
             dependencyManager: new DependencyManager(),
             getEditingElement: () => this.activeElement,
             getEditingElements: () => (this.activeElement ? [this.activeElement] : []),
             weContext: {},
             editor: this.props.config.editor,
             editorBus: this.props.config.editorBus,
-            services: this.props.config.editor.services,
         });
+        provideChildServices(this.props.config.editor.services);
         this.popover = usePopover(AnimateTextPopover, {
             env: this.__owl__.childEnv,
             onClose: () => {

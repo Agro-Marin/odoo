@@ -55,6 +55,16 @@ export function useActionCallbackRecorders() {
     return useEnv();
 }
 
+/** @param {() => void} pushStateBeforeReload */
+export function provideChildPushStateBeforeReload(pushStateBeforeReload) {
+    useChildSubEnv({ pushStateBeforeReload });
+}
+
+/** @returns {(() => void) | undefined} */
+export function usePushStateBeforeReload() {
+    return useEnv().pushStateBeforeReload;
+}
+
 /**
  * @param {CallbackRecorder} callbackRecorder
  * @param {Function} callback

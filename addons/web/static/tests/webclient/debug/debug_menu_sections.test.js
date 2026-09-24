@@ -4,7 +4,7 @@ import { click, queryAll } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import { makeMockEnv, mountWithCleanup, onRpc } from "@web/../tests/web_test_helpers";
-import { useOwnDebugContext } from "@web/core/debug/debug_context";
+import { provideDebugContext } from "@web/core/debug/debug_context";
 import { registry } from "@web/core/registry";
 import { DebugMenu } from "@web/webclient/debug/debug_menu";
 
@@ -13,7 +13,7 @@ class Parent extends Component {
     static components = { DebugMenu };
     static props = ["*"];
     setup() {
-        useOwnDebugContext({ categories: ["default"] });
+        provideDebugContext({ categories: ["default"] });
     }
 }
 

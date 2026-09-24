@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
-import { Component, useSubEnv } from "@odoo/owl";
+import { Component } from "@odoo/owl";
+import { provideSpreadsheetEnv } from "@spreadsheet/hooks";
 const { registries, stores } = spreadsheet;
 const { figureRegistry } = registries;
 const { ModelStore, useStoreProvider } = stores;
@@ -16,7 +17,7 @@ export class MobileFigureContainer extends Component {
     setup() {
         const stores = useStoreProvider();
         stores.inject(ModelStore, this.props.spreadsheetModel);
-        useSubEnv({
+        provideSpreadsheetEnv({
             model: this.props.spreadsheetModel,
             isDashboard: () => this.props.spreadsheetModel.getters.isDashboard(),
             openSidePanel: () => {},

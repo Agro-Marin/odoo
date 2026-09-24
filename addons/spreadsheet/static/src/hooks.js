@@ -1,12 +1,29 @@
 /** @odoo-module native */
 import { stores } from "@odoo/o-spreadsheet";
-import { useEffect, useEnv, useExternalListener, useState } from "@odoo/owl";
+import {
+    useChildSubEnv,
+    useEffect,
+    useEnv,
+    useExternalListener,
+    useState,
+    useSubEnv,
+} from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog";
 
 const { useStore, useStoreProvider, NotificationStore, GridRenderer } = stores;
+
+/** @param {Record<string, any>} context */
+export function provideSpreadsheetEnv(context) {
+    useSubEnv(context);
+}
+
+/** @param {Record<string, any>} context */
+export function provideChildSpreadsheetEnv(context) {
+    useChildSubEnv(context);
+}
 /**
  * Hook that will capture the 'Ctrl+p' press that corresponds to the user intent to print a spreadsheet.
  * It will prepare the spreadsheet for printing by:

@@ -8,8 +8,8 @@ import {
     onWillUpdateProps,
     reactive,
     toRaw,
-    useSubEnv,
 } from "@odoo/owl";
+import { provideActionCallbackRecorders } from "@web/core/action_hook";
 import { useDebugCategory } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
@@ -26,7 +26,7 @@ import { extractLayoutComponents } from "@web/search/layout";
 import { WithSearch } from "@web/search/with_search/with_search";
 import { session } from "@web/session";
 import { elementToIR, irToElement, literalNbsp } from "@web/views/ir/view_ir";
-import { useActionLinks } from "@web/views/view_hook";
+import { provideViewKeepLast, useActionLinks } from "@web/views/view_hook";
 
 import {
     computeViewClassName,
@@ -434,12 +434,12 @@ export class View extends Component {
 
         this.config = { ...getDefaultConfig(), ...useViewConfig() };
         provideViewConfig(this.config);
-        useSubEnv({
-            keepLast: new KeepLast(),
-            ...Object.fromEntries(
+        provideViewKeepLast(new KeepLast());
+        provideActionCallbackRecorders(
+            Object.fromEntries(
                 CALLBACK_RECORDER_NAMES.map((name) => [name, this.props[name] || null]),
             ),
-        });
+        );
 
         this.handleActionLinks = useActionLinks({ resModel });
 

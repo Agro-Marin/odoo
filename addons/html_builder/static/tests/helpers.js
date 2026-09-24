@@ -19,7 +19,7 @@ import {
     waitFor,
     waitForNone,
 } from "@odoo/hoot-dom";
-import { Component, onMounted, useRef, useState, useSubEnv, xml } from "@odoo/owl";
+import { Component, onMounted, useRef, useState, xml } from "@odoo/owl";
 import {
     contains,
     defineModels,
@@ -149,9 +149,7 @@ class BuilderContainer extends Component {
                 resolve(el);
             });
         });
-        useSubEnv({
-            builderRef: useRef("container"),
-        });
+        this.builderRef = useRef("container");
     }
 
     onLoad() {
@@ -326,7 +324,7 @@ export async function setupHTMLBuilder(
         getEditor: () => attachedEditor,
         getEditableContent: () => editableContent,
         contentEl: comp.iframeRef.el.contentDocument.body.firstChild.firstChild,
-        builderEl: comp.env.builderRef.el.querySelector(".o-website-builder_sidebar"),
+        builderEl: comp.builderRef.el.querySelector(".o-website-builder_sidebar"),
         waitSidebarUpdated,
     };
 }

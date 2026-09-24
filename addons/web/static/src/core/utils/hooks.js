@@ -7,6 +7,7 @@ import {
     onWillDestroy,
     onWillUnmount,
     toRaw,
+    useChildSubEnv,
     useEffect,
     useEnv,
     useRef,
@@ -68,6 +69,11 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
 /** @param {Record<string, any>} services */
 export function provideServices(services) {
     useSubEnv({ services });
+}
+
+/** @param {Record<string, any>} services */
+export function provideChildServices(services) {
+    useChildSubEnv({ services });
 }
 
 /** @returns {Record<string, any>} */

@@ -1,5 +1,4 @@
 /** @odoo-module native */
-import { useChildSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { makeActiveField } from "@web/model/relational_model";
 import { listView } from "@web/views/list";
@@ -10,21 +9,6 @@ import {
 } from "../../attachment_preview_list_view/attachment_preview_list_view.js";
 
 export class BankRecListController extends AttachmentPreviewListController {
-    setup() {
-        super.setup(...arguments);
-
-        this.skipKanbanRestore = {};
-
-        useChildSubEnv({
-            skipKanbanRestoreNeeded: (stLineId) => this.skipKanbanRestore[stLineId],
-        });
-    }
-
-    async onRecordSaved(record) {
-        this.skipKanbanRestore[record.resId] = true;
-        return super.onRecordSaved(...arguments);
-    }
-
     get previewerStorageKey() {
         return "account.statement_line_pdf_previewer_hidden";
     }

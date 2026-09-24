@@ -671,10 +671,10 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
         this.uiService = useService("ui");
         this.orm = useService("orm");
         this.maxNbrDisplayExtraThemes = 100;
-        const env = useEnv();
-        env.store["extraThemesLoaded"] = false;
-        env.store["extraThemes"] = [];
-        this.state = useState(env.store);
+        const store = useConfiguratorStore();
+        store["extraThemesLoaded"] = false;
+        store["extraThemes"] = [];
+        this.state = useState(store);
         this.themeSVGPreviews = [
             useRef("ThemePreview1"),
             useRef("ThemePreview2"),
@@ -930,9 +930,18 @@ export class Store {
     }
 }
 
+/** @param {Store} store */
+function provideConfiguratorStore(store) {
+    useSubEnv({ store });
+}
+
+/** @returns {Store} */
+function useConfiguratorStore() {
+    return useEnv().store;
+}
+
 export function useStore() {
-    const env = useEnv();
-    return useState(env.store);
+    return useState(useConfiguratorStore());
 }
 
 export class Configurator extends Component {
@@ -968,7 +977,7 @@ export class Configurator extends Component {
             currentStep: initialStep,
         });
 
-        useSubEnv({ store });
+        provideConfiguratorStore(store);
 
         onWillStart(async () => {
             const endWebsite = log.perf("get_current_website");

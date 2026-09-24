@@ -2,7 +2,10 @@
 import { useBuilderContext } from "@html_builder/core/builder_context";
 import { isClonable } from "@html_builder/core/clone_plugin";
 import { isRemovable } from "@html_builder/core/remove_plugin";
-import { getSnippetName, useOptionsSubEnv } from "@html_builder/utils/utils";
+import {
+    getSnippetName,
+    provideBuilderOptionsContext,
+} from "@html_builder/utils/utils";
 import { onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
@@ -51,7 +54,7 @@ export class OptionsContainer extends BaseOptionComponent {
     };
 
     setup() {
-        useOptionsSubEnv(() => [this.props.editingElement]);
+        provideBuilderOptionsContext(() => [this.props.editingElement]);
         super.setup();
         this.builderContext = useBuilderContext();
         this.notification = useService("notification");

@@ -9,7 +9,6 @@ import {
     onWillUpdateProps,
     reactive,
     status,
-    useChildSubEnv,
     useEffect,
     xml,
 } from "@odoo/owl";
@@ -167,8 +166,6 @@ export class Dropdown extends Component {
                 this.props.navigationOptions,
             ),
         );
-
-        useChildSubEnv({ navigation: this.navigation });
 
         this.uiService = useService("ui");
         this.setupPopover();

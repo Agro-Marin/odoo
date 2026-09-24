@@ -1,8 +1,11 @@
 /** @odoo-module native */
-import { useBuilderContext } from "@html_builder/core/builder_context";
+import {
+    provideBuilderContext,
+    useBuilderContext,
+} from "@html_builder/core/builder_context";
 import { OptionsContainer } from "@html_builder/sidebar/option_container";
-import { useOptionsSubEnv } from "@html_builder/utils/utils";
-import { Component, useState, useSubEnv } from "@odoo/owl";
+import { provideBuilderOptionsContext } from "@html_builder/utils/utils";
+import { Component, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 
@@ -18,8 +21,8 @@ export class ThemeTab extends Component {
 
     setup() {
         useLifecycleLog(log);
-        useOptionsSubEnv(() => [this.builderContext.editor.document.body]);
-        useSubEnv({
+        provideBuilderOptionsContext(() => [this.builderContext.editor.document.body]);
+        provideBuilderContext({
             colorPresetToShow: this.props.colorPresetToShow,
         });
         this.builderContext = useBuilderContext();

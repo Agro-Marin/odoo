@@ -25,7 +25,12 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  * @property {() => void} unlock
  */
 
-export const POSITION_BUS = Symbol("position-bus");
+const POSITION_BUS = Symbol("position-bus");
+
+/** @param {import("@odoo/owl").EventBus} bus */
+function providePositionBus(bus) {
+    useChildSubEnv({ [POSITION_BUS]: bus });
+}
 
 /** @returns {import("@odoo/owl").EventBus | undefined} */
 export function usePositionBus() {
@@ -65,8 +70,8 @@ export function usePosition(refName, getTarget, options = {}) {
         return true;
     };
 
-    const env = useEnv();
-    const bus = /** @type {any} */ (env)[POSITION_BUS] || new EventBus();
+    const parentBus = usePositionBus();
+    const bus = parentBus || new EventBus();
 
     let executingUpdate = false;
     let updateRequested = false;
@@ -94,9 +99,9 @@ export function usePosition(refName, getTarget, options = {}) {
     bus.addEventListener("update", batchedUpdate);
     onWillDestroy(() => bus.removeEventListener("update", batchedUpdate));
 
-    const isTopmost = !(POSITION_BUS in env);
+    const isTopmost = !parentBus;
     if (isTopmost) {
-        useChildSubEnv({ [POSITION_BUS]: bus });
+        providePositionBus(bus);
     }
 
     useEffect(() => {

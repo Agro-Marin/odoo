@@ -4,7 +4,7 @@
 import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { router, routerBus } from "@web/core/browser/router";
-import { useDebugMode, useOwnDebugContext } from "@web/core/debug/debug_context";
+import { provideDebugContext, useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { reportUncaught } from "@web/core/errors/error_utils";
@@ -46,7 +46,7 @@ export class WebClient extends Component {
         this.menuService = useService("menu");
         this.actionService = useService("action");
         this.hm = useService("home_menu");
-        useOwnDebugContext({ categories: ["default"] });
+        provideDebugContext({ categories: ["default"] });
         if (this.debug) {
             registry
                 .category("systray")

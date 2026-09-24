@@ -59,12 +59,12 @@ const multiCompanyRecoveryService = {
         return {
             /**
              * @param {any} error
-             * @param {{ inDialog?: boolean, env?: import("@web/env").OdooEnv }} [options]
+             * @param {{ inDialog?: boolean, pushStateBeforeReload?: () => void }} [options]
              * @returns {boolean}
              */
             recoverFromLifecycleError(
                 error,
-                { inDialog = false, env: callerEnv = env } = {},
+                { inDialog = false, pushStateBeforeReload } = {},
             ) {
                 if (inDialog) {
                     return false;
@@ -74,7 +74,7 @@ const multiCompanyRecoveryService = {
                     return false;
                 }
                 const activeCompanyIds = user.activeCompanies.map((c) => c.id);
-                /** @type {any} */ (callerEnv).pushStateBeforeReload?.();
+                pushStateBeforeReload?.();
                 activeCompanyIds.push(suggestedCompany.id);
                 user.activateCompanies(activeCompanyIds);
                 return true;

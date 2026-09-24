@@ -6,7 +6,17 @@ import { DropdownEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
-export const DROPDOWN_NESTING = Symbol("dropdownNesting");
+const DROPDOWN_NESTING = Symbol("dropdownNesting");
+
+/** @param {DropdownNestingState} nesting */
+function provideDropdownNesting(nesting) {
+    useChildSubEnv(/** @type {any} */ ({ [DROPDOWN_NESTING]: nesting }));
+}
+
+/** @returns {DropdownNestingState | undefined} */
+export function useParentDropdownNesting() {
+    return /** @type {any} */ (useEnv())[DROPDOWN_NESTING];
+}
 
 class DropdownNestingState {
     constructor({ parent, close, bus }) {
@@ -86,9 +96,8 @@ class DropdownNestingState {
 /** @param {import("@web/components/dropdown/dropdown_hook").DropdownState} state */
 export function useDropdownNesting(state) {
     const env = useEnv();
-    const /** @type {any} */ envAny = env;
     const current = new DropdownNestingState({
-        parent: envAny[DROPDOWN_NESTING],
+        parent: useParentDropdownNesting(),
         close: () => state.close(),
         bus: env.bus,
     });
@@ -104,7 +113,7 @@ export function useDropdownNesting(state) {
         () => [],
     );
 
-    useChildSubEnv(/** @type {any} */ ({ [DROPDOWN_NESTING]: current }));
+    provideDropdownNesting(current);
     useBus(env.bus, DropdownEvent.OPENED, (/** @type {any} */ { detail: other }) =>
         current.handleChange(other),
     );

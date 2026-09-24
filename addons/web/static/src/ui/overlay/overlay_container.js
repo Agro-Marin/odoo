@@ -18,7 +18,7 @@ import { useServices } from "@web/core/utils/hooks";
 import { rootIdOf } from "@web/ui/overlay/root_id";
 import { serviceBackedItems } from "@web/ui/service_backed_items";
 
-export const OVERLAY_SYMBOL = Symbol("Overlay");
+const OVERLAY_SYMBOL = Symbol("Overlay");
 
 export const DEFAULT_OVERLAY_SEQUENCE = 50;
 
@@ -29,6 +29,11 @@ export function useOverlayScope() {
     return /** @type {any} */ (useEnv())[OVERLAY_SYMBOL];
 }
 
+/** @param {any[]} items */
+function provideOverlayItems(items) {
+    useChildSubEnv({ [OVERLAY_ITEMS]: items });
+}
+
 /** @returns {any[]} */
 function useOverlayItems() {
     return /** @type {any} */ (useEnv())[OVERLAY_ITEMS];
@@ -36,20 +41,20 @@ function useOverlayItems() {
 
 /**
  * @param {object | undefined} baseEnv
- * @param {object} extension
+ * @param {{ contains: (target: EventTarget | null) => boolean }} scope
  */
-function useHostedSubEnv(baseEnv, extension) {
+function provideHostedOverlayScope(baseEnv, scope) {
     if (baseEnv) {
         const node = /** @type {any} */ (useComponent()).__owl__;
         if (!node || !("childEnv" in node)) {
             throw new Error(
-                "useHostedSubEnv: owl no longer exposes __owl__.childEnv; " +
+                "provideHostedOverlayScope: owl no longer exposes __owl__.childEnv; " +
                     "the hosted env would silently fall back to the container's.",
             );
         }
         node.childEnv = baseEnv;
     }
-    useChildSubEnv(extension);
+    useChildSubEnv({ [OVERLAY_SYMBOL]: scope });
 }
 
 class OverlayItem extends Component {
@@ -79,10 +84,9 @@ class OverlayItem extends Component {
             }
         });
 
-        useHostedSubEnv(this.props.env, {
-            [OVERLAY_SYMBOL]: {
-                contains: (/** @type {EventTarget} */ target) => this.contains(target),
-            },
+        provideHostedOverlayScope(this.props.env, {
+            contains: (/** @type {EventTarget | null} */ target) =>
+                this.contains(target),
         });
     }
 
@@ -146,7 +150,7 @@ export class OverlayContainer extends Component {
         this.state = useState({ rootId: this.props.rootId });
         this.overlays = useState(serviceBackedItems(this, this.props.overlays));
         this.containerRoots = useState(this.service?.containerRoots ?? new Map());
-        useChildSubEnv({ [OVERLAY_ITEMS]: [] });
+        provideOverlayItems([]);
         if (!this.props.rootId) {
             useEffect(
                 () => {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useDebugMode, useOwnDebugContext } from "@web/core/debug/debug_context";
+import { provideDebugContext, useDebugMode } from "@web/core/debug/debug_context";
 import { Dialog } from "@web/ui/dialog";
 import { DebugMenu } from "@web/webclient/debug/debug_menu";
 
@@ -28,6 +28,6 @@ export class ActionDialog extends Dialog {
     setup() {
         super.setup();
         this.debug = useDebugMode();
-        useOwnDebugContext();
+        provideDebugContext();
     }
 }

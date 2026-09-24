@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, useSubEnv, xml } from "@odoo/owl";
+import { provideBuilderContext } from "@html_builder/core/builder_context";
+import { Component, xml } from "@odoo/owl";
 import { batched } from "@web/core/utils/timing";
 
 export class ImgGroup extends Component {
@@ -13,7 +14,7 @@ export class ImgGroup extends Component {
         this.imgProms = [];
         this.loadImgs = batched(this._loadImgs.bind(this));
 
-        useSubEnv({
+        provideBuilderContext({
             imgGroup: {
                 loaded: new Promise((resolve) => {
                     this.load = resolve;

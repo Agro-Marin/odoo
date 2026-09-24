@@ -1,5 +1,8 @@
 /** @odoo-module native */
-import { useBuilderContext } from "@html_builder/core/builder_context";
+import {
+    provideBuilderContext,
+    useBuilderContext,
+} from "@html_builder/core/builder_context";
 import { isElement, isTextNode } from "@html_editor/utils/dom_info";
 import {
     Component,
@@ -13,7 +16,6 @@ import {
     useEnv,
     useRef,
     useState,
-    useSubEnv,
 } from "@odoo/owl";
 import { useBus, useIsDestroyed } from "@web/core/utils/hooks";
 import { useProps } from "@web/core/utils/owl_bridge";
@@ -137,7 +139,7 @@ export function useBuilderComponent() {
     if (Object.keys(weContext).length) {
         newEnv.weContext = { ...oldEnv.weContext, ...weContext };
     }
-    useSubEnv(newEnv);
+    provideBuilderContext(newEnv);
 }
 export function useDependencyDefinition(id, item, { onReady } = {}) {
     const env = useEnv();
@@ -296,7 +298,7 @@ export function useSelectableComponent(id, { onItemChange } = {}) {
         }
     }
 
-    useSubEnv({
+    provideBuilderContext({
         selectableContext: {
             cleanSelectedItem,
             addSelectableItem: (item) => {

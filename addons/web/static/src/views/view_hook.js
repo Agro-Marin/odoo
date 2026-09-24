@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useEnv } from "@odoo/owl";
+import { useEffect, useEnv, useSubEnv } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
 import { SearchModelEvent } from "@web/core/events";
@@ -18,13 +18,23 @@ import {
 } from "@web/ui/dialog/confirmation_dialog";
 import { ExportDataDialog } from "@web/views/view_dialogs/export_data_dialog";
 
+/** @param {import("@web/core/utils/concurrency").KeepLast} keepLast */
+export function provideViewKeepLast(keepLast) {
+    useSubEnv({ keepLast });
+}
+
+/** @returns {import("@web/core/utils/concurrency").KeepLast} */
+export function useViewKeepLast() {
+    return useEnv().keepLast;
+}
+
 /**
  * @param {Object} params
  * @param {String} params.resModel
  * @param {Function} [params.reload]
  */
 export function useActionLinks({ resModel, reload }) {
-    const keepLast = useEnv().keepLast;
+    const keepLast = useViewKeepLast();
 
     const orm = useService("orm");
     const { doAction } = useAction();

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useChildSubEnv, useEffect, xml } from "@odoo/owl";
+import { Component, useChildSubEnv, useEffect, useEnv, xml } from "@odoo/owl";
 
 /** @type {Map<any, { group: Set<any>, count: number }>} */
 const GROUPS = new Map();
@@ -81,7 +81,18 @@ class DropdownGroupMembership {
     }
 }
 
-export const DROPDOWN_GROUP = Symbol("dropdownGroup");
+const DROPDOWN_GROUP = Symbol("dropdownGroup");
+
+/** @param {DropdownGroupMembership} membership */
+function provideDropdownGroupMembership(membership) {
+    useChildSubEnv(/** @type {any} */ ({ [DROPDOWN_GROUP]: membership }));
+}
+
+/** @returns {DropdownGroupMembership | undefined} */
+export function useDropdownGroupMembership() {
+    return /** @type {any} */ (useEnv())[DROPDOWN_GROUP];
+}
+
 export class DropdownGroup extends Component {
     static template = xml`<t t-slot="default"/>`;
     static props = {
@@ -91,7 +102,7 @@ export class DropdownGroup extends Component {
 
     setup() {
         const membership = new DropdownGroupMembership();
-        useChildSubEnv(/** @type {any} */ ({ [DROPDOWN_GROUP]: membership }));
+        provideDropdownGroupMembership(membership);
         useEffect(
             (groupId) => {
                 membership.moveTo(groupId ? acquireGroup(groupId) : new Set());

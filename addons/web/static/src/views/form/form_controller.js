@@ -2,7 +2,7 @@
 /** @odoo-module native */
 
 import { onError, onMounted, onRendered, status, useEffect, useState } from "@odoo/owl";
-import { useSetupAction } from "@web/core/action_hook";
+import { usePushStateBeforeReload, useSetupAction } from "@web/core/action_hook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { useDebugCategory } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -111,6 +111,7 @@ export class FormController extends ViewController {
 
     setup() {
         this.dialogContext = useDialogContext();
+        this.pushStateBeforeReload = usePushStateBeforeReload();
         this.config = useViewConfig();
         this.setupControllerServices();
         this.setupModel();
@@ -192,7 +193,7 @@ export class FormController extends ViewController {
             if (
                 this.multiCompanyRecovery.recoverFromLifecycleError(error, {
                     inDialog: this.dialogContext.inDialog,
-                    env: /** @type {import("@web/env").OdooEnv} */ (this.env),
+                    pushStateBeforeReload: this.pushStateBeforeReload,
                 })
             ) {
                 return;

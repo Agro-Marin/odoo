@@ -11,6 +11,10 @@ _VENDORED = ("/static/lib/", "/static/src/o_spreadsheet/")
 _COMMENT = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 _OWN_RENDER = re.compile(r"^\s+render\s*\([^)]*\)\s*\{", re.MULTILINE)
 _XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+_SUB_ENV = re.compile(r"(?<![\w.$])use(?:Child)?SubEnv\s*\(")
+_PROVIDER = re.compile(
+    r"^(?:export\s+)?function\s+provide[A-Z]\w*\s*\([^)]*\)\s*\{", re.MULTILINE
+)
 ENV_KEYS = {
     "owl_env_reads": re.compile(r"\bthis\.env\b"),
     "owl_env_dialog_context": re.compile(
@@ -75,6 +79,30 @@ def calls(pattern: re.Pattern, source: str) -> list[int]:
     return [code.count("\n", 0, m.start()) + 1 for m in pattern.finditer(code)]
 
 
+def _body_end(code: str, open_brace: int) -> int:
+    depth = 0
+    for index in range(open_brace, len(code)):
+        if code[index] == "{":
+            depth += 1
+        elif code[index] == "}":
+            depth -= 1
+            if not depth:
+                return index
+    return len(code)
+
+
+def raw_sub_env_calls(source: str) -> list[int]:
+    code = _COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), source)
+    providers = [
+        (m.start(), _body_end(code, m.end() - 1)) for m in _PROVIDER.finditer(code)
+    ]
+    return [
+        code.count("\n", 0, m.start()) + 1
+        for m in _SUB_ENV.finditer(code)
+        if not any(start <= m.start() < end for start, end in providers)
+    ]
+
+
 def template_calls(pattern: re.Pattern, source: str) -> list[int]:
     code = _XML_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), source)
     return [code.count("\n", 0, m.start()) + 1 for m in pattern.finditer(code)]
@@ -118,9 +146,26 @@ def _findings(gate: str) -> dict[str, tuple[str, ...]]:
     return {repo: tuple(items) for repo, items in sorted(found.items())}
 
 
+@functools.cache
+def _sub_env_findings() -> dict[str, tuple[str, ...]]:
+    repo_by_addon = _repo_by_addon()
+    found: dict[str, list[str]] = {repo: [] for repo in repo_by_addon.values()}
+    for addon, path, source in _js_sources.addon_js_outside_lib():
+        if "/static/src/" in path.as_posix() and _outside_vendored(path):
+            found[repo_by_addon[addon]] += [
+                f"{path}:{line}" for line in raw_sub_env_calls(source)
+            ]
+    return {repo: tuple(items) for repo, items in sorted(found.items())}
+
+
 class TestOwl3Api(lint_case.LintCase):
     def _assert_gate(self, gate: str, what: str, fix: str) -> None:
-        for repo, findings in _findings(gate).items():
+        self._assert_per_repo(_findings(gate), gate, what, fix)
+
+    def _assert_per_repo(
+        self, found: dict[str, tuple[str, ...]], gate: str, what: str, fix: str
+    ) -> None:
+        for repo, findings in found.items():
             with self.subTest(repo=repo):
                 self.assert_ratchet(
                     findings,
@@ -285,6 +330,16 @@ class TestOwl3Api(lint_case.LintCase):
             "useOptionalService; OWL 3 components have no env",
         )
 
+    def test_no_raw_sub_env(self):
+        self._assert_per_repo(
+            _sub_env_findings(),
+            "owl_sub_env_raw",
+            "useSubEnv / useChildSubEnv calls outside a provide* function",
+            "A scope hands a value to its descendants through the provide* hook "
+            "paired with the use* accessor its readers call; OWL 3 has no env, so "
+            "each pair becomes a plugin",
+        )
+
 
 @no_retry
 class TestOwl3ApiScan(BaseCase):
@@ -307,3 +362,19 @@ class TestOwl3ApiScan(BaseCase):
             "}\n"
         )
         self.assertEqual(calls(REMOVED_IN_OWL3["owl_this_render"], interaction), [])
+
+    def test_a_sub_env_is_raw_unless_a_provider_makes_it(self):
+        source = (
+            "export function provideThing(thing) {\n"
+            "    if (thing) { useSubEnv({ thing }); }\n"
+            "}\n"
+            "function provideChildThing({ a = 1 } = {}) {\n"
+            "    useChildSubEnv({ a });\n"
+            "}\n"
+            "class C extends Component {\n"
+            "    setup() { useSubEnv({ x: 1 }); }\n"
+            "}\n"
+            "// useSubEnv({ y: 1 });\n"
+            "this.useSubEnv(x);\n"
+        )
+        self.assertEqual(raw_sub_env_calls(source), [8])

@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillRender, useEnv, useState, useSubEnv } from "@odoo/owl";
+import { onWillRender, useState } from "@odoo/owl";
+import { provideViewConfig, useViewConfig } from "@web/core/view_config_hooks";
 
 /**
  * @typedef PagerUpdateParams
@@ -22,16 +23,10 @@ import { onWillRender, useEnv, useState, useSubEnv } from "@odoo/owl";
 
 /** @param {() => (PagerProps | undefined)} getProps */
 export function usePager(getProps) {
-    const env = useEnv();
     /** @type {Record<string, any>} */
     const pagerState = useState({});
 
-    useSubEnv({
-        config: {
-            ...env.config,
-            pagerProps: pagerState,
-        },
-    });
+    provideViewConfig({ ...useViewConfig(), pagerProps: pagerState });
     /** @type {string[]} */
     let previousKeys = [];
     onWillRender(() => {

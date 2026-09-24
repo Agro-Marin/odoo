@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, onMounted, useRef, useSubEnv, xml } from "@odoo/owl";
+import { provideBuilderContext } from "@html_builder/core/builder_context";
+import { Component, onMounted, useRef, xml } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
 import { setElementContent } from "@web/core/utils/dom/html";
@@ -18,9 +19,7 @@ export class WithIgnoreItem extends Component {
         slots: { type: Object },
     };
     setup() {
-        useSubEnv({
-            ignoreBuilderItem: true,
-        });
+        provideBuilderContext({ ignoreBuilderItem: true });
     }
 }
 
@@ -69,7 +68,7 @@ export class BuilderSelect extends Component {
             },
         });
         onMounted(updateCurrentLabel);
-        useSubEnv({
+        provideBuilderContext({
             onSelectItem: () => {
                 this.dropdown.close();
             },

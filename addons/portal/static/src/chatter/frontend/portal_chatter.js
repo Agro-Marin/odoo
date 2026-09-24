@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Chatter } from "@mail/chatter/web_portal/chatter";
-import { Component, onWillDestroy, useSubEnv, xml } from "@odoo/owl";
+import { provideMailContext } from "@mail/utils/common/mail_context";
+import { Component, onWillDestroy, xml } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { OverlayContainer } from "@web/ui/overlay/overlay_container";
@@ -17,7 +18,7 @@ export class PortalChatter extends Component {
 
     setup() {
         this.bus = useEventBus();
-        useSubEnv({
+        provideMailContext({
             displayRating: this.props.displayRating,
             inFrontendPortalChatter: true,
         });

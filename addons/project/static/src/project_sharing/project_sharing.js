@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { useOwnDebugContext } from "@web/core/debug/debug_context";
+import { provideDebugContext } from "@web/core/debug/debug_context";
 import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { ActionContainer } from "@web/webclient/actions";
@@ -14,7 +14,7 @@ export class ProjectSharingWebClient extends Component {
     setup() {
         this.bus = useEventBus();
         this.actionService = useService("action");
-        useOwnDebugContext({ categories: ["default"] });
+        provideDebugContext({ categories: ["default"] });
         this.state = useState({
             fullscreen: false,
         });

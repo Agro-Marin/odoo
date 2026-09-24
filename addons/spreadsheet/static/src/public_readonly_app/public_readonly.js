@@ -1,8 +1,11 @@
 /** @odoo-module native */
 import * as spreadsheet from "@odoo/o-spreadsheet";
 import { Model, registries, Spreadsheet } from "@odoo/o-spreadsheet";
-import { Component, onWillStart, useChildSubEnv, useState } from "@odoo/owl";
-import { useSpreadsheetNotificationStore } from "@spreadsheet/hooks";
+import { Component, onWillStart, useState } from "@odoo/owl";
+import {
+    provideChildSpreadsheetEnv,
+    useSpreadsheetNotificationStore,
+} from "@spreadsheet/hooks";
 import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
@@ -39,7 +42,7 @@ export class PublicReadonlySpreadsheet extends Component {
         this.state = useState({
             isFilterShown: false,
         });
-        useChildSubEnv({
+        provideChildSpreadsheetEnv({
             downloadExcel: () =>
                 download({
                     url: this.props.downloadExcelUrl,

@@ -94,7 +94,7 @@ export function createDebugContext({ categories = [] } = {}) {
 }
 
 /** @param {{ categories?: string[] }} [options] */
-export function useOwnDebugContext({ categories = [] } = {}) {
+export function provideDebugContext({ categories = [] } = {}) {
     useSubEnv(createDebugContext({ categories }));
 }
 

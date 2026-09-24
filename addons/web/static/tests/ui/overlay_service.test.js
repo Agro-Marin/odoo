@@ -11,7 +11,7 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
-import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
+import { useOverlayScope } from "@web/ui/overlay/overlay_container";
 
 test("simple case", async () => {
     await mountWithCleanup(MainComponentsContainer);
@@ -411,7 +411,7 @@ test("a hosted env REPLACES the container's env instead of extending it", async 
             seen = {
                 hosted: this.env.HOSTED,
                 inheritedServices: "services" in this.env,
-                overlay: Boolean(this.env[OVERLAY_SYMBOL]),
+                overlay: Boolean(useOverlayScope()),
             };
         }
     }
@@ -433,8 +433,8 @@ test("a hosted overlay still reports containment to click-away", async () => {
         static props = ["*"];
         static template = xml`<div class="hosted-probe"/>`;
         setup() {
-            contains = (/** @type {Node} */ node) =>
-                this.env[OVERLAY_SYMBOL].contains(node);
+            const scope = useOverlayScope();
+            contains = (/** @type {Node} */ node) => Boolean(scope?.contains(node));
         }
     }
     getService("overlay").add(Probe, {}, { env: { HOSTED: "yes" } });

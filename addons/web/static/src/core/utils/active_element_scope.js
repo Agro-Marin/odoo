@@ -1,10 +1,20 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onMounted, useChildSubEnv, useComponent } from "@odoo/owl";
+import { onMounted, useChildSubEnv, useComponent, useEnv } from "@odoo/owl";
 import { getComponentElement } from "@web/core/utils/components";
 
 const ACTIVE_ELEMENT_SCOPE = Symbol("ui.activeElementScope");
+
+/** @param {{ el: HTMLElement | null }} scope */
+function provideActiveElementScope(scope) {
+    useChildSubEnv({ [ACTIVE_ELEMENT_SCOPE]: scope });
+}
+
+/** @returns {{ el: HTMLElement | null } | undefined} */
+function useInheritedActiveElementScope() {
+    return /** @type {any} */ (useEnv())[ACTIVE_ELEMENT_SCOPE];
+}
 
 /** @type {WeakMap<object, { el: HTMLElement | null }>} */
 const OWN_SCOPES = new WeakMap();
@@ -33,7 +43,7 @@ export function useOwnedActiveElement() {
     /** @type {{ el: HTMLElement | null }} */
     const scope = { el: null };
     OWN_SCOPES.set(useComponent(), scope);
-    useChildSubEnv({ [ACTIVE_ELEMENT_SCOPE]: scope });
+    provideActiveElementScope(scope);
     return scope;
 }
 
@@ -44,17 +54,14 @@ export function useOwnedActiveElement() {
 /** @returns {() => Document | HTMLElement} */
 export function useActiveElementScope() {
     const component = useComponent();
+    const inherited = useInheritedActiveElementScope();
     /** @type {Document | HTMLElement} */
     let mountedIn = document;
     onMounted(() => {
         mountedIn = currentActiveElement();
     });
     return () => {
-        const own =
-            OWN_SCOPES.get(component) ??
-            /** @type {Record<symbol, { el: HTMLElement | null }>} */ (component.env)[
-                ACTIVE_ELEMENT_SCOPE
-            ];
+        const own = OWN_SCOPES.get(component) ?? inherited;
         if (own?.el) {
             return own.el;
         }

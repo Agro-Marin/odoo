@@ -9,6 +9,7 @@ import {
     useEnv,
     useRef,
     useState,
+    useSubEnv,
 } from "@odoo/owl";
 
 /**
@@ -29,15 +30,25 @@ import {
  * @property {function(StateChangeManagerConfig):StateChangeManager} [getStateChangeManager]
  */
 
-/**
- * @param {HostElement} host
- * @returns {EditableDescendants}
- */
 /** @returns {Record<string, any> | undefined} */
 export function useEditorShared() {
     return useEnv().editorShared;
 }
 
+/** @param {Record<string, any>} context */
+export function provideEmbeddedComponentContext(context) {
+    useSubEnv(context);
+}
+
+/** @returns {Record<string, any>} */
+export function useEmbeddedComponentContext() {
+    return useEnv();
+}
+
+/**
+ * @param {HostElement} host
+ * @returns {EditableDescendants}
+ */
 export function getEditableDescendants(host) {
     const editableDescendants = {};
     for (const candidate of host.querySelectorAll("[data-embedded-editable]")) {
@@ -53,13 +64,15 @@ export function getEditableDescendants(host) {
  * @returns {EditableDescendants}
  */
 export function useEditableDescendants(host) {
-    const env = useEnv();
-    if (!env.getEditableDescendants) {
+    const embeddedContext = useEmbeddedComponentContext();
+    if (!embeddedContext.getEditableDescendants) {
         throw new Error(
             "Missing `getEditableDescendants` function in the `embedding` provided to the `EmbeddedComponentPlugin`.",
         );
     }
-    const editableDescendants = Object.freeze(env.getEditableDescendants(host));
+    const editableDescendants = Object.freeze(
+        embeddedContext.getEditableDescendants(host),
+    );
     const refs = {};
     const renders = {};
     for (const name of Object.keys(editableDescendants)) {
@@ -73,9 +86,10 @@ export function useEditableDescendants(host) {
             _restoreSelection = undefined;
         }
     };
-    if (env.editorShared?.selection) {
+    const editorShared = useEditorShared();
+    if (editorShared?.selection) {
         onRendered(() => {
-            _restoreSelection = env.editorShared.selection.preserveSelection().restore;
+            _restoreSelection = editorShared.selection.preserveSelection().restore;
         });
     }
     onMounted(() => {
@@ -450,13 +464,13 @@ export class StateChangeManager {
  * @returns {Proxy}
  */
 export function useEmbeddedState(host) {
-    const env = useEnv();
-    if (!env.getStateChangeManager) {
+    const embeddedContext = useEmbeddedComponentContext();
+    if (!embeddedContext.getStateChangeManager) {
         throw new Error(
             "Missing `getStateChangeManager` function in the `embedding` provided to the `EmbeddedComponentPlugin`.",
         );
     }
-    const stateChangeManager = env.getStateChangeManager(host);
+    const stateChangeManager = embeddedContext.getStateChangeManager(host);
     onWillDestroy(() => stateChangeManager.setupUnmounted());
     const state = useState(stateChangeManager.getEmbeddedState());
     return stateChangeManager.constructEmbeddedState(state);

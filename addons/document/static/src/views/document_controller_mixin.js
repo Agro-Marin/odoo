@@ -12,7 +12,7 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { omit } from "@web/core/utils/collections/objects";
 import { prepareStaticActionMenuItems } from "@web/views/view_utils";
-import { onWillDestroy, useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
+import { onWillDestroy, useEffect, useRef, useState } from "@odoo/owl";
 import { useSearchModel } from "@web/search/search_model";
 
 export const DocumentsControllerMixin = (component) =>
@@ -29,9 +29,6 @@ export const DocumentsControllerMixin = (component) =>
             this.ui = useService("ui");
             this.searchModel = useSearchModel();
             this.searchBarToggler = useSearchBarToggler();
-            useSubEnv({
-                searchBarToggler: this.searchBarToggler,
-            });
 
             this.documentService = useService("document.document");
             this.firstLoadSelectId = this.documentService.initData?.documentId;

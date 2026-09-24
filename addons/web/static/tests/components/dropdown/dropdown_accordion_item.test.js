@@ -3,9 +3,12 @@
 import { expect, test } from "@odoo/hoot";
 import { click, press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
-import { Component, useChildSubEnv, useState, xml } from "@odoo/owl";
+import { Component, useState, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { ACCORDION, AccordionItem } from "@web/components/dropdown/accordion_item";
+import {
+    AccordionItem,
+    provideChildAccordion,
+} from "@web/components/dropdown/accordion_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 
@@ -96,11 +99,9 @@ test("the parent hears an accordion state change only when the state changed", a
         static props = ["*"];
         setup() {
             this.state = useState({ tick: 0 });
-            useChildSubEnv({
-                [ACCORDION]: {
-                    accordionStateChanged: (/** @type {any} */ isOpen) =>
-                        expect.step(`changed:${isOpen}`),
-                },
+            provideChildAccordion({
+                accordionStateChanged: (/** @type {any} */ isOpen) =>
+                    expect.step(`changed:${isOpen}`),
             });
         }
     }

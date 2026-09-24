@@ -1,8 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEnv, useState } from "@odoo/owl";
-import { DROPDOWN_NESTING } from "@web/components/dropdown/_behaviours/dropdown_nesting";
+import { useState } from "@odoo/owl";
+import { useParentDropdownNesting } from "@web/components/dropdown/_behaviours/dropdown_nesting";
 import { SignalStore } from "@web/core/utils/reactive";
 /** @param {{ onOpen?: Function, onClose?: Function }} [callbacks] */
 export class DropdownState extends SignalStore {
@@ -37,8 +37,7 @@ export function useDropdownState({ onOpen, onClose } = /** @type {any} */ ({})) 
 }
 
 export function useDropdownCloser() {
-    const env = useEnv();
-    const dropdown = /** @type {any} */ (env)[DROPDOWN_NESTING];
+    const dropdown = useParentDropdownNesting();
     return {
         close: () => dropdown?.close(),
         closeChildren: () => dropdown?.closeChildren(),

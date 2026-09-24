@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { useSubEnv } from "@odoo/owl";
+import { provideBuilderContext } from "@html_builder/core/builder_context";
 import { _t } from "@web/core/translation";
 
 import { DependencyManager } from "../core/dependency_manager.js";
@@ -99,8 +99,8 @@ export function getElementsWithOption(
     return matchingEls;
 }
 
-export function useOptionsSubEnv(getEditingElements) {
-    useSubEnv({
+export function provideBuilderOptionsContext(getEditingElements) {
+    provideBuilderContext({
         dependencyManager: new DependencyManager(),
         getEditingElement: () => getEditingElements()[0],
         getEditingElements: getEditingElements,

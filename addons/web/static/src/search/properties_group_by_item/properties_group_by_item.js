@@ -1,8 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useChildSubEnv, useState } from "@odoo/owl";
-import { ACCORDION, AccordionItem } from "@web/components/dropdown/accordion_item";
+import { Component, useState } from "@odoo/owl";
+import {
+    AccordionItem,
+    provideChildAccordion,
+} from "@web/components/dropdown/accordion_item";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSearchModel } from "@web/search/search_model";
@@ -21,11 +24,9 @@ export class PropertiesGroupByItem extends Component {
         this.searchModel = useSearchModel();
         /** @type {{ definitionsLoaded: boolean }} */
         this.state = useState({ definitionsLoaded: false });
-        useChildSubEnv({
-            [ACCORDION]: {
-                accordionStateChanged: (/** @type {boolean} */ isOpen) =>
-                    isOpen ? this.loadDefinitions() : undefined,
-            },
+        provideChildAccordion({
+            accordionStateChanged: (/** @type {boolean} */ isOpen) =>
+                isOpen ? this.loadDefinitions() : undefined,
         });
     }
 

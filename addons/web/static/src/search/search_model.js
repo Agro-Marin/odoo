@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { EventBus, toRaw, useEnv, useSubEnv } from "@odoo/owl";
+import { EventBus, toRaw, useChildSubEnv, useEnv, useSubEnv } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { SearchModelEvent } from "@web/core/events";
@@ -92,6 +92,11 @@ const log = makeLogger("web.search");
 /** @param {SearchModel} searchModel */
 export function provideSearchModel(searchModel) {
     useSubEnv({ searchModel });
+}
+
+/** @param {SearchModel} searchModel */
+export function provideChildSearchModel(searchModel) {
+    useChildSubEnv({ searchModel });
 }
 
 /** @returns {SearchModel} */

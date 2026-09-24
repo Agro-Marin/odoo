@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { AccountProductCatalogSearchPanel } from "@account/components/product_catalog/search/search_panel";
-import { useEnv, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
+import { useProductCatalogContext } from "@product/product_catalog/product_catalog_context";
 import { formatMonetary } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { clamp } from "@web/core/utils/format/numbers";
@@ -28,11 +29,12 @@ export class PurchaseSuggestCatalogSearchPanel extends AccountProductCatalogSear
         super.setup();
         this.searchModel = useSearchModel();
         this.ui = useService("ui");
-        this.suggest = useState(useEnv().suggest);
-        this.toggleSuggest = useEnv().toggleSuggest;
-        this.debouncedReloadKanban = useEnv().debouncedReloadKanban;
-        this.reloadKanban = useEnv().reloadKanban;
-        this.addAllProducts = useEnv().addAllProducts;
+        const catalog = useProductCatalogContext();
+        this.suggest = useState(catalog.suggest);
+        this.toggleSuggest = catalog.toggleSuggest;
+        this.debouncedReloadKanban = catalog.debouncedReloadKanban;
+        this.reloadKanban = catalog.reloadKanban;
+        this.addAllProducts = catalog.addAllProducts;
         this.displaySuggest = this.suggest.poState === "draft";
         this.tooltipTitle = _t(
             "Get recommendations of products to purchase at %(vendorName)s based on stock on hand, incoming quantities, " +

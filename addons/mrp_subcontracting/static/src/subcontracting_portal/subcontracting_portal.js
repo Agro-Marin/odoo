@@ -2,7 +2,7 @@
 import { useService } from "@web/core/utils/hooks";
 import { ActionContainer } from "@web/webclient/actions";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
-import { useOwnDebugContext } from "@web/core/debug/debug_context";
+import { provideDebugContext } from "@web/core/debug/debug_context";
 import { session } from "@web/session";
 import { Component, useEffect, useExternalListener } from "@odoo/owl";
 
@@ -13,7 +13,7 @@ export class SubcontractingPortalWebClient extends Component {
     setup() {
         window.parent.document.body.style.margin = "0";
         this.actionService = useService("action");
-        useOwnDebugContext({ categories: ["default"] });
+        provideDebugContext({ categories: ["default"] });
         useEffect(
             () => {
                 this._showView();

@@ -31,9 +31,7 @@ test("recoverFromLifecycleError no-ops when the suggested company is already act
     const service = getService("multi_company_recovery");
 
     const recovered = service.recoverFromLifecycleError(accessError(2), {
-        env: /** @type {any} */ ({
-            pushStateBeforeReload: () => expect.step("pushStateBeforeReload"),
-        }),
+        pushStateBeforeReload: () => expect.step("pushStateBeforeReload"),
     });
 
     expect(recovered).toBe(false);
@@ -54,9 +52,7 @@ test("recoverFromLifecycleError activates and reloads for a genuinely new compan
     const service = getService("multi_company_recovery");
 
     const recovered = service.recoverFromLifecycleError(accessError(2), {
-        env: /** @type {any} */ ({
-            pushStateBeforeReload: () => expect.step("pushStateBeforeReload"),
-        }),
+        pushStateBeforeReload: () => expect.step("pushStateBeforeReload"),
     });
 
     expect(recovered).toBe(true);
@@ -77,9 +73,7 @@ test("recoverFromLifecycleError refuses a suggested company outside the allowed 
     const service = getService("multi_company_recovery");
 
     const recovered = service.recoverFromLifecycleError(accessError(2), {
-        env: /** @type {any} */ ({
-            pushStateBeforeReload: () => expect.step("pushStateBeforeReload"),
-        }),
+        pushStateBeforeReload: () => expect.step("pushStateBeforeReload"),
     });
 
     expect(recovered).toBe(false);

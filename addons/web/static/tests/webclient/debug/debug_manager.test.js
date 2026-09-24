@@ -28,7 +28,7 @@ import {
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
-import { useDebugCategory, useOwnDebugContext } from "@web/core/debug/debug_context";
+import { provideDebugContext, useDebugCategory } from "@web/core/debug/debug_context";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { ActionDialog } from "@web/webclient/actions/action_dialog";
@@ -44,7 +44,7 @@ class DebugMenuParent extends Component {
     static components = { DebugMenu };
     static props = ["*"];
     setup() {
-        useOwnDebugContext({ categories: ["default", "custom"] });
+        provideDebugContext({ categories: ["default", "custom"] });
     }
 }
 

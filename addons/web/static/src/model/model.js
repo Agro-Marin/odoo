@@ -6,6 +6,7 @@ import {
     onWillStart,
     onWillUpdateProps,
     reactive,
+    useChildSubEnv,
     useEnv,
     useState,
     useSubEnv,
@@ -130,6 +131,11 @@ export function useReactiveModel(model) {
 /** @param {Model} model */
 export function provideViewModel(model) {
     useSubEnv({ model });
+}
+
+/** @param {Model} model */
+export function provideChildViewModel(model) {
+    useChildSubEnv({ model });
 }
 
 /** @returns {any} */

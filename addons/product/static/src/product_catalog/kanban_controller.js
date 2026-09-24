@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { onWillStart, useSubEnv } from "@odoo/owl";
+import { onWillStart } from "@odoo/owl";
+import { provideProductCatalogContext } from "@product/product_catalog/product_catalog_context";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
@@ -32,7 +33,9 @@ export class ProductCatalogKanbanController extends KanbanController {
         // that, a product added just before leaving was still being written
         // while the order form reloaded, and the line was missing.
         this.pendingLineUpdates = new Set();
-        useSubEnv({ productCatalogPendingUpdates: this.pendingLineUpdates });
+        provideProductCatalogContext({
+            productCatalogPendingUpdates: this.pendingLineUpdates,
+        });
 
         onWillStart(() => this.onWillStart());
     }

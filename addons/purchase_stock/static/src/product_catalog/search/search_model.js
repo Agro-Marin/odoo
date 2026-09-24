@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { AccountProductCatalogSearchModel } from "@account/components/product_catalog/search/search_model";
-import { reactive, useSubEnv } from "@odoo/owl";
+import { reactive } from "@odoo/owl";
+import { provideProductCatalogContext } from "@product/product_catalog/product_catalog_context";
 
 import { getSuggestToggleState } from "../utils.js";
 
@@ -16,7 +17,7 @@ export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalo
             suggestToggle: { isOn: false },
             totalEstimatedPrice: 0,
         });
-        useSubEnv({
+        provideProductCatalogContext({
             suggest: this.suggest,
             _computeTotalEstimatedPrice: () => this._computeTotalEstimatedPrice(),
         });

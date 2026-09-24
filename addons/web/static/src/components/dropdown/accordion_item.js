@@ -1,14 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onPatched, useEnv, useState } from "@odoo/owl";
+import { Component, onPatched, useChildSubEnv, useEnv, useState } from "@odoo/owl";
 
 /**
  * @typedef AccordionParent
  * @property {(isOpen: boolean) => any} [accordionStateChanged]
  */
 
-export const ACCORDION = Symbol("Accordion");
+const ACCORDION = Symbol("Accordion");
+
+/** @param {AccordionParent} parent */
+export function provideChildAccordion(parent) {
+    useChildSubEnv({ [ACCORDION]: parent });
+}
 
 /** @returns {any} */
 function useParentAccordion() {

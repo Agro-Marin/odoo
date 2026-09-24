@@ -1,11 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useChildSubEnv, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { normalizedMatch } from "@web/core/l10n/utils";
 import { HighlightText } from "@web/views/settings/highlight_text/highlight_text";
-import { useSettingsSearchContext } from "@web/views/settings/settings_search_context";
+import {
+    provideChildSettingsSearchContext,
+    useSettingsSearchContext,
+} from "@web/views/settings/settings_search_context";
 
 const log = makeLogger("web.views.settings.block");
 
@@ -49,7 +52,7 @@ export class SettingsBlock extends Component {
                 return matches;
             },
         };
-        useChildSubEnv({
+        provideChildSettingsSearchContext({
             showAllContainer: this.showAllContainerState,
         });
         this.settingsContainerRef = useRef("settingsContainer");

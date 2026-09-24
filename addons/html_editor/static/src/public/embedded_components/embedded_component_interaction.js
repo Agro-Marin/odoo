@@ -1,7 +1,8 @@
 /** @odoo-module native */
+import { provideEmbeddedComponentContext } from "@html_editor/others/embedded_component_utils";
 import { TableOfContentManager } from "@html_editor/others/embedded_components/core/table_of_content/table_of_content_manager";
 import { PUBLIC_EMBEDDINGS } from "@html_editor/public/embedding_sets";
-import { Component, onMounted, onWillDestroy, useSubEnv, xml } from "@odoo/owl";
+import { Component, onMounted, onWillDestroy, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { memoize } from "@web/core/utils/functions";
 import { Interaction } from "@web/public/interaction";
@@ -44,7 +45,7 @@ export class EmbeddedComponentInteraction extends Interaction {
         const interactionsService = this.services["public.interactions"];
         ComponentClass = class extends ComponentClass {
             setup() {
-                useSubEnv(subEnv);
+                provideEmbeddedComponentContext(subEnv);
                 super.setup();
                 onMounted(() => {
                     for (const node of [...host.childNodes]) {

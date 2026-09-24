@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Img } from "@html_builder/core/img";
-import { useOptionsSubEnv } from "@html_builder/utils/utils";
+import { provideBuilderOptionsContext } from "@html_builder/utils/utils";
 import { Component } from "@odoo/owl";
 
 export class CustomizeComponent extends Component {
@@ -13,6 +13,6 @@ export class CustomizeComponent extends Component {
     };
 
     setup() {
-        useOptionsSubEnv(() => this.props.editingElements);
+        provideBuilderOptionsContext(() => this.props.editingElements);
     }
 }
