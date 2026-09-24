@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { getImageSrc, isImageCorsProtected } from "@html_editor/utils/image";
 import { getDataURLBinarySize } from "@html_editor/utils/image_processing";
@@ -10,7 +11,8 @@ export class ImageSize extends BaseOptionComponent {
 
     setup() {
         super.setup();
-        this.imagePostProcess = this.env.editor.shared.imagePostProcess;
+        this.builderContext = useBuilderContext();
+        this.imagePostProcess = this.builderContext.editor.shared.imagePostProcess;
         this.state = useDomState(async (el) => ({
             size: await this.getImageSize(el),
         }));

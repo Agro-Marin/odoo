@@ -14,6 +14,11 @@ _XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 ENV_KEYS = {
     "owl_env_is_small": re.compile(r"\bthis\.env\.isSmall\b"),
     "owl_env_model": re.compile(r"\bthis\.env\.model\b"),
+    "owl_env_builder_context": re.compile(
+        r"\bthis\.env\.(?:editor|editorBus|triggerDomUpdated|editColorCombination|"
+        r"dependencyManager|getEditingElements?|weContext|selectableContext|imgGroup|"
+        r"ignoreBuilderItem|onSelectItem|colorPresetToShow)\b"
+    ),
     "owl_env_bus": re.compile(r"\bthis\.env\.bus\b"),
     "owl_env_debug": re.compile(r"\bthis\.env\.debug\b"),
     "owl_env_config": re.compile(r"\bthis\.env\.config\b"),
@@ -132,6 +137,17 @@ class TestOwl3Api(lint_case.LintCase):
             "this.env.model reads in static/src (JS and templates)",
             "A component under a view reads this.model = useViewModel() from "
             "setup, and a view provides it with provideViewModel(model); OWL 3 "
+            "components have no env",
+        )
+
+    def test_no_env_builder_context(self):
+        self.assert_ratchet(
+            _env_findings("owl_env_builder_context"),
+            "owl_env_builder_context",
+            "this.env.<builder context key> reads in static/src (JS and templates)",
+            "A builder component reads this.builderContext = useBuilderContext() "
+            "from setup, and a builder scope provides its keys with "
+            "provideBuilderContext (@html_builder/core/builder_context); OWL 3 "
             "components have no env",
         )
 

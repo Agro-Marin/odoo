@@ -3,6 +3,7 @@ import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { onWillStart, onMounted, useState, useRef } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useBuilderContext } from "@html_builder/core/builder_context";
 
 export class ProductsItemOption extends BaseOptionComponent {
     static template = "website_sale.ProductsItemOptionPlugin";
@@ -14,6 +15,7 @@ export class ProductsItemOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         this.orm = useService("orm");
         this.tableRef = useRef("table");
 
@@ -25,7 +27,7 @@ export class ProductsItemOption extends BaseOptionComponent {
             count: getCount(),
         });
 
-        this.productsGridTableEl = this.env
+        this.productsGridTableEl = this.builderContext
             .getEditingElement()
             .closest(".o_wsale_products_grid_table");
 

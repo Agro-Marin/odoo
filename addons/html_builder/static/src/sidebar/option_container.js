@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { isClonable } from "@html_builder/core/clone_plugin";
 import { isRemovable } from "@html_builder/core/remove_plugin";
 import { getSnippetName, useOptionsSubEnv } from "@html_builder/utils/utils";
@@ -52,6 +53,7 @@ export class OptionsContainer extends BaseOptionComponent {
     setup() {
         useOptionsSubEnv(() => [this.props.editingElement]);
         super.setup();
+        this.builderContext = useBuilderContext();
         this.notification = useService("notification");
         this.getItemValue = useGetItemValue();
         useVisibilityObserver("content", useApplyVisibility("root"));
@@ -111,7 +113,10 @@ export class OptionsContainer extends BaseOptionComponent {
             ? this.props.containerTitle.getTitleExtraInfo(this.props.editingElement)
             : "";
 
-        return (title || getSnippetName(this.env.getEditingElement())) + titleExtraInfo;
+        return (
+            (title || getSnippetName(this.builderContext.getEditingElement())) +
+            titleExtraInfo
+        );
     }
 
     selectElement() {

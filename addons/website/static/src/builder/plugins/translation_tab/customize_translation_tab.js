@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { OptionsContainer } from "@html_builder/sidebar/option_container";
 import { Component } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -11,7 +12,9 @@ export class CustomizeTranslationTab extends Component {
     static components = { OptionsContainer };
     static props = {};
     setup() {
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
-        this.optionsContainers = this.env.editor.resources["translate_options"];
+        this.optionsContainers =
+            this.builderContext.editor.resources["translate_options"];
     }
 }

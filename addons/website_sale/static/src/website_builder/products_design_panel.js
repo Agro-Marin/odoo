@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { onMounted, onWillDestroy, useState } from "@odoo/owl";
+import { useBuilderContext } from "@html_builder/core/builder_context";
 
 export class ProductsDesignPanel extends BaseOptionComponent {
     static template = "website_sale.ProductsDesignPanel";
@@ -23,6 +24,7 @@ export class ProductsDesignPanel extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         this.state = useState({ overlayVisible: false });
         this.needsDbPersistence = this.props.recordName?.length > 0;
 
@@ -41,21 +43,21 @@ export class ProductsDesignPanel extends BaseOptionComponent {
     }
 
     registerWithPlugin() {
-        const plugin = this.env.editor.shared.productsDesignPanel;
+        const plugin = this.builderContext.editor.shared.productsDesignPanel;
         if (plugin) {
             plugin.registerPanel(this);
         }
     }
 
     unregisterFromPlugin() {
-        const plugin = this.env.editor.shared.productsDesignPanel;
+        const plugin = this.builderContext.editor.shared.productsDesignPanel;
         if (plugin) {
             plugin.unregisterPanel(this);
         }
     }
 
     setupActionConnections() {
-        const builderActions = this.env.editor.shared.builderActions;
+        const builderActions = this.builderContext.editor.shared.builderActions;
         const action = builderActions.getAction("setGap");
 
         if (action && action.setPanel) {

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
 import { onMounted } from "@odoo/owl";
@@ -11,9 +12,10 @@ export class ThemeColorsOption extends BaseOptionComponent {
     static template = "website.ThemeColorsOption";
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
         this.palettes = this.getPalettes();
-        this.colorPresetToShow = this.env.colorPresetToShow;
+        this.colorPresetToShow = this.builderContext.colorPresetToShow;
         log.pipeline("setup palettes collected", () => ({
             palettes: this.palettes.length,
             colorPresetToShow: this.colorPresetToShow,

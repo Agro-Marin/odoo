@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { getAllUsedColors } from "@html_builder/utils/utils_css";
 import { ColorSelector } from "@html_editor/main/font/color_selector";
 import { Component, useRef } from "@odoo/owl";
@@ -138,6 +139,7 @@ export class BuilderColorPicker extends Component {
 
     setup() {
         useBuilderComponent();
+        this.builderContext = useBuilderContext();
         const { state, onApply, onPreview, onPreviewRevert } =
             useColorPickerBuilderComponent(this);
         this.colorButton = useRef("colorButton");
@@ -159,7 +161,7 @@ export class BuilderColorPicker extends Component {
                 grayscales: this.props.grayscales,
                 defaultOpacity: this.props.defaultOpacity,
                 className: "o-hb-colorpicker",
-                editColorCombination: this.env.editColorCombination,
+                editColorCombination: this.builderContext.editColorCombination,
             }),
             {
                 onClose: onPreviewRevert,
@@ -189,7 +191,7 @@ export class BuilderColorPicker extends Component {
     }
 
     getUsedCustomColors() {
-        return getAllUsedColors(this.env.editor.editable);
+        return getAllUsedColors(this.builderContext.editor.editable);
     }
 
     getCorrespondingColorPickerTab(selectedColor) {

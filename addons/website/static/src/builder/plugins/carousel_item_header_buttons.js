@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { useOperation } from "@html_builder/core/operation_plugin";
 import { useDomState } from "@html_builder/core/utils";
 import { Component } from "@odoo/owl";
@@ -16,6 +17,7 @@ export class CarouselItemHeaderMiddleButtons extends Component {
     };
 
     setup() {
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
         this.callOperation = useOperation();
         this.state = useDomState((editingElement) => {
@@ -28,7 +30,9 @@ export class CarouselItemHeaderMiddleButtons extends Component {
 
     slide(direction) {
         const applySpec = {
-            editingElement: this.env.getEditingElement().closest(".carousel"),
+            editingElement: this.builderContext
+                .getEditingElement()
+                .closest(".carousel"),
             params: {
                 direction: direction,
             },
@@ -39,7 +43,7 @@ export class CarouselItemHeaderMiddleButtons extends Component {
     }
 
     addSlide() {
-        const carouselEl = this.env.getEditingElement().closest(".carousel");
+        const carouselEl = this.builderContext.getEditingElement().closest(".carousel");
 
         this.callOperation(async () => {
             const endAddSlide = log.perf("addSlide");
@@ -53,7 +57,7 @@ export class CarouselItemHeaderMiddleButtons extends Component {
     removeSlide() {
         this.callOperation(async () => {
             const endRemoveSlide = log.perf("removeSlide");
-            await this.props.removeSlide(this.env.getEditingElement());
+            await this.props.removeSlide(this.builderContext.getEditingElement());
             endRemoveSlide();
         });
     }

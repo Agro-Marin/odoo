@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { selectElements } from "@html_editor/utils/dom_traversal";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -58,12 +59,13 @@ export class FormOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
         const { prepareFormModel, applyFormModel, fetchModels } =
             this.dependencies.websiteFormOption;
         this.hasRecaptchaKey = !!session.recaptcha_public_key;
 
-        const el = this.env.getEditingElement();
+        const el = this.builderContext.getEditingElement();
         this.messageEl = el.parentElement.querySelector(".s_website_form_end_message");
         this.showEndMessage = false;
         const formId = el.id;

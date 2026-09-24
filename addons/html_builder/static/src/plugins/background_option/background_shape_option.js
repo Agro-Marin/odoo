@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { toRatio } from "@html_builder/utils/utils";
 import { getBgImageURLFromEl } from "@html_builder/utils/utils_css";
@@ -9,6 +10,7 @@ export class BackgroundShapeOption extends BaseOptionComponent {
     static dependencies = ["backgroundShapeOption"];
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         this.backgroundShapePlugin = this.dependencies.backgroundShapeOption;
         this.toRatio = toRatio;
         this.state = useDomState((editingElement) => {
@@ -22,10 +24,12 @@ export class BackgroundShapeOption extends BaseOptionComponent {
         });
     }
     showBackgroundShapes() {
-        this.backgroundShapePlugin.showBackgroundShapes(this.env.getEditingElements());
+        this.backgroundShapePlugin.showBackgroundShapes(
+            this.builderContext.getEditingElements(),
+        );
     }
     getDefaultColorNames() {
-        const editingEl = this.env.getEditingElement();
+        const editingEl = this.builderContext.getEditingElement();
         return Object.keys(getDefaultColors(editingEl));
     }
 }

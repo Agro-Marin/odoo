@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { isElement, isTextNode } from "@html_editor/utils/dom_info";
 import {
     Component,
@@ -1155,10 +1156,12 @@ export class BaseOptionComponent extends Component {
     static template = "";
 
     setup() {
+        this.builderContext = useBuilderContext();
         /** @type {EditorContext} */
-        const context = this.env.editor.shared.builderOptions.getBuilderOptionContext(
-            this.constructor,
-        );
+        const context =
+            this.builderContext.editor.shared.builderOptions.getBuilderOptionContext(
+                this.constructor,
+            );
         /** @type { EditorContext['document'] } **/
         this.document = context.document;
         this.window = context.document.defaultView;

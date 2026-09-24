@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -15,6 +16,7 @@ export class FormActionFieldsOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
         this.prepareFormModel = this.dependencies.websiteFormOption.prepareFormModel;
         this.state = useState({
@@ -26,7 +28,7 @@ export class FormActionFieldsOption extends BaseOptionComponent {
         onWillUpdateProps(this.getFormInfo.bind(this));
     }
     async getFormInfo(props = this.props) {
-        const el = this.env.getEditingElement();
+        const el = this.builderContext.getEditingElement();
         const endFormInfo = log.perf("getFormInfo", () => ({
             model: props.activeForm?.model,
         }));

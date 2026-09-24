@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { Component } from "@odoo/owl";
 
 import { useCachedModel } from "../cached_model_utils.js";
@@ -36,15 +37,16 @@ export class BuilderMany2One extends Component {
 
     setup() {
         useBuilderComponent();
+        this.builderContext = useBuilderContext();
         const { getAllActions, callOperation } = getAllActionsAndOperations(this);
         this.cachedModel = useCachedModel();
         this.callOperation = callOperation;
         this.hasPreview = useHasPreview(getAllActions);
         this.applyOperation =
-            this.env.editor.shared.history.makePreviewableAsyncOperation(
+            this.builderContext.editor.shared.history.makePreviewableAsyncOperation(
                 this.callApply.bind(this),
             );
-        const getAction = this.env.editor.shared.builderActions.getAction;
+        const getAction = this.builderContext.editor.shared.builderActions.getAction;
         const actionWithGetValue = getAllActions().find(({ actionId }) =>
             getAction(actionId).has("getValue"),
         );
@@ -77,16 +79,17 @@ export class BuilderMany2One extends Component {
         });
         if (this.props.id) {
             useDependencyDefinition(this.props.id, {
-                getValue: () => getValue(this.env.getEditingElement()),
+                getValue: () => getValue(this.builderContext.getEditingElement()),
             });
         }
 
         if (this.props.createAction) {
-            this.createAction = this.env.editor.shared.builderActions.getAction(
-                this.props.createAction,
-            );
+            this.createAction =
+                this.builderContext.editor.shared.builderActions.getAction(
+                    this.props.createAction,
+                );
             this.createOperation =
-                this.env.editor.shared.history.makePreviewableOperation(
+                this.builderContext.editor.shared.history.makePreviewableOperation(
                     this.createAction.apply,
                 );
         }
@@ -99,7 +102,7 @@ export class BuilderMany2One extends Component {
                     isPreviewing,
                     editingElement: applySpec.editingElement,
                     params: applySpec.actionParam,
-                    dependencyManager: this.env.dependencyManager,
+                    dependencyManager: this.builderContext.dependencyManager,
                 });
             } else {
                 proms.push(
@@ -109,7 +112,7 @@ export class BuilderMany2One extends Component {
                         params: applySpec.actionParam,
                         value: applySpec.actionValue,
                         loadResult: applySpec.loadResult,
-                        dependencyManager: this.env.dependencyManager,
+                        dependencyManager: this.builderContext.dependencyManager,
                     }),
                 );
             }
@@ -132,15 +135,21 @@ export class BuilderMany2One extends Component {
         });
     }
     revert() {
-        revertPreview(this.env.editor);
+        revertPreview(this.builderContext.editor);
     }
     create(name) {
-        const args = { editingElement: this.env.getEditingElement(), value: name };
-        this.env.editor.shared.operation.next(() => this.createOperation.commit(args), {
-            load: () =>
-                this.createAction
-                    .load?.(args)
-                    .then((loadResult) => (args.loadResult = loadResult)),
-        });
+        const args = {
+            editingElement: this.builderContext.getEditingElement(),
+            value: name,
+        };
+        this.builderContext.editor.shared.operation.next(
+            () => this.createOperation.commit(args),
+            {
+                load: () =>
+                    this.createAction
+                        .load?.(args)
+                        .then((loadResult) => (args.loadResult = loadResult)),
+            },
+        );
     }
 }

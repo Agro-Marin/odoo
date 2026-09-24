@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -11,9 +12,10 @@ export class TranslateWebpageOption extends BaseOptionComponent {
     static selector = "*";
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
         this.translationState = useState(
-            this.env.editor.shared.customizeTranslationTab.getTranslationState(),
+            this.builderContext.editor.shared.customizeTranslationTab.getTranslationState(),
         );
     }
 }

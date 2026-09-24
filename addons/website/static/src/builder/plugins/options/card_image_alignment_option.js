@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
@@ -17,9 +18,10 @@ export class CardImageAlignmentOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
         this.state = useDomState(async (editingElement) => {
-            await this.waitForAllImageloaded(this.env.getEditingElements());
+            await this.waitForAllImageloaded(this.builderContext.getEditingElements());
             const coverImageWrapperEl = editingElement.querySelector(
                 ":scope > .o_card_img_wrapper",
             );

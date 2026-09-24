@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BuilderUrlPicker } from "@html_builder/core/building_blocks/builder_urlpicker";
 import { Plugin } from "@html_editor/plugin";
 import { useEffect } from "@odoo/owl";
@@ -12,6 +13,7 @@ const log = makeLogger("website.builder.plugin.url_picker_plugin");
 export class WebsiteUrlPicker extends BuilderUrlPicker {
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
 
         useEffect(
@@ -26,7 +28,8 @@ export class WebsiteUrlPicker extends BuilderUrlPicker {
                         classes: {
                             "ui-autocomplete": "o_website_ui_autocomplete",
                         },
-                        body: this.env.getEditingElement().ownerDocument.body,
+                        body: this.builderContext.getEditingElement().ownerDocument
+                            .body,
                         urlChosen: () => {
                             this.commit(this.inputRef.el.value);
                         },

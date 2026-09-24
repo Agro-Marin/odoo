@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { getSnippetName, isElementInViewport } from "@html_builder/utils/utils";
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 
@@ -14,6 +15,7 @@ export class InvisibleElementsPanel extends Component {
     };
 
     setup() {
+        this.builderContext = useBuilderContext();
         this.state = useState({ invisibleEntries: null });
 
         onWillStart(() => this.updateInvisibleElementsPanel(this.props.invisibleEls));
@@ -25,7 +27,7 @@ export class InvisibleElementsPanel extends Component {
     }
 
     get shared() {
-        return this.env.editor.shared;
+        return this.builderContext.editor.shared;
     }
 
     updateInvisibleElementsPanel(
@@ -99,7 +101,10 @@ export class InvisibleElementsPanel extends Component {
             // Toggle the entry visibility to "Show".
             invisibleEntry.isVisible = true;
             this.shared.visibility.toggleTargetVisibility(snippetEl, true);
-            this.env.editor.dispatchTo("on_reveal_target_handlers", snippetEl);
+            this.builderContext.editor.dispatchTo(
+                "on_reveal_target_handlers",
+                snippetEl,
+            );
             this.shared.builderOptions.updateContainers(snippetEl);
             // Scroll to the target if not visible.
             if (!isElementInViewport(snippetEl) && !snippetEl.matches(".s_popup")) {

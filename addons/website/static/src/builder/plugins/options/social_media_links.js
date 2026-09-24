@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { onWillStart, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -14,6 +15,7 @@ export class SocialMediaLinks extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
 
         const { getRecordedSocialMediaNames, reorderSocialMediaLink } =
@@ -86,7 +88,7 @@ export class SocialMediaLinks extends BaseOptionComponent {
                         newNext,
                     }));
                     reorderSocialMediaLink({
-                        editingElement: this.env.getEditingElement(),
+                        editingElement: this.builderContext.getEditingElement(),
                         element: this.idsElMap.get(elId),
                         elementAfter: this.idsElMap.get(newNext),
                     });

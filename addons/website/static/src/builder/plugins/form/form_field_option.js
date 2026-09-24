@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -31,6 +32,7 @@ export class FormFieldOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
         const { loadFieldOptionData } = this.dependencies.websiteFormOption;
         this.state = useState({
@@ -114,7 +116,7 @@ export class FormFieldOption extends BaseOptionComponent {
         });
 
         onWillStart(async () => {
-            const el = this.env.getEditingElement();
+            const el = this.builderContext.getEditingElement();
             const endLoadStart = log.perf("willStart loadFieldOptionData");
             const fieldOptionData = await loadFieldOptionData(el);
             endLoadStart(() => ({
@@ -127,7 +129,7 @@ export class FormFieldOption extends BaseOptionComponent {
             this.state.conditionValueList.push(...fieldOptionData.conditionValueList);
         });
         onWillUpdateProps(async (props) => {
-            const el = this.env.getEditingElement();
+            const el = this.builderContext.getEditingElement();
             const endLoadUpdate = log.perf(
                 "willUpdateProps loadFieldOptionData",
                 () => ({
@@ -152,7 +154,7 @@ export class FormFieldOption extends BaseOptionComponent {
         return ["text", "email", "tel", "url", "search", "password", "number"];
     }
     get isTextConditionValueVisible() {
-        const el = this.env.getEditingElement();
+        const el = this.builderContext.getEditingElement();
         const dependencyEl = getDependencyEl(el);
         if (
             !el.classList.contains("s_website_form_field_hidden_if") ||
@@ -180,7 +182,7 @@ export class FormFieldOption extends BaseOptionComponent {
      * @returns {boolean}
      */
     get isTextConditionForRequirementOptionVisible() {
-        const el = this.env.getEditingElement();
+        const el = this.builderContext.getEditingElement();
         const currentFieldInputEl = getCurrentFieldInputEl(el);
         return (
             el.dataset.requirementComparator &&
@@ -190,7 +192,7 @@ export class FormFieldOption extends BaseOptionComponent {
         );
     }
     get isTextConditionOperatorVisible() {
-        const el = this.env.getEditingElement();
+        const el = this.builderContext.getEditingElement();
         const dependencyEl = getDependencyEl(el);
         if (
             !el.classList.contains("s_website_form_field_hidden_if") ||
@@ -207,17 +209,17 @@ export class FormFieldOption extends BaseOptionComponent {
         );
     }
     get isExistingFieldSelectType() {
-        const el = this.env.getEditingElement();
+        const el = this.builderContext.getEditingElement();
         return (
             !isFieldCustom(el) && ["selection", "many2one"].includes(el.dataset.type)
         );
     }
     get isMultipleInputs() {
-        const el = this.env.getEditingElement();
+        const el = this.builderContext.getEditingElement();
         return !!getMultipleInputs(el);
     }
     get isMaxFilesVisible() {
-        const el = this.env.getEditingElement();
+        const el = this.builderContext.getEditingElement();
         const fieldEl = el.closest(".s_website_form_field");
         return (
             fieldEl.classList.contains("s_website_form_custom") ||

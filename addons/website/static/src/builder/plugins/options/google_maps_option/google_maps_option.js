@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { onMounted, onWillDestroy, useEffect, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -15,6 +16,7 @@ export class GoogleMapsOption extends BaseOptionComponent {
 
     async setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
 
         this.getMapsAPI = this.dependencies.googleMapsOption.getMapsAPI;
@@ -26,11 +28,12 @@ export class GoogleMapsOption extends BaseOptionComponent {
         this.inputRef = useRef("inputRef");
         /** @type {{ formattedAddress: string }} */
         this.state = useState({
-            formattedAddress: this.env.getEditingElement().dataset.pinAddress || "",
+            formattedAddress:
+                this.builderContext.getEditingElement().dataset.pinAddress || "",
         });
         useEffect(
             () => {
-                this.env.getEditingElement().dataset.pinAddress =
+                this.builderContext.getEditingElement().dataset.pinAddress =
                     this.state.formattedAddress;
             },
             () => [this.state.formattedAddress],
@@ -67,7 +70,7 @@ export class GoogleMapsOption extends BaseOptionComponent {
             );
             log.lifecycle("GoogleMapsOption autocomplete attached");
             if (!this.state.formattedAddress) {
-                const editingElement = this.env.getEditingElement();
+                const editingElement = this.builderContext.getEditingElement();
                 /** @type {Coordinates} */
                 const coordinates = editingElement.dataset.mapGps;
                 log.logic("GoogleMapsOption resolve address from coordinates", () => ({
@@ -89,7 +92,7 @@ export class GoogleMapsOption extends BaseOptionComponent {
             hasPlace: !!place,
             address: place?.formatted_address,
         }));
-        this.commitPlace(this.env.getEditingElement(), place);
+        this.commitPlace(this.builderContext.getEditingElement(), place);
         this.state.formattedAddress = place?.formatted_address || "";
     }
 }

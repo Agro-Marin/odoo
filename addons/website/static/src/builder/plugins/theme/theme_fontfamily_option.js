@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BuilderButton } from "@html_builder/core/building_blocks/builder_button";
 import { BuilderFontFamilyPicker } from "@html_builder/core/building_blocks/builder_fontfamilypicker";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
@@ -22,10 +23,12 @@ export class ThemeFontFamilyOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
-        const htmlStyle = this.env.editor.document.defaultView.getComputedStyle(
-            this.env.getEditingElement(),
-        );
+        const htmlStyle =
+            this.builderContext.editor.document.defaultView.getComputedStyle(
+                this.builderContext.getEditingElement(),
+            );
         log.logic("setup isFontSpecified source", () => ({
             cssVariable: this.props.cssVariable,
             headings: this.props.cssVariable === "headings-font",

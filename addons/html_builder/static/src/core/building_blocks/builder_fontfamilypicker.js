@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BuilderSelect } from "@html_builder/core/building_blocks/builder_select";
 import { BuilderSelectItem } from "@html_builder/core/building_blocks/builder_select_item";
 import {
@@ -23,12 +24,14 @@ export class BuilderFontFamilyPicker extends Component {
     };
 
     setup() {
+        this.builderContext = useBuilderContext();
         this.dialog = useService("dialog");
         this.orm = useService("orm");
         useVisibilityObserver("content", useApplyVisibility("root"));
         this.fonts = [];
         onWillStart(async () => {
-            const fontsData = await this.env.editor.shared.builderFont.getFontsData();
+            const fontsData =
+                await this.builderContext.editor.shared.builderFont.getFontsData();
             this.fonts = fontsData._fonts
                 .slice()
                 .sort((a, b) => a.string.localeCompare(b.string));
@@ -43,7 +46,9 @@ export class BuilderFontFamilyPicker extends Component {
         return result;
     }
     async onAddFontClick() {
-        await this.env.editor.shared.websiteFont.addFont(this.props.actionParam);
+        await this.builderContext.editor.shared.websiteFont.addFont(
+            this.props.actionParam,
+        );
     }
     async onDeleteFontClick(font) {
         const save = await new Promise((resolve) => {
@@ -58,6 +63,6 @@ export class BuilderFontFamilyPicker extends Component {
         if (!save) {
             return;
         }
-        await this.env.editor.shared.websiteFont.deleteFont(font);
+        await this.builderContext.editor.shared.websiteFont.deleteFont(font);
     }
 }

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { useSnippets } from "@html_builder/snippets/snippet_service";
 import { scrollTo } from "@html_builder/utils/scrolling";
 import { useDragAndDrop } from "@html_editor/utils/drag_and_drop";
@@ -36,6 +37,7 @@ export class BlockTab extends Component {
     };
 
     setup() {
+        this.builderContext = useBuilderContext();
         this.dialog = useService("dialog");
         this.orm = useService("orm");
         this.popover = useService("popover");
@@ -54,15 +56,15 @@ export class BlockTab extends Component {
     }
 
     get document() {
-        return this.env.editor.document;
+        return this.builderContext.editor.document;
     }
 
     get editable() {
-        return this.env.editor.editable;
+        return this.builderContext.editor.editable;
     }
 
     get shared() {
-        return this.env.editor.shared;
+        return this.builderContext.editor.shared;
     }
 
     /**
@@ -137,7 +139,7 @@ export class BlockTab extends Component {
                                 resolve();
                             },
                         },
-                        this.env.editor,
+                        this.builderContext.editor,
                     );
                 });
 
@@ -199,11 +201,11 @@ export class BlockTab extends Component {
                         resolve();
                     },
                 },
-                this.env.editor,
+                this.builderContext.editor,
             );
         });
 
-        if (this.env.editor.isDestroyed) {
+        if (this.builderContext.editor.isDestroyed) {
             // the dialog outlived the editor: nothing to insert or restore
             delete this.cancelDragAndDrop;
             return;
@@ -320,7 +322,7 @@ export class BlockTab extends Component {
                 // Stop marking the elements with mutations as dirty and make
                 // some changes on the page to ease the drag and drop.
                 const restoreCallbacks = [];
-                for (const prepareDrag of this.env.editor.getResource(
+                for (const prepareDrag of this.builderContext.editor.getResource(
                     "on_prepare_drag_handlers",
                 )) {
                     const restore = prepareDrag();
@@ -381,7 +383,7 @@ export class BlockTab extends Component {
                 // Add the dropzones.
                 const withGrids =
                     !isSnippetGroup &&
-                    (this.env.editor.config.isMobileView(this.editable)
+                    (this.builderContext.editor.config.isMobileView(this.editable)
                         ? "filterOnly"
                         : true);
                 const selectors = this.shared.dropzone.getSelectors(
@@ -393,7 +395,7 @@ export class BlockTab extends Component {
                     toInsertInline: isInlineSnippet,
                 });
 
-                this.env.editor.dispatchTo("on_snippet_dragged_handlers", {
+                this.builderContext.editor.dispatchTo("on_snippet_dragged_handlers", {
                     snippetEl,
                     dragState: this.dragState,
                 });
@@ -409,17 +411,20 @@ export class BlockTab extends Component {
                 dropzoneEl.classList.add("invisible");
                 this.dragState.currentDropzoneEl = dropzoneEl;
 
-                this.env.editor.dispatchTo("on_snippet_over_dropzone_handlers", {
-                    snippetEl,
-                    dragState: this.dragState,
-                });
+                this.builderContext.editor.dispatchTo(
+                    "on_snippet_over_dropzone_handlers",
+                    {
+                        snippetEl,
+                        dragState: this.dragState,
+                    },
+                );
             },
             onDrag: ({ x, y }) => {
                 if (!this.dragState.currentDropzoneEl) {
                     return;
                 }
 
-                this.env.editor.dispatchTo("on_snippet_move_handlers", {
+                this.builderContext.editor.dispatchTo("on_snippet_move_handlers", {
                     snippetEl,
                     dragState: this.dragState,
                     x,
@@ -434,10 +439,13 @@ export class BlockTab extends Component {
                     return;
                 }
 
-                this.env.editor.dispatchTo("on_snippet_out_dropzone_handlers", {
-                    snippetEl,
-                    dragState: this.dragState,
-                });
+                this.builderContext.editor.dispatchTo(
+                    "on_snippet_out_dropzone_handlers",
+                    {
+                        snippetEl,
+                        dragState: this.dragState,
+                    },
+                );
 
                 this.dragState.draggedEl.remove();
                 dropzoneEl.classList.remove("invisible");
@@ -468,17 +476,23 @@ export class BlockTab extends Component {
                 if (currentDropzoneEl) {
                     let draggedEl = this.dragState.draggedEl;
                     if (isDroppedOver) {
-                        this.env.editor.dispatchTo("on_snippet_dropped_over_handlers", {
-                            droppedEl: draggedEl,
-                            dragState: this.dragState,
-                        });
+                        this.builderContext.editor.dispatchTo(
+                            "on_snippet_dropped_over_handlers",
+                            {
+                                droppedEl: draggedEl,
+                                dragState: this.dragState,
+                            },
+                        );
                     } else {
                         currentDropzoneEl.after(draggedEl);
-                        this.env.editor.dispatchTo("on_snippet_dropped_near_handlers", {
-                            droppedEl: draggedEl,
-                            dropzoneEl: currentDropzoneEl,
-                            dragState: this.dragState,
-                        });
+                        this.builderContext.editor.dispatchTo(
+                            "on_snippet_dropped_near_handlers",
+                            {
+                                droppedEl: draggedEl,
+                                dropzoneEl: currentDropzoneEl,
+                                dragState: this.dragState,
+                            },
+                        );
                     }
                     // The dragged element may have changed, so get it again.
                     draggedEl = this.dragState.draggedEl;
@@ -533,7 +547,7 @@ export class BlockTab extends Component {
     async processDroppedSnippet(snippetEl) {
         this.updateDroppedSnippet(snippetEl);
         // Build the snippet.
-        for (const onSnippetDropped of this.env.editor.getResource(
+        for (const onSnippetDropped of this.builderContext.editor.getResource(
             "on_snippet_dropped_handlers",
         )) {
             const cancel = await onSnippetDropped({
@@ -555,7 +569,7 @@ export class BlockTab extends Component {
                 delete this.dragState.replacedSnippetEl;
             }
         }
-        this.env.editor.config.updateInvisibleElementsPanel();
+        this.builderContext.editor.config.updateInvisibleElementsPanel();
         this.shared.disableSnippets.disableUndroppableSnippets();
         this.shared.history.addStep();
     }

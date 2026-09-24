@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -17,6 +18,7 @@ export class FormModelRequiredFieldAlert extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
         this.state = useState({
             message: undefined,
@@ -26,7 +28,7 @@ export class FormModelRequiredFieldAlert extends BaseOptionComponent {
         onWillUpdateProps(async (props) => this.handleProps(props));
     }
     async handleProps(props) {
-        const el = this.env.getEditingElement();
+        const el = this.builderContext.getEditingElement();
         const endFetchModels = log.perf("handleProps fetchModels");
         const models = await this.fetchModels(el);
         endFetchModels(() => ({ models: models.length }));

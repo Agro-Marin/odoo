@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { Img } from "@html_builder/core/img";
 import { Component } from "@odoo/owl";
 
@@ -11,6 +12,11 @@ export class Snippet extends Component {
         onClickHandler: { type: Function },
         disabledTooltip: { type: String },
     };
+
+    setup() {
+        super.setup();
+        this.builderContext = useBuilderContext();
+    }
 
     get snippet() {
         return this.props.snippet;
@@ -27,7 +33,7 @@ export class Snippet extends Component {
     onClickInstall() {
         this.props.snippetModel.installSnippetModule(
             this.props.snippet,
-            this.env.editor.config.installSnippetModule,
+            this.builderContext.editor.config.installSnippetModule,
         );
     }
 }

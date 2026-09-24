@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import {
     Component,
     onWillStart,
@@ -62,6 +63,7 @@ export class Img extends Component {
         `;
 
     setup() {
+        this.builderContext = useBuilderContext();
         this.svgRef = useRef("svg");
         this.svg = {};
         this.state = useState({ loaded: false });
@@ -99,9 +101,9 @@ export class Img extends Component {
                 this.svg = svg;
             });
         }
-        if (this.env.imgGroup) {
-            this.env.imgGroup.addImgProm(prom);
-            this.env.imgGroup.loaded.then(() => {
+        if (this.builderContext.imgGroup) {
+            this.builderContext.imgGroup.addImgProm(prom);
+            this.builderContext.imgGroup.loaded.then(() => {
                 this.state.loaded = true;
             });
         } else {

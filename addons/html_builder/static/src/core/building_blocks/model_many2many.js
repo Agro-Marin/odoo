@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { useCachedModel } from "@html_builder/core/cached_model_utils";
 import { useDomState } from "@html_builder/core/utils";
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
@@ -31,6 +32,7 @@ export class ModelMany2Many extends Component {
     static components = { BuilderComponent, BasicMany2Many };
 
     setup() {
+        this.builderContext = useBuilderContext();
         this.fields = useService("field");
         this.cachedModel = useCachedModel();
         this.state = useState({
@@ -85,7 +87,7 @@ export class ModelMany2Many extends Component {
     }
     setSelection(newSelection) {
         this.modelEdit.set(this.props.m2oField, newSelection);
-        this.env.editor.shared.history.addStep();
+        this.builderContext.editor.shared.history.addStep();
     }
     create(name) {
         // TODO maybe this can be in base layer

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { ShapeSelector } from "@html_builder/plugins/shape/shape_selector";
 import { getMimetypeBeforeShape } from "@html_builder/utils/image";
@@ -19,6 +20,7 @@ export class ImageShapeOption extends BaseOptionComponent {
     };
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         this.customizeTabPlugin = this.dependencies.customizeTab;
         this.imageShapeOption = this.dependencies.imageShapeOption;
         this.toRatio = toRatio;
@@ -87,7 +89,7 @@ export class ImageShapeOption extends BaseOptionComponent {
     showImageShapes() {
         this.customizeTabPlugin.openCustomizeComponent(
             ShapeSelector,
-            this.env.getEditingElements(),
+            this.builderContext.getEditingElements(),
             {
                 shapeActionId: "setImageShape",
                 buttonWrapperClassName: "o-hb-img-shape-btn",

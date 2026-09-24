@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { useOperation } from "@html_builder/core/operation_plugin";
 import { useDomState } from "@html_builder/core/utils";
 import { Component } from "@odoo/owl";
@@ -15,6 +16,7 @@ export class NavTabsHeaderMiddleButtons extends Component {
     };
 
     setup() {
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
         this.state = useDomState((editingElement) => {
             const navEl = editingElement.querySelector(".nav");
@@ -29,7 +31,7 @@ export class NavTabsHeaderMiddleButtons extends Component {
     addItem() {
         this.callOperation(async () => {
             const endAddItem = log.perf("NavTabsHeaderMiddleButtons addItem");
-            await this.props.addItem(this.env.getEditingElement());
+            await this.props.addItem(this.builderContext.getEditingElement());
             endAddItem();
         });
     }
@@ -37,7 +39,7 @@ export class NavTabsHeaderMiddleButtons extends Component {
     removeItem() {
         this.callOperation(() => {
             log.pipeline("NavTabsHeaderMiddleButtons removeItem");
-            this.props.removeItem(this.env.getEditingElement());
+            this.props.removeItem(this.builderContext.getEditingElement());
         });
     }
 }

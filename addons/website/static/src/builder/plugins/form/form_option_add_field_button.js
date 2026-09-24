@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { useOperation } from "@html_builder/core/operation_plugin";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -15,6 +16,7 @@ export class FormOptionAddFieldButton extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
         this.callOperation = useOperation();
     }
@@ -22,7 +24,7 @@ export class FormOptionAddFieldButton extends BaseOptionComponent {
     addField() {
         log.pipeline("addField", () => ({ tooltip: this.props.tooltip }));
         this.callOperation(() => {
-            this.props.addField(this.env.getEditingElement());
+            this.props.addField(this.builderContext.getEditingElement());
         });
     }
 }

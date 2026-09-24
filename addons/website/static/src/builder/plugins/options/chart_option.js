@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
 import { useState } from "@odoo/owl";
@@ -27,14 +28,15 @@ export class ChartOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
 
-        this.env.getEditingElement().dataset.data = JSON.stringify(
-            this.prepareData(this.env.getEditingElement()),
+        this.builderContext.getEditingElement().dataset.data = JSON.stringify(
+            this.prepareData(this.builderContext.getEditingElement()),
         );
         log.pipeline("ChartOption prepared chart data", () => ({
-            datasets: JSON.parse(this.env.getEditingElement().dataset.data).datasets
-                .length,
+            datasets: JSON.parse(this.builderContext.getEditingElement().dataset.data)
+                .datasets.length,
         }));
 
         this.state = useState({ currentCell: {} });
@@ -100,7 +102,7 @@ export class ChartOption extends BaseOptionComponent {
      * @returns {Set}
      */
     getColorPalette() {
-        const editingElement = this.env.getEditingElement();
+        const editingElement = this.builderContext.getEditingElement();
         const data = this.getData(editingElement);
         const colorSet = new Set();
         for (const dataset of data.datasets) {

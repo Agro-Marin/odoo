@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog";
 import { useDebugMode } from "@web/core/debug/debug_context";
@@ -16,12 +17,13 @@ export class SnippetVisibilityOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         this.debug = useDebugMode();
         this.getModel = this.dependencies["mass_mailing.SnippetVisibility"].getModel;
         this.treeProcessor = useService("tree_processor");
         this.dialog = useService("dialog");
-        this.historyPlugin = this.env.editor.shared.history;
-        this.overlayButtonsPlugin = this.env.editor.shared.overlayButtons;
+        this.historyPlugin = this.builderContext.editor.shared.history;
+        this.overlayButtonsPlugin = this.builderContext.editor.shared.overlayButtons;
 
         this.state = useDomState((editingElement) => {
             const currentDomain = new Domain(
@@ -75,9 +77,8 @@ export class SnippetVisibilityOption extends BaseOptionComponent {
                 onConfirm: (domain) => {
                     const newDomain = new Domain(domain);
                     this.state.domain = newDomain;
-                    this.env.getEditingElement().dataset.filterDomain = JSON.stringify(
-                        this.state.domain.toJson(),
-                    );
+                    this.builderContext.getEditingElement().dataset.filterDomain =
+                        JSON.stringify(this.state.domain.toJson());
                     this.parseTree(newDomain);
                     this.config.onChange?.({ isPreviewing: false });
                 },

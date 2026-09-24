@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { OptionsContainer } from "@html_builder/sidebar/option_container";
 import { useOptionsSubEnv } from "@html_builder/utils/utils";
 import { Component, useState, useSubEnv } from "@odoo/owl";
@@ -17,14 +18,15 @@ export class ThemeTab extends Component {
 
     setup() {
         useLifecycleLog(log);
-        useOptionsSubEnv(() => [this.env.editor.document.body]);
+        useOptionsSubEnv(() => [this.builderContext.editor.document.body]);
         useSubEnv({
             colorPresetToShow: this.props.colorPresetToShow,
         });
+        this.builderContext = useBuilderContext();
         this.state = useState({
             fontsData: {},
         });
-        this.optionsContainers = this.env.editor.resources["theme_options"];
+        this.optionsContainers = this.builderContext.editor.resources["theme_options"];
         log.pipeline("setup theme option containers", () => ({
             count: this.optionsContainers?.length,
             colorPresetToShow: this.props.colorPresetToShow,

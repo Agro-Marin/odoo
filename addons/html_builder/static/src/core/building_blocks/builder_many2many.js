@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 
@@ -26,18 +27,20 @@ export class BuilderMany2Many extends Component {
 
     setup() {
         useBuilderComponent();
+        this.builderContext = useBuilderContext();
         this.fields = useService("field");
         const { getAllActions, callOperation } = getAllActionsAndOperations(this);
         this.callOperation = callOperation;
         this.applyOperation =
-            this.env.editor.shared.history.makePreviewableAsyncOperation(
+            this.builderContext.editor.shared.history.makePreviewableAsyncOperation(
                 this.callApply.bind(this),
             );
         this.state = useState({
             searchModel: undefined,
         });
         this.domState = useDomState((el) => {
-            const getAction = this.env.editor.shared.builderActions.getAction;
+            const getAction =
+                this.builderContext.editor.shared.builderActions.getAction;
             const actionWithGetValue = getAllActions().find(({ actionId }) =>
                 getAction(actionId).has("getValue"),
             );
@@ -79,7 +82,7 @@ export class BuilderMany2Many extends Component {
                     params: applySpec.actionParam,
                     value: applySpec.actionValue,
                     loadResult: applySpec.loadResult,
-                    dependencyManager: this.env.dependencyManager,
+                    dependencyManager: this.builderContext.dependencyManager,
                 }),
             );
         }

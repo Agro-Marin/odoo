@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import {
     BuilderTextInputBase,
     textInputBasePassthroughProps,
@@ -43,6 +44,7 @@ export class BuilderNumberInput extends Component {
         }
 
         useBuilderComponent();
+        this.builderContext = useBuilderContext();
         const { state, commit, preview } = useInputBuilderComponent({
             id: this.props.id,
             defaultValue:
@@ -87,7 +89,7 @@ export class BuilderNumberInput extends Component {
                     parseFloat(savedValue),
                     savedUnit || this.props.saveUnit,
                     unit,
-                    getHtmlStyle(this.env.getEditingElement().ownerDocument),
+                    getHtmlStyle(this.builderContext.getEditingElement().ownerDocument),
                 );
             }
             // Put *at most* 3 decimal digits
@@ -151,7 +153,7 @@ export class BuilderNumberInput extends Component {
                     value,
                     unit,
                     saveUnit,
-                    getHtmlStyle(this.env.getEditingElement().ownerDocument),
+                    getHtmlStyle(this.builderContext.getEditingElement().ownerDocument),
                 );
             }
             if (unit && applyWithUnit) {

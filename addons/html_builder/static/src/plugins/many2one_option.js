@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { onWillStart } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
@@ -10,9 +11,10 @@ export class Many2OneOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         this.orm = useService("orm");
         onWillStart(async () => {
-            const el = this.env.getEditingElement();
+            const el = this.builderContext.getEditingElement();
             const contactOpts = JSON.parse(el.dataset.oeContactOptions || "{}");
             this.nullText = contactOpts.null_text;
             this.model = el.dataset.oeMany2oneModel;

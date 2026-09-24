@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { CustomizeComponent } from "@html_builder/sidebar/customize_component";
 import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 
@@ -17,11 +18,12 @@ export class CustomizeTab extends Component {
     };
 
     setup() {
+        this.builderContext = useBuilderContext();
         this.state = useState({
             hasContent: true,
         });
         this.customizeComponent = useState(
-            this.env.editor.shared.customizeTab.getCustomizeComponent(),
+            this.builderContext.editor.shared.customizeTab.getCustomizeComponent(),
         );
         useVisibilityObserver("content", (hasContent) => {
             this.state.hasContent = hasContent;
@@ -42,7 +44,7 @@ export class CustomizeTab extends Component {
     getCurrentOptionsContainers() {
         const currentOptionsContainers = this.props.currentOptionsContainers;
         if (!currentOptionsContainers.length) {
-            return this.env.editor.shared.builderOptions.getPageContainers();
+            return this.builderContext.editor.shared.builderOptions.getPageContainers();
         }
         return currentOptionsContainers;
     }

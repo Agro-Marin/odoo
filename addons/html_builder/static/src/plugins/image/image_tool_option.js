@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { ImageFilterOption } from "@html_builder/plugins/image/image_filter_option";
 import { ImageFormatOption } from "@html_builder/plugins/image/image_format_option";
@@ -22,6 +23,7 @@ export class ImageToolOption extends BaseOptionComponent {
     static name = "imageToolOption";
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         this.state = useDomState(async (editingElement) => {
             const mimetype = await getMimetypeBeforeShape(editingElement);
             const showCropTool = await isImageSupportedForProcessing(

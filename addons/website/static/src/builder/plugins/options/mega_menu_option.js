@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -13,6 +14,7 @@ export class MegaMenuOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         useLifecycleLog(log);
         const { getTemplatePrefix } = this.dependencies.megaMenuOptionPlugin;
         this.state = useDomState((el) => ({
@@ -23,7 +25,7 @@ export class MegaMenuOption extends BaseOptionComponent {
     hasHeaderTemplates(headerTemplates) {
         const currentHeaderTemplate = getCSSVariableValue(
             "header-template",
-            getHtmlStyle(this.env.editor.document),
+            getHtmlStyle(this.builderContext.editor.document),
         );
         return headerTemplates.includes(currentHeaderTemplate.slice(1, -1));
     }

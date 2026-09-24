@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { areColsCustomized } from "@html_builder/utils/column_layout_utils";
 
@@ -7,6 +8,7 @@ export class SelectNumberColumn extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.builderContext = useBuilderContext();
         this.state = useDomState((editingElement) => {
             const columnEls = editingElement.querySelector(":scope > .row")?.children;
             return {
@@ -14,8 +16,8 @@ export class SelectNumberColumn extends BaseOptionComponent {
                     columnEls &&
                     areColsCustomized(
                         columnEls,
-                        this.env.editor.config.isMobileView(editingElement),
-                        this.env.editor.config.mobileBreakpoint,
+                        this.builderContext.editor.config.isMobileView(editingElement),
+                        this.builderContext.editor.config.mobileBreakpoint,
                     ),
                 canHaveZeroColumns: editingElement.matches(".s_allow_columns"),
                 hasFixedColumnCount: !!editingElement.querySelector(

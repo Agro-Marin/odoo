@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { Component, markup, onMounted, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
@@ -24,7 +25,8 @@ export class BuilderSelectItem extends Component {
     static components = { BuilderComponent };
 
     setup() {
-        if (!this.env.selectableContext) {
+        this.builderContext = useBuilderContext();
+        if (!this.builderContext.selectableContext) {
             throw new Error(
                 "BuilderSelectItem must be used inside a BuilderSelect component.",
             );
@@ -58,7 +60,7 @@ export class BuilderSelectItem extends Component {
     }
 
     onClick() {
-        this.env.onSelectItem();
+        this.builderContext.onSelectItem();
         this.operation.commit();
         this.removeKeydown?.();
     }
