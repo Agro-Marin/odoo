@@ -1207,12 +1207,20 @@ class TestAccountAsset(TestAccountReportsCommon):
         for move in asset.depreciation_move_ids:
             self.assertEqual(move.depreciation_value, -2000)
 
+        # the form lists the entries in the order the board reads them, not in the
+        # list view's default_order, which only the web client applies
+        listed = list(asset.depreciation_move_ids)
+        by_date = asset.depreciation_move_ids._sorted_by_date()
         with Form(
             asset, view="account_depreciation.view_account_asset_form"
         ) as asset_form:
-            with asset_form.depreciation_move_ids.edit(4) as line_edit:
+            with asset_form.depreciation_move_ids.edit(
+                listed.index(by_date[-1])
+            ) as line_edit:
                 line_edit.depreciation_value = -1000.0
-            with asset_form.depreciation_move_ids.edit(3) as line_edit:
+            with asset_form.depreciation_move_ids.edit(
+                listed.index(by_date[-2])
+            ) as line_edit:
                 line_edit.depreciation_value = -3000.0
         self.update_form_values(asset_form)
 
