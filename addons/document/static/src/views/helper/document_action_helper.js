@@ -2,12 +2,14 @@
 import { useService } from "@web/core/utils/hooks";
 import { Component, markup, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
+import { useSearchModel } from "@web/search/search_model";
 
 export class DocumentsActionHelper extends Component {
     static template = "document.DocumentsActionHelper";
     static props = ["noContentHelp"];
 
     setup() {
+        this.searchModel = useSearchModel();
         this.orm = useService("orm");
         this.state = useState({
             mailTo: undefined,
@@ -21,7 +23,7 @@ export class DocumentsActionHelper extends Component {
     }
 
     get selectedFolderId() {
-        return this.env.searchModel.getSelectedFolderId();
+        return this.searchModel.getSelectedFolderId();
     }
 
     /**
@@ -55,15 +57,13 @@ export class DocumentsActionHelper extends Component {
 
     async updateShareInformation() {
         this.state.mailTo = undefined;
-        const filteredDomain = this.env.searchModel.domain.filter(
+        const filteredDomain = this.searchModel.domain.filter(
             (leaf) => Array.isArray(leaf) && leaf.includes("folder_id"),
         );
         if (filteredDomain.length !== 1 || typeof this.selectedFolderId !== "number") {
             return;
         }
-        const selectedFolder = this.env.searchModel.getFolderById(
-            this.selectedFolderId,
-        );
+        const selectedFolder = this.searchModel.getFolderById(this.selectedFolderId);
         if (
             !selectedFolder ||
             selectedFolder.user_permission === "none" ||

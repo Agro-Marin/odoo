@@ -1,11 +1,13 @@
 /** @odoo-module native */
 import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 
 export const LunchRendererMixin = (T) =>
     class LunchRendererMixin extends T {
         setup() {
             super.setup(...arguments);
+            this.searchModel = useSearchModel();
 
             this.action = useService("action");
             useBus(this.env.bus, "lunch_open_order", (ev) =>
@@ -16,15 +18,15 @@ export const LunchRendererMixin = (T) =>
         openOrderLine(productId, orderId) {
             let context = {};
 
-            if (this.env.searchModel.lunchState.userId) {
-                context["default_user_id"] = this.env.searchModel.lunchState.userId;
+            if (this.searchModel.lunchState.userId) {
+                context["default_user_id"] = this.searchModel.lunchState.userId;
             }
-            if (this.env.searchModel.lunchState.date) {
-                context["default_date"] = this.env.searchModel.lunchState.date;
+            if (this.searchModel.lunchState.date) {
+                context["default_date"] = this.searchModel.lunchState.date;
             }
-            if (this.env.searchModel.lunchState.locationId) {
+            if (this.searchModel.lunchState.locationId) {
                 context["default_lunch_location_id"] =
-                    this.env.searchModel.lunchState.locationId;
+                    this.searchModel.lunchState.locationId;
             }
 
             let action = {

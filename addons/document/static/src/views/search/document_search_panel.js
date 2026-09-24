@@ -10,6 +10,7 @@ import { utils as uiUtils } from "@web/ui/viewport";
 import { toFolderValueId } from "@document/views/utils";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { useViewModel } from "@web/model/model";
+import { useSearchModel } from "@web/search/search_model";
 
 const DND_ALLOWED_SPECIAL_DESTINATIONS = ["COMPANY", "MY"];
 const LONG_TOUCH_THRESHOLD = 400;
@@ -57,6 +58,7 @@ export class DocumentsSearchPanel extends SearchPanel {
     };
     setup() {
         super.setup(...arguments);
+        this.searchModel = useSearchModel();
         this.model = useViewModel();
         const { uploads } = useService("file_upload");
         this.documentService = useService("document.document");
@@ -71,17 +73,16 @@ export class DocumentsSearchPanel extends SearchPanel {
         this.dialog = useService("dialog");
 
         onWillStart(async () => {
-            await this.env.searchModel.sectionsPromise;
+            await this.searchModel.sectionsPromise;
             if (this.model.config.context.active_model) {
-                const categories = await this.env.searchModel.getSections(
+                const categories = await this.searchModel.getSections(
                     (s) => s.type === "category",
                 );
                 for (const category of categories) {
                     this.state.expanded[category.id] = {};
                 }
             } else {
-                const selectedFolderId =
-                    await this.env.searchModel.getSelectedFolderId();
+                const selectedFolderId = await this.searchModel.getSelectedFolderId();
                 if (selectedFolderId) {
                     this.state.expanded[this.sections[0].id]["COMPANY"] = true;
                     this._expandFolder({ folderId: selectedFolderId });
@@ -93,7 +94,7 @@ export class DocumentsSearchPanel extends SearchPanel {
             this._expandFolder(ev.detail);
         });
 
-        useBus(this.env.searchModel, "update-search-panel", async () => {
+        useBus(this.searchModel, "update-search-panel", async () => {
             this.updateActiveValues();
             this.state.searchModelUpdates++;
         });
@@ -127,8 +128,7 @@ export class DocumentsSearchPanel extends SearchPanel {
             },
             onDrop: async ({ element, parent, next }) => {
                 const draggingFolderId = parseInt(element.dataset.valueId);
-                const draggingFolder =
-                    this.env.searchModel.getFolderById(draggingFolderId);
+                const draggingFolder = this.searchModel.getFolderById(draggingFolderId);
                 const draggingFolderRootId = draggingFolder.rootId;
                 let parentFolderId = parent ? parent.dataset.valueId : false;
                 const beforeFolderId = next ? parseInt(next.dataset.valueId) : false;
@@ -140,7 +140,7 @@ export class DocumentsSearchPanel extends SearchPanel {
                 ) {
                     return;
                 }
-                const parentFolderRootId = this.env.searchModel.getFolderById(
+                const parentFolderRootId = this.searchModel.getFolderById(
                     toFolderValueId(parentFolderId),
                 ).rootId;
                 if (
@@ -156,12 +156,12 @@ export class DocumentsSearchPanel extends SearchPanel {
                         [draggingFolderId],
                         { location_user_folder_id: parentFolderId.toString() },
                     );
-                    return this.env.searchModel._reloadSearchModel(true);
+                    return this.searchModel._reloadSearchModel(true);
                 }
                 if (!DND_ALLOWED_SPECIAL_DESTINATIONS.includes(parentFolderId)) {
                     parentFolderId = parseInt(parentFolderId);
                 }
-                const parentFolder = this.env.searchModel.getFolderById(parentFolderId);
+                const parentFolder = this.searchModel.getFolderById(parentFolderId);
                 if (
                     !DND_ALLOWED_SPECIAL_DESTINATIONS.includes(parentFolderId) &&
                     (draggingFolder.access_internal !== parentFolder.access_internal ||
@@ -183,7 +183,7 @@ export class DocumentsSearchPanel extends SearchPanel {
                                     beforeFolderId,
                                 ],
                             );
-                            await this.env.searchModel._reloadSearchModel(true);
+                            await this.searchModel._reloadSearchModel(true);
                         },
                         cancel: () => {},
                     });
@@ -194,7 +194,7 @@ export class DocumentsSearchPanel extends SearchPanel {
                     parentFolderId ? parentFolderId.toString() : false,
                     beforeFolderId,
                 ]);
-                await this.env.searchModel._reloadSearchModel(true);
+                await this.searchModel._reloadSearchModel(true);
             },
         });
     }
@@ -215,15 +215,15 @@ export class DocumentsSearchPanel extends SearchPanel {
      */
     async toggleCategory(category, value) {
         if (category.activeValueId !== value.id) {
-            const folder = this.env.searchModel.getFolderById(value.id);
+            const folder = this.searchModel.getFolderById(value.id);
             const isShortcut = !!folder.shortcut_document_id?.length;
             if (
                 isShortcut &&
-                !this.env.searchModel.getFolderById(folder.shortcut_document_id[0])
+                !this.searchModel.getFolderById(folder.shortcut_document_id[0])
             ) {
-                return this.env.searchModel.toggleCategoryValue(category.id, "TRASH");
+                return this.searchModel.toggleCategoryValue(category.id, "TRASH");
             }
-            this.env.searchModel.toggleCategoryValue(category.id, value.id);
+            this.searchModel.toggleCategoryValue(category.id, value.id);
         }
     }
 
@@ -277,8 +277,8 @@ export class DocumentsSearchPanel extends SearchPanel {
      */
     _expandFolder({ folderId }) {
         const sectionId = this.sections[0].id;
-        const folders = this.env.searchModel.getFolderAndParents(
-            this.env.searchModel.getFolderById(folderId),
+        const folders = this.searchModel.getFolderAndParents(
+            this.searchModel.getFolderById(folderId),
         );
         if (!folders.length) {
             return;

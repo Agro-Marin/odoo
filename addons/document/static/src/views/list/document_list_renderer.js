@@ -12,6 +12,7 @@ import { DocumentsDropZone } from "@document/views/helper/document_drop_zone";
 import { DocumentsFileViewerHost } from "@document/views/helper/document_file_viewer";
 import { DocumentsRendererMixin } from "@document/views/document_renderer_mixin";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 
 export class DocumentsSecondaryListRenderer extends ListRenderer {
     static props = [...ListRenderer.props, "previewStore"];
@@ -39,6 +40,7 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(
 
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.ui = useService("ui");
     }
 

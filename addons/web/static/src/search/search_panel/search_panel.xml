@@ -50,7 +50,7 @@
 
 <t t-name="web.SearchPanelContent">
     <div class="o_search_panel flex-grow-0 flex-shrink-0 h-100 pb-5 bg-view overflow-auto position-relative"
-         t-att-class="this.env.searchModel.searchPanelInfo.className"
+         t-att-class="this.searchModel.searchPanelInfo.className"
          t-attf-class="#{this.ui.isSmall ? 'px-3' : 'pe-1 ps-3'}"
          t-ref="root">
         <button t-if="!this.ui.isSmall" class="btn btn-light btn-sm end-0 m-2 position-absolute px-2 py-1 top-0 z-1" title="Collapse the search panel" aria-label="Collapse the search panel" t-on-click="this.toggleSidebar">

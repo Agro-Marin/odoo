@@ -4,6 +4,7 @@ import { KanbanRecord } from "@web/views/kanban";
 import { FileUploadProgressBar } from "@web/components/file_upload";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useEffect, useState } from "@odoo/owl";
+import { useSearchModel } from "@web/search/search_model";
 
 const CANCEL_GLOBAL_CLICK = ["a", ".dropdown", ".oe_kanban_action"].join(",");
 
@@ -20,6 +21,7 @@ export class DocumentsKanbanRecord extends KanbanRecord {
 
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.ui = useService("ui");
         this.documentUploads = useState(useService("file_upload").uploads);
 
@@ -73,9 +75,7 @@ export class DocumentsKanbanRecord extends KanbanRecord {
         context.encodeURIComponent = encodeURIComponent;
 
         if (
-            [false, "TRASH", "RECENT"].includes(
-                this.env.searchModel.getSelectedFolderId(),
-            )
+            [false, "TRASH", "RECENT"].includes(this.searchModel.getSelectedFolderId())
         ) {
             context.inFolder =
                 this.props.record.data.folder_id?.display_name ||
@@ -116,7 +116,7 @@ export class DocumentsKanbanRecord extends KanbanRecord {
             this.rootRef.el.focus();
             this.props.toggleSelection(this.props.record, ev.shiftKey);
         } else if (
-            this.env.searchModel.getSelectedFolderId() === "TRASH" ||
+            this.searchModel.getSelectedFolderId() === "TRASH" ||
             this.props.record.data.type !== "folder"
         ) {
             this.props.getSelection().forEach((r) => r.toggleSelection(false));

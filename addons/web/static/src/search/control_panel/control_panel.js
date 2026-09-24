@@ -19,6 +19,7 @@ import { useEmbeddedActions } from "@web/search/embedded_actions_bar/embedded_ac
 import { EmbeddedActionsBar } from "@web/search/embedded_actions_bar/embedded_actions_bar";
 import { EmbeddedActionsDropdown } from "@web/search/embedded_actions_bar/embedded_actions_dropdown";
 import { SearchBar } from "@web/search/search_bar/search_bar";
+import { useSearchModel } from "@web/search/search_model";
 import { useCommand } from "@web/ui/commands/command_hook";
 
 const STICKY_CLASS = "o_mobile_sticky";
@@ -86,6 +87,7 @@ export class ControlPanel extends Component {
     isScrolling;
 
     setup() {
+        this.searchModel = useSearchModel();
         this.ui = useService("ui");
         useLifecycleLog(log);
         this.actionService = useAction();
@@ -259,7 +261,7 @@ export class ControlPanel extends Component {
     onMainButtonsKeydown(ev) {
         const hotkey = getActiveHotkey(ev);
         if (hotkey === "arrowdown") {
-            this.env.searchModel.trigger(SearchModelEvent.FOCUS_VIEW);
+            this.searchModel.trigger(SearchModelEvent.FOCUS_VIEW);
             ev.preventDefault();
             ev.stopPropagation();
         }

@@ -6,6 +6,7 @@ import { DocumentsCogMenu } from "../cog_menu/document_cog_menu.js";
 import { onPatched, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { useViewModel } from "@web/model/model";
+import { useSearchModel } from "@web/search/search_model";
 
 export class DocumentsControlPanel extends ControlPanel {
     static template = "document.ControlPanel";
@@ -18,6 +19,7 @@ export class DocumentsControlPanel extends ControlPanel {
 
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.model = useViewModel();
         this.ui = useService("ui");
         this.documentService = useService("document.document");
@@ -36,7 +38,7 @@ export class DocumentsControlPanel extends ControlPanel {
     }
 
     get currentFolderId() {
-        return this.env.searchModel.getSelectedFolderId();
+        return this.searchModel.getSelectedFolderId();
     }
 
     get showActions() {
@@ -59,12 +61,12 @@ export class DocumentsControlPanel extends ControlPanel {
             return [
                 ...this.env.config.breadcrumbs.slice(0, -1),
                 {
-                    name: this.env.searchModel.getSelectedFolder().display_name,
+                    name: this.searchModel.getSelectedFolder().display_name,
                 },
             ];
         }
 
-        return this.env.searchModel
+        return this.searchModel
             .getSelectedFolderAndParents()
             .reverse()
             .map((folder) => {
@@ -72,8 +74,8 @@ export class DocumentsControlPanel extends ControlPanel {
                     jsId: folder.id,
                     name: folder.display_name,
                     onSelected: () => {
-                        const folderSection = this.env.searchModel.getSections()[0];
-                        this.env.searchModel.toggleCategoryValue(
+                        const folderSection = this.searchModel.getSections()[0];
+                        this.searchModel.toggleCategoryValue(
                             folderSection.id,
                             folder.id,
                         );

@@ -16,6 +16,7 @@ import { useBus } from "@web/core/utils/hooks";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
 /** @import { EnrichedSearchItem } from "@web/search/search_types" */
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
+import { useSearchModel } from "@web/search/search_model";
 import {
     editFavoriteFilter,
     FACET_ICONS,
@@ -59,6 +60,7 @@ export class SearchBarMenu extends Component {
     state;
 
     setup() {
+        this._searchModel = useSearchModel();
         this.facet_icons = FACET_ICONS;
         this.actionService = useAction();
         this.state = useState({
@@ -95,7 +97,7 @@ export class SearchBarMenu extends Component {
         // the registry predicates read the search model, not this component's
         // props (a parent's slot object is new on every render), so they are
         // re-asked when the model changes and not per keystroke in the bar
-        useBus(this.env.searchModel, SearchModelEvent.UPDATE, () => {
+        useBus(this._searchModel, SearchModelEvent.UPDATE, () => {
             this.state.searchModelUpdates++;
             return refreshRegistryItems();
         });
@@ -103,7 +105,7 @@ export class SearchBarMenu extends Component {
 
     get searchModel() {
         void this.state.searchModelUpdates;
-        return this.env.searchModel;
+        return this._searchModel;
     }
 
     get otherItems() {

@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Many2ManyTagsField } from "@web/fields/relational/many2many_tags";
 import { useViewModel } from "@web/model/model";
+import { useSearchModel } from "@web/search/search_model";
 
 /**
  * @override update,
@@ -14,6 +15,7 @@ export class DocumentsDetailsMany2ManyTagsField extends Many2ManyTagsField {
 
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.model = useViewModel();
         const superUpdate = this.update;
         this.update = async (recordlist) => {
@@ -48,7 +50,7 @@ export class DocumentsDetailsMany2ManyTagsField extends Many2ManyTagsField {
                 this.model.multiEdit = modelMultiEdit;
             }
             if (this.props.record.data.type === "folder") {
-                await this.env.searchModel._reloadSearchModel(true);
+                await this.searchModel._reloadSearchModel(true);
             }
         } else {
             await callable();

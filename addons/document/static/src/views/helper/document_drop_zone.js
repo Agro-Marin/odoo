@@ -1,12 +1,14 @@
 /** @odoo-module native */
 import { Component, useEffect, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 
 export class DocumentsDropZone extends Component {
     static template = "document.DocumentsDropZone";
     static props = ["parentRoot"];
 
     setup() {
+        this.searchModel = useSearchModel();
         this.state = useState({
             dragOver: false,
             topOffset: 0,
@@ -42,7 +44,7 @@ export class DocumentsDropZone extends Component {
 
     get canDrop() {
         return this.documentService.canUploadInFolder(
-            this.env.searchModel.getSelectedFolder(),
+            this.searchModel.getSelectedFolder(),
         );
     }
 

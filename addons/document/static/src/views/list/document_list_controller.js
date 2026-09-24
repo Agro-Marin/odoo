@@ -4,6 +4,7 @@ import { ListController } from "@web/views/list";
 import { DocumentsControllerMixin } from "@document/views/document_controller_mixin";
 import { DocumentsSelectionBox } from "@document/views/selection_box/document_selection_box";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 
 export class DocumentsListController extends DocumentsControllerMixin(ListController) {
     static template = "document.DocumentsListController";
@@ -17,6 +18,7 @@ export class DocumentsListController extends DocumentsControllerMixin(ListContro
 
     setup() {
         super.setup(...arguments);
+        this.searchModel = useSearchModel();
         this.ui = useService("ui");
         if (!this.documentService.userIsInternal) {
             this.archInfo.columns = this.archInfo.columns.filter(

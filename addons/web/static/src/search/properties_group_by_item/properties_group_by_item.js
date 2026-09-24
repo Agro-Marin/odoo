@@ -5,6 +5,7 @@ import { Component, useChildSubEnv, useState } from "@odoo/owl";
 import { ACCORDION, AccordionItem } from "@web/components/dropdown/accordion_item";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { useSearchModel } from "@web/search/search_model";
 export class PropertiesGroupByItem extends Component {
     static template = "web.PropertiesGroupByItem";
     static components = { AccordionItem, CheckboxItem, DropdownItem };
@@ -17,6 +18,7 @@ export class PropertiesGroupByItem extends Component {
     state;
 
     setup() {
+        this.searchModel = useSearchModel();
         /** @type {{ definitionsLoaded: boolean }} */
         this.state = useState({ definitionsLoaded: false });
         useChildSubEnv({
@@ -29,7 +31,7 @@ export class PropertiesGroupByItem extends Component {
 
     /** @returns {Object[]} */
     get modelGroupByItems() {
-        return this.env.searchModel.getSearchItems(
+        return this.searchModel.getSearchItems(
             (/** @type {any} */ searchItem) =>
                 ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
                 searchItem.isProperty &&
@@ -62,7 +64,7 @@ export class PropertiesGroupByItem extends Component {
         }
         this._loadingDefinitions = true;
         try {
-            await this.env.searchModel.updateSearchViewItemsProperty();
+            await this.searchModel.updateSearchViewItemsProperty();
             this.state.definitionsLoaded = true;
         } finally {
             this._loadingDefinitions = false;

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { BillGuide } from "@account/components/bill_guide/bill_guide";
+import { useSearchModel } from "@web/search/search_model";
 
 import { FileUploadListRenderer } from "../file_upload_list/file_upload_list_renderer.js";
 
@@ -9,6 +10,11 @@ export class AccountUploadListRenderer extends FileUploadListRenderer {
         ...FileUploadListRenderer.components,
         BillGuide,
     };
+
+    setup() {
+        super.setup();
+        this.searchModel = useSearchModel();
+    }
 
     getCellClass(column, record) {
         const classNames = super.getCellClass(column, record);

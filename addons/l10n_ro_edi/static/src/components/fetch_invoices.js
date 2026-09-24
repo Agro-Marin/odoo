@@ -5,6 +5,7 @@ import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { COG_GROUP, isActWindowView } from "@web/search/cog_menu/cog_menu_group";
 import { CogMenuItem } from "@web/search/cog_menu/cog_menu_item";
+import { useSearchModel } from "@web/search/search_model";
 
 export class FetchInvoicesCogMenu extends Component {
     static template = "l10n_ro_edi.FetchInvoices";
@@ -12,11 +13,12 @@ export class FetchInvoicesCogMenu extends Component {
     static components = { CogMenuItem };
 
     setup() {
+        this.searchModel = useSearchModel();
         this.action = useService("action");
     }
 
     async fetchInvoices() {
-        const { context } = this.env.searchModel;
+        const { context } = this.searchModel;
         return this.action.doActionButton({
             type: "object",
             resModel: "account.move",

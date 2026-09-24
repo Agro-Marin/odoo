@@ -7,7 +7,7 @@
             <attribute name="t-on-click">this.onGlobalClick</attribute>
         </xpath>
         <xpath expr="//div[hasclass('o_list_renderer')]" position="after">
-            <DocumentsRightPanel nbViewItems="this.getNbViewItems()" t-if="!this.env.searchModel.context.documents_view_secondary"/>
+            <DocumentsRightPanel nbViewItems="this.getNbViewItems()" t-if="!this.searchModel.context.documents_view_secondary"/>
         </xpath>
         <table position="before">
             <DocumentsDropZone parentRoot="this.root"/>

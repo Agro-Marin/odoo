@@ -3,12 +3,14 @@ import { Component, useState, useEffect } from "@odoo/owl";
 import { ListRenderer, listView } from "@web/views/list";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 
 export class ExtraHoursSummary extends Component {
     static template = "hr_attendance.ExtraHoursSummary";
     static props = {};
 
     setup() {
+        this.searchModel = useSearchModel();
         this.orm = useService("orm");
         this.floatTime = registry.category("formatters").get("float_time");
         this.state = useState({
@@ -22,19 +24,19 @@ export class ExtraHoursSummary extends Component {
             () => {
                 this.updateOvertimeData();
             },
-            () => [this.env.searchModel.domain],
+            () => [this.searchModel.domain],
         );
     }
 
     get shouldDisplay() {
-        return this.env.searchModel.context.display_extra_hours;
+        return this.searchModel.context.display_extra_hours;
     }
 
     async updateOvertimeData() {
         if (!this.shouldDisplay) {
             return;
         }
-        const employeeId = this.env.searchModel.context.employee_id;
+        const employeeId = this.searchModel.context.employee_id;
         const overtime_data = (
             await this.orm.call("hr.employee", "get_overtime_data_by_employee", [
                 employeeId,

@@ -3,12 +3,14 @@ import { useEnv, useSubEnv } from "@odoo/owl";
 import { ProductCatalogKanbanController } from "@product/product_catalog/kanban_controller";
 import { browser } from "@web/core/browser/browser";
 import { useDebounced } from "@web/core/utils/timing";
+import { useSearchModel } from "@web/search/search_model";
 
 import { SUGGEST_TOGGLE_STORAGE_KEY } from "./utils.js";
 
 export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanbanController {
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.suggest = useEnv().suggest;
         this._computeTotalEstimatedPrice = useEnv()._computeTotalEstimatedPrice;
         Object.assign(this.suggest, {
@@ -30,7 +32,7 @@ export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanban
     }
 
     async _kanbanReload() {
-        await this.env.searchModel.invalidateSections();
+        await this.searchModel.invalidateSections();
         await this._computeTotalEstimatedPrice();
     }
 
@@ -56,7 +58,7 @@ export class PurchaseSuggestCatalogKanbanController extends ProductCatalogKanban
             SUGGEST_TOGGLE_STORAGE_KEY,
             JSON.stringify({ isOn: this.suggest.suggestToggle.isOn }),
         );
-        this.env.searchModel.toggleFilters(
+        this.searchModel.toggleFilters(
             ["suggested", "products_in_purchase_order"],
             this.suggest.suggestToggle.isOn,
         );

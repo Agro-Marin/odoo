@@ -24,6 +24,7 @@ function makeItem(searchItems, { definitionsLoaded = false, fill } = {}) {
             updateSearchViewItemsProperty: fill || (async () => {}),
         },
     };
+    component.searchModel = component.env.searchModel;
     return component;
 }
 

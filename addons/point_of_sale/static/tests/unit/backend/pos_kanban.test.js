@@ -75,11 +75,9 @@ for (const preset of ["desktop", "mobile"]) {
             let called = false;
             const renderer = {
                 dialog: { add: () => expect.step("denied") },
-                env: {
-                    searchModel: {
-                        clearQuery: async () => {
-                            cleared++;
-                        },
+                searchModel: {
+                    clearQuery: async () => {
+                        cleared++;
                     },
                 },
             };
@@ -101,7 +99,7 @@ for (const preset of ["desktop", "mobile"]) {
             const renderer = {
                 posState: {},
                 orm: { call: async () => ({ has_pos_config: true }) },
-                env: { searchModel: { clearQuery: () => refreshed } },
+                searchModel: { clearQuery: () => refreshed },
             };
             const pending = PosKanbanRenderer.prototype.callWithViewUpdate
                 .call(renderer, async () => 42)
@@ -129,12 +127,10 @@ for (const preset of ["desktop", "mobile"]) {
                             return { has_pos_config: true };
                         },
                     },
-                    env: {
-                        searchModel: {
-                            clearQuery: async () => {
-                                expect.step("refresh attempted");
-                                throw new Error("search failed");
-                            },
+                    searchModel: {
+                        clearQuery: async () => {
+                            expect.step("refresh attempted");
+                            throw new Error("search failed");
                         },
                     },
                 };

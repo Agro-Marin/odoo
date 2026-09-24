@@ -13,6 +13,7 @@ import { useService } from "@web/core/utils/hooks";
 import { omit } from "@web/core/utils/collections/objects";
 import { prepareStaticActionMenuItems } from "@web/views/view_utils";
 import { onWillDestroy, useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
+import { useSearchModel } from "@web/search/search_model";
 
 export const DocumentsControllerMixin = (component) =>
     class extends component {
@@ -26,6 +27,7 @@ export const DocumentsControllerMixin = (component) =>
             preSuperSetup();
             super.setup(...arguments);
             this.ui = useService("ui");
+            this.searchModel = useSearchModel();
             this.searchBarToggler = useSearchBarToggler();
             useSubEnv({
                 searchBarToggler: this.searchBarToggler,
@@ -95,7 +97,7 @@ export const DocumentsControllerMixin = (component) =>
                 doc.selected = true;
                 if (initData.openPreview) {
                     initData.openPreview = false;
-                    this.env.searchModel.skipLoadClosePreview = true;
+                    this.searchModel.skipLoadClosePreview = true;
                     doc.onClickPreview(new Event("click"));
                 }
             }
@@ -201,7 +203,7 @@ export const DocumentsControllerMixin = (component) =>
             const selectionCount = this.targetRecords.length;
             const userIsInternal = this.documentService.userIsInternal;
             const singleSelection = selectionCount === 1 && this.targetRecords[0];
-            const isInTrash = this.env.searchModel.getSelectedFolderId() === "TRASH";
+            const isInTrash = this.searchModel.getSelectedFolderId() === "TRASH";
             const editMode = this.targetRecords.every(
                 (r) => r.data.user_permission === "edit",
             );
@@ -261,7 +263,7 @@ export const DocumentsControllerMixin = (component) =>
                 details: {
                     isAvailable: () =>
                         userIsInternal &&
-                        !this.env.searchModel.context.documents_view_secondary,
+                        !this.searchModel.context.documents_view_secondary,
                     sequence: 50,
                     description: _t("Info & Tags"),
                     icon: "fa-solid fa-circle-info",

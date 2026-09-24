@@ -25,6 +25,7 @@ function makePanel(folders) {
             },
         },
     };
+    panel.searchModel = panel.env.searchModel;
     return panel;
 }
 

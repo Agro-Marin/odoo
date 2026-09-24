@@ -4,6 +4,7 @@ import { DocumentsSelectionBox } from "@document/views/selection_box/document_se
 import { KanbanController } from "@web/views/kanban";
 import { Dropdown } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 
 export class DocumentsKanbanController extends DocumentsControllerMixin(
     KanbanController,
@@ -18,6 +19,7 @@ export class DocumentsKanbanController extends DocumentsControllerMixin(
 
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.ui = useService("ui");
     }
 

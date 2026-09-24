@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { EventBus, toRaw } from "@odoo/owl";
+import { EventBus, toRaw, useEnv, useSubEnv } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { SearchModelEvent } from "@web/core/events";
@@ -88,6 +88,16 @@ import { getIntervalOptions } from "./utils/dates.js";
  */
 
 const log = makeLogger("web.search");
+
+/** @param {SearchModel} searchModel */
+export function provideSearchModel(searchModel) {
+    useSubEnv({ searchModel });
+}
+
+/** @returns {SearchModel} */
+export function useSearchModel() {
+    return useEnv().searchModel;
+}
 
 export class SearchModel extends SearchQueryMixin(
     SearchSplitDomainMixin(

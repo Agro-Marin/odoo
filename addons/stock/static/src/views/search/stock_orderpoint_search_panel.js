@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { onWillStart, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 
 export class StockOrderpointSearchPanel extends SearchPanel {
@@ -9,6 +10,7 @@ export class StockOrderpointSearchPanel extends SearchPanel {
     setup() {
         this.orm = useService("orm");
         super.setup(...arguments);
+        this.searchModel = useSearchModel();
         this.ui = useService("ui");
         this.globalHorizonDays = useState({ value: 0 });
         onWillStart(this.getHorizonParameter);
@@ -31,6 +33,6 @@ export class StockOrderpointSearchPanel extends SearchPanel {
 
     async applyGlobalHorizonDays(ev) {
         this.globalHorizonDays.value = Math.max(parseInt(ev.target.value, 10) || 0, 0);
-        await this.env.searchModel.applyGlobalHorizonDays(this.globalHorizonDays.value);
+        await this.searchModel.applyGlobalHorizonDays(this.globalHorizonDays.value);
     }
 }

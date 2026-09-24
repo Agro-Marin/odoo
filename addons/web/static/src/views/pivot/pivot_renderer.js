@@ -19,6 +19,7 @@ import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { useReactiveModel } from "@web/model/model";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
+import { useSearchModel } from "@web/search/search_model";
 import { getIntervalOptions } from "@web/search/utils/dates";
 import { groupableFields, isGroupableField } from "@web/search/utils/misc";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -57,6 +58,7 @@ export class PivotRenderer extends Component {
     static props = ["model", "buttonTemplate"];
 
     setup() {
+        this.searchModel = useSearchModel();
         this.ui = useService("ui");
         useRenderCounter("pivot.PivotRenderer");
         useLifecycleLog(log);
@@ -87,7 +89,7 @@ export class PivotRenderer extends Component {
             position: "right",
         });
         this.fields = groupableFields(
-            this.env.searchModel.searchViewFields,
+            this.searchModel.searchViewFields,
             (name, field) => this.isGroupableField(name, field),
         );
     }
@@ -169,7 +171,7 @@ export class PivotRenderer extends Component {
 
     /** @returns {Object[]} */
     get groupByItems() {
-        let items = this.env.searchModel.getSearchItems(
+        let items = this.searchModel.getSearchItems(
             (searchItem) =>
                 ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
                 !searchItem.custom &&
@@ -217,7 +219,7 @@ export class PivotRenderer extends Component {
 
     /** @returns {boolean} */
     get hideCustomGroupBy() {
-        return this.env.searchModel.hideCustomGroupBy || false;
+        return this.searchModel.hideCustomGroupBy || false;
     }
 
     /**
@@ -255,7 +257,7 @@ export class PivotRenderer extends Component {
      * @param {number} [param0.optionId]
      */
     onPropertyGroupBySelected({ itemId, optionId }) {
-        const { fieldName } = this.env.searchModel.searchItems[itemId];
+        const { fieldName } = this.searchModel.searchItems[itemId];
         log.logic("onPropertyGroupBySelected", () => ({ itemId, optionId, fieldName }));
         this.addGroupBy(fieldName, optionId);
     }

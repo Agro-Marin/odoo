@@ -6,6 +6,7 @@ import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { COG_GROUP } from "@web/search/cog_menu/cog_menu_group";
 import { _t } from "@web/core/translation";
 import { isDocumentsCogMenuItemVisible } from "./document_cog_menu_item.js";
+import { useSearchModel } from "@web/search/search_model";
 
 export class DocumentCogMenuPinAction extends Component {
     static template = "document.DocumentCogMenuPinAction";
@@ -15,16 +16,17 @@ export class DocumentCogMenuPinAction extends Component {
     static isVisible = isDocumentsCogMenuItemVisible;
 
     setup() {
+        this.searchModel = useSearchModel();
         this.action = useService("action");
         this.documentService = useService("document.document");
         this.notification = useService("notification");
 
         this.documentsState = useState({ actions: [], isLoading: true });
         this._reloadSearchModel = useDebounced(() => {
-            this.env.searchModel._reloadSearchModel(true);
+            this.searchModel._reloadSearchModel(true);
         }, 1500);
 
-        const folderId = this.env.searchModel.getSelectedFolderId();
+        const folderId = this.searchModel.getSelectedFolderId();
         this.documentService.getActions(folderId).then((actions) => {
             if (status(this) === "destroyed") {
                 return;
@@ -35,7 +37,7 @@ export class DocumentCogMenuPinAction extends Component {
     }
 
     async onEnableAction(actionId) {
-        const currentFolderId = this.env.searchModel.getSelectedFolderId();
+        const currentFolderId = this.searchModel.getSelectedFolderId();
         if (!currentFolderId || typeof currentFolderId !== "number") {
             this.notification.add(_t("You can not pin actions for that folder."), {
                 type: "warning",

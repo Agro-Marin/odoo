@@ -2,6 +2,7 @@
 import { Component, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 
 import { DocumentFileUploader } from "../document_file_uploader/document_file_uploader.js";
 import { defaultMoveTypeForJournal } from "../document_file_uploader/journal_defaults.js";
@@ -14,6 +15,7 @@ export class BillGuide extends Component {
     static props = ["*"];
 
     setup() {
+        this.searchModel = useSearchModel();
         this.orm = useService("orm");
         this.action = useService("action");
         this.context = null;
@@ -24,7 +26,7 @@ export class BillGuide extends Component {
 
     async onWillStart() {
         const rec = this.props.record;
-        const ctx = this.env.searchModel.context;
+        const ctx = this.searchModel.context;
         if (rec) {
             this.context = {
                 default_journal_id: rec.resId,
@@ -48,7 +50,7 @@ export class BillGuide extends Component {
         this.action.doActionButton({
             resModel: model,
             name: action,
-            context: this.context || this.env.searchModel.context,
+            context: this.context || this.searchModel.context,
             type: "object",
         });
     }
@@ -58,7 +60,7 @@ export class BillGuide extends Component {
             type: "ir.actions.act_window",
             res_model: "account.move",
             views: [[false, "form"]],
-            context: this.context || this.env.searchModel.context,
+            context: this.context || this.searchModel.context,
         });
     }
 }

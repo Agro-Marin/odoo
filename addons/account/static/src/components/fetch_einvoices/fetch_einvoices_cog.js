@@ -5,6 +5,7 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { COG_GROUP, isActWindowView } from "@web/search/cog_menu/cog_menu_group";
 import { CogMenuItem } from "@web/search/cog_menu/cog_menu_item";
+import { useSearchModel } from "@web/search/search_model";
 
 const cogMenuRegistry = registry.category("cogMenu");
 
@@ -15,23 +16,24 @@ export class FetchEInvoices extends Component {
 
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.action = useService("action");
     }
 
     get buttonAction() {
-        return this.env.searchModel.globalContext.show_fetch_in_einvoices_button
+        return this.searchModel.globalContext.show_fetch_in_einvoices_button
             ? "button_fetch_in_einvoices"
             : "button_refresh_out_einvoices_status";
     }
 
     get buttonLabel() {
-        return this.env.searchModel.globalContext.show_fetch_in_einvoices_button
+        return this.searchModel.globalContext.show_fetch_in_einvoices_button
             ? _t("Fetch e-Invoices")
             : _t("Refresh e-Invoices Status");
     }
 
     fetchEInvoices() {
-        const journalId = this.env.searchModel.globalContext.default_journal_id;
+        const journalId = this.searchModel.globalContext.default_journal_id;
         if (!journalId) {
             return;
         }

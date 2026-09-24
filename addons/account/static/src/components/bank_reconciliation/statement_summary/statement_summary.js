@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { useSearchModel } from "@web/search/search_model";
 
 export class BankRecStatementSummary extends Component {
     static template = "account.BankRecStatementSummary";
@@ -16,9 +17,14 @@ export class BankRecStatementSummary extends Component {
         isValid: true,
     };
 
+    setup() {
+        super.setup();
+        this.searchModel = useSearchModel();
+    }
+
     actionApplyInvalidStatement() {
-        const facets = this.env.searchModel.facets;
-        const searchItems = this.env.searchModel.searchItems;
+        const facets = this.searchModel.facets;
+        const searchItems = this.searchModel.searchItems;
         const invalidStatementFilter = Object.values(searchItems).find(
             (i) => i.name === "invalid_statement",
         );
@@ -31,7 +37,7 @@ export class BankRecStatementSummary extends Component {
                 invalidStatementFilter.description,
             )
         ) {
-            this.env.searchModel.toggleSearchItem(invalidStatementFilter.id);
+            this.searchModel.toggleSearchItem(invalidStatementFilter.id);
         }
     }
 }

@@ -8,6 +8,7 @@ import { useAction } from "@web/core/action_port";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 import { editFavoriteFilter } from "@web/search/utils/misc";
 const favoriteMenuRegistry = registry.category("favoriteMenu");
 
@@ -17,6 +18,7 @@ export class CustomFavoriteItem extends Component {
     static props = {};
 
     setup() {
+        this.searchModel = useSearchModel();
         this.actionService = useAction();
         this.notificationService = useService("notification");
         this.descriptionRef = useRef("description");
@@ -42,7 +44,7 @@ export class CustomFavoriteItem extends Component {
         }
         const { isDefault } = this.state;
         const embeddedActionId = this.env.config.currentEmbeddedActionId || false;
-        const serverSideId = await this.env.searchModel.createNewFavorite({
+        const serverSideId = await this.searchModel.createNewFavorite({
             description,
             isDefault,
             isShared,

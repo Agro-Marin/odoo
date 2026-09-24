@@ -3,6 +3,7 @@ import { reloadDocumentsView } from "@document/views/hooks";
 import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { CogMenuItem } from "@web/search/cog_menu/cog_menu_item";
+import { useSearchModel } from "@web/search/search_model";
 
 /**
  * @param {Object} env
@@ -40,12 +41,13 @@ export class DocumentsCogMenuItem extends Component {
     static isVisible = isDocumentsCogMenuItemVisible;
 
     setup() {
+        this.searchModel = useSearchModel();
         this.action = useService("action");
         this.documentService = useService("document.document");
     }
 
     async onItemSelected() {
-        const folder = this.env?.searchModel?.getSelectedFolder();
+        const folder = this.searchModel?.getSelectedFolder();
         if (!folder) {
             return;
         }

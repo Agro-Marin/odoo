@@ -2,9 +2,9 @@
 <templates>
     <t t-name="document.DocumentsViews.ControlPanel">
         <t t-set="isShareable" t-value="this.hasShareDocuments()"/>
-        <t t-set="folder" t-value="this.env.searchModel.getSelectedFolder()"/>
+        <t t-set="folder" t-value="this.searchModel.getSelectedFolder()"/>
         <input type="file" multiple="true" t-ref="uploadFileInput" class="o_input_file o_hidden" t-on-change.stop="this.onFileInputChange"/>
-        <Dropdown t-if="!this.env.searchModel.context.documents_view_secondary">
+        <Dropdown t-if="!this.searchModel.context.documents_view_secondary">
             <button type="button" class="btn btn-primary o-dropdown-caret" data-hotkey="c">
                 New
             </button>

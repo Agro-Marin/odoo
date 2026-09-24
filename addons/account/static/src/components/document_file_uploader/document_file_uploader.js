@@ -2,6 +2,7 @@
 import { Component, markup } from "@odoo/owl";
 import { FileUploader } from "@web/core/file_upload";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 import { standardWidgetProps } from "@web/views/widgets";
 
 export class DocumentFileUploader extends Component {
@@ -17,6 +18,7 @@ export class DocumentFileUploader extends Component {
     };
 
     setup() {
+        this.searchModel = useSearchModel();
         this.orm = useService("orm");
         this.action = useService("action");
         this.notification = useService("notification");
@@ -35,7 +37,7 @@ export class DocumentFileUploader extends Component {
             datas: file.data,
         };
         const cleanContext = Object.fromEntries(
-            Object.entries(this.env.searchModel.context).filter(
+            Object.entries(this.searchModel.context).filter(
                 ([key]) => !key.startsWith("default_"),
             ),
         );
@@ -67,7 +69,7 @@ export class DocumentFileUploader extends Component {
                 resModal,
                 this.getUploadMethod(),
                 [await this.getUploadIds(), this.attachmentIdsToProcess],
-                { context: { ...this.extraContext, ...this.env.searchModel.context } },
+                { context: { ...this.extraContext, ...this.searchModel.context } },
             );
         } finally {
             this.attachmentIdsToProcess = [];

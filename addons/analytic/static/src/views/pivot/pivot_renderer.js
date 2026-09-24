@@ -1,7 +1,13 @@
 /** @odoo-module native */
+import { useSearchModel } from "@web/search/search_model";
 import { PivotRenderer } from "@web/views/pivot";
 
 export class AnalyticPivotRenderer extends PivotRenderer {
+    setup() {
+        super.setup();
+        this.searchModel = useSearchModel();
+    }
+
     /**
      * Override to also resolve the selected id against the per-plan group-by
      * options, which are not top-level entries of `groupByItems`.
@@ -10,7 +16,7 @@ export class AnalyticPivotRenderer extends PivotRenderer {
         if (typeof optionId === "number") {
             itemId = optionId;
         }
-        let searchItems = this.env.searchModel.getSearchItems(
+        let searchItems = this.searchModel.getSearchItems(
             (searchItem) =>
                 ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
                 !searchItem.custom,

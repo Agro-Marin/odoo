@@ -5,6 +5,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { COG_GROUP } from "@web/search/cog_menu/cog_menu_group";
+import { useSearchModel } from "@web/search/search_model";
 import { ConfirmationDialog } from "@web/ui/dialog";
 import { listView } from "@web/views/list";
 import {
@@ -27,6 +28,7 @@ export class PageListController extends listView.Controller {
      */
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         useLifecycleLog(log);
         this.orm = useService("orm");
         this.dialog = useService("dialog");
@@ -88,7 +90,7 @@ export class PageListController extends listView.Controller {
                 this.dialog.add(DuplicatePageDialog, {
                     pageIds: resIds,
                     onDuplicate: () => {
-                        this.env.searchModel.refreshFilterForAllWebsites();
+                        this.searchModel.refreshFilterForAllWebsites();
                     },
                 });
             };

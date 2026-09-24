@@ -6,6 +6,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { COG_GROUP, isActWindowView } from "@web/search/cog_menu/cog_menu_group";
+import { useSearchModel } from "@web/search/search_model";
 
 const cogMenuRegistry = registry.category("cogMenu");
 
@@ -28,6 +29,7 @@ export class AddToBoard extends Component {
     static props = {};
 
     setup() {
+        this.searchModel = useSearchModel();
         this.notification = useService("notification");
         this.state = useState({ name: this.env.config.getDisplayName() });
 
@@ -39,9 +41,8 @@ export class AddToBoard extends Component {
     //---------------------------------------------------------------------
 
     async addToBoard() {
-        const { domain, globalContext } = this.env.searchModel;
-        const { context, groupBys, orderBy } =
-            this.env.searchModel.getPreFavoriteValues();
+        const { domain, globalContext } = this.searchModel;
+        const { context, groupBys, orderBy } = this.searchModel.getPreFavoriteValues();
         const contextToSave = {
             ...Object.fromEntries(
                 Object.entries(globalContext).filter(

@@ -17,6 +17,7 @@ import {
     useState,
 } from "@odoo/owl";
 import { useViewModel } from "@web/model/model";
+import { useSearchModel } from "@web/search/search_model";
 
 export const DocumentsRendererMixin = (component) =>
     class extends component {
@@ -33,6 +34,7 @@ export const DocumentsRendererMixin = (component) =>
 
         setup() {
             super.setup();
+            this.searchModel = useSearchModel();
             this.model = useViewModel();
             this.root = useRef("root");
             this.documentService = useService("document.document");
@@ -71,7 +73,7 @@ export const DocumentsRendererMixin = (component) =>
                     targetSelector: this.constructor.dropTargetSelector,
                     elements: this.constructor.recordSelector,
                     preventDrag: () =>
-                        this.env.searchModel.getSelectedFolderId() === "TRASH" ||
+                        this.searchModel.getSelectedFolderId() === "TRASH" ||
                         this.getIsDomainSelected(),
                     onTargetPointerEnter: ({ addClass, target, isInvalid }) => {
                         addClass(target, isInvalid ? invalid : hover);
@@ -153,8 +155,8 @@ export const DocumentsRendererMixin = (component) =>
             return this.documentService.focusedRecord;
         }
         getContainerRecord() {
-            const folder = this.env.searchModel.getSelectedFolder();
-            const folderData = this.env.searchModel.getFolderAndParents(folder);
+            const folder = this.searchModel.getSelectedFolder();
+            const folderData = this.searchModel.getFolderAndParents(folder);
             const folderId =
                 typeof folder.folder_id === "object"
                     ? folder.folder_id
@@ -200,7 +202,7 @@ export const DocumentsRendererMixin = (component) =>
              * @override to
              */
             record.load = async () => {
-                await this.env.searchModel._reloadSearchPanel();
+                await this.searchModel._reloadSearchPanel();
                 this.documentService.focusRecord(this.getContainerRecord());
             };
             /**

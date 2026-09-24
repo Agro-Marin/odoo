@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { useSearchModel } from "@web/search/search_model";
 import { ListRenderer, listView } from "@web/views/list";
 import { useActionLinks } from "@web/views/view_hook";
 
@@ -8,8 +9,9 @@ export class StockActionHelper extends Component {
     static template = "stock.StockActionHelper";
     static props = ["noContentHelp"];
     setup() {
+        this.searchModel = useSearchModel();
         const resModel =
-            "searchModel" in this.env ? this.env.searchModel.resModel : undefined;
+            "searchModel" in this.env ? this.searchModel.resModel : undefined;
         this.handler = useActionLinks({ resModel });
     }
 }

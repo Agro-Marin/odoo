@@ -5,6 +5,7 @@ import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useViewModel } from "@web/model/model";
+import { useSearchModel } from "@web/search/search_model";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 
 export class AccountProductCatalogSearchPanel extends SearchPanel {
@@ -12,6 +13,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
 
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.model = useViewModel();
         this.ui = useService("ui");
 
@@ -24,7 +26,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
         });
 
         useBus(
-            this.env.searchModel,
+            this.searchModel,
             "section-line-count-change",
             this.updateSectionLineCount.bind(this),
         );
@@ -50,7 +52,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
     }
 
     get selectedSection() {
-        return this.env.searchModel.selectedSection;
+        return this.searchModel.selectedSection;
     }
 
     onDragStart(sectionId, ev) {
@@ -87,7 +89,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
     }
 
     setSelectedSection(sectionId = null, filtered = false) {
-        this.env.searchModel.setSelectedSection(sectionId, filtered);
+        this.searchModel.setSelectedSection(sectionId, filtered);
     }
 
     async createSection() {

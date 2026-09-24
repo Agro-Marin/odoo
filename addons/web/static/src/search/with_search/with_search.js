@@ -16,7 +16,7 @@ import { SEARCH_KEYS } from "@web/core/constants";
 import { SearchModelEvent } from "@web/core/events";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { SearchModel } from "@web/search/search_model";
+import { provideSearchModel, SearchModel } from "@web/search/search_model";
 
 export class WithSearch extends Component {
     static template = "web.WithSearch";
@@ -78,7 +78,8 @@ export class WithSearch extends Component {
         const searchPanelState = this.props.globalState?.searchPanel
             ? JSON.parse(this.props.globalState?.searchPanel)
             : null;
-        useSubEnv({ searchModel: this.searchModel, searchPanelState });
+        provideSearchModel(this.searchModel);
+        useSubEnv({ searchPanelState });
 
         this.state = useState({ searchModelUpdates: 0 });
         useBus(

@@ -3,18 +3,20 @@ import { getShowSubtasks, setShowSubtasks } from "@project/utils/project_utils";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
+import { useSearchModel } from "@web/search/search_model";
 
 export class ProjectTaskControlPanel extends ControlPanel {
     static template = "project.ProjectTaskControlPanel";
 
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.ui = useService("ui");
         this.state.showSubtasks = getShowSubtasks();
     }
 
     get showTaskOptions() {
-        const context = this.env.searchModel.globalContext;
+        const context = this.searchModel.globalContext;
         return (
             !context.my_tasks &&
             (!("show_task_options" in context) || context.show_task_options)
@@ -31,6 +33,6 @@ export class ProjectTaskControlPanel extends ControlPanel {
     onClickShowSubtasks() {
         this.state.showSubtasks = !this.state.showSubtasks;
         setShowSubtasks(this.state.showSubtasks);
-        this.env.searchModel.search();
+        this.searchModel.search();
     }
 }

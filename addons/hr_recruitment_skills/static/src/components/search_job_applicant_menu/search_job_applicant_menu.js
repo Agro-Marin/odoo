@@ -4,6 +4,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { COG_GROUP } from "@web/search/cog_menu/cog_menu_group";
 import { CogMenuItem } from "@web/search/cog_menu/cog_menu_item";
+import { useSearchModel } from "@web/search/search_model";
 
 const cogMenuRegistry = registry.category("cogMenu");
 
@@ -16,12 +17,13 @@ export class SearchJobApplicant extends Component {
     static props = {};
 
     setup() {
+        this.searchModel = useSearchModel();
         this.orm = useService("orm");
         this.action = useService("action");
     }
 
     async openMatchingJobApplicants() {
-        const { globalContext } = this.env.searchModel;
+        const { globalContext } = this.searchModel;
         const action = await this.orm.call(
             "hr.job",
             "action_search_matching_applicants",

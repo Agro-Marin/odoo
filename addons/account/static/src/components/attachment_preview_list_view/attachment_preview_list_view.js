@@ -2,6 +2,7 @@
 import { useChildSubEnv, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 import { SIZES } from "@web/ui/viewport";
 import { ListController, ListRenderer, listView } from "@web/views/list";
 
@@ -19,6 +20,7 @@ export class AttachmentPreviewListController extends ListController {
     }
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         /** @type {import("@mail/core/common/store_service").Store} */
         this.store = useService("mail.store");
         this.ui = useService("ui");
@@ -38,7 +40,7 @@ export class AttachmentPreviewListController extends ListController {
 
     get previewEnabled() {
         return (
-            !this.env.searchModel.context.disable_preview &&
+            !this.searchModel.context.disable_preview &&
             (this.ui.size >= SIZES.XXL || this.mailPopoutService.externalWindow)
         );
     }

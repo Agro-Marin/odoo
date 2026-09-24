@@ -13,6 +13,7 @@ import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { MOVABLE_RECORD_TYPES } from "@web/model/relational_model/dynamic_group_list";
+import { useSearchModel } from "@web/search/search_model";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { ActionHelper } from "@web/views/action_helper";
 import { useGroupManagement } from "@web/views/multi_record_group";
@@ -104,6 +105,7 @@ export class KanbanRenderer extends Component {
     lastOpenedGroupId;
 
     setup() {
+        this.searchModel = useSearchModel();
         this.ui = useService("ui");
         useRenderCounter("kanban.KanbanRenderer");
         useLifecycleLog(log);
@@ -195,8 +197,8 @@ export class KanbanRenderer extends Component {
     }
 
     setupFocus() {
-        if (this.env.searchModel) {
-            useBus(this.env.searchModel, SearchModelEvent.FOCUS_VIEW, () => {
+        if (this.searchModel) {
+            useBus(this.searchModel, SearchModelEvent.FOCUS_VIEW, () => {
                 const { model } = this.props.list;
                 if (model.useSampleModel || !model.hasData()) {
                     return;
@@ -214,7 +216,7 @@ export class KanbanRenderer extends Component {
             onSpace: (target, isRange) => this.onSpaceKeyPress(target, isRange),
             onArrowNav: (area, direction) =>
                 this.focusNextCard(area, direction) ?? false,
-            searchModel: this.env.searchModel,
+            searchModel: this.searchModel,
         });
         onPatched(() => this.scrollToLastOpenedGroup());
     }

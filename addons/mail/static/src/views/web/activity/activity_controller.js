@@ -7,6 +7,7 @@ import { useService } from "@web/core/utils/hooks";
 import { useModel } from "@web/model/model";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { usePager } from "@web/search/pager_hook";
+import { useSearchModel } from "@web/search/search_model";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { useViewChassis, ViewLayout } from "@web/views/view_components";
 import { SelectCreateDialog } from "@web/views/view_dialogs";
@@ -23,6 +24,7 @@ export class ActivityController extends Component {
     static template = "mail.ActivityController";
 
     setup() {
+        this.searchModel = useSearchModel();
         this.model = useState(
             useModel(
                 /** @type {typeof import("./activity_model").ActivityModel} */ (
@@ -88,14 +90,14 @@ export class ActivityController extends Component {
     }
 
     getSearchProps() {
-        const { context, domain, groupBy, orderBy } = this.env.searchModel;
+        const { context, domain, groupBy, orderBy } = this.searchModel;
         return { context, domain, groupBy, orderBy };
     }
 
     get getSelectCreateDialogProps() {
         return {
             resModel: this.props.resModel,
-            searchViewId: this.env.searchModel.searchViewId,
+            searchViewId: this.searchModel.searchViewId,
             domain: this.model.originalDomain,
             title: _t("Search: %s", this.props.archInfo.title),
             multiSelect: false,

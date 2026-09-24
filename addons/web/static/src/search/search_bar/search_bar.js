@@ -18,6 +18,7 @@ import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useAutofocus, useBus, useChildRef, useService } from "@web/core/utils/hooks";
 import { fuzzyTest } from "@web/core/utils/search";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
+import { useSearchModel } from "@web/search/search_model";
 
 const parseValue = (value, fieldType) => {
     const parser = getFieldCodec(fieldType).parse;
@@ -117,6 +118,7 @@ export class SearchBar extends Component {
     inputRef;
 
     setup() {
+        this._searchModel = useSearchModel();
         useLifecycleLog(log);
         this.root = useRef("root");
         this.ui = useService("ui");
@@ -153,12 +155,12 @@ export class SearchBar extends Component {
                 ? useRef("autofocus")
                 : useAutofocus({ mobile: this.ui.isSmall });
 
-        useBus(this.env.searchModel, SearchModelEvent.FOCUS_SEARCH, () => {
+        useBus(this._searchModel, SearchModelEvent.FOCUS_SEARCH, () => {
             this.inputRef.el?.focus();
         });
 
         useBus(
-            this.env.searchModel,
+            this._searchModel,
             SearchModelEvent.UPDATE,
             () => this.state.searchModelUpdates++,
         );
@@ -166,21 +168,21 @@ export class SearchBar extends Component {
 
     get searchModel() {
         void this.state.searchModelUpdates;
-        return this.env.searchModel;
+        return this._searchModel;
     }
 
     get searchItemsFields() {
-        return this.env.searchModel.getSearchItems((f) => f.type === "field");
+        return this._searchModel.getSearchItems((f) => f.type === "field");
     }
 
     /** @returns {Record<string, Object>} */
     get fields() {
-        return this.env.searchModel.searchViewFields;
+        return this._searchModel.searchViewFields;
     }
 
     /** @param {number} id */
     getSearchItem(id) {
-        return this.env.searchModel.searchItems[id];
+        return this._searchModel.searchItems[id];
     }
 
     /**
@@ -214,7 +216,7 @@ export class SearchBar extends Component {
             if (searchItem.type === "field" && searchItem.fieldType === "properties") {
                 tasks.push({
                     id,
-                    prom: this.env.searchModel
+                    prom: this._searchModel
                         .getSearchItemsProperties(searchItem)
                         .catch(() => []),
                 });
@@ -454,7 +456,7 @@ export class SearchBar extends Component {
         let domain = [];
         if (searchItem.domain) {
             const domainEvalContext = {
-                ...this.env.searchModel.domainEvalContext,
+                ...this._searchModel.domainEvalContext,
                 ...field.context,
             };
             domain = new Domain(searchItem.domain).toList(domainEvalContext);
@@ -470,7 +472,7 @@ export class SearchBar extends Component {
             options = await this.orm.call(relation, "name_search", [], {
                 domain: domain,
                 context: {
-                    ...this.env.searchModel.globalContext,
+                    ...this._searchModel.globalContext,
                     ...field.context,
                 },
                 limit: limitToFetch,
@@ -540,7 +542,7 @@ export class SearchBar extends Component {
 
     /** @param {Object} facet */
     removeFacet(facet) {
-        this.env.searchModel.deactivateGroup(facet.groupId);
+        this._searchModel.deactivateGroup(facet.groupId);
         this.inputRef.el?.focus();
     }
 
@@ -555,7 +557,7 @@ export class SearchBar extends Component {
     /** @param {Object} item */
     selectItem(item) {
         if (item.isAddCustomFilterButton) {
-            return this.env.searchModel.spawnCustomFilterDialog();
+            return this._searchModel.spawnCustomFilterDialog();
         }
 
         const searchItem = this.getSearchItem(item.searchItemId);
@@ -581,7 +583,7 @@ export class SearchBar extends Component {
                     label = this.state.query;
                 } catch {}
             }
-            this.env.searchModel.addAutoCompletionValues(searchItemId, {
+            this._searchModel.addAutoCompletionValues(searchItemId, {
                 label,
                 operator,
                 value,
@@ -639,11 +641,11 @@ export class SearchBar extends Component {
                 },
                 enter: {
                     isAvailable: () => !this.inputDropdownState.isOpen,
-                    callback: () => this.env.searchModel.search(),
+                    callback: () => this._searchModel.search(),
                 },
                 arrowdown: {
                     callback: () =>
-                        this.env.searchModel.trigger(SearchModelEvent.FOCUS_VIEW),
+                        this._searchModel.trigger(SearchModelEvent.FOCUS_VIEW),
                 },
                 backspace: {
                     bypassEditableProtection: true,
@@ -652,7 +654,7 @@ export class SearchBar extends Component {
                         isFacet(target) ||
                         (target.selectionStart === 0 && target.selectionEnd === 0),
                     callback: (navigator) => {
-                        const facets = this.env.searchModel.facets;
+                        const facets = this._searchModel.facets;
                         if (isFacet(navigator.activeItem.el)) {
                             this.removeFacet(facets[navigator.activeItemIndex]);
                         } else if (facets.length) {
@@ -796,17 +798,17 @@ export class SearchBar extends Component {
      */
     isFacetLabelClickable(facet) {
         return Boolean(
-            (this.env.searchModel.canOrderByCount && facet.type === "groupBy") ||
+            (this._searchModel.canOrderByCount && facet.type === "groupBy") ||
             facet.domain,
         );
     }
 
     onFacetLabelClick(facet) {
         const { domain, groupId } = facet;
-        if (this.env.searchModel.canOrderByCount && facet.type === "groupBy") {
-            this.env.searchModel.switchGroupBySort();
+        if (this._searchModel.canOrderByCount && facet.type === "groupBy") {
+            this._searchModel.switchGroupBySort();
         } else if (domain) {
-            this.env.searchModel.spawnCustomFilterDialog({ domain, groupId });
+            this._searchModel.spawnCustomFilterDialog({ domain, groupId });
         }
     }
 
@@ -853,7 +855,7 @@ export class SearchBar extends Component {
 
     onClickSearchIcon() {
         if (!this.state.query.length) {
-            this.env.searchModel.search();
+            this._searchModel.search();
         } else {
             const item = this.items.find((item) => item.id === this.lastActiveItemId);
             if (item) {

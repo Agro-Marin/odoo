@@ -5,6 +5,7 @@ import { formatMonetary } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { clamp } from "@web/core/utils/format/numbers";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 
 import { TimePeriodSelectionField } from "./time_period_selection_fields.js";
 
@@ -25,6 +26,7 @@ export class PurchaseSuggestCatalogSearchPanel extends AccountProductCatalogSear
 
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.ui = useService("ui");
         this.suggest = useState(useEnv().suggest);
         this.toggleSuggest = useEnv().toggleSuggest;

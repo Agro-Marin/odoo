@@ -7,6 +7,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
+import { useSearchModel } from "@web/search/search_model";
 import { AlertDialog } from "@web/ui/dialog";
 import { KanbanController, KanbanRenderer, kanbanView } from "@web/views/kanban";
 const log = makeLogger("pos.backend.kanban");
@@ -58,6 +59,7 @@ export class PosKanbanRenderer extends KanbanRenderer {
 
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.ui = useService("ui");
         this.orm = useService("orm");
         this.action = useService("action");
@@ -145,7 +147,7 @@ export class PosKanbanRenderer extends KanbanRenderer {
             errors.push(error);
         }
         try {
-            await this.env.searchModel.clearQuery();
+            await this.searchModel.clearQuery();
         } catch (error) {
             errors.push(error);
         }

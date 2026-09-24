@@ -2,6 +2,7 @@
 import { getAttendeeStatusClass } from "@calendar/views/attendee_calendar/attendee_calendar_utils";
 import { AttendeeCalendarCommonPopover } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_popover";
 import { toRaw } from "@odoo/owl";
+import { useSearchModel } from "@web/search/search_model";
 import { CalendarCommonRenderer } from "@web/views/calendar";
 
 /** @type {WeakSet<object>} */
@@ -13,6 +14,11 @@ export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
         ...CalendarCommonRenderer.components,
         Popover: AttendeeCalendarCommonPopover,
     };
+    setup() {
+        super.setup();
+        this.searchModel = useSearchModel();
+    }
+
     /**
      * @override
      */
@@ -51,7 +57,7 @@ export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
         const record = this.props.model.records[event.id];
         if (
             record &&
-            this.env.searchModel?.context?.default_calendar_event_id ===
+            this.searchModel?.context?.default_calendar_event_id ===
                 parseInt(event.id) &&
             !defaultEventPopoverOpened.has(toRaw(this.props.model))
         ) {

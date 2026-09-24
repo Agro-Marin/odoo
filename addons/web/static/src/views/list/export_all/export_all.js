@@ -8,6 +8,7 @@ import { user } from "@web/core/user";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { COG_GROUP } from "@web/search/cog_menu/cog_menu_group";
 import { CogMenuItem } from "@web/search/cog_menu/cog_menu_item";
+import { useSearchModel } from "@web/search/search_model";
 
 const cogMenuRegistry = registry.category("cogMenu");
 
@@ -16,8 +17,13 @@ export class ExportAll extends Component {
     static components = { CogMenuItem };
     static props = {};
 
+    setup() {
+        super.setup();
+        this.searchModel = useSearchModel();
+    }
+
     async onDirectExportData() {
-        this.env.searchModel.trigger(SearchModelEvent.DIRECT_EXPORT_DATA);
+        this.searchModel.trigger(SearchModelEvent.DIRECT_EXPORT_DATA);
     }
 }
 
