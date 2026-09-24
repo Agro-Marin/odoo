@@ -298,6 +298,11 @@ class PurchaseOrderLine(models.Model):
             if line.date_is_manual:
                 continue
 
+            # a confirmed order has promised its dates: the seller's lead time
+            # only leads the lines of a request for quotation
+            if line.order_id.state != "draft":
+                continue
+
             if not line._origin.date_is_manual:
                 valid_dates = line._get_seller_valid_dates()
                 if line.date_commitment.date() in valid_dates:

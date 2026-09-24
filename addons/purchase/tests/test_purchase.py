@@ -96,6 +96,30 @@ class TestPurchase(AccountTestInvoicingCommon):
         self.assertEqual(po.state, "done")
         self.assertEqual(po.date_commitment, promised)
 
+    def test_a_new_preferred_seller_moves_a_draft_line_but_not_a_confirmed_one(
+        self,
+    ):
+        seller_values = {
+            "partner_id": self.partner_a.id,
+            "product_tmpl_id": self.product_a.product_tmpl_id.id,
+            "price": 100,
+        }
+        self.env["product.supplierinfo"].create(
+            dict(seller_values, sequence=20, delay=2)
+        )
+        draft = self._order_with_one_line()
+        confirmed = self._order_with_one_line()
+        confirmed.action_confirm()
+        draft_date = draft.line_ids.date_commitment
+        confirmed_date = confirmed.line_ids.date_commitment
+
+        self.env["product.supplierinfo"].create(
+            dict(seller_values, sequence=1, delay=5)
+        )
+
+        self.assertEqual(confirmed.line_ids.date_commitment, confirmed_date)
+        self.assertEqual(draft.line_ids.date_commitment, draft_date + timedelta(days=3))
+
     def test_cancelling_clears_the_date_commitment_and_a_reset_derives_it_again(
         self,
     ):
