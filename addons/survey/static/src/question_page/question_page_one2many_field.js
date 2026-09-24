@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { useSubEnv } from "@odoo/owl";
+import { provideSurveyContext } from "@survey/survey_context";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
@@ -40,7 +40,7 @@ class QuestionPageOneToManyField extends X2ManyField {
     };
     setup() {
         super.setup();
-        useSubEnv({
+        provideSurveyContext({
             openRecord: (record) => this.openRecord(record),
         });
 

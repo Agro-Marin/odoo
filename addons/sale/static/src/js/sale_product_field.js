@@ -3,6 +3,7 @@ import {
     ProductLabelSectionAndNoteField,
     productLabelSectionAndNoteField,
 } from "@account/components/product_label_section_and_note_field/product_label_section_and_note_field";
+import { useSaleOrderLineFieldContext } from "@sale/js/sale_order_line_field/sale_order_line_field_context";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { rpc } from "@web/core/network";
 import { x2ManyCommands } from "@web/core/network";
@@ -63,6 +64,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
 
     setup() {
         super.setup();
+        this.orderLineFieldContext = useSaleOrderLineFieldContext();
         this.dialog = useService("dialog");
         this.notification = useService("notification");
         this.orm = useService("orm");
@@ -388,7 +390,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
 
     /** @return {Object} */
     _getAdditionalDialogProps() {
-        const isOptionalLine = this.env.shouldCollapse(
+        const isOptionalLine = this.orderLineFieldContext.shouldCollapse(
             this.props.record,
             "is_optional",
         );
@@ -401,7 +403,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
     }
 
     _prepareNewLineData(line, product) {
-        if (this.env.shouldCollapse(line, "is_optional")) {
+        if (this.orderLineFieldContext.shouldCollapse(line, "is_optional")) {
             return { ...product, quantity: 0 };
         }
         return product;

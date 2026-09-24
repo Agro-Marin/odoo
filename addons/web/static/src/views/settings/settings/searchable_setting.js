@@ -26,7 +26,7 @@ export class SearchableSetting extends Setting {
         /** @type {{ search: { value: string }, showAllContainer: { showAllContainer: boolean }, highlightClass: Record<string, boolean> }} */
         this.state = useState({
             search: this.settingsContext.searchState,
-            showAllContainer: this.env.showAllContainer,
+            showAllContainer: this.settingsContext.showAllContainer,
             highlightClass: {},
         });
         this.labels = [];

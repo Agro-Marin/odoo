@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { toRaw, useChildSubEnv } from "@odoo/owl";
+import { toRaw } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { registry } from "@web/core/registry";
@@ -10,6 +10,7 @@ import { deepCopy } from "@web/core/utils/collections/objects";
 import { useComputed } from "@web/core/utils/computed";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { escape } from "@web/core/utils/format/strings";
+import { provideChildWebContext } from "@web/core/web_context_hooks";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -72,7 +73,7 @@ class ResUserGroupIdsField extends FieldComponent {
         this.archInfo = this.getArch();
 
         this.info = { booleanFieldToGroupId, groups: {}, privileges };
-        useChildSubEnv({ resUserGroupsInfo: this.info });
+        provideChildWebContext({ resUserGroupsInfo: this.info });
         this.renderState = useComputed(
             (track) => {
                 const list = track(this.props.record).data[this.props.name];

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useChildSubEnv, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
@@ -12,6 +12,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user, userBus } from "@web/core/user";
 import { useBus, useChildRef, useService } from "@web/core/utils/hooks";
+import { provideChildWebContext } from "@web/core/web_context_hooks";
 import { useCommand } from "@web/ui/commands";
 import {
     CompanySelector,
@@ -71,7 +72,7 @@ export class SwitchCompanyMenu extends Component {
                 this.dropdown,
             ),
         );
-        useChildSubEnv({ companySelector: this.companySelector });
+        provideChildWebContext({ companySelector: this.companySelector });
 
         this.searchInputRef = useRef("inputRef");
         this.state = useState(

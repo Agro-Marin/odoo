@@ -2,6 +2,7 @@
 import { DocumentsFileViewer } from "@document/attachments/document_file_viewer";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useDocumentContext } from "@document/document_context";
 
 /** Fixed-position host of the viewer inside a documents view. */
 export class DocumentsFileViewerHost extends Component {
@@ -12,6 +13,7 @@ export class DocumentsFileViewerHost extends Component {
     static props = ["parentRoot", "previewStore"];
 
     setup() {
+        this.documentContext = useDocumentContext();
         this.ui = useService("ui");
         this.documentService = useService("document.document");
         this.root = useRef("root");
@@ -72,7 +74,7 @@ export class DocumentsFileViewerHost extends Component {
 
     onIframeKeydown(ev) {
         if (ev.key === "Escape") {
-            this.env.documentsView.bus.trigger("documents-close-preview");
+            this.documentContext.documentsView.bus.trigger("documents-close-preview");
         }
     }
 }

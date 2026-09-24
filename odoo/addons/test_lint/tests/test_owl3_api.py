@@ -43,7 +43,12 @@ ENV_KEYS = {
         r"setQuantity|mainProductTmplId|currency|canChangeVariant|showQuantity|"
         r"showPackaging|showPrice|setUoM|updateProductTemplateSelectedPTAV|"
         r"updatePTAVCustomValue|isPossibleCombination|__beforeLeave__|"
-        r"__getGlobalState__|__getLocalState__|__getContext__|__getOrderBy__)\b"
+        r"__getGlobalState__|__getLocalState__|__getContext__|__getOrderBy__|"
+        r"resUserGroupsInfo|searchPanelState|showAllContainer|companySelector|addPage|"
+        r"getCssLinkEls|setPopout|dashboardState|setDragging|removeRecord|selectedValues|"
+        r"projectSharingId|shouldCollapse|approvalGatedModels|orderlineGroupOf|"
+        r"stockDashboardAllSample|openRecord|isQuantityAllowed|productCatalogPendingUpdates|"
+        r"isFrontend|isMainProductConfigurable|displayRating|reload)\b"
     ),
     "owl_env_bus": re.compile(r"\bthis\.env\.bus\b"),
     "owl_env_debug": re.compile(r"\bthis\.env\.debug\b"),

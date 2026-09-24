@@ -1,13 +1,13 @@
 /** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
-import { useSubEnv } from "@odoo/owl";
 import { ProductConfiguratorDialog } from "@sale/js/product_configurator_dialog/product_configurator_dialog";
+import { provideWebsiteSaleStockContext } from "@website_sale_stock/website_sale_stock_context";
 
 patch(ProductConfiguratorDialog.prototype, {
     setup() {
         super.setup(...arguments);
 
-        useSubEnv({
+        provideWebsiteSaleStockContext({
             isQuantityAllowed: this._isQuantityAllowed.bind(this),
         });
     },

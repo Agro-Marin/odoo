@@ -3,7 +3,7 @@
     <t t-inherit="sale.ProductTemplateAttributeLine" t-inherit-mode="extension">
         <div name="ptal" position="attributes">
             <attribute name="t-if">
-                this.env.isMainProductConfigurable
+                this.configuratorContext.isMainProductConfigurable
                     || this.configuratorContext.mainProductTmplId !== this.props.productTmplId
             </attribute>
             <attribute name="class" remove="o_input" separator=" "/>

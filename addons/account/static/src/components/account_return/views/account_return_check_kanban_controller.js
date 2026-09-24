@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { useEffect, useSubEnv } from "@odoo/owl";
+import { provideAccountContext } from "@account/account_context";
+import { useEffect } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { KanbanController } from "@web/views/kanban";
 
@@ -7,7 +8,7 @@ export class AccountReturnCheckKanbanController extends KanbanController {
     setup() {
         super.setup();
 
-        useSubEnv({
+        provideAccountContext({
             reload: () => this.model.load(),
         });
 

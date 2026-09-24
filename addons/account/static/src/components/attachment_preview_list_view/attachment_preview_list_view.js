@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { useChildSubEnv, useState } from "@odoo/owl";
+import { provideChildAccountContext } from "@account/account_context";
+import { useState } from "@odoo/owl";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -35,7 +36,7 @@ export class AttachmentPreviewListController extends ListController {
         });
         this.popout = useState({ active: false });
 
-        useChildSubEnv({
+        provideChildAccountContext({
             setPopout: this.setPopout.bind(this),
         });
     }

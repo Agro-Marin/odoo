@@ -1,11 +1,13 @@
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { onWillStart } from "@odoo/owl";
+import { usePortalContext } from "@portal/portal_context";
 import { patch } from "@web/core/utils/patch";
 
 patch(Composer.prototype, {
     setup() {
         super.setup();
+        this.portalContext = usePortalContext();
         onWillStart(() => {
             if (this.thread && !this.thread.id) {
                 this.state.active = false;
@@ -15,8 +17,8 @@ patch(Composer.prototype, {
 
     get extraData() {
         const extraData = super.extraData;
-        if (this.env.projectSharingId) {
-            extraData.project_sharing_id = this.env.projectSharingId;
+        if (this.portalContext.projectSharingId) {
+            extraData.project_sharing_id = this.portalContext.projectSharingId;
         }
         return extraData;
     },

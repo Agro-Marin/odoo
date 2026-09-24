@@ -8,7 +8,6 @@ import {
     status,
     useRef,
     useState,
-    useSubEnv,
 } from "@odoo/owl";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
@@ -25,6 +24,7 @@ import {
     removeTextHighlight,
 } from "@website/js/highlight_utils";
 import { onceAllImagesLoaded } from "@website/utils/images";
+import { provideWebsiteContext, useWebsiteContext } from "@website/website_context";
 
 const NO_OP = () => {};
 
@@ -87,6 +87,7 @@ class AddPageTemplateBlank extends Component {
 
     setup() {
         super.setup();
+        this.websiteContext = useWebsiteContext();
         useLifecycleLog(log);
         this.holderRef = useRef("holder");
 
@@ -97,7 +98,7 @@ class AddPageTemplateBlank extends Component {
 
     select() {
         log.logic("AddPageTemplateBlank select");
-        this.env.addPage();
+        this.websiteContext.addPage();
     }
 }
 
@@ -118,6 +119,7 @@ class AddPageTemplatePreview extends Component {
 
     setup() {
         super.setup();
+        this.websiteContext = useWebsiteContext();
         useLifecycleLog(log);
         this.iframeRef = useRef("iframe");
         this.previewRef = useRef("preview");
@@ -158,7 +160,7 @@ class AddPageTemplatePreview extends Component {
                     iframeEl.contentDocument.body.onload = resolve;
                 });
             }
-            for (const cssLinkEl of await this.env.getCssLinkEls()) {
+            for (const cssLinkEl of await this.websiteContext.getCssLinkEls()) {
                 const preloadLinkEl = document.createElement("link");
                 preloadLinkEl.setAttribute("rel", "preload");
                 preloadLinkEl.setAttribute("href", cssLinkEl.getAttribute("href"));
@@ -342,7 +344,7 @@ class AddPageTemplatePreview extends Component {
             templateId,
             sections: wrapEl.children.length,
         }));
-        this.env.addPage(
+        this.websiteContext.addPage(
             wrapEl.innerHTML,
             this.props.template.name && _t("Copy of %s", this.props.template.name),
             templateId,
@@ -394,6 +396,7 @@ class AddPageTemplates extends Component {
 
     setup() {
         super.setup();
+        this.websiteContext = useWebsiteContext();
         useLifecycleLog(log);
         this.website = useService("website");
         this.tabsRef = useRef("tabs");
@@ -434,7 +437,7 @@ class AddPageTemplates extends Component {
         );
 
         const endCss = log.perf("AddPageTemplates await css links");
-        await this.env.getCssLinkEls();
+        await this.websiteContext.getCssLinkEls();
         endCss();
         if (status(this) === "destroyed") {
             log.logic("preparePages abort: destroyed");
@@ -558,7 +561,7 @@ export class AddPageDialog extends Component {
         this.cssLinkEls = undefined;
         this.lastTabName = "";
 
-        useSubEnv({
+        provideWebsiteContext({
             addPage: (sectionsArch, name, templateId) =>
                 this.addPage(sectionsArch, name, templateId),
             getCssLinkEls: () => this.getCssLinkEls(),

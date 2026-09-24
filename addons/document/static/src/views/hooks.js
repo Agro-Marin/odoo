@@ -7,8 +7,9 @@ import { useBus, useService } from "@web/core/utils/hooks";
 import { useSetupAction } from "@web/core/action_hook";
 import { PdfManager } from "@document/owl/components/pdf_manager/pdf_manager";
 import { PromoteStudioAutomationDialog } from "@web/webclient/promote_studio/promote_studio_dialog";
-import { EventBus, onMounted, useEnv, useRef, useSubEnv } from "@odoo/owl";
+import { EventBus, onMounted, useEnv, useRef } from "@odoo/owl";
 import { provideViewModel } from "@web/model/model";
+import { provideDocumentContext } from "@document/document_context";
 
 export const DETAIL_PANEL_REQUIRED_FIELDS = [
     "lock_uid",
@@ -43,7 +44,7 @@ export async function reloadDocumentsView(env) {
 }
 
 export function preSuperSetup() {
-    useSubEnv({
+    provideDocumentContext({
         documentsView: {
             bus: new EventBus(),
         },

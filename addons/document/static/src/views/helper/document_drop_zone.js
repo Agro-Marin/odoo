@@ -2,12 +2,14 @@
 import { Component, useEffect, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { useSearchModel } from "@web/search/search_model";
+import { useDocumentContext } from "@document/document_context";
 
 export class DocumentsDropZone extends Component {
     static template = "document.DocumentsDropZone";
     static props = ["parentRoot"];
 
     setup() {
+        this.documentContext = useDocumentContext();
         this.searchModel = useSearchModel();
         this.state = useState({
             dragOver: false,
@@ -81,7 +83,7 @@ export class DocumentsDropZone extends Component {
         this.root?.el?.classList.remove(this.rootDropOverClass);
         this.state.dragOver = false;
         if (this.canDrop) {
-            this.env.documentsView.bus.trigger("documents-upload-files", {
+            this.documentContext.documentsView.bus.trigger("documents-upload-files", {
                 files: ev.dataTransfer.files,
                 accessToken: this.documentService.currentFolderAccessToken,
             });

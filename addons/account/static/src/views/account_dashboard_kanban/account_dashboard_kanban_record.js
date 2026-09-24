@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useAccountContext } from "@account/account_context";
 import { AccountFileUploader } from "@account/components/account_file_uploader/account_file_uploader";
 import { UploadDropZone } from "@account/components/upload_drop_zone/upload_drop_zone";
 import { onWillStart, useState } from "@odoo/owl";
@@ -27,6 +28,7 @@ export class DashboardKanbanRecord extends KanbanRecord {
 
     setup() {
         super.setup();
+        this.accountContext = useAccountContext();
         onWillStart(async () => {
             const { group } = this.recordDropSettings;
             this.allowDrop = group ? await user.hasGroup(group) : true;
@@ -34,7 +36,7 @@ export class DashboardKanbanRecord extends KanbanRecord {
         this.dropzoneState = useState({
             visible: false,
         });
-        this.dashboardState = useState(this.env.dashboardState);
+        this.dashboardState = useState(this.accountContext.dashboardState);
     }
 
     get recordDropSettings() {
@@ -62,6 +64,6 @@ export class DashboardKanbanRecord extends KanbanRecord {
 
     hideDropzone() {
         this.dropzoneState.visible = false;
-        this.env.setDragging(false);
+        this.accountContext.setDragging(false);
     }
 }

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useAccountContext } from "@account/account_context";
 import { Component, onWillStart } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { colorScheme } from "@web/core/color_scheme";
@@ -18,6 +19,7 @@ export class AccountReturnSelectionBadge extends Component {
     };
 
     setup() {
+        this.accountContext = useAccountContext();
         this.config = useViewConfig();
         onWillStart(async () => {
             this.editableOptions = await this.getEditableOptions();
@@ -109,7 +111,7 @@ export class AccountReturnSelectionBadge extends Component {
 
     async onChange(value) {
         await this.props.record.update({ [this.props.name]: value }, { save: true });
-        this.env.reload?.();
+        this.accountContext.reload?.();
     }
 }
 

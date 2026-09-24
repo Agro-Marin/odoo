@@ -4,6 +4,7 @@
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
+import { useWebContext } from "@web/core/web_context_hooks";
 import { isCompanyAllowed } from "@web/webclient/switch_company_menu/company_selector";
 
 export class SwitchCompanyItem extends Component {
@@ -14,7 +15,8 @@ export class SwitchCompanyItem extends Component {
     };
 
     setup() {
-        this.companySelector = useState(this.env.companySelector);
+        this.webContext = useWebContext();
+        this.companySelector = useState(this.webContext.companySelector);
     }
 
     /** @returns {boolean} */

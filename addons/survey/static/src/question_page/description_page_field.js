@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { useEffect, useRef } from "@odoo/owl";
+import { useSurveyContext } from "@survey/survey_context";
 import { registry } from "@web/core/registry";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 
@@ -7,6 +8,7 @@ class DescriptionPageField extends CharField {
     static template = "survey.DescriptionPageField";
     setup() {
         super.setup();
+        this.surveyContext = useSurveyContext();
         const inputRef = useRef("input");
         useEffect(
             (input) => {
@@ -18,7 +20,7 @@ class DescriptionPageField extends CharField {
         );
     }
     onExternalBtnClick() {
-        this.env.openRecord(this.props.record);
+        this.surveyContext.openRecord(this.props.record);
     }
 }
 

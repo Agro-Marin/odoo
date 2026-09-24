@@ -47,8 +47,9 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
         // still in flight while the order form was already reloading -- and the
         // line the user just added was simply absent. Register a flush the
         // controller awaits in `beforeLeave`, which every exit goes through.
-        this.env.productCatalogPendingUpdates?.add(this);
-        onWillDestroy(() => this.env.productCatalogPendingUpdates?.delete(this));
+        const parentCatalog = useProductCatalogContext();
+        parentCatalog.productCatalogPendingUpdates?.add(this);
+        onWillDestroy(() => parentCatalog.productCatalogPendingUpdates?.delete(this));
 
         provideProductCatalogContext({
             currencyId: this.props.record.context.product_catalog_currency_id,

@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
+import { usePosSelfOrderContext } from "@pos_self_order/pos_self_order_context";
 
 import { AttributeSelectionHelper } from "./attribute_selection_helper.js";
 
@@ -9,8 +10,9 @@ export class AttributeSelection extends Component {
     static props = ["productTemplate", "onSelection?", "isCombo?"];
 
     setup() {
+        this.selfOrderContext = usePosSelfOrderContext();
         this.selfOrder = useSelfOrder();
-        this.envSelectedValues = useState(this.env.selectedValues);
+        this.envSelectedValues = useState(this.selfOrderContext.selectedValues);
     }
 
     get selectedValues() {

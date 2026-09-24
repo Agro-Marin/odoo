@@ -20,6 +20,7 @@ import { exprToBoolean } from "@web/core/utils/format/strings";
 import { uniqueId } from "@web/core/utils/functions";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useViewConfig } from "@web/core/view_config_hooks";
+import { useWebContext } from "@web/core/web_context_hooks";
 import { useSearchModel } from "@web/search/search_model";
 
 const isFilter = (s) => s.type === "filter";
@@ -52,6 +53,7 @@ export class SearchPanel extends Component {
     };
 
     setup() {
+        this.webContext = useWebContext();
         this.config = useViewConfig();
         this.searchModel = useSearchModel();
         this.ui = useService("ui");
@@ -68,7 +70,7 @@ export class SearchPanel extends Component {
         this.dropdownStates = {};
         this.width = "10px";
 
-        this.importState(this.env.searchPanelState);
+        this.importState(this.webContext.searchPanelState);
         const sidebarExpandedPreference = browser.localStorage.getItem(
             this.keyExpandSidebar,
         );

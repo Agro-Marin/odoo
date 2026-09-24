@@ -1,7 +1,8 @@
 /** @odoo-module native */
-import { Component, useChildSubEnv, useEffect, useRef } from "@odoo/owl";
+import { Component, useEffect, useRef } from "@odoo/owl";
 import { CenteredIcon } from "@point_of_sale/app/components/centered_icon/centered_icon";
 import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
+import { provideChildPosContext } from "@point_of_sale/app/pos_context";
 import { TagsList } from "@web/components/tags_list";
 import { formatCurrency } from "@web/core/currency";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -27,7 +28,9 @@ export class OrderDisplay extends Component {
         this.scrollableRef = useRef("scrollable");
         /** @type {Map<string, import("./orderline_groups").OrderlineGroup>} */
         this.groupOfLine = new Map();
-        useChildSubEnv({ orderlineGroupOf: (line) => this.groupOfLine.get(line.uuid) });
+        provideChildPosContext({
+            orderlineGroupOf: (line) => this.groupOfLine.get(line.uuid),
+        });
         useEffect(
             () => {
                 this.scrollableRef.el

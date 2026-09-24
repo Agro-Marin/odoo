@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { _t } from "@web/core/translation";
+import { useWebContext } from "@web/core/web_context_hooks";
 import { registerField } from "@web/fields/_registry";
 import { BooleanField } from "@web/fields/basic/boolean/boolean_field";
 import { FieldComponent } from "@web/fields/field_component";
@@ -20,9 +21,10 @@ class ResUserGroupIdsPrivilegeField extends FieldComponent {
     popover;
 
     setup() {
+        this.webContext = useWebContext();
         this.isDebug = Boolean(odoo.debug);
         this.popover = usePopover(ResUserGroupIdsPopover);
-        this.groups = this.env.resUserGroupsInfo.groups;
+        this.groups = this.webContext.resUserGroupsInfo.groups;
     }
 
     /** @returns {number[]} */
@@ -40,7 +42,9 @@ class ResUserGroupIdsPrivilegeField extends FieldComponent {
         const gid =
             this.type === "selection"
                 ? value
-                : this.env.resUserGroupsInfo.booleanFieldToGroupId[this.props.name];
+                : this.webContext.resUserGroupsInfo.booleanFieldToGroupId[
+                      this.props.name
+                  ];
         return this.groups[gid] || false;
     }
 
@@ -106,7 +110,9 @@ class ResUserGroupIdsPrivilegeField extends FieldComponent {
             return option ? option[0] : false;
         } else {
             const groupId =
-                this.env.resUserGroupsInfo.booleanFieldToGroupId[this.props.name];
+                this.webContext.resUserGroupsInfo.booleanFieldToGroupId[
+                    this.props.name
+                ];
             return predicate(groupId) ? groupId : false;
         }
     }
@@ -125,8 +131,8 @@ class ResUserGroupIdsPrivilegeField extends FieldComponent {
         }
         this.popover.open(/** @type {HTMLElement} */ (ev.currentTarget), {
             groupId,
-            groups: this.env.resUserGroupsInfo.groups,
-            privileges: this.env.resUserGroupsInfo.privileges,
+            groups: this.webContext.resUserGroupsInfo.groups,
+            privileges: this.webContext.resUserGroupsInfo.privileges,
         });
     }
 }

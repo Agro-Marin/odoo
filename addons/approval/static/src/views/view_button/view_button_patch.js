@@ -9,10 +9,12 @@ import {
     provideViewButtonContext,
     useViewButtonContext,
 } from "@web/core/view_button_context_hooks";
+import { useApprovalContext } from "@approval/approval_context";
 
 patch(ViewButton.prototype, {
     setup() {
         super.setup(...arguments);
+        this.approvalContext = useApprovalContext();
         this.viewButtonContext = useViewButtonContext();
         const { name, type } = this.props.clickParams || {};
         const model = this.props.record?.resModel;
@@ -68,7 +70,9 @@ patch(ViewButton.prototype, {
      * editor that draws every button's approvals, as Studio's does, overrides it.
      */
     _isApprovalGated() {
-        return Boolean(this.env.approvalGatedModels?.[this.props.record.resModel]);
+        return Boolean(
+            this.approvalContext.approvalGatedModels?.[this.props.record.resModel],
+        );
     },
 });
 

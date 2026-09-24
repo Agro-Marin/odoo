@@ -1,14 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    Component,
-    onWillStart,
-    onWillUpdateProps,
-    toRaw,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
+import { Component, onWillStart, onWillUpdateProps, toRaw, useState } from "@odoo/owl";
 import { getDefaultDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
 import {
@@ -21,6 +14,7 @@ import { SEARCH_KEYS } from "@web/core/constants";
 import { SearchModelEvent } from "@web/core/events";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { provideWebContext } from "@web/core/web_context_hooks";
 import { provideSearchModel, SearchModel } from "@web/search/search_model";
 
 export class WithSearch extends Component {
@@ -85,7 +79,7 @@ export class WithSearch extends Component {
             ? JSON.parse(this.props.globalState?.searchPanel)
             : null;
         provideSearchModel(this.searchModel);
-        useSubEnv({ searchPanelState });
+        provideWebContext({ searchPanelState });
 
         this.state = useState({ searchModelUpdates: 0 });
         useBus(

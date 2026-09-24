@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, useRef } from "@odoo/owl";
+import { usePosContext } from "@point_of_sale/app/pos_context";
 import { useTimedPress } from "@point_of_sale/app/utils/use_timed_press";
 import { TagsList } from "@web/components/tags_list";
 import { formatCurrency } from "@web/core/currency";
@@ -32,6 +33,7 @@ export class Orderline extends Component {
     };
 
     setup() {
+        this.posContext = usePosContext();
         useLifecycleLog(log);
         this.root = useRef("root");
         if (this.props.mode === "display") {
@@ -65,7 +67,7 @@ export class Orderline extends Component {
         if (this.props.mode !== "display") {
             return undefined;
         }
-        return this.env.orderlineGroupOf?.(this.line);
+        return this.posContext.orderlineGroupOf?.(this.line);
     }
 
     get lineContainerClasses() {

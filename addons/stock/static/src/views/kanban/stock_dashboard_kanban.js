@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { useSubEnv } from "@odoo/owl";
+import { provideStockContext } from "@stock/stock_context";
 import { readJsonValue } from "@stock/utils/json_field";
 import { registry } from "@web/core/registry";
 import { DynamicGroupList, DynamicRecordList } from "@web/model/relational_model";
@@ -8,7 +8,9 @@ import { KanbanRenderer, kanbanView } from "@web/views/kanban";
 export class StockDashboardKanbanRenderer extends KanbanRenderer {
     setup() {
         super.setup();
-        useSubEnv({ stockDashboardAllSample: () => this.allGraphsAreSample() });
+        provideStockContext({
+            stockDashboardAllSample: () => this.allGraphsAreSample(),
+        });
     }
 
     get dashboardRecords() {

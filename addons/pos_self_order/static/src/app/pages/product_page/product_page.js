@@ -1,12 +1,5 @@
 /** @odoo-module native */
-import {
-    Component,
-    onMounted,
-    onWillUnmount,
-    useRef,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { AttributeSelection } from "@pos_self_order/app/components/attribute_selection/attribute_selection";
 import {
     getAttributeValues,
@@ -14,6 +7,10 @@ import {
     getProductVariantByAttributes,
 } from "@pos_self_order/app/services/card_utils";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
+import {
+    providePosSelfOrderContext,
+    usePosSelfOrderContext,
+} from "@pos_self_order/pos_self_order_context";
 import { useService } from "@web/core/utils/hooks";
 
 import { useScrollShadow } from "../../utils/scroll_shadow_hook.js";
@@ -33,12 +30,13 @@ export class ProductPage extends Component {
         }
 
         const editedLine = this.selfOrder.editedLine;
-        useSubEnv({ selectedValues: {} });
+        providePosSelfOrderContext({ selectedValues: {} });
+        this.selfOrderContext = usePosSelfOrderContext();
 
         this.selfOrder.lastEditedProductId = this.props.productTemplate.id;
         this.state = useState({
             qty: editedLine ? editedLine.qty : 1,
-            selectedValues: this.env.selectedValues,
+            selectedValues: this.selfOrderContext.selectedValues,
             topShadowOpacity: 0,
             bottomShadowOpacity: 0,
             showStickyTitle: false,

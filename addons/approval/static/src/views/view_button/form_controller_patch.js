@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { useSubEnv } from "@odoo/owl";
 import { patch } from "@web/core/utils/patch";
 import { FormController } from "@web/views/form";
 
 import { trace } from "../../common/approval_trace.js";
+import { provideApprovalContext } from "@approval/approval_context";
 
 patch(FormController.prototype, {
     setup() {
@@ -21,6 +21,6 @@ patch(FormController.prototype, {
                 ),
             });
         }
-        useSubEnv({ approvalGatedModels });
+        provideApprovalContext({ approvalGatedModels });
     },
 });

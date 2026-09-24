@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Chatter } from "@mail/chatter/web_portal/chatter";
-import { onWillUpdateProps, useSubEnv } from "@odoo/owl";
+import { onWillUpdateProps } from "@odoo/owl";
+import { providePortalContext } from "@portal/portal_context";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 
@@ -16,7 +17,7 @@ patch(Chatter.prototype, {
             }
         });
         this.orm = useService("orm");
-        useSubEnv({
+        providePortalContext({
             projectSharingId: this.props.projectSharingId,
         });
     },

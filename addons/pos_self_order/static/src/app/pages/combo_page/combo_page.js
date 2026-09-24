@@ -1,16 +1,13 @@
 /** @odoo-module native */
-import {
-    Component,
-    onMounted,
-    onWillUnmount,
-    useRef,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { AttributeSelection } from "@pos_self_order/app/components/attribute_selection/attribute_selection";
 import { ComboStepper } from "@pos_self_order/app/components/combo_stepper/combo_stepper";
 import { ProductNameWidget } from "@pos_self_order/app/components/product_name_widget/product_name_widget";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
+import {
+    providePosSelfOrderContext,
+    usePosSelfOrderContext,
+} from "@pos_self_order/pos_self_order_context";
 import { useService } from "@web/core/utils/hooks";
 
 import { computeTotalComboPrice } from "../../services/card_utils.js";
@@ -31,14 +28,15 @@ export class ComboPage extends Component {
             this.goBack();
             return;
         }
-        useSubEnv({ selectedValues: {} });
+        providePosSelfOrderContext({ selectedValues: {} });
+        this.selfOrderContext = usePosSelfOrderContext();
         this.selfOrder = useSelfOrder();
         this.state = useState({
             selectedChoiceIndex: 0,
             choices: [],
             showResume: false,
             qty: 1,
-            selectedValues: this.env.selectedValues,
+            selectedValues: this.selfOrderContext.selectedValues,
             comboPrice: 0,
             topShadowOpacity: 0,
             bottomShadowOpacity: 1,

@@ -12,7 +12,7 @@ import {
     SectionAndNoteText,
     sectionAndNoteText,
 } from "@account/components/section_and_note_fields_backend/section_and_note_fields_backend";
-import { useSubEnv } from "@odoo/owl";
+import { provideSaleOrderLineFieldContext } from "@sale/js/sale_order_line_field/sale_order_line_field_context";
 import {
     getRecordsToRecompute,
     handleQuantityAdjustment,
@@ -72,7 +72,7 @@ export class SaleOrderLineListRenderer extends ProductLabelSectionAndNoteListRen
         this.priceColumns.push("discount");
         this.copyFields.push("is_optional");
 
-        useSubEnv({
+        provideSaleOrderLineFieldContext({
             shouldCollapse: this.shouldCollapse.bind(this),
         });
     }

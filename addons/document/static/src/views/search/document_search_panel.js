@@ -11,6 +11,7 @@ import { toFolderValueId } from "@document/views/utils";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { useViewModel } from "@web/model/model";
 import { useSearchModel } from "@web/search/search_model";
+import { useDocumentContext } from "@document/document_context";
 
 const DND_ALLOWED_SPECIAL_DESTINATIONS = ["COMPANY", "MY"];
 const LONG_TOUCH_THRESHOLD = 400;
@@ -58,6 +59,7 @@ export class DocumentsSearchPanel extends SearchPanel {
     };
     setup() {
         super.setup(...arguments);
+        this.documentContext = useDocumentContext();
         this.searchModel = useSearchModel();
         this.model = useViewModel();
         const { uploads } = useService("file_upload");
@@ -90,9 +92,13 @@ export class DocumentsSearchPanel extends SearchPanel {
             }
         });
 
-        useBus(this.env.documentsView.bus, "documents-expand-folder", (ev) => {
-            this._expandFolder(ev.detail);
-        });
+        useBus(
+            this.documentContext.documentsView.bus,
+            "documents-expand-folder",
+            (ev) => {
+                this._expandFolder(ev.detail);
+            },
+        );
 
         useBus(this.searchModel, "update-search-panel", async () => {
             this.updateActiveValues();

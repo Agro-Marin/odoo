@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useStockContext } from "@stock/stock_context";
 import { readJsonField } from "@stock/utils/json_field";
 import { getColor, getCustomColor } from "@web/core/colors/colors";
 import { Chart } from "@web/core/lib/chartjs";
@@ -17,6 +18,7 @@ export function shapeSampleBars(values, seed = 0) {
 export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
     setup() {
         super.setup();
+        this.stockContext = useStockContext();
         this.actionService = useService("action");
     }
 
@@ -47,7 +49,7 @@ export class PickingTypeDashboardGraphField extends JournalDashboardGraphField {
             if (
                 data[0]?.values?.length &&
                 data[0].values.every((value) => value.type === "sample") &&
-                this.env.stockDashboardAllSample?.()
+                this.stockContext.stockDashboardAllSample?.()
             ) {
                 shapeSampleBars(data[0].values, this.props.record.resId);
             }

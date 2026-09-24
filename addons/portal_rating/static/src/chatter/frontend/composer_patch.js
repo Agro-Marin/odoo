@@ -5,6 +5,7 @@ import { patch } from "@web/core/utils/patch";
 import { rpc } from "@web/core/network";
 import { useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { useMailContext } from "@mail/utils/common/mail_context";
 
 const MAX_STAR_RATING = 5;
 const DEFAULT_STAR_RATING = 4;
@@ -12,6 +13,7 @@ const DEFAULT_STAR_RATING = 4;
 patch(Composer.prototype, {
     setup() {
         super.setup(...arguments);
+        this.mailContext = useMailContext();
         this.MAX_STAR_RATING = MAX_STAR_RATING;
         this.portalState = useState({
             hoveredRatingValue: undefined,
@@ -95,7 +97,7 @@ patch(Composer.prototype, {
 
     get postData() {
         const postData = super.postData;
-        if (this.env.displayRating && !this.message) {
+        if (this.mailContext.displayRating && !this.message) {
             postData.rating_value = this.portalState.ratingValue;
         }
         this.portalState.ratingValue = DEFAULT_STAR_RATING;

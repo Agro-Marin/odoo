@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useHtmlEditorContext } from "@html_editor/html_editor_context";
 import { getVideoUrl } from "@html_editor/utils/url";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -10,6 +11,7 @@ export class X2ManyImageField extends ImageField {
     static template = "html_editor.ImageField";
     setup() {
         super.setup();
+        this.htmlEditorContext = useHtmlEditorContext();
         this.orm = useService("orm");
         this.dialog = useService("dialog");
     }
@@ -65,7 +67,7 @@ export class X2ManyImageField extends ImageField {
     }
 
     onFileRemove() {
-        this.env.removeRecord(this.props.record);
+        this.htmlEditorContext.removeRecord(this.props.record);
     }
 }
 

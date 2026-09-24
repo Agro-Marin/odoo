@@ -3,6 +3,7 @@ import { useSubEnv } from "@odoo/owl";
 import { ProductConfiguratorDialog } from "@sale/js/product_configurator_dialog/product_configurator_dialog";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
+import { useProductConfiguratorContext } from "@sale/js/product_configurator_dialog/product_configurator_context";
 
 patch(ProductConfiguratorDialog, {
     props: {
@@ -38,6 +39,7 @@ patch(ProductConfiguratorDialog.prototype, {
             isMainProductConfigurable:
                 this.props.options?.isMainProductConfigurable ?? true,
         });
+        this.configuratorContext = useProductConfiguratorContext();
     },
 
     /**
@@ -55,7 +57,7 @@ patch(ProductConfiguratorDialog.prototype, {
     },
 
     get totalMessage() {
-        if (this.env.isFrontend) {
+        if (this.configuratorContext.isFrontend) {
             return _t("Total: %s", this.getFormattedTotal());
         }
         return super.totalMessage;

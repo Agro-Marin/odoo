@@ -2,12 +2,14 @@
 import { Component, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
+import { useDocumentContext } from "@document/document_context";
 
 export class DocumentsTypeIcon extends Component {
     static template = "document.DocumentsTypeIcon";
     static props = { ...standardFieldProps };
 
     setup() {
+        this.documentContext = useDocumentContext();
         this.fileInput = useRef("fileInput");
     }
 
@@ -19,7 +21,7 @@ export class DocumentsTypeIcon extends Component {
         if (!this.fileInput.el.files.length) {
             return;
         }
-        this.env.documentsView.bus.trigger("documents-upload-files", {
+        this.documentContext.documentsView.bus.trigger("documents-upload-files", {
             files: this.fileInput.el.files,
             accessToken: this.props.record.data.access_token,
         });

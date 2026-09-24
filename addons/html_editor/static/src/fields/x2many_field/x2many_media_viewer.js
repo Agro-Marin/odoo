@@ -1,6 +1,6 @@
 /** @odoo-module native */
+import { provideChildHtmlEditorContext } from "@html_editor/html_editor_context";
 import { getVideoUrl } from "@html_editor/utils/url";
-import { useChildSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -27,7 +27,7 @@ export class X2ManyMediaViewer extends X2ManyField {
             "image_256",
             "image_128",
         ];
-        useChildSubEnv({
+        provideChildHtmlEditorContext({
             removeRecord: (record) =>
                 this.props.record.data[this.props.name].delete(record),
         });

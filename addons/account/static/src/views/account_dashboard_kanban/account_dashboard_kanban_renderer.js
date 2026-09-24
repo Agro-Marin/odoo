@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { reactive, useSubEnv } from "@odoo/owl";
+import { provideAccountContext, useAccountContext } from "@account/account_context";
+import { reactive } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { KanbanRenderer } from "@web/views/kanban";
 
@@ -15,10 +16,11 @@ export class DashboardKanbanRenderer extends KanbanRenderer {
     setup() {
         super.setup();
         this.ui = useService("ui");
-        useSubEnv({
+        provideAccountContext({
             dashboardState: reactive({ isDragging: false }),
             setDragging: this.setDragging.bind(this),
         });
+        this.accountContext = useAccountContext();
     }
 
     kanbanDragEnter(e) {
@@ -44,6 +46,6 @@ export class DashboardKanbanRenderer extends KanbanRenderer {
     }
 
     setDragging(value) {
-        this.env.dashboardState.isDragging = value;
+        this.accountContext.dashboardState.isDragging = value;
     }
 }
