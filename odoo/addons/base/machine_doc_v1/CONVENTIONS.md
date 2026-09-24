@@ -202,7 +202,7 @@ class MyModel(models.Model):
 - `ir.actions.server.history` — Keep last 100 code revisions
 - `res.users.apikeys` — Expired API keys
 - `res.users.log` — Keep latest log per user
-- `res.device` — Old device entries (×2: devices + logs)
+- `res.device.log` — Old device entries (×2: duplicate rows + revoked sessions)
 
 ## Sequence Implementation
 
@@ -266,8 +266,8 @@ ir.actions.report._render_qweb_pdf(docids, data)
 
 ### Tag Strategy
 
-- **41% of test files have no `@tagged` decorator** — they run in all phases by default
-- **59% use `@tagged`** — typically `@tagged('post_install', '-at_install', 'feature_tag')`
+- **40% of test files have no `@tagged` decorator** — they run in all phases by default
+- **60% use `@tagged`** — typically `@tagged('post_install', '-at_install', 'feature_tag')`
 - `post_install` always travels with `-at_install`; 296 classes carry it
 - The three figures above are derived by `factcheck.sh` from `_test_inventory.py`
 

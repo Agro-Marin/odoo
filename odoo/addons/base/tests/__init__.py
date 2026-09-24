@@ -143,6 +143,7 @@ from . import test_default_group
 from . import test_ir_actions_webhook
 from . import test_xml_utils
 from . import test_device_log_isolation
+from . import test_res_device
 from . import test_id_sequence_names
 from . import test_server_action_tools
 from . import test_ir_access_migration

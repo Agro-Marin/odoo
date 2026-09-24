@@ -1219,63 +1219,6 @@ class TestAtLeastOneAdministrator(TransactionCase):
         )
 
 
-@tagged("post_install", "-at_install")
-class TestDeviceLogGC(TransactionCase):
-    def _log(self, **vals):
-        base = {
-            "session_identifier": "sid_rdev_p3_a",
-            "platform": "linux",
-            "browser": "firefox",
-            "ip_address": "127.0.0.1",
-            "user_id": self.env.uid,
-            "first_activity": "2026-07-01 10:00:00",
-            "last_activity": "2026-07-01 10:00:00",
-        }
-        base.update(vals)
-        return self.env["res.device.log"].create(base)
-
-    def test_gc_keeps_latest_log_per_device(self):
-        DeviceLog = self.env["res.device.log"]
-
-        self._log(last_activity="2026-07-01 10:00:00")
-        self._log(last_activity="2026-07-01 11:00:00")
-        keep_a = self._log(last_activity="2026-07-01 12:00:00")
-
-        self._log(platform=False, browser=False, last_activity="2026-07-01 10:00:00")
-        keep_b = self._log(
-            platform=False, browser=False, last_activity="2026-07-01 11:00:00"
-        )
-
-        self._log(
-            session_identifier="sid_rdev_p3_c", last_activity="2026-07-01 09:00:00"
-        )
-        keep_c = self._log(
-            session_identifier="sid_rdev_p3_c", last_activity="2026-07-01 09:00:00"
-        )
-
-        keep_d = self._log(
-            session_identifier="sid_rdev_p3_d",
-            ip_address="10.0.0.8",
-            last_activity="2020-01-01 00:00:00",
-        )
-
-        self.env.flush_all()
-        DeviceLog._gc_device_log()
-        self.env.invalidate_all()
-
-        survivors = DeviceLog.search(
-            [
-                (
-                    "session_identifier",
-                    "in",
-                    ["sid_rdev_p3_a", "sid_rdev_p3_c", "sid_rdev_p3_d"],
-                )
-            ],
-            order="id",
-        )
-        self.assertEqual(survivors, keep_a | keep_b | keep_c | keep_d)
-
-
 class TestAccessesCount(UsersCommonCase):
     def test_counts_match_relational_reads(self):
         user = self.user_internal
@@ -1321,65 +1264,6 @@ class TestInstalledLangCodes(TransactionCase):
             self.skipTest("fr_FR already installed; cannot test invalidation")
         self.env["res.lang"]._activate_lang("fr_FR")
         self.assertIn("fr_FR", Users._get_installed_lang_codes())
-
-
-class TestDeviceIdentityAlignment(TransactionCase):
-    def _log(self, **vals):
-        base = {
-            "session_identifier": "sid_rdev_p4",
-            "platform": "linux",
-            "browser": "firefox",
-            "ip_address": "10.0.0.1",
-            "user_id": self.env.uid,
-            "first_activity": "2026-07-01 10:00:00",
-            "last_activity": "2026-07-01 10:00:00",
-        }
-        base.update(vals)
-        return self.env["res.device.log"].create(base)
-
-    def test_view_identity_derives_from_constant(self):
-        from odoo.addons.base.models.res_device import _DEVICE_IDENTITY_COLUMNS
-
-        where = self.env["res.device"]._where()
-        for column, _nullable in _DEVICE_IDENTITY_COLUMNS:
-            self.assertIn(f"D2.{column}", where)
-        self.assertNotIn("ip_address", where)
-
-    def test_gc_keeps_ip_history_view_shows_latest(self):
-        old_ip = self._log(last_activity="2026-07-01 10:00:00")
-        new_ip = self._log(ip_address="10.0.0.2", last_activity="2026-07-01 11:00:00")
-        self.env.flush_all()
-        devices = (
-            self.env["res.device"]
-            .sudo()
-            .search([("session_identifier", "=", "sid_rdev_p4")])
-        )
-        self.assertEqual(devices.ids, [new_ip.id], "view shows only the latest row")
-        self.env["res.device.log"]._gc_device_log()
-        survivors = self.env["res.device.log"].search(
-            [("session_identifier", "=", "sid_rdev_p4")]
-        )
-        self.assertEqual(
-            survivors,
-            old_ip | new_ip,
-            "GC keeps one row per IP for linked_ip_addresses history",
-        )
-
-    def test_null_user_rows_dedup_consistently(self):
-        old = self._log(user_id=False, last_activity="2026-07-01 10:00:00")
-        newest = self._log(user_id=False, last_activity="2026-07-01 11:00:00")
-        self.env.flush_all()
-        devices = (
-            self.env["res.device"]
-            .sudo()
-            .search([("session_identifier", "=", "sid_rdev_p4")])
-        )
-        self.assertEqual(devices.ids, [newest.id])
-        self.env["res.device.log"]._gc_device_log()
-        survivors = self.env["res.device.log"].search(
-            [("session_identifier", "=", "sid_rdev_p4")]
-        )
-        self.assertEqual(survivors, newest, f"GC must delete hidden row {old.id}")
 
 
 @tagged("post_install", "-at_install")

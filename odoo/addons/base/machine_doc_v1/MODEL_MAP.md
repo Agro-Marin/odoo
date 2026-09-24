@@ -1780,24 +1780,33 @@ Partner bank accounts.
 
 ### models/res_device.py
 
-#### ResDeviceLog — `res.device.log` (`_name`)
+#### ResDeviceMixin — `res.device.mixin` (AbstractModel)
 
-Device/session tracking.
+The fields and computes the log and the view share, so the view inherits no
+table, index or autovacuum of the log.
 
 **Fields:**
 - `session_identifier` (Char, required), `platform`, `browser` (Char)
 - `ip_address`, `country`, `city` (Char)
 - `device_type` (Selection: computer/mobile)
 - `user_id` (Many2one → res.users), `first_activity`, `last_activity` (Datetime)
-- `revoked` (Boolean), `is_current` (Boolean, computed)
+- `revoked` (Boolean), `is_current` (Boolean, computed, sortable)
+- `linked_ip_addresses` (Text, computed: the device's IPs, newest first)
+
+#### ResDeviceLog — `res.device.log` (`_name`)
+
+One row per device and IP address. `_DEVICE_IDENTITY` (user, session
+identifier, platform, browser) is what one device is.
 
 **Key Methods:**
 - `_update_device(request)` — Log device info from HTTP request
-- `_gc_device_log()` — Autovacuum old device logs
+- `_mark_revoked(session_identifiers)` — Mark every unrevoked row of those sessions
+- `_gc_device_log()` — Autovacuum: keep the latest row per device and IP
+- `_update_revoked()` — Autovacuum: revoke every row of the sessions the store lost, asking it in batches
 
 #### ResDevice — `res.device` (`_name`, `_auto = False`, SQL view)
 
-Latest device per session/platform/browser (aggregated view).
+Latest unrevoked row per device; `first_activity` is the device's earliest.
 
 **Key Methods:**
 - `revoke()` — Revoke device session (`@check_identity` decorated)
@@ -2225,7 +2234,7 @@ Quick lookup — file → model → primary role:
 | `res_config.py` | res.config, res.config.settings | Settings framework |
 | `res_country.py` | res.country, .group, .state | Geography |
 | `res_currency.py` | res.currency, .rate | Currencies + rates |
-| `res_device.py` | res.device.log, res.device | Session tracking |
+| `res_device.py` | res.device.mixin, res.device.log, res.device | Session tracking |
 | `res_groups.py` | res.groups | Security groups |
 | `res_groups_privilege.py` | res.groups.privilege | Group categories |
 | `res_lang.py` | res.lang | Languages |

@@ -1,3 +1,5 @@
+import json
+import time
 from datetime import datetime
 from unittest.mock import patch
 
@@ -6,6 +8,7 @@ from freezegun import freeze_time
 import odoo
 from odoo import Command
 from odoo.exceptions import AccessError
+from odoo.http import STORED_SESSION_BYTES
 
 from .test_common import TestHttpBase
 from odoo.addons.test_http.utils import (
@@ -553,3 +556,86 @@ class TestDevice(TestHttpBase):
         self.hit("2024-01-01 08:00:00", "/test_http/greeting-public?readonly=0")
 
         self.assertFalse(session["_trace"])
+
+    def test_first_activity_survives_an_ip_change(self):
+        self.authenticate(self.user_admin.login, self.user_admin.login)
+        self.hit(
+            "2024-01-01 08:00:00",
+            "/test_http/greeting-public?readonly=0",
+            ip="193.0.3.43",
+        )
+        self.hit(
+            "2024-01-01 12:00:00",
+            "/test_http/greeting-public?readonly=0",
+            ip="192.0.2.42",
+        )
+        devices, logs = self.get_devices_logs(self.user_admin)
+        self.assertEqual(len(logs), 2)
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(devices.ip_address, "192.0.2.42")
+        self.assertEqual(devices.first_activity, datetime(2024, 1, 1, 8, 0))
+        self.assertEqual(devices.last_activity, datetime(2024, 1, 1, 12, 0))
+
+    def _sweep_real_store(self):
+        with patch.object(
+            type(self.env["ir.cron"]), "_commit_progress", lambda *a, **k: float("inf")
+        ):
+            self.DeviceLog.sudo()._update_revoked()
+        self.env.invalidate_all()
+
+    def test_sweep_keeps_a_live_session(self):
+        session = self.authenticate(self.user_admin.login, self.user_admin.login)
+        self.hit("2024-01-01 08:00:00", "/test_http/greeting-public?readonly=0")
+        self._sweep_real_store()
+        devices, logs = self.get_devices_logs(self.user_admin)
+        self.assertEqual(len(devices), 1)
+        self.assertFalse(any(logs.mapped("revoked")))
+        self.assertTrue(odoo.http.root.session_store.get(session.sid).uid)
+
+    def test_sweep_hides_a_dead_session_entirely(self):
+        session = self.authenticate(self.user_admin.login, self.user_admin.login)
+        self.hit("2024-01-01 08:00:00", "/test_http/greeting-public?readonly=0")
+        stale = self.DeviceLog.search([("user_id", "=", self.user_admin.id)])
+        self.assertEqual(len(stale), 1)
+        stale.copy({"ip_address": "10.1.1.1", "last_activity": datetime.now()})
+        odoo.http.root.session_store.delete(session)
+        self._sweep_real_store()
+        logs = self.DeviceLog.search([("user_id", "=", self.user_admin.id)])
+        self.assertEqual(logs.mapped("revoked"), [True, True])
+        self.assertFalse(self.user_admin.device_ids)
+
+    def _call_kw(self, model, method, ids):
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {"model": model, "method": method, "args": [ids], "kwargs": {}},
+        }
+        return self.url_open(
+            f"/web/dataset/call_kw/{model}/{method}",
+            data=json.dumps(payload),
+            headers={"Content-Type": "application/json"},
+        ).json()
+
+    def test_revoking_the_current_device_reloads(self):
+        session = self.authenticate(self.user_admin.login, self.user_admin.login)
+        session["identity-check-last"] = time.time()
+        odoo.http.root.session_store.save(session)
+        self.url_open("/test_http/greeting-user?readonly=0")
+        device = self.user_admin.device_ids
+        self.assertEqual(len(device), 1)
+
+        response = self._call_kw("res.device", "revoke", device.ids)
+
+        self.assertEqual(
+            response.get("result"), {"type": "ir.actions.client", "tag": "reload"}
+        )
+        self.assertIn("/web/login", self.url_open("/test_http/greeting-user").url)
+
+    def test_device_log_lines_carry_no_session_identifier(self):
+        session = self.authenticate(self.user_admin.login, self.user_admin.login)
+        with self.assertLogs("odoo.addons.base.models.res_device", "INFO") as logs:
+            self.hit("2024-01-01 08:00:00", "/test_http/greeting-user?readonly=0")
+            self.user_admin.device_ids._revoke()
+        self.assertEqual(len(logs.output), 2)
+        identifier = session.sid[:STORED_SESSION_BYTES]
+        self.assertFalse([line for line in logs.output if identifier in line])

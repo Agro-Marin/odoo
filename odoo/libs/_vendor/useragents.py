@@ -5,10 +5,11 @@ import re
 class UserAgentParser:
 
     platforms = (
-        ("cros", "chromeos"),
-        ("iphone|ios", "iphone"),
+        (r"\bcros\b", "chromeos"),
+        (r"iphone|\bios\b", "iphone"),
         ("ipad", "ipad"),
         (r"darwin|mac|os\s*x", "macos"),
+        (r"windows\s+phone", "windows phone"),
         ("win", "windows"),
         (r"android", "android"),
         ("netbsd", "netbsd"),
@@ -24,7 +25,7 @@ class UserAgentParser:
         ("sco|unix_sv", "sco"),
         ("bsd", "bsd"),
         ("amiga", "amiga"),
-        ("blackberry|playbook", "blackberry"),
+        ("blackberry|playbook|bb10", "blackberry"),
         ("symbian", "symbian"),
     )
     browsers = (
@@ -33,11 +34,12 @@ class UserAgentParser:
         ("yahoo", "yahoo"),
         ("ask jeeves", "ask"),
         (r"aol|america\s+online\s+browser", "aol"),
-        ("opera", "opera"),
-        ("edge", "edge"),
+        (r"opera|\bopr\b", "opera"),
+        (r"\bedg(?:e|a|ios)?\b", "edge"),
+        ("samsungbrowser", "samsung"),
         ("chrome|crios", "chrome"),
         ("seamonkey", "seamonkey"),
-        ("firefox|firebird|phoenix|iceweasel", "firefox"),
+        ("firefox|fxios|firebird|phoenix|iceweasel", "firefox"),
         ("galeon", "galeon"),
         ("safari|version", "safari"),
         ("webkit", "webkit"),
