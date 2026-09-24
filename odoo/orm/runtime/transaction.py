@@ -84,6 +84,7 @@ class _EnvironmentSet(WeakSet):
 
 class Transaction:
     __slots__ = (
+        "_admissions",
         "_cache_store",
         "_compute_engine",
         "_create_frames",
@@ -140,6 +141,9 @@ class Transaction:
         self._ref_cache: dict[tuple[str, int], bool] = {}
         self._create_frames: list[dict[str, set[int]]] = []
         self._inserted_checks: list[tuple[str, frozenset[int]]] = []
+        # the calls a wrapper let through, held here and never in a context: a
+        # context is whatever the client sent
+        self._admissions: list[tuple[str, str, frozenset[int]]] = []
         self.prefetch_batch: tuple[str, tuple] | None = None
         self.access_memo = AccessMemo()
 
@@ -179,6 +183,31 @@ class Transaction:
     def is_checking_inserted(self, model_name: str, id_: int) -> bool:
         return any(
             model_name == name and id_ in ids for name, ids in self._inserted_checks
+        )
+
+    @contextmanager
+    def admitting(
+        self, model_name: str, name: str, ids: typing.Iterable[int]
+    ) -> typing.Iterator[None]:
+        self._admissions.append((model_name, name, frozenset(ids)))
+        try:
+            yield
+        finally:
+            self._admissions.pop()
+
+    def admitted_ids(self, model_name: str, name: str) -> frozenset[int]:
+        return frozenset(
+            id_
+            for admitted_model, admitted_name, ids in self._admissions
+            if admitted_model == model_name and admitted_name == name
+            for id_ in ids
+        )
+
+    def admitted_names(self, model_name: str, id_: int) -> tuple[str, ...]:
+        return tuple(
+            name
+            for admitted_model, name, ids in reversed(self._admissions)
+            if admitted_model == model_name and id_ in ids
         )
 
     def environment(

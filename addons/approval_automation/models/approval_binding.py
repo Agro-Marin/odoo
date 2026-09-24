@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.fields import Command
 
-SYNC_CONTEXT_KEY = "approval_binding_syncing"
+SYNC_ADMISSION = "approval.binding_syncing"
 
 
 class ApprovalBinding(models.Model):
@@ -39,8 +39,9 @@ class ApprovalBinding(models.Model):
 
     def write(self, vals):
         result = super().write(vals)
-        if not self.env.context.get(SYNC_CONTEXT_KEY):
-            self._sync_reset_automation()
+        syncing = self.env.transaction.admitted_ids("approval.binding", SYNC_ADMISSION)
+        if unsynced := self.filtered(lambda binding: binding.id not in syncing):
+            unsynced._sync_reset_automation()
         return result
 
     def unlink(self):
@@ -69,9 +70,10 @@ class ApprovalBinding(models.Model):
             automation = binding.reset_automation_id
             if not binding.reset_domain or not binding.active:
                 if automation:
-                    binding.with_context(**{SYNC_CONTEXT_KEY: True}).write(
-                        {"reset_automation_id": False}
-                    )
+                    with self.env.transaction.admitting(
+                        binding._name, SYNC_ADMISSION, binding.ids
+                    ):
+                        binding.write({"reset_automation_id": False})
                     automation.unlink()
                 continue
             domain = binding._parse_domain("reset_domain")
@@ -110,9 +112,10 @@ class ApprovalBinding(models.Model):
                     ],
                 }
             )
-            binding.with_context(**{SYNC_CONTEXT_KEY: True}).write(
-                {"reset_automation_id": automation.id}
-            )
+            with self.env.transaction.admitting(
+                binding._name, SYNC_ADMISSION, binding.ids
+            ):
+                binding.write({"reset_automation_id": automation.id})
 
     def _get_reset_field_ids(self, domain) -> list[int]:
         self.check_singleton()

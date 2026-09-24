@@ -1599,13 +1599,16 @@ class ApprovalRequestLifecycle(models.Model):
         """
         self.check_singleton()
         request = self.sudo()
+        invoking = self.id in self.env.transaction.admitted_ids(
+            "approval.request", "approval.invoking"
+        )
         if (
             not request.binding_id
             or not request.binding_id.run_on_approval
             or request.date_binding_replayed
             or not request.res_model
             or not request.res_id
-            or self.env.context.get("approval_binding_invoking")
+            or invoking
         ):
             trace.BINDING.event(
                 "replay_skipped",
@@ -1613,7 +1616,7 @@ class ApprovalRequestLifecycle(models.Model):
                 binding=request.binding_id.id,
                 run_on_approval=request.binding_id.run_on_approval,
                 replayed=bool(request.date_binding_replayed),
-                invoking=bool(self.env.context.get("approval_binding_invoking")),
+                invoking=invoking,
             )
             return
         trace.BINDING.note("replay", request=request.id, binding=request.binding_id.id)
@@ -1657,7 +1660,7 @@ class ApprovalRequestLifecycle(models.Model):
                     res_id=self.res_id,
                 )
                 return None
-            return source_doc.sudo().with_context(approval_acting_user_id=self.env.uid)
+            return source_doc.sudo()
         if not isinstance(source_doc, mixin_cls):
             trace.SYNC.event(
                 "no_notifiable_source",
@@ -1685,7 +1688,7 @@ class ApprovalRequestLifecycle(models.Model):
                 self.res_id,
             )
             return None
-        return source_doc.sudo().with_context(approval_acting_user_id=self.env.uid)
+        return source_doc.sudo()
 
     def _is_subject_source(self, source_doc) -> bool:
         return isinstance(source_doc, self.env.registry["mixin.approval.subjects"])

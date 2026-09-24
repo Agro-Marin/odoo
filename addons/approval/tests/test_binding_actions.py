@@ -145,6 +145,17 @@ class TestApprovalBindingActions(common.TransactionCase):
         self.assertTrue(self._ran(partner))
         self.assertEqual(self._requests_for(partner).state, "approved")
 
+    def test_a_context_sent_by_the_approver_does_not_skip_the_run(self):
+        self._bind(self.server_action, mode="request")
+        partner = self._partner()
+        self._run(self.requester, partner)
+        request = self._requests_for(partner)
+        request.with_user(self.approver).with_context(
+            approval_binding_invoking=True
+        ).action_approve()
+        self.assertTrue(self._ran(partner))
+        self.assertTrue(request.date_binding_replayed)
+
     # -- reports -----------------------------------------------------------
 
     def _render_html(self, user, partner):

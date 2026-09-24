@@ -1,5 +1,4 @@
 import annotationlib
-import contextvars
 import datetime
 import inspect
 import logging
@@ -29,16 +28,10 @@ ORM_LIFECYCLE_ACTIONS = frozenset(
 
 ORIGIN_ATTR = "approval_binding_origin"
 ENABLED_PARAM = "approval.binding_enabled"
-REPLAY_CONTEXT_KEY = "approval_binding_replay"
-INVOKE_CONTEXT_KEY = "approval_binding_invoking"
-SYNC_CONTEXT_KEY = "approval_binding_syncing"
+REPLAY_ADMISSION = "approval.replay"
+INVOKE_ADMISSION = "approval.invoking"
+BINDING_FOR_ADMISSION = "approval.binding_for:"
 ENFORCEABLE_ACTION_TYPES = frozenset({"ir.actions.server", "ir.actions.report"})
-
-# Held in the process, never in the context: a context is whatever the client
-# sent, and an admission is the server's word that a wrapper let a call through.
-_ADMISSIONS: contextvars.ContextVar[tuple] = contextvars.ContextVar(
-    "approval_admissions", default=()
-)
 
 
 class ApprovalBinding(models.Model):
@@ -671,9 +664,10 @@ class ApprovalBinding(models.Model):
                     requests |= request
                     continue
                 if request.state not in ("new", "pending"):
-                    record.with_context(
-                        approval_binding_for=(record._name, record.id, self.id),
-                    ).action_create_approval_request()
+                    with self.env.transaction.admitting(
+                        record._name, f"{BINDING_FOR_ADMISSION}{self.id}", record.ids
+                    ):
+                        record.action_create_approval_request()
                     request = record.sudo().approval_request_id
                 elif request.state == "new":
                     request.action_confirm()
@@ -734,10 +728,13 @@ class ApprovalBinding(models.Model):
                 )
                 continue
             try:
-                with self.env.cr.savepoint():
-                    request.with_user(user).with_context(
-                        **{INVOKE_CONTEXT_KEY: True}
-                    ).action_approve(approver)
+                with (
+                    self.env.cr.savepoint(),
+                    self.env.transaction.admitting(
+                        request._name, INVOKE_ADMISSION, request.ids
+                    ),
+                ):
+                    request.with_user(user).action_approve(approver)
             except UserError as exc:
                 _logger.info(
                     "Approval binding %s: %s could not approve request %s on "
@@ -830,11 +827,13 @@ class ApprovalBinding(models.Model):
                             "raised. Ask for approval again."
                         )
                     )
-                replaying = record.with_context(**{REPLAY_CONTEXT_KEY: request.id})
-                if self.action_id:
-                    self._run_action_on(replaying)
-                else:
-                    getattr(replaying, self.method)()
+                with self.env.transaction.admitting(
+                    "approval.binding", REPLAY_ADMISSION, self.ids
+                ):
+                    if self.action_id:
+                        self._run_action_on(record)
+                    else:
+                        getattr(record, self.method)()
         except UserError as exc:
             error = str(exc) or type(exc).__name__
             trace.BINDING.note(
@@ -1178,7 +1177,7 @@ class ApprovalBinding(models.Model):
                     method=label,
                 ),
             )
-        if records.env.context.get(REPLAY_CONTEXT_KEY):
+        if records.env.transaction.admitted_ids("approval.binding", REPLAY_ADMISSION):
             trace.REFUSAL.event(
                 "replay_uncovered",
                 method=label,
@@ -1276,29 +1275,12 @@ class ApprovalBinding(models.Model):
         inside the admitted call leaves those records to be checked on their own.
         The admission lives on the transaction for the length of the call only.
         """
-        frame = (
-            records.env.transaction,
-            records._name,
-            operation,
-            frozenset(records.ids),
-        )
-        token = _ADMISSIONS.set((*_ADMISSIONS.get(), frame))
-        try:
+        with records.env.transaction.admitting(records._name, operation, records.ids):
             return call(records)
-        finally:
-            _ADMISSIONS.reset(token)
 
     @api.model
     def _get_admitted_ids(self, records, operation: str) -> set[int]:
-        transaction = records.env.transaction
-        return {
-            record_id
-            for admitted_in, model_name, admitted_operation, ids in _ADMISSIONS.get()
-            if admitted_in is transaction
-            and model_name == records._name
-            and admitted_operation == operation
-            for record_id in ids
-        }
+        return set(records.env.transaction.admitted_ids(records._name, operation))
 
     def _get_checkpoint_guard(
         self, model_name: str, checkpoint: str, operations: tuple[str, ...]

@@ -205,6 +205,14 @@ class TestApprovalBindingReset(common.TransactionCase):
         self.assertEqual(request.state, "new")
         self.assertFalse(request.approver_ids.decided_step_ids)
 
+    def test_a_context_sent_with_an_edit_keeps_the_rule_in_step(self):
+        binding = self._bind(mode="block")
+        rule = binding.reset_automation_id
+        binding.with_context(approval_binding_syncing=True).write(
+            {"reset_domain": "[('city', '=', 'Again')]"}
+        )
+        self.assertIn("Again", rule.filter_domain)
+
     def test_removing_the_condition_removes_the_rule(self):
         binding = self._bind(mode="block")
         rule = binding.reset_automation_id

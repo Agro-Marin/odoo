@@ -4,7 +4,7 @@ from odoo.exceptions import UserError
 from . import approval_trace as trace
 from .approval_utils import ApprovalStepUnstaffed
 
-OPERATION_CONTEXT_KEY = "approval_gate_operation"
+ASK_ADMISSION = "approval.ask:"
 
 
 class MixinApprovalGate(models.AbstractModel):
@@ -25,10 +25,12 @@ class MixinApprovalGate(models.AbstractModel):
             operation=operation,
             ran=len(ready),
         )
-        asking = need_approval.with_context(**{OPERATION_CONTEXT_KEY: operation})
-        if len(self) == 1:
-            return asking.action_create_approval_request()
-        asked, blocked = asking._ask_approval_each()
+        with self.env.transaction.admitting(
+            need_approval._name, ASK_ADMISSION + operation, need_approval.ids
+        ):
+            if len(self) == 1:
+                return need_approval.action_create_approval_request()
+            asked, blocked = need_approval._ask_approval_each()
         return self._get_approval_asked_notification(
             operation, ready, asked, result, blocked
         )
@@ -319,11 +321,16 @@ class MixinApprovalGate(models.AbstractModel):
         self.check_singleton()
         return self._approval_operations[0] if self._approval_operations else False
 
+    def _get_asked_operation(self):
+        (record,) = self
+        for name in self.env.transaction.admitted_names(record._name, record.id):
+            if name.startswith(ASK_ADMISSION):
+                return name.removeprefix(ASK_ADMISSION)
+        return False
+
     def _prepare_approval_request_values(self, category):
         values = super()._prepare_approval_request_values(category)
-        operation = self.env.context.get(OPERATION_CONTEXT_KEY) or (
-            self._get_gated_operation()
-        )
+        operation = self._get_asked_operation() or self._get_gated_operation()
         if operation:
             values["operation"] = operation
             values["operation_snapshot"] = self._get_approval_snapshot(operation)

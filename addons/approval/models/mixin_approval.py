@@ -763,11 +763,10 @@ class MixinApproval(models.AbstractModel):
                 else:
                     vals[target_field] = value
 
-        # Keyed to this record: a document created further down the same call
-        # chain must not inherit the binding link from the context.
-        binding_for = self.env.context.get("approval_binding_for")
-        if binding_for and tuple(binding_for[:2]) == (self._name, self.id):
-            vals["binding_id"] = binding_for[2]
+        for name in self.env.transaction.admitted_names(vals["res_model"], self.id):
+            if name.startswith("approval.binding_for:"):
+                vals["binding_id"] = int(name.removeprefix("approval.binding_for:"))
+                break
 
         trace.MIXIN.event(
             "request_values",

@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from typing import Any
 
 from odoo import SUPERUSER_ID, api, models
@@ -5,7 +6,7 @@ from odoo import SUPERUSER_ID, api, models
 from . import approval_trace as trace
 from .approval_utils import ApprovalStepUnstaffed
 
-SYNC_CONTEXT_KEY = "approval_state_sync"
+SYNC_ADMISSION = "approval.state_sync"
 
 
 class MixinApprovalStateSync(models.AbstractModel):
@@ -74,7 +75,7 @@ class MixinApprovalStateSync(models.AbstractModel):
             return super().write(vals)
         previous = {record.id: record[field] for record in self.sudo()}
         result = super().write(vals)
-        synced = self.env.context.get(SYNC_CONTEXT_KEY, ())
+        synced = self.env.transaction.admitted_ids("approval.request", SYNC_ADMISSION)
         moved = self.browse(
             [
                 record.id
@@ -106,14 +107,16 @@ class MixinApprovalStateSync(models.AbstractModel):
         for record in self.sudo().filtered(
             lambda record: record.approval_request_id.state == "pending"
         ):
-            record._get_synced_approval_request()._force_terminal(
-                "cancelled",
-                self.env._(
-                    "%(user)s deleted %(record)s.",
-                    user=self.env.user.name,
-                    record=record.display_name,
-                ),
-            )
+            request = record._get_synced_approval_request()
+            with record._approval_sync_admitted(request):
+                request._force_terminal(
+                    "cancelled",
+                    self.env._(
+                        "%(user)s deleted %(record)s.",
+                        user=self.env.user.name,
+                        record=record.display_name,
+                    ),
+                )
         return super().unlink()
 
     def _is_approval_request_required(self) -> bool:
@@ -202,7 +205,8 @@ class MixinApprovalStateSync(models.AbstractModel):
             else request.approver_ids.browse()
         )
         if rows:
-            request.action_approve(approver=rows, steps=steps)
+            with self._approval_sync_admitted(request):
+                request.action_approve(approver=rows, steps=steps)
             return
         self.message_post(
             body=self.env._(
@@ -269,13 +273,18 @@ class MixinApprovalStateSync(models.AbstractModel):
 
     def _get_synced_approval_request(self):
         self.check_singleton()
-        request = self.sudo().approval_request_id
-        synced = self.env.context.get(SYNC_CONTEXT_KEY, ())
-        return request.with_context(**{SYNC_CONTEXT_KEY: (*synced, request.id)})
+        return self.sudo().approval_request_id
+
+    @contextmanager
+    def _approval_sync_admitted(self, request):
+        with self.env.transaction.admitting(
+            "approval.request", SYNC_ADMISSION, request.ids
+        ):
+            yield
 
     def _is_synced_with_approval_request(self) -> bool:
         self.check_singleton()
-        synced = self.env.context.get(SYNC_CONTEXT_KEY, ())
+        synced = self.env.transaction.admitted_ids("approval.request", SYNC_ADMISSION)
         reentrant = self.approval_request_id.id in synced
         if reentrant:
             trace.SYNC.event(
@@ -313,15 +322,16 @@ class MixinApprovalStateSync(models.AbstractModel):
                 request_state=request.state,
                 decides=decides,
             )
-            if kind == "pending":
-                record._restart_approval_request(request)
-            elif kind == "draft":
-                if request.state != "new":
-                    request._force_draft()
-            elif kind in ("progress", "approved"):
-                record._sync_approval_request_approval(request, user, decides, kind)
-            elif kind in ("refused", "cancelled"):
-                record._sync_approval_request_ending(request, user, decides, kind)
+            with record._approval_sync_admitted(request):
+                if kind == "pending":
+                    record._restart_approval_request(request)
+                elif kind == "draft":
+                    if request.state != "new":
+                        request._force_draft()
+                elif kind in ("progress", "approved"):
+                    record._sync_approval_request_approval(request, user, decides, kind)
+                elif kind in ("refused", "cancelled"):
+                    record._sync_approval_request_ending(request, user, decides, kind)
 
     def _sync_approval_request_approval(self, request, user, decides, kind) -> None:
         self.check_singleton()
@@ -440,10 +450,8 @@ class MixinApprovalStateSync(models.AbstractModel):
         )
         if checks_policy:
             self.sudo(False)._check_approval_sync_policy(kind)
-        synced = self.env.context.get(SYNC_CONTEXT_KEY, ())
-        self.with_context(
-            **{SYNC_CONTEXT_KEY: (*synced, self.approval_request_id.id)}
-        )._apply_approval_sync_outcome(kind)
+        with self._approval_sync_admitted(self.approval_request_id):
+            self._apply_approval_sync_outcome(kind)
 
     def _on_approval_progress(self) -> None:
         if (
