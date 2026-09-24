@@ -4,7 +4,7 @@ from datetime import UTC
 
 from dateutil.relativedelta import MO, SU, relativedelta
 
-from odoo import Command, api, exceptions, fields, models
+from odoo import api, exceptions, fields, models
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.libs.intervals import Intervals
@@ -99,17 +99,26 @@ class HrEmployee(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        employees = super().create(vals_list)
+        # the manager is read from the values: the field is the officers' to read
+        for employee, vals in zip(employees, vals_list, strict=True):
+            if vals.get("attendance_manager_id"):
+                employee._grant_attendance_officer(
+                    self.env["res.users"].browse(vals["attendance_manager_id"])
+                )
+        return employees
+
+    def _grant_attendance_officer(self, users):
+        # an attendance manager is an attendance officer: the group follows
+        # the field
         officer_group = self.env.ref(
             "hr_attendance.group_hr_attendance_officer", raise_if_not_found=False
         )
-        group_updates = [
-            Command.link(vals["attendance_manager_id"])
-            for vals in vals_list
-            if officer_group and vals.get("attendance_manager_id")
-        ]
-        if group_updates:
-            officer_group.sudo().write({"user_ids": group_updates})
-        return super().create(vals_list)
+        if officer_group:
+            self.env["res.users.grant"].with_privilege(
+                "hr_attendance.privilege_grant_attendance_officer",
+                reason="attendance manager of an employee",
+            )._grant(users, officer_group, cause="automation", cause_ref=self)
 
     def write(self, vals):
         old_officers = self.env["res.users"]
@@ -117,16 +126,8 @@ class HrEmployee(models.Model):
             old_officers = self.attendance_manager_id
             if vals["attendance_manager_id"]:
                 officer = self.env["res.users"].browse(vals["attendance_manager_id"])
-                officers_group = self.env.ref(
-                    "hr_attendance.group_hr_attendance_officer",
-                    raise_if_not_found=False,
-                )
-                if officers_group and not officer.has_group(
-                    "hr_attendance.group_hr_attendance_officer"
-                ):
-                    officer.sudo().write(
-                        {"group_ids": [Command.link(officers_group.id)]}
-                    )
+                if not officer.has_group("hr_attendance.group_hr_attendance_officer"):
+                    self[:1]._grant_attendance_officer(officer)
 
         res = super().write(vals)
         if old_officers:

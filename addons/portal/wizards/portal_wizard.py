@@ -194,14 +194,15 @@ class PortalWizardUser(models.TransientModel):
 
         self.user_id = user_sudo
 
-        user_sudo.write(
-            {
-                "active": True,
-                "group_ids": [
-                    Command.link(group_portal.id),
-                    Command.unlink(group_public.id),
-                ],
-            }
+        user_sudo.active = True
+        grants = user_sudo.env["res.users.grant"]
+        grants._revoke(user_sudo, group_public, reason="portal access granted")
+        grants._grant(
+            user_sudo,
+            group_portal,
+            cause="provisioning",
+            cause_ref=self.partner_id,
+            reason="portal access granted",
         )
         user_sudo.partner_id.signup_prepare()
 

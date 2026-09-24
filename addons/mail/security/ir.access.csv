@@ -91,3 +91,4 @@ access_mail_config_user,mail.config user,model_mail_config,base.group_user,permi
 access_mail_config_erp_manager,mail.config erp manager,model_mail_config,base.group_erp_manager,permission,cud,
 mail_compose_message_rule,Mail Compose Message Rule,model_mail_compose_message,base.group_everyone,guard,ru,"[('create_uid', '=', user.id)]"
 ir_rule_mail_scheduled_message_user,mail.scheduled.message: group_user: write its own entries,model_mail_scheduled_message,base.group_everyone,guard,cu,"[('create_uid', '=', user.id)]"
+privilege_grant_inbox_grants,res.users.grant: the inbox group follows the notification preference,base.model_res_users_grant,privilege_grant_inbox,permission,cru,"[('group_id', '=', ref('mail.group_mail_notification_type_inbox'))]"

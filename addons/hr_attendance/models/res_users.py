@@ -1,4 +1,4 @@
-from odoo import Command, models
+from odoo import models
 
 
 class ResUsers(models.Model):
@@ -12,6 +12,10 @@ class ResUsers(models.Model):
         )
         officers_to_remove_ids = self - attendance_officers
         if officers_to_remove_ids:
-            self.env.ref("hr_attendance.group_hr_attendance_officer").user_ids = [
-                Command.unlink(user.id) for user in officers_to_remove_ids
-            ]
+            self.env["res.users.grant"].with_privilege(
+                "hr_attendance.privilege_grant_attendance_officer",
+                reason="no longer an attendance manager",
+            )._revoke(
+                officers_to_remove_ids,
+                self.env.ref("hr_attendance.group_hr_attendance_officer"),
+            )

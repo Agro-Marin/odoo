@@ -24,4 +24,10 @@
         </record>
     </data>
 
+    <record id="privilege_grant_inbox" model="res.groups">
+        <field
+            name="name">Privilege: keep the inbox group in step with the notification preference</field>
+        <field name="is_privilege" eval="True" />
+    </record>
+
 </odoo>

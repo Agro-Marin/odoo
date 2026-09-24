@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime, time, timedelta
 
 from dateutil.relativedelta import relativedelta
 
-from odoo import Command, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
@@ -419,19 +419,25 @@ class HrEmployee(models.Model):
     def create(self, vals_list):
         if self.env.context.get("salary_simulation"):
             return super().create(vals_list)
-        approver_group = self.env.ref(
-            "hr_holidays.group_hr_holidays_responsible", raise_if_not_found=False
-        )
-        group_updates = []
         for vals in vals_list:
             if "parent_id" in vals:
                 manager = self.env["hr.employee"].browse(vals["parent_id"]).user_id
                 vals["leave_manager_id"] = vals.get("leave_manager_id", manager.id)
-            if approver_group and vals.get("leave_manager_id"):
-                group_updates.append(Command.link(vals["leave_manager_id"]))
-        if group_updates:
-            approver_group.sudo().write({"user_ids": group_updates})
-        return super().create(vals_list)
+        employees = super().create(vals_list)
+        for employee in employees.filtered("leave_manager_id"):
+            employee._grant_leave_approver(employee.leave_manager_id)
+        return employees
+
+    def _grant_leave_approver(self, users):
+        # a leave manager approves time off: the group follows the field
+        approver_group = self.env.ref(
+            "hr_holidays.group_hr_holidays_responsible", raise_if_not_found=False
+        )
+        if approver_group:
+            self.env["res.users.grant"].with_privilege(
+                "hr_holidays.privilege_grant_leave_approver",
+                reason="leave manager of an employee",
+            )._grant(users, approver_group, cause="automation", cause_ref=self)
 
     def write(self, vals):
         values = vals
@@ -461,16 +467,10 @@ class HrEmployee(models.Model):
             if values["leave_manager_id"]:
                 leave_manager = self.env["res.users"].browse(values["leave_manager_id"])
                 old_managers -= leave_manager
-                approver_group = self.env.ref(
-                    "hr_holidays.group_hr_holidays_responsible",
-                    raise_if_not_found=False,
-                )
-                if approver_group and not leave_manager.has_group(
+                if not leave_manager.has_group(
                     "hr_holidays.group_hr_holidays_responsible"
                 ):
-                    leave_manager.sudo().write(
-                        {"group_ids": [Command.link(approver_group.id)]}
-                    )
+                    self[:1]._grant_leave_approver(leave_manager)
 
         res = super().write(values)
         old_managers.sudo()._clean_leave_responsible_users()

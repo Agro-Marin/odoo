@@ -38,6 +38,12 @@
         <field name="name">Use Recurring Tasks</field>
     </record>
 
+    <record id="privilege_manage_feature_groups" model="res.groups">
+        <field
+            name="name">Privilege: end the memberships of a project feature no project uses</field>
+        <field name="is_privilege" eval="True" />
+    </record>
+
     <record id="group_project_task_dependencies" model="res.groups">
         <field name="name">Use Task Dependencies</field>
     </record>

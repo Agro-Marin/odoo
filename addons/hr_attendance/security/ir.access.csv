@@ -16,3 +16,4 @@ hr_attendance_config_rule_erp_manager_group_system,hr_attendance.config: every c
 hr_attendance_rule_employee_company,Employee multi company rule,model_hr_attendance,base.group_everyone,guard,crud,"['|',('employee_id.company_id','=',False),('employee_id.company_id', 'in', company_ids)]"
 hr_attendance_overtime_line_rule_company,Overtime line multi company rule,model_hr_attendance_overtime_line,base.group_everyone,guard,crud,"['|',('employee_id.company_id','=',False),('employee_id.company_id', 'in', company_ids)]"
 hr_attendance_overtime_ruleset_rule,Attendance Overtime Ruleset,model_hr_attendance_overtime_ruleset,base.group_everyone,guard,r,"[('company_id', 'in', company_ids + [False])]"
+privilege_grant_attendance_officer_grants,res.users.grant: the attendance officer group follows the attendance managers,base.model_res_users_grant,privilege_grant_attendance_officer,permission,cru,"[('group_id', '=', ref('hr_attendance.group_hr_attendance_officer'))]"

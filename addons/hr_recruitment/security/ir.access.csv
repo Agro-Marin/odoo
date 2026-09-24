@@ -28,3 +28,4 @@ hr_recruitment_config_rule_company_group_user,hr_recruitment.config: the reader'
 hr_recruitment_config_rule_erp_manager,hr_recruitment.config: every company for an access-rights manager,model_hr_recruitment_config,base.group_erp_manager,permission,r,
 hr_recruitment_config_rule_erp_manager_group_system,hr_recruitment.config: every company for an access-rights manager,model_hr_recruitment_config,base.group_system,permission,cud,
 hr_applicant_comp_rule,Applicant multi company rule,model_hr_applicant,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
+privilege_grant_interviewer_grants,res.users.grant: the interviewer group follows the interviewers,base.model_res_users_grant,privilege_grant_interviewer,permission,cru,"[('group_id', '=', ref('hr_recruitment.group_hr_recruitment_interviewer'))]"

@@ -127,3 +127,77 @@ class TestWithPrivilege(TransactionCase):
             "res.partner.industry", "create"
         )
         self.assertFalse([name for name in names if "Probe" in name])
+
+
+@tagged("post_install", "-at_install")
+class TestAutomationGrants(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        Groups = cls.env["res.groups"]
+        cls.followed = Groups.create({"name": "Probe: follows its data"})
+        cls.other_group = Groups.create({"name": "Probe: not the privilege's"})
+        cls.privilege = Groups.create(
+            {"name": "Probe: keep the followed group", "is_privilege": True}
+        )
+        cls.env["ir.model.data"].create(
+            [
+                {
+                    "module": "base",
+                    "name": name,
+                    "model": "res.groups",
+                    "res_id": group.id,
+                }
+                for name, group in (
+                    ("probe_followed_group", cls.followed),
+                    ("probe_privilege_follow", cls.privilege),
+                )
+            ]
+        )
+        cls.env["ir.access"].create(
+            {
+                "name": "Probe privilege: grant and end the followed group",
+                "model_id": cls.env["ir.model"]._get_id("res.users.grant"),
+                "group_id": cls.privilege.id,
+                "kind": "permission",
+                "operation": "cru",
+                "domain": "[('group_id', '=', ref('base.probe_followed_group'))]",
+            }
+        )
+        cls.user = new_test_user(cls.env, login="follower", groups="base.group_user")
+        cls.Grant = cls.env["res.users.grant"].with_user(cls.user)
+
+    def test_a_privilege_grants_the_group_it_names_even_to_its_holder(self):
+        grants = self.Grant.with_privilege("base.probe_privilege_follow")
+        grant = grants._grant(self.user, self.followed, cause="automation")
+        self.assertEqual(grant.cause, "automation")
+        self.assertIn(self.followed, self.user.group_ids)
+        grants._revoke(self.user, self.followed)
+        self.assertNotIn(self.followed, self.user.group_ids)
+
+    def test_it_grants_no_other_group_and_nothing_without_it(self):
+        grants = self.Grant.with_privilege("base.probe_privilege_follow")
+        with self.assertRaises(AccessError):
+            grants._grant(self.user, self.other_group, cause="automation")
+        with self.assertRaises(AccessError):
+            self.Grant._grant(self.user, self.followed, cause="automation")
+
+    def test_a_cause_that_ends_revokes_only_what_it_granted(self):
+        Grant = self.env["res.users.grant"]
+        by_hand = Grant._grant(self.user, self.followed, cause="manual")
+        followed = Grant._grant(
+            self.user, self.followed, cause="automation", cause_ref=self.user
+        )
+        self.assertTrue(followed)
+        Grant._revoke(
+            self.user, self.followed, cause="automation", cause_model="res.users"
+        )
+        self.assertEqual(followed.state, "revoked")
+        self.assertEqual(by_hand.state, "active")
+        self.assertIn(self.followed, self.user.group_ids)
+
+    def test_ref_names_a_record_or_raises(self):
+        context = self.env["ir.access"]._eval_context()
+        self.assertEqual(context["ref"]("base.probe_followed_group"), self.followed.id)
+        with self.assertRaises(ValueError):
+            context["ref"]("base.no_such_record")

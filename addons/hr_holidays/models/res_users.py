@@ -1,4 +1,4 @@
-from odoo import Command, api, fields, models
+from odoo import api, fields, models
 from odoo.tools import format_date
 
 
@@ -75,10 +75,11 @@ class ResUsers(models.Model):
             leave_manager.id for [leave_manager] in res
         }
         if responsibles_to_remove_ids:
-            self.browse(responsibles_to_remove_ids).write(
-                {
-                    "group_ids": [Command.unlink(self.env.ref(approver_group).id)],
-                }
+            self.env["res.users.grant"].with_privilege(
+                "hr_holidays.privilege_grant_leave_approver",
+                reason="no longer a leave manager",
+            )._revoke(
+                self.browse(responsibles_to_remove_ids), self.env.ref(approver_group)
             )
 
     @api.model_create_multi

@@ -229,11 +229,11 @@ class ResUsersGrant(models.Model):
                 raise UserError(
                     self.env._("An expired or revoked grant cannot be changed.")
                 )
-            self._check_delegation()
+            self._check_delegation("write")
         result = super().write(vals)
         if "company_ids" in vals:
             self._check_scope()
-            self._check_delegation()
+            self._check_delegation("write")
             self._log("grant_changed")
             self.env["ir.access"]._clear_access_caches()
             self._on_grant_changed("grant_changed")
@@ -298,13 +298,18 @@ class ResUsersGrant(models.Model):
                     )
                 )
 
-    def _check_delegation(self) -> None:
+    def _check_delegation(self, operation: str = "create") -> None:
         # who may give or change a grant besides the access administrators:
         # the members of the group's admin group, for someone else, within
         # their own companies, and only for groups whose implications they
         # administer too or the grantee already holds
         env = self.env
         if env.su or env.user._has_group("base.group_erp_manager"):
+            return
+        if env.privileges and self._granted_by_privilege(operation):
+            # code that keeps a membership in step with its data acts under a
+            # privilege whose own rows name the group it may grant; the actor
+            # granting themselves is then the data's doing, not a choice
             return
         actor = env.user
         actor_groups = set(actor._get_group_ids())
@@ -359,11 +364,18 @@ class ResUsersGrant(models.Model):
                     )
                 )
 
+    def _granted_by_privilege(self, operation: str) -> bool:
+        # every grant is one the environment's privileges allow by their own
+        # rows, for this operation
+        grants = self.sudo().with_context(active_test=False)
+        domain = self.env["ir.access"]._privilege_domain(self._name, operation)
+        return grants.filtered_domain(domain) == grants
+
     def action_revoke(self, reason: str | None = None) -> bool:
         live = self.filtered(lambda grant: grant.state in ("scheduled", "active"))
         if not live:
             return True
-        live._check_delegation()
+        live._check_delegation("write")
         with _marked(_LIFECYCLE):
             live.write(
                 {
@@ -391,7 +403,13 @@ class ResUsersGrant(models.Model):
         reason: str | None = None,
     ) -> Self:
         # a grant of each group to each user not already holding it everywhere
-        live = self._live_pairs(users, groups, unscoped=True)
+        # (for a cause: through that cause, which then ends it alone)
+        live = self._live_pairs(
+            users,
+            groups,
+            unscoped=True,
+            cause_model=cause_ref._name if cause_ref else None,
+        )
         vals_list = [
             {
                 "user_id": user.id,
@@ -412,16 +430,24 @@ class ResUsersGrant(models.Model):
     @api.model
     def _revoke(
         self,
-        users: models.BaseModel,
+        users: models.BaseModel | None,
         groups: models.BaseModel,
         *,
+        cause: str | None = None,
+        cause_model: str | None = None,
         reason: str | None = None,
     ) -> Self:
-        grants = self.search(
-            self._live_domain()
-            & Domain("user_id", "in", users.ids)
-            & Domain("group_id", "in", groups.ids)
-        )
+        # the live grants of these groups to these users (to anyone, without
+        # users); with a cause, only the grants that cause made, so a
+        # membership given by hand outlives the data that also implied it
+        domain = self._live_domain() & Domain("group_id", "in", groups.ids)
+        if users is not None:
+            domain &= Domain("user_id", "in", users.ids)
+        if cause:
+            domain &= Domain("cause", "=", cause)
+        if cause_model:
+            domain &= Domain("cause_model", "=", cause_model)
+        grants = self.search(domain)
         grants.action_revoke(reason)
         return grants
 
@@ -430,6 +456,7 @@ class ResUsersGrant(models.Model):
         users: models.BaseModel,
         groups: models.BaseModel,
         unscoped: bool = False,
+        cause_model: str | None = None,
     ) -> set[tuple[int, int]]:
         if not users or not groups:
             return set()
@@ -440,6 +467,8 @@ class ResUsersGrant(models.Model):
         )
         if unscoped:
             domain &= Domain("company_ids", "=", False)
+        if cause_model:
+            domain &= Domain("cause_model", "=", cause_model)
         rows = self.sudo()._read_group(
             domain,
             ["user_id", "group_id"],

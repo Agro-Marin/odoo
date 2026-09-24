@@ -1,4 +1,4 @@
-from odoo import Command, models
+from odoo import models
 from odoo.libs.debug_log import DebugLog
 
 _debug = DebugLog(__name__)
@@ -28,7 +28,10 @@ class ResUsers(models.Model):
             granted=interviewers,
             already_recruiters=len(self) - len(interviewers),
         )
-        interviewers.sudo().write({"group_ids": [Command.link(interviewer_group.id)]})
+        self.env["res.users.grant"].with_privilege(
+            "hr_recruitment.privilege_grant_interviewer",
+            reason="interviewer of a job or an application",
+        )._grant(interviewers, interviewer_group, cause="automation")
 
     def _remove_recruitment_interviewers(self):
         if not self:
@@ -57,6 +60,7 @@ class ResUsers(models.Model):
             revoked=len(users_to_remove),
             still_interviewing=len(set(self.ids) & user_ids),
         )
-        self.env["res.users"].browse(users_to_remove).sudo().write(
-            {"group_ids": [Command.unlink(interviewer_group.id)]}
-        )
+        self.env["res.users.grant"].with_privilege(
+            "hr_recruitment.privilege_grant_interviewer",
+            reason="interviews no job or application any more",
+        )._revoke(self.env["res.users"].browse(users_to_remove), interviewer_group)

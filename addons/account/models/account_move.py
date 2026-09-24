@@ -5849,11 +5849,15 @@ class AccountMove(models.Model):
                 "partial_deductibility_group_granted",
                 moves=has_partial_deductibility,
             )
-            self.env.user.sudo().group_ids = [
-                Command.link(
-                    self.env.ref("account.group_partial_purchase_deductibility").id
-                )
-            ]
+            self.env["res.users.grant"].with_privilege(
+                "account.privilege_grant_partial_deductibility",
+                reason="posted a partially deductible bill",
+            )._grant(
+                self.env.user,
+                self.env.ref("account.group_partial_purchase_deductibility"),
+                cause="automation",
+                cause_ref=has_partial_deductibility[:1],
+            )
 
     @_debug.perf.timed
     def _post_check_access(self):

@@ -175,3 +175,4 @@ account_audit_account_status_company_rule,Account Audit Account Status multi-com
 account_report_budget_company_rule,Account Report Budget multi-company,model_account_report_budget,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids)]"
 account_report_budget_item_company_rule,Account Report Budget Item multi-company,model_account_report_budget_item,base.group_everyone,guard,crud,"[('budget_id.company_id', 'in', company_ids)]"
 account_tax_unit_company_rule,Tax Unit multi-company,model_account_tax_unit,base.group_everyone,guard,crud,"[('company_ids', 'in', company_ids)]"
+privilege_grant_partial_deductibility_grants,res.users.grant: the partial deductibility feature for whoever posts such a bill,base.model_res_users_grant,privilege_grant_partial_deductibility,permission,cru,"[('group_id', '=', ref('account.group_partial_purchase_deductibility'))]"

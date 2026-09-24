@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import timedelta
 from typing import Literal, Self
 
-from odoo import Command, api, fields, models, modules, tools
+from odoo import api, fields, models, modules, tools
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
 from odoo.http import request
@@ -333,8 +333,11 @@ class ResUsers(models.Model):
     def _inverse_notification_type(self) -> None:
         inbox_group = self.env.ref("mail.group_mail_notification_type_inbox")
         inbox_users = self.filtered(lambda user: user.notification_type == "inbox")
-        inbox_users.write({"group_ids": [Command.link(inbox_group.id)]})
-        (self - inbox_users).write({"group_ids": [Command.unlink(inbox_group.id)]})
+        grants = self.env["res.users.grant"].with_privilege(
+            "mail.privilege_grant_inbox", reason="notification preference"
+        )
+        grants._grant(inbox_users, inbox_group, cause="automation")
+        grants._revoke(self - inbox_users, inbox_group)
 
     @api.model
     def action_setup_outgoing_mail_server(self, server_type: str) -> dict:
@@ -864,7 +867,9 @@ class ResUsers(models.Model):
         )
         if shared_with_inbox:
             _debug.logic("inbox_group_removed_from_shared", users=shared_with_inbox.ids)
-            shared_with_inbox.write({"group_ids": [Command.unlink(inbox_group_id)]})
+            self.env["res.users.grant"].with_privilege(
+                "mail.privilege_grant_inbox", reason="a share user has no inbox"
+            )._revoke(shared_with_inbox, self.env["res.groups"].browse(inbox_group_id))
 
     @api.model
     def _check_personal_mail_server_access(self, user: Self) -> None:

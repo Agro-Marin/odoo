@@ -611,8 +611,17 @@ class IrAccess(models.Model):
             "company_ids": self.env.companies.ids,
             "company_id": self.env.company.id,
             "group_ids": list(self.env.user._get_group_ids()),
+            "ref": self._ref_id,
             "time": time,
         }
+
+    def _ref_id(self, xmlid: str) -> int:
+        # a row that names one record, typically the group a privilege grants
+        return (
+            self.env["ir.model.data"]
+            .sudo()
+            ._xmlid_to_res_id(xmlid, raise_if_not_found=True)
+        )
 
     def _get_access_context(self) -> Iterator[Any]:
         # the context values the evaluation of a domain depends on
@@ -733,6 +742,22 @@ class IrAccess(models.Model):
         if within is None:
             return domain
         return domain & within if row.kind == "permission" else domain | ~within
+
+    def _privilege_domain(self, model_name: str, operation: str) -> Domain:
+        # what the environment's privileges alone allow on the model: the OR of
+        # their own permission rows, the user's groups set aside
+        letter = self._operation_letter(operation)
+        privileges = self.env.privileges
+        domains = [
+            row.domain
+            if isinstance(row.domain, Domain)
+            else Domain(safe_eval(row.domain, self._eval_context()))
+            for row in self._get_all_access().get(model_name, ())
+            if row.kind == "permission"
+            and row.group_id in privileges
+            and letter in row.operation
+        ]
+        return Domain.OR(domains) if domains else Domain.FALSE
 
     def _explain(self, model_name: str, operation: str) -> list[str]:
         # the rows that bind the principal for the operation, in words: each

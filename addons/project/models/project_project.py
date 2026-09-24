@@ -2301,7 +2301,9 @@ class ProjectProject(models.Model):
             res = True
         elif has_user_group and not has_project_field_set:
             base_group_user.sudo().write({"implied_ids": [Command.unlink(group.id)]})
-            group.sudo().write({"user_ids": [Command.clear()]})
+            self.env["res.users.grant"].with_privilege(
+                "project.privilege_manage_feature_groups"
+            )._revoke(None, group, reason=f"no project uses {field_name} any more")
             res = False
         dbg.logic.debug(
             "_sync_feature_group_to_usage %s/%s: has_group=%s in_use=%s -> %s",

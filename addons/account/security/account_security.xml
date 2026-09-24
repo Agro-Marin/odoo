@@ -69,6 +69,11 @@
         <record id="group_partial_purchase_deductibility" model="res.groups">
             <field name="name">Partial Purchase Deductibility</field>
         </record>
+        <record id="privilege_grant_partial_deductibility" model="res.groups">
+            <field
+                name="name">Privilege: show partial deductibility to whoever posts a partially deductible bill</field>
+            <field name="is_privilege" eval="True" />
+        </record>
         <record id="res_group_privilege_accounting_bank" model="res.groups.privilege">
             <field name="name">Bank</field>
             <field name="sequence">50</field>
