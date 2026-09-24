@@ -44,7 +44,7 @@ export class AccountReportController {
             ),
         );
         this.actionReportId = this.action.context.report_id;
-        const isOpeningReport = !this.action?.keep_journal_groups_options; // true when opening the report, except when coming from the breadcrumb
+        const isOpeningReport = !this.action?.restored_from_breadcrumb;
         const mainReportOptions = await this.loadReportOptions(
             this.actionReportId,
             false,

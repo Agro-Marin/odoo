@@ -244,18 +244,18 @@ class TestAccountReportsJournalFilter(AccountTestInvoicingCommon):
         options = self.report.get_options({"is_opening_report": True})
         self._assert_filter_journal(
             options,
-            "g1",
+            "All Journals",
             [
                 {"id": "divider"},
-                (g1, True),
+                (g1, False),
                 (g2, False),
                 {"id": "divider"},
-                (j1, True),
+                (j1, False),
                 (j2, False),
-                (j3, True),
+                (j3, False),
                 (j4, False),
-                (j5, True),
-                (j6, True),
+                (j5, False),
+                (j6, False),
             ],
         )
 
@@ -278,6 +278,10 @@ class TestAccountReportsJournalFilter(AccountTestInvoicingCommon):
                 (j6, True),
             ],
         )
+
+        options["is_opening_report"] = True
+        options = self.report.get_options(previous_options=options)
+        self.assertEqual(options["name_journal_group"], "g2")
 
         # Uncheck g2.
         options["__journal_group_action"] = {"action": "remove", "id": g2.id}
@@ -313,16 +317,16 @@ class TestAccountReportsJournalFilter(AccountTestInvoicingCommon):
         options = self.report.get_options({"is_opening_report": True})
         self._assert_filter_journal(
             options,
-            "g1",
+            "All Journals",
             [
                 {"id": "divider"},
-                (g1, True),
+                (g1, False),
                 (g2, False),
                 {"id": "divider"},
-                (j1, True),
+                (j1, False),
                 (j2, False),
                 (j3, False),
-                (j4, True),
+                (j4, False),
                 {"id": "divider"},
                 (j5, False),
                 (j6, False),
@@ -380,24 +384,6 @@ class TestAccountReportsJournalFilter(AccountTestInvoicingCommon):
         g1 = self._quick_create_journal_group("g1", self.vanilla_company1, j2)
 
         options = self.report.get_options({"is_opening_report": True})
-        self._assert_filter_journal(
-            options,
-            "g1",
-            [
-                {"id": "divider"},
-                (g1, True),
-                {"id": "divider"},
-                (j1, True),
-                (j2, False),
-                {"id": "divider"},
-                (j3, False),
-                (j4, False),
-            ],
-        )
-
-        # Remove g1.
-        options["__journal_group_action"] = {"action": "remove", "id": g1.id}
-        options = self.report.get_options(previous_options=options)
         self._assert_filter_journal(
             options,
             "All Journals",
@@ -507,21 +493,21 @@ class TestAccountReportsJournalFilter(AccountTestInvoicingCommon):
         options = report.get_options({"is_opening_report": True})
         self._assert_filter_journal(
             options,
-            "g1",
+            "All Journals",
             [
                 {"id": "divider"},
-                (g1, True),
+                (g1, False),
                 (
                     g2,
                     False,
                 ),  # g2 should be displayed because it has journals that are allowed in the report
                 {"id": "divider"},
-                (bnk, True),
-                (caba, True),
-                (csh, True),
-                (exch, True),
-                (ifrs, True),
-                (misc, True),
+                (bnk, False),
+                (caba, False),
+                (csh, False),
+                (exch, False),
+                (ifrs, False),
+                (misc, False),
             ],
         )
 
@@ -747,12 +733,12 @@ class TestAccountReportsJournalFilter(AccountTestInvoicingCommon):
         options = self.report.get_options({"is_opening_report": True})
         self._assert_filter_journal(
             options,
-            "g2",
+            "All Journals",
             [
                 {"id": "divider"},
-                (g2, True),
+                (g2, False),
                 {"id": "divider"},
-                (j4, True),
+                (j4, False),
                 (j5, False),
             ],
         )
@@ -814,19 +800,18 @@ class TestAccountReportsJournalFilter(AccountTestInvoicingCommon):
             }
         )
 
-        # The company is changed -> reset the journals filter and select the first available group
         options = self.report.get_options({"is_opening_report": True})
         self._assert_filter_journal(
             options,
-            "g1",
+            "All Journals",
             [
                 {"id": "divider"},
-                (g1, True),
+                (g1, False),
                 (g2, False),
                 {"id": "divider"},
                 (j1, False),
-                (j2, True),
-                (j3, True),
+                (j2, False),
+                (j3, False),
             ],
         )
 
@@ -847,20 +832,20 @@ class TestAccountReportsJournalFilter(AccountTestInvoicingCommon):
             ],
         )
 
-        # Check that changing the sequence of journal groups changes the order in the filter, and therefore the default selected group
+        # Check that changing the sequence of journal groups changes the order in the filter
         g2.sequence = g1.sequence - 1
         options = self.report.get_options({"is_opening_report": True})
         self._assert_filter_journal(
             options,
-            "g2",
+            "All Journals",
             [
                 {"id": "divider"},
-                (g2, True),
+                (g2, False),
                 (g1, False),
                 {"id": "divider"},
-                (j1, True),
+                (j1, False),
                 (j2, False),
-                (j3, True),
+                (j3, False),
             ],
         )
 
@@ -873,14 +858,14 @@ class TestAccountReportsJournalFilter(AccountTestInvoicingCommon):
 
         self._assert_filter_journal(
             options,
-            "g1",
+            "All Journals",
             [
                 {"id": "divider"},
-                (g1, True),
+                (g1, False),
                 {"id": "divider"},
                 (j1, False),
                 {"id": "divider"},
-                (j2, True),
+                (j2, False),
             ],
         )
 
@@ -921,4 +906,127 @@ class TestAccountReportsJournalFilter(AccountTestInvoicingCommon):
         options = self.report.get_options(previous_options=options)
         self._assert_filter_journal_visible_unfolded(
             options, expected_values_at_opening
+        )
+
+    def test_journal_filter_group_without_report_journals(self):
+        bnk = self._quick_create_journal("BNK", self.vanilla_company1, "bank")
+        inv = self._quick_create_journal("INV", self.vanilla_company1, "sale")
+        g1 = self._quick_create_journal_group("g1", self.vanilla_company1, bnk)
+
+        report = self.env.ref("account.cash_flow_report")
+        options = report.get_options({"is_opening_report": True})
+        self.assertFalse(options["selected_journal_groups"])
+        self._assert_filter_journal(
+            options,
+            "All Journals",
+            [
+                {"id": "divider"},
+                (g1, False),
+                {"id": "divider"},
+                (bnk, False),
+            ],
+        )
+        self.assertNotIn(inv.id, [j["id"] for j in options["journals"]])
+
+    def test_journal_filter_groups_with_same_journals(self):
+        j1 = self._quick_create_journal("j1", self.vanilla_company1)
+        j2 = self._quick_create_journal("j2", self.vanilla_company1)
+        g1 = self._quick_create_journal_group("g1", self.vanilla_company1, j2)
+        g2 = self._quick_create_journal_group("g2", self.vanilla_company1, j2)
+
+        options = self.report.get_options({"is_opening_report": True})
+        options["__journal_group_action"] = {"action": "add", "id": g2.id}
+        options = self.report.get_options(previous_options=options)
+        expected = [
+            {"id": "divider"},
+            (g1, False),
+            (g2, True),
+            {"id": "divider"},
+            (j1, True),
+            (j2, False),
+        ]
+        self._assert_filter_journal(options, "g2", expected)
+
+        self._press_journal_filter(options, j1)
+        options = self.report.get_options(previous_options=options)
+        self._press_journal_filter(options, j1)
+        options = self.report.get_options(previous_options=options)
+        self._assert_filter_journal(
+            options,
+            "g1",
+            [
+                {"id": "divider"},
+                (g1, True),
+                (g2, False),
+                {"id": "divider"},
+                (j1, True),
+                (j2, False),
+            ],
+        )
+
+    def test_open_journal_items_view_with_journal_group(self):
+        self._quick_create_journal("BNK", self.vanilla_company1, "bank")
+        csh = self._quick_create_journal("CSH", self.vanilla_company1, "cash")
+        inv = self._quick_create_journal("INV", self.vanilla_company1, "sale")
+        g_bank = self._quick_create_journal_group(
+            "g_bank", self.vanilla_company1, csh + inv
+        )
+        g_mixed = self._quick_create_journal_group(
+            "g_mixed", self.vanilla_company1, self.env["account.journal"]
+        )
+        account = self.env["account.account"].create(
+            {
+                "code": "101999",
+                "name": "Journal items account",
+                "account_type": "asset_current",
+                "company_ids": [Command.set(self.vanilla_company1.ids)],
+            }
+        )
+        line_id = self.report._get_generic_line_id("account.account", account.id)
+
+        def open_items(group, **params):
+            options = self.report.get_options({"is_opening_report": True})
+            options["__journal_group_action"] = {"action": "add", "id": group.id}
+            options = self.report.get_options(previous_options=options)
+            return self.report.open_journal_items(
+                options, {"line_id": line_id, **params}
+            )
+
+        action = open_items(g_bank)
+        self.assertEqual(
+            action["views"],
+            [
+                (
+                    self.env.ref(
+                        "account.view_account_move_line_list_grouped_bank_cash"
+                    ).id,
+                    "list",
+                )
+            ],
+        )
+        self.assertEqual(action["context"]["search_default_bank"], 1)
+        self.assertEqual(
+            action["context"]["search_default_journal_group_id"], [g_bank.id]
+        )
+
+        action = open_items(g_mixed)
+        self.assertEqual(action["views"], [(None, "list")])
+        for search_default in (
+            "search_default_bank",
+            "search_default_cash",
+            "search_default_sales",
+        ):
+            self.assertEqual(action["context"][search_default], 1)
+
+        action = open_items(g_mixed, journal_type="sale")
+        self.assertEqual(
+            action["views"],
+            [
+                (
+                    self.env.ref(
+                        "account.view_account_move_line_list_grouped_sales_purchases"
+                    ).id,
+                    "list",
+                )
+            ],
         )

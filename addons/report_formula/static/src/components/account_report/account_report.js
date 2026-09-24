@@ -52,11 +52,11 @@ export class AccountReport extends Component {
         useSetupAction({
             rootRef: this.rootRef,
             getLocalState: () => ({
-                keep_journal_groups_options: true, // used when using the breadcrumb
+                restored_from_breadcrumb: true,
             }),
         });
-        if (this.props?.state?.keep_journal_groups_options !== undefined) {
-            this.props.action.keep_journal_groups_options = true;
+        if (this.props?.state?.restored_from_breadcrumb !== undefined) {
+            this.props.action.restored_from_breadcrumb = true;
         }
 
         // ControlPanel reads viewSwitcherEntries from the env config; a client action doesn't provide it.

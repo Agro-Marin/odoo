@@ -189,9 +189,6 @@ class AccountReportActions(models.Model):
             search_content=search_content,
         )
         gl_options = general_ledger.get_options(options)
-        gl_options["not_reset_journals_filter"] = (
-            True  # prevents resetting the default journal group
-        )
         gl_options["unfold_all"] = True
         gl_options["filter_search_bar"] = search_content
 
@@ -304,17 +301,21 @@ class AccountReportActions(models.Model):
                 },
             }
             if options.get("selected_journal_groups"):
-                ctx_to_update = {}
-                for journal_type in options["selected_journal_groups"]["journal_types"]:
-                    ctx_to_update[type_to_view_param[journal_type]["filter"]] = 1
-                ctx.update(ctx_to_update)
-            else:
+                group_journal_types = options["selected_journal_groups"][
+                    "journal_types"
+                ]
                 ctx.update(
                     {
-                        type_to_view_param[journal_type]["filter"]: 1,
+                        type_to_view_param[group_journal_type]["filter"]: 1
+                        for group_journal_type in group_journal_types
                     }
                 )
-            view_id = type_to_view_param[journal_type]["view_id"]
+                if not journal_type and len(group_journal_types) == 1:
+                    journal_type = group_journal_types[0]
+            else:
+                ctx[type_to_view_param[journal_type]["filter"]] = 1
+            if journal_type:
+                view_id = type_to_view_param[journal_type]["view_id"]
             _debug.logic(
                 "journal_type_view_chosen",
                 report=self,

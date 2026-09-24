@@ -452,7 +452,7 @@ class AccountReport(models.Model):
                     {
                         "title": value.display_name,
                         "journals": group_journals.ids,
-                        "journal_types": list(set(group_journals.mapped("type"))),
+                        "journal_types": sorted(set(group_journals.mapped("type"))),
                     }
                 )
             elif value._name == "account.journal":
@@ -486,14 +486,7 @@ class AccountReport(models.Model):
         groups_journals_selected = set()
         options_journal_groups = []
 
-        # First time opening the report, and make sure it's not specifically stated that we should not reset the filter
-        is_opening_report = previous_options.get(
-            "is_opening_report"
-        )  # key from JS controller when report is being opened
-        # a key to prevent the reset of the journals filter even when is_opening_report is True
-        can_reset_journals_filter = not previous_options.get(
-            "not_reset_journals_filter"
-        )
+        is_opening_report = previous_options.get("is_opening_report")
 
         # 1. Handle journal group selection
         for group in all_journal_groups:
@@ -504,21 +497,10 @@ class AccountReport(models.Model):
                 )
                 group_journals = group_journals.filtered_domain(company_domain)
 
-            selected = False
-            first_group_already_selected = bool(
-                options["selected_journal_groups"]
-            )  # only one group should be selected at most
-
-            # select the first group by default when opening the report
-            if (
-                is_opening_report
-                and not first_group_already_selected
-                and can_reset_journals_filter
-            ):
-                selected = True
-            # Otherwise, select the previous selected group (if any)
-            elif group.id == previous_journal_group_action.get("id"):
-                selected = previous_journal_group_action.get("action") == "add"
+            selected = (
+                group.id == previous_journal_group_action.get("id")
+                and previous_journal_group_action.get("action") == "add"
+            )
 
             group_option = option_value(
                 group, selected=selected, group_journals=group_journals
@@ -561,10 +543,12 @@ class AccountReport(models.Model):
             )
 
         # 3. Recompute selected groups in case the set of selected journals is equal to a group's accepted journals
-        for group in options_journal_groups:
-            if journals_selected == set(group["journals"]):
-                group["selected"] = True
-                options["selected_journal_groups"] = group
+        if journals_selected and not options["selected_journal_groups"]:
+            for group in options_journal_groups:
+                if journals_selected == set(group["journals"]):
+                    group["selected"] = True
+                    options["selected_journal_groups"] = group
+                    break
 
         # 4. Unselect all journals if all are selected and no group is specifically selected
         if (
@@ -593,7 +577,6 @@ class AccountReport(models.Model):
             selected=len(journals_selected),
             group_selected=bool(options["selected_journal_groups"]),
             is_opening_report=is_opening_report,
-            can_reset=can_reset_journals_filter,
             companies=len(company_journals_map),
         )
         if not company_journals_map:
