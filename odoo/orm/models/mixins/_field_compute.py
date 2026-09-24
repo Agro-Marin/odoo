@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import typing
+from functools import partial
 
 from odoo.libs.debug_log import DebugLog
 
@@ -44,4 +45,9 @@ class _FieldComputeMixin(_ModelStubs):
                     records=len(self),
                     fields=len(fnames),
                 )
-            self.filtered("id")._check_fields(fnames)
+            records = self.filtered("id")
+            core = self.env.core
+            if core.protection_depth():
+                core.defer_until_unprotected(partial(records._check_fields, fnames))
+            else:
+                records._check_fields(fnames)

@@ -122,6 +122,9 @@ class ComputeEngine[F: FieldKey = FieldKey]:
     def has_any_protected(self) -> bool:
         return self._protected.has_any_protected()
 
+    def protection_depth(self) -> int:
+        return len(self._protected)
+
     def push_protection(self) -> None:
         self._protected.push_map()
 

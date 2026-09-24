@@ -9,13 +9,13 @@ from .compute import ComputeEngine
 from .recompute import RecomputeScheduler
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Mapping
+    from collections.abc import Callable, Collection, Iterable, Mapping
 
 _debug = DebugLog(__name__)
 
 
 class OrmCore[F: FieldKey = FieldKey]:
-    __slots__ = ("_cache", "_engine")
+    __slots__ = ("_cache", "_deferred", "_draining", "_engine")
 
     def __init__(
         self,
@@ -28,6 +28,8 @@ class OrmCore[F: FieldKey = FieldKey]:
         self._engine: ComputeEngine[F] = (
             engine if engine is not None else cast("ComputeEngine[F]", ComputeEngine())
         )
+        self._deferred: list[Callable[[], Any]] = []
+        self._draining = False
 
     def get_value(self, field: F, record_id: Any, default: Any = _MISSING) -> Any:
         if default is _MISSING:
@@ -183,6 +185,27 @@ class OrmCore[F: FieldKey = FieldKey]:
 
     def protect(self, field: F, ids: frozenset[Any]) -> None:
         self._engine.protect(field, ids)
+
+    def protection_depth(self) -> int:
+        return self._engine.protection_depth()
+
+    def defer_until_unprotected(self, check: Callable[[], Any]) -> None:
+        self._deferred.append(check)
+
+    def run_deferred(self) -> None:
+        if self._draining:
+            return
+        self._draining = True
+        try:
+            while self._deferred:
+                self._deferred.pop(0)()
+        finally:
+            self._draining = False
+            self._deferred.clear()
+
+    def discard_deferred(self) -> None:
+        if not self._draining:
+            self._deferred.clear()
 
     def clear_cache(self) -> None:
         self._cache.clear()

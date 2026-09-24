@@ -6,6 +6,7 @@ from . import (
     test_cache_dead_pending,
     test_cache_scan_equivalence,
     test_company_checks,
+    test_compute_check_deferral,
     test_create_access_batching,
     test_count_field,
     test_domain,

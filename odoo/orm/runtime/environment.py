@@ -99,10 +99,16 @@ class _Protecting:
         for field, rec_ids in ids_by_field.items():
             core.protect(field, frozenset(rec_ids))
 
-    def __exit__(self, *exc: object) -> None:
+    def __exit__(self, exc_type: object, *exc: object) -> None:
         if self._active:
             self._active = False
-            self._core.pop_protection()
+            core = self._core
+            core.pop_protection()
+            if not core.protection_depth():
+                if exc_type is None:
+                    core.run_deferred()
+                else:
+                    core.discard_deferred()
 
 
 class Environment(Mapping[str, "BaseModel"]):
