@@ -3,7 +3,7 @@
 
 import { Component, markRaw, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { AppEvent } from "@web/core/events";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
 
 import { appBadge, loadHomeMenuBadges, useHomeMenuBadgeUpdates } from "./badges.js";
@@ -36,6 +36,7 @@ export class QuickLauncher extends Component {
     catalog = [];
 
     setup() {
+        this.bus = useEventBus();
         this.menus = useService("menu");
         this.homeMenu = useService("home_menu");
         this.command = useService("command");
@@ -46,7 +47,7 @@ export class QuickLauncher extends Component {
         };
         this._loadCatalog();
         useHomeMenuLayoutSync(refresh);
-        useBus(this.env.bus, AppEvent.MENUS_APP_CHANGED, refresh);
+        useBus(this.bus, AppEvent.MENUS_APP_CHANGED, refresh);
         useHomeMenuBadgeUpdates(this.env, () => this.loadBadges());
         onWillUnmount(() => {
             this.badgeRequest++;

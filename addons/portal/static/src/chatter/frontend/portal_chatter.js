@@ -2,7 +2,7 @@
 import { Chatter } from "@mail/chatter/web_portal/chatter";
 import { Component, onWillDestroy, useSubEnv, xml } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { OverlayContainer } from "@web/ui/overlay/overlay_container";
 
 const log = makeLogger("portal.chatter");
@@ -16,15 +16,14 @@ export class PortalChatter extends Component {
     static props = ["resId", "resModel", "composer", "twoColumns", "displayRating"];
 
     setup() {
+        this.bus = useEventBus();
         useSubEnv({
             displayRating: this.props.displayRating,
             inFrontendPortalChatter: true,
         });
         this.overlayService = useService("overlay");
         this.store = useService("mail.store");
-        useBus(this.env.bus, "reload_chatter_content", () =>
-            this._reloadChatterContent(),
-        );
+        useBus(this.bus, "reload_chatter_content", () => this._reloadChatterContent());
         onWillDestroy(() => {
             this.destroyed = true;
         });

@@ -1,16 +1,17 @@
 /** @odoo-module native */
 import { _t } from "@web/core/translation";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useService, useEventBus } from "@web/core/utils/hooks";
 import { useSearchModel } from "@web/search/search_model";
 
 export const LunchRendererMixin = (T) =>
     class LunchRendererMixin extends T {
         setup() {
             super.setup(...arguments);
+            this.bus = useEventBus();
             this.searchModel = useSearchModel();
 
             this.action = useService("action");
-            useBus(this.env.bus, "lunch_open_order", (ev) =>
+            useBus(this.bus, "lunch_open_order", (ev) =>
                 this.openOrderLine(ev.detail.productId),
             );
         }
@@ -46,7 +47,7 @@ export const LunchRendererMixin = (T) =>
             }
 
             this.action.doAction(action, {
-                onClose: () => this.env.bus.trigger("lunch_update_dashboard"),
+                onClose: () => this.bus.trigger("lunch_update_dashboard"),
             });
         }
     };

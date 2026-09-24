@@ -4,7 +4,7 @@ import { EventBus, useSubEnv } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { x2ManyCommands } from "@web/core/network";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
-import { useOptionalService } from "@web/core/utils/hooks";
+import { useEventBus, useOptionalService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { FormController } from "@web/views/form";
 
@@ -17,6 +17,7 @@ FormController.props = {
 patch(FormController.prototype, {
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.mailStore = useOptionalService("mail.store");
         useSubEnv({
             chatter: {
@@ -42,7 +43,7 @@ patch(FormController.prototype, {
         this.env.chatter.fetchMessages = true;
         if (isSameThread) {
             const { resModel, resId } = this.model.root;
-            this.env.bus.trigger("MAIL:RELOAD-THREAD", { model: resModel, id: resId });
+            this.bus.trigger("MAIL:RELOAD-THREAD", { model: resModel, id: resId });
         }
     },
 

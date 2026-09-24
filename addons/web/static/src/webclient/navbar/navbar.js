@@ -22,7 +22,7 @@ import { registry } from "@web/core/registry";
 import { Transition } from "@web/core/transition";
 import { _t } from "@web/core/translation";
 import { ErrorHandler } from "@web/core/utils/components";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
 import { usePopover } from "@web/ui/popover";
 import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
@@ -83,6 +83,7 @@ export class NavBar extends Component {
     quickLauncher;
 
     setup() {
+        this.bus = useEventBus();
         this.ui = useService("ui");
         useLifecycleLog(log);
         this.state = useState({
@@ -107,7 +108,7 @@ export class NavBar extends Component {
             this.quickLauncher.close();
         };
         useBus(
-            this.env.bus,
+            this.bus,
             AppEvent.HOME_MENU_TOGGLED,
             this._busToggledCallback.bind(this),
         );
@@ -118,14 +119,11 @@ export class NavBar extends Component {
         const onSystrayUpdate = () => this.state.systrayRevision++;
         const onMenusChanged = () => this.state.menuRevision++;
         systrayRegistry.addEventListener("UPDATE", onSystrayUpdate);
-        this.env.bus.addEventListener(AppEvent.MENUS_APP_CHANGED, onMenusChanged);
+        this.bus.addEventListener(AppEvent.MENUS_APP_CHANGED, onMenusChanged);
 
         onWillDestroy(() => {
             systrayRegistry.removeEventListener("UPDATE", onSystrayUpdate);
-            this.env.bus.removeEventListener(
-                AppEvent.MENUS_APP_CHANGED,
-                onMenusChanged,
-            );
+            this.bus.removeEventListener(AppEvent.MENUS_APP_CHANGED, onMenusChanged);
         });
 
         useEffect(

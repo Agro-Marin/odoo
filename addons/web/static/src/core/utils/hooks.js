@@ -11,6 +11,7 @@ import {
     useEnv,
     useRef,
     useState,
+    useSubEnv,
 } from "@odoo/owl";
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveElement } from "@web/core/utils/dom/ui";
@@ -62,6 +63,16 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
         () => [ref.el],
     );
     return ref;
+}
+
+/** @param {import("@odoo/owl").EventBus} bus */
+export function provideEventBus(bus) {
+    useSubEnv({ bus });
+}
+
+/** @returns {import("@odoo/owl").EventBus} */
+export function useEventBus() {
+    return useEnv().bus;
 }
 
 /**

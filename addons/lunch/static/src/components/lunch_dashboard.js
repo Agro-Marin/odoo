@@ -2,7 +2,7 @@
 import { luxon } from "@web/core/l10n/luxon";
 import { rpc } from "@web/core/network";
 import { user } from "@web/core/user";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useService, useEventBus } from "@web/core/utils/hooks";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { DateTimeInput } from "@web/components/datetime";
 import { Component, useState, onWillStart, markup, xml } from "@odoo/owl";
@@ -133,6 +133,7 @@ export class LunchDashboard extends Component {
     static template = "lunch.LunchDashboard";
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.searchModel = useSearchModel();
         this.ui = useService("ui");
         this.state = useState({
@@ -142,7 +143,7 @@ export class LunchDashboard extends Component {
             cartOpen: false,
         });
 
-        useBus(this.env.bus, "lunch_update_dashboard", () => this._fetchLunchInfos());
+        useBus(this.bus, "lunch_update_dashboard", () => this._fetchLunchInfos());
         onWillStart(async () => {
             await this._fetchLunchInfos();
             this.searchModel.updateLocationId(this.state.infos.user_location[0]);

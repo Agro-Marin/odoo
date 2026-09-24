@@ -3,7 +3,7 @@ import { AccountReturnCheckKanbanRecord } from "@account/components/account_retu
 import { WebChatter } from "@mail/chatter/web/web_chatter";
 import { onWillDestroy, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
+import { useEventBus, useService } from "@web/core/utils/hooks";
 import {
     extractFieldsFromArchInfo,
     getFieldsSpec,
@@ -28,6 +28,7 @@ export class AccountReturnCheckKanbanRenderer extends KanbanRenderer {
 
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.orm = useService("orm");
         this.action = useService("action");
         this.viewService = useService("view");
@@ -125,7 +126,7 @@ export class AccountReturnCheckKanbanRenderer extends KanbanRenderer {
         this.returnRecord.setData(returnData[0]);
 
         // Reload chatter messages
-        this.env.bus.trigger("MAIL:RELOAD-THREAD", {
+        this.bus.trigger("MAIL:RELOAD-THREAD", {
             model: "account.return",
             id: accountReturnId,
         });

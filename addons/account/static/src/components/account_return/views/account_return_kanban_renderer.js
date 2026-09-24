@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { KanbanRenderer } from "@web/views/kanban";
 import { useDeleteRecords } from "@web/views/view_hook";
 import { kanbanGroupKey } from "@web/views/view_utils";
@@ -19,11 +19,12 @@ export class AccountReturnKanbanRenderer extends AccountReturnBaseKanbanRenderer
 
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.orm = useService("orm");
         this.actionService = useService("action");
         this.deleteRecordsWithConfirmation = useDeleteRecords(this.props.list.model);
 
-        useBus(this.env.bus, "return_reload_model", (ev) => {
+        useBus(this.bus, "return_reload_model", (ev) => {
             const recordIds = ev.detail.resIds;
             const recordToReload = this.records.filter((record) =>
                 recordIds.includes(record.resId),

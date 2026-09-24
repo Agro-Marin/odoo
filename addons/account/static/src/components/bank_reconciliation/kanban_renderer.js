@@ -6,7 +6,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { formatMonetary } from "@web/core/formatters";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
+import { useEventBus, useService } from "@web/core/utils/hooks";
 import { useViewModel } from "@web/model/model";
 import { KanbanRenderer, kanbanView } from "@web/views/kanban";
 
@@ -33,6 +33,7 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.bus = useEventBus();
         this.model = useViewModel();
         this.action = useService("action");
         this.orm = useService("orm");
@@ -56,7 +57,7 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
             await this.prepareInitialState(newRoot.records);
         };
 
-        this.env.bus.addEventListener("createRecordQuickCreate", () => {
+        this.bus.addEventListener("createRecordQuickCreate", () => {
             this.globalState.quickCreate.isVisible = true;
         });
 

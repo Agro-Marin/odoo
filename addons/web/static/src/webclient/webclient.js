@@ -11,7 +11,7 @@ import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent, RouterEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { SupersededError } from "@web/core/utils/concurrency";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { DebugMenu } from "@web/webclient/debug/debug_menu";
 
@@ -40,6 +40,7 @@ export class WebClient extends Component {
     hm;
 
     setup() {
+        this.bus = useEventBus();
         useLifecycleLog(log);
         this.menuService = useService("menu");
         this.actionService = useService("action");
@@ -58,19 +59,19 @@ export class WebClient extends Component {
             fullscreen: false,
         });
         useBus(routerBus, RouterEvent.ROUTE_CHANGE, () => this.loadRouterState());
-        useBus(this.env.bus, AppEvent.ACTION_MANAGER_UI_UPDATED, ({ detail: mode }) => {
+        useBus(this.bus, AppEvent.ACTION_MANAGER_UI_UPDATED, ({ detail: mode }) => {
             if (mode !== "new") {
                 this.state.fullscreen = mode === "fullscreen";
             }
         });
         useBus(
-            this.env.bus,
+            this.bus,
             AppEvent.WEBCLIENT_LOAD_DEFAULT_APP,
             this._loadDefaultApp.bind(this),
         );
         onMounted(() => {
             this.loadRouterState();
-            this.env.bus.trigger(AppEvent.WEB_CLIENT_READY);
+            this.bus.trigger(AppEvent.WEB_CLIENT_READY);
         });
         useExternalListener(window, "click", /** @type {any} */ (this.onGlobalClick), {
             capture: true,

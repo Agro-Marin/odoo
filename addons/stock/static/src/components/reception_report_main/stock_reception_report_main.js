@@ -2,7 +2,7 @@
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { useOperationGuard } from "@stock/utils/use_operation_guard";
 import { registry } from "@web/core/registry";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { standardActionServiceProps } from "@web/webclient/actions";
 
@@ -24,6 +24,7 @@ export class ReceptionReportMain extends Component {
     static props = { ...standardActionServiceProps };
 
     setup() {
+        this.bus = useEventBus();
         this.controlPanelDisplay = {};
         this.ormService = useService("orm");
         this.actionService = useService("action");
@@ -32,7 +33,7 @@ export class ReceptionReportMain extends Component {
         this.state = useState({
             sourcesToLines: {},
         });
-        useBus(this.env.bus, "update-assign-state", (ev) =>
+        useBus(this.bus, "update-assign-state", (ev) =>
             this._changeAssignedState(ev.detail),
         );
         this.busyState = useState({ busy: false });

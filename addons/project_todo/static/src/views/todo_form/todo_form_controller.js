@@ -4,7 +4,7 @@ import { onWillStart } from "@odoo/owl";
 import { openDescriptionHistoryDialog } from "@project/views/project_task_form/description_history";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useService, useEventBus } from "@web/core/utils/hooks";
 import { COG_GROUP } from "@web/search/cog_menu/cog_menu_group";
 import { FormControllerWithHTMLExpander } from "@web/views/form_with_html_expander/form_controller_with_html_expander";
 import { prepareStaticActionMenuItems } from "@web/views/view_utils";
@@ -18,8 +18,9 @@ export class TodoFormController extends FormControllerWithHTMLExpander {
 
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.notifications = useService("notification");
-        useBus(this.env.bus, "TODO:TOGGLE_CHATTER", () => {
+        useBus(this.bus, "TODO:TOGGLE_CHATTER", () => {
             this.htmlExpanderState.reload = true;
         });
         onWillStart(async () => {

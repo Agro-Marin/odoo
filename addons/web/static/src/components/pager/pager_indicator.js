@@ -6,7 +6,7 @@ import { browser } from "@web/core/browser/browser";
 import { PagerEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { Transition } from "@web/core/transition";
-import { useBus } from "@web/core/utils/hooks";
+import { useBus, useEventBus } from "@web/core/utils/hooks";
 
 export class PagerIndicator extends Component {
     static template = "web.PagerIndicator";
@@ -19,12 +19,13 @@ export class PagerIndicator extends Component {
     state;
 
     setup() {
+        this.bus = useEventBus();
         this.state = useState({
             show: false,
             value: "-",
             total: 0,
         });
-        useBus(this.env.bus, PagerEvent.UPDATED, this.pagerUpdate.bind(this));
+        useBus(this.bus, PagerEvent.UPDATED, this.pagerUpdate.bind(this));
         onWillUnmount(() => browser.clearTimeout(this.startShowTimer));
     }
 

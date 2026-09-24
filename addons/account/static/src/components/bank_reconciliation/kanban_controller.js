@@ -1,10 +1,10 @@
 /** @odoo-module native */
-import { onWillDestroy, useEffect, useSubEnv } from "@odoo/owl";
+import { onWillDestroy, useEffect } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { user } from "@web/core/user";
-import { useService } from "@web/core/utils/hooks";
+import { provideEventBus, useService } from "@web/core/utils/hooks";
 import { makeActiveField } from "@web/model/relational_model";
 import { KanbanController } from "@web/views/kanban";
 
@@ -66,9 +66,8 @@ export class BankRecKanbanController extends KanbanController {
         this.orm = useService("orm");
         this.bankReconciliation = useBankReconciliation();
         this.bankReconciliation.hydrateChatterState();
-        useSubEnv({
-            bus: this.bankReconciliation.bus,
-        });
+        this.bus = this.bankReconciliation.bus;
+        provideEventBus(this.bus);
         useHotkey("alt+shift+c", () => this.bankReconciliation.toggleChatter(), {
             bypassEditableProtection: true,
             withOverlay: () => this.rootRef.el.querySelector(".bank-chatter-btn"),
@@ -82,7 +81,7 @@ export class BankRecKanbanController extends KanbanController {
     }
 
     async createRecord() {
-        this.env.bus.trigger("createRecordQuickCreate");
+        this.bus.trigger("createRecordQuickCreate");
     }
 
     getCheckedField() {

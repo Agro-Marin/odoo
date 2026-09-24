@@ -2,6 +2,7 @@
 import { Component } from "@odoo/owl";
 import { formatCurrency } from "@web/core/currency";
 import comparisonUtils from "@website_sale_comparison/js/website_sale_comparison_utils";
+import { useEventBus } from "@web/core/utils/hooks";
 
 export class ProductRow extends Component {
     static template = "website_sale_comparison.ProductRow";
@@ -16,8 +17,13 @@ export class ProductRow extends Component {
         currency_id: Number,
     };
 
+    setup() {
+        super.setup();
+        this.bus = useEventBus();
+    }
+
     removeProduct() {
-        comparisonUtils.removeComparisonProduct(this.props.id, this.env.bus);
+        comparisonUtils.removeComparisonProduct(this.props.id, this.bus);
         comparisonUtils.enableDisabledProducts([this.props.id], false);
     }
 

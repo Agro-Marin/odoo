@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { useOperationGuard } from "@stock/utils/use_operation_guard";
-import { useService } from "@web/core/utils/hooks";
+import { useEventBus, useService } from "@web/core/utils/hooks";
 
 import { ReceptionReportLine } from "../reception_report_line/stock_reception_report_line.js";
 import {
@@ -29,6 +29,7 @@ export class ReceptionReportTable extends Component {
     };
 
     setup() {
+        this.bus = useEventBus();
         this.actionService = useService("action");
         this.ormService = useService("orm");
         this.opGuard = useOperationGuard(this.props.busyState);
@@ -41,7 +42,7 @@ export class ReceptionReportTable extends Component {
             return;
         }
         await assignMoves(this.ormService, moveIds, quantities, inIds);
-        this.env.bus.trigger("update-assign-state", {
+        this.bus.trigger("update-assign-state", {
             isAssigned: true,
             tableIndex: this.props.index,
         });

@@ -14,7 +14,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 
 import { ChatBubble } from "./chat_bubble.js";
 const log = makeLogger("mail.chat_hub");
@@ -31,6 +31,7 @@ export class ChatHub extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.bus = useEventBus();
         this.store = useService("mail.store");
         this.ui = useService("ui");
         this.busMonitoring = useService("bus.monitoring_service");
@@ -80,7 +81,7 @@ export class ChatHub extends Component {
             onDragEnd: () => (this.position.isDragging = false),
             onDrop: this.onDrop.bind(this),
         });
-        useBus(this.env.bus, "ChatWindow:will-open", () => {
+        useBus(this.bus, "ChatWindow:will-open", () => {
             this.resetPosition();
         });
     }

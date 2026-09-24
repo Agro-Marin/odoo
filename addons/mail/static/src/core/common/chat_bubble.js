@@ -7,7 +7,7 @@ import { useHover } from "@mail/utils/common/hooks";
 import { Component, useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
-import { useBus, useChildRef, useService } from "@web/core/utils/hooks";
+import { useBus, useChildRef, useEventBus, useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover";
 
 const log = makeLogger("mail.chat_hub");
@@ -40,6 +40,7 @@ export class ChatBubble extends Component {
 
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.store = useService("mail.store");
         const popoverRef = useChildRef();
         this.isMobileOS = isMobileOS();
@@ -50,7 +51,7 @@ export class ChatBubble extends Component {
             ref: popoverRef,
         });
         useBus(
-            this.env.bus,
+            this.bus,
             "ChatBubble:preview-will-open",
             /** @param {CustomEvent<ChatBubble>} ev */
             ({ detail }) => {
@@ -63,7 +64,7 @@ export class ChatBubble extends Component {
         this.hover = useHover(["root", popoverRef], {
             onHover: () => {
                 log.logic("preview open", () => ({ thread: this.thread?.localId }));
-                this.env.bus.trigger("ChatBubble:preview-will-open", this);
+                this.bus.trigger("ChatBubble:preview-will-open", this);
                 this.popover.open(this.rootRef.el, {
                     chatWindow: this.props.chatWindow,
                 });

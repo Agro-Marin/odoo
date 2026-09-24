@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { Component, onWillStart, useState, useSubEnv } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { rpc } from "@web/core/network";
-import { useBus } from "@web/core/utils/hooks";
+import { provideEventBus, useBus } from "@web/core/utils/hooks";
 import comparisonUtils from "@website_sale_comparison/js/website_sale_comparison_utils";
 import { ProductRow } from "../product_row/product_row.js";
 
@@ -18,7 +18,7 @@ export class ProductComparisonBottomBar extends Component {
         useBus(this.props.bus, comparisonUtils.COMPARISON_EVENT, () =>
             this._loadProducts(),
         );
-        useSubEnv({ bus: this.props.bus });
+        provideEventBus(this.props.bus);
         onWillStart(this._loadProducts);
     }
 
@@ -52,6 +52,6 @@ export class ProductComparisonBottomBar extends Component {
     }
 
     clearAllProducts() {
-        comparisonUtils.clearComparisonProducts(this.env.bus);
+        comparisonUtils.clearComparisonProducts(this.props.bus);
     }
 }

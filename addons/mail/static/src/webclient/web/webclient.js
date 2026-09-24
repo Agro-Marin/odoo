@@ -5,7 +5,7 @@ import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
-import { useOptionalService, useService } from "@web/core/utils/hooks";
+import { useEventBus, useOptionalService, useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { WebClient } from "@web/webclient/webclient";
 
@@ -15,6 +15,7 @@ const USER_DEVICES_MODEL = "mail.push.device";
 patch(WebClient.prototype, {
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.store = useOptionalService("mail.store");
         this.orm = useService("orm");
         this.notification = useService("notification");
@@ -22,13 +23,9 @@ patch(WebClient.prototype, {
         this._pushMutex = new Mutex();
         this.store?.initialize();
         if (this._canSendNativeNotification) {
-            this.env.bus.addEventListener(
-                "WEB_CLIENT_READY",
-                () => this._subscribePush(),
-                {
-                    once: true,
-                },
-            );
+            this.bus.addEventListener("WEB_CLIENT_READY", () => this._subscribePush(), {
+                once: true,
+            });
         }
         if (browser.navigator.permissions) {
             let notificationPerm;

@@ -13,12 +13,17 @@ import { LunchRendererMixin } from "../mixins/lunch_renderer_mixin.js";
 
 import { LunchSearchModel } from "./search_model.js";
 import { LunchSearchPanel } from "./search_panel.js";
-import { useService } from "@web/core/utils/hooks";
+import { useService, useEventBus } from "@web/core/utils/hooks";
 import { useSearchModel } from "@web/search/search_model";
 
 export class LunchKanbanRecord extends KanbanRecord {
+    setup() {
+        super.setup();
+        this.bus = useEventBus();
+    }
+
     onGlobalClick() {
-        this.env.bus.trigger("lunch_open_order", {
+        this.bus.trigger("lunch_open_order", {
             productId: this.props.record.resId,
         });
     }

@@ -2,7 +2,7 @@
 import { Component } from "@odoo/owl";
 import { useOperationGuard } from "@stock/utils/use_operation_guard";
 import { formatFieldFloat } from "@web/core/formatters";
-import { useService } from "@web/core/utils/hooks";
+import { useEventBus, useService } from "@web/core/utils/hooks";
 
 import { assignMoves, prepareLabelAction } from "../reception_report_utils.js";
 
@@ -19,6 +19,7 @@ export class ReceptionReportLine extends Component {
     };
 
     setup() {
+        this.bus = useEventBus();
         this.ormService = useService("orm");
         this.actionService = useService("action");
         this.formatFloat = (val) =>
@@ -58,7 +59,7 @@ export class ReceptionReportLine extends Component {
             [this.data.quantity],
             [this.data.move_ins],
         );
-        this.env.bus.trigger("update-assign-state", {
+        this.bus.trigger("update-assign-state", {
             isAssigned: true,
             tableIndex: this.props.parentIndex,
             lineIndex: this.data.index,
@@ -72,7 +73,7 @@ export class ReceptionReportLine extends Component {
             [false, this.data.move_out_id, this.data.quantity, this.data.move_ins],
         );
         if (done) {
-            this.env.bus.trigger("update-assign-state", {
+            this.bus.trigger("update-assign-state", {
                 isAssigned: false,
                 tableIndex: this.props.parentIndex,
                 lineIndex: this.data.index,

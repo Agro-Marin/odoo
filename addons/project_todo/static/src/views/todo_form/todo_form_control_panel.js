@@ -3,7 +3,7 @@ import { onMounted, useEffect } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
-import { useService } from "@web/core/utils/hooks";
+import { useService, useEventBus } from "@web/core/utils/hooks";
 import { useViewConfig } from "@web/core/view_config_hooks";
 
 export class TodoFormControlPanel extends ControlPanel {
@@ -11,6 +11,7 @@ export class TodoFormControlPanel extends ControlPanel {
 
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.config = useViewConfig();
         this.ui = useService("ui");
         useEffect(
@@ -41,7 +42,7 @@ export class TodoFormControlPanel extends ControlPanel {
         if (ev) {
             browser.localStorage.setItem("isChatterOpened", this.state.displayChatter);
         }
-        this.env.bus.trigger("TODO:TOGGLE_CHATTER", {
+        this.bus.trigger("TODO:TOGGLE_CHATTER", {
             displayChatter: this.state.displayChatter,
         });
     }

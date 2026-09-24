@@ -2,19 +2,20 @@
 import { onWillUnmount, useSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
+import { useEventBus, useService } from "@web/core/utils/hooks";
 import { FormController, formView } from "@web/views/form";
 
 export class SelectPrinterFormController extends FormController {
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.notification = useService("notification");
         this.orm = useService("orm");
         this.onClickViewButton = this.env.onClickViewButton;
 
         onWillUnmount(() => {
             // If the user closes the popup without selecting a printer we still send a message back
-            this.env.bus.trigger("printer-selected", {
+            this.bus.trigger("printer-selected", {
                 reportId: this.props.context.report_id,
                 deviceSettings: null,
             });
@@ -28,7 +29,7 @@ export class SelectPrinterFormController extends FormController {
             skipDialog: this.model.root.evalContextWithVirtualIds.do_not_ask_again,
         };
         if (deviceSettings.selectedDevices.length > 0) {
-            this.env.bus.trigger("printer-selected", {
+            this.bus.trigger("printer-selected", {
                 reportId: this.props.context.report_id,
                 deviceSettings,
             });

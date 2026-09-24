@@ -17,7 +17,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { Mutex } from "@web/core/utils/concurrency";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { session } from "@web/session";
 import {
@@ -145,6 +145,7 @@ export class HomeMenuAction extends Component {
     homeMenu;
 
     setup() {
+        this.bus = useEventBus();
         this.config = useViewConfig();
         this.menus = useService("menu");
         this.homeMenu = useService("home_menu");
@@ -159,14 +160,14 @@ export class HomeMenuAction extends Component {
             log.lifecycle("mounted", () => ({
                 isCurrent: this.homeMenu.currentAction === this,
             }));
-            this.env.bus.trigger(AppEvent.HOME_MENU_TOGGLED);
+            this.bus.trigger(AppEvent.HOME_MENU_TOGGLED);
         });
         onWillUnmount(() => {
             log.lifecycle("willUnmount", () => ({
                 isCurrent: this.homeMenu.currentAction === this,
             }));
             this._release();
-            this.env.bus.trigger(AppEvent.HOME_MENU_TOGGLED);
+            this.bus.trigger(AppEvent.HOME_MENU_TOGGLED);
         });
         onWillDestroy(() => {
             log.lifecycle("willDestroy", () => ({
@@ -177,7 +178,7 @@ export class HomeMenuAction extends Component {
         const refresh = () => {
             this.state.homeMenuProps = markRaw(computeHomeMenuProps(this.menus));
         };
-        useBus(this.env.bus, AppEvent.MENUS_APP_CHANGED, refresh);
+        useBus(this.bus, AppEvent.MENUS_APP_CHANGED, refresh);
         useHomeMenuLayoutSync(refresh);
     }
     _release() {

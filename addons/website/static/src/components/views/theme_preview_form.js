@@ -3,7 +3,7 @@ import { onMounted, useEnv, useSubEnv } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
+import { useEventBus, useService } from "@web/core/utils/hooks";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { FormController, formView } from "@web/views/form";
@@ -98,17 +98,18 @@ class ThemePreviewFormControlPanel extends ControlPanel {
     static template = "website.ThemePreviewForm.ControlPanel";
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.config = useViewConfig();
         this.ui = useService("ui");
     }
 
     onMobileClick() {
         log.logic("ThemePreviewFormControlPanel switch mode", { mode: "mobile" });
-        this.env.bus.trigger("THEME_PREVIEW:SWITCH_MODE", { mode: "mobile" });
+        this.bus.trigger("THEME_PREVIEW:SWITCH_MODE", { mode: "mobile" });
     }
     onDesktopClick() {
         log.logic("ThemePreviewFormControlPanel switch mode", { mode: "desktop" });
-        this.env.bus.trigger("THEME_PREVIEW:SWITCH_MODE", { mode: "desktop" });
+        this.bus.trigger("THEME_PREVIEW:SWITCH_MODE", { mode: "desktop" });
     }
     back() {
         this.config.historyBack();

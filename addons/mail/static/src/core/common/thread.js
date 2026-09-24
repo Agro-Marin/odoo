@@ -24,7 +24,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { Transition } from "@web/core/transition";
 import { measure, mutate } from "@web/core/utils/dom/layout_batch";
-import { useBus, useRefListener, useService } from "@web/core/utils/hooks";
+import { useBus, useEventBus, useRefListener, useService } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 import { NotificationMessage } from "./notification_message.js";
@@ -266,7 +266,7 @@ export class Thread extends Component {
     }
     _setupThreadListeners() {
         useBus(
-            this.env.bus,
+            this.bus,
             "MAIL:RELOAD-THREAD",
             /** @param {CustomEvent<{model: string, id: number}>} ev */
             ({ detail }) => {
@@ -298,6 +298,7 @@ export class Thread extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.bus = useEventBus();
         this._setupServicesAndRefs();
         this._setupScrollTracking();
         this._setupMessageEffects();

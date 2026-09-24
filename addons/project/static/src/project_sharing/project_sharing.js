@@ -2,7 +2,7 @@
 import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useOwnDebugContext } from "@web/core/debug/debug_context";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { ActionContainer } from "@web/webclient/actions";
 
@@ -12,19 +12,20 @@ export class ProjectSharingWebClient extends Component {
     static template = "project.ProjectSharingWebClient";
 
     setup() {
+        this.bus = useEventBus();
         this.actionService = useService("action");
         useOwnDebugContext({ categories: ["default"] });
         this.state = useState({
             fullscreen: false,
         });
-        useBus(this.env.bus, "ACTION_MANAGER:UI-UPDATED", (mode) => {
+        useBus(this.bus, "ACTION_MANAGER:UI-UPDATED", (mode) => {
             if (mode !== "new") {
                 this.state.fullscreen = mode === "fullscreen";
             }
         });
         onMounted(() => {
             this.loadRouterState();
-            this.env.bus.trigger("WEB_CLIENT_READY");
+            this.bus.trigger("WEB_CLIENT_READY");
         });
         useExternalListener(window, "click", this.onGlobalClick, { capture: true });
     }

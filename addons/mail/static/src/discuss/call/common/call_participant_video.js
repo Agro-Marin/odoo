@@ -8,7 +8,7 @@ import {
     useExternalListener,
     useRef,
 } from "@odoo/owl";
-import { useService } from "@web/core/utils/hooks";
+import { useEventBus, useService } from "@web/core/utils/hooks";
 /**
  * @typedef {Object} Props
  * @property {"camera" | "screen"} type
@@ -21,6 +21,7 @@ export class CallParticipantVideo extends Component {
 
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.rtc = useService("discuss.rtc");
         this.store = useService("mail.store");
         this.root = /** @type {import("@odoo/owl").Ref<HTMLVideoElement>} */ (
@@ -28,7 +29,7 @@ export class CallParticipantVideo extends Component {
         );
         onMounted(() => this._update());
         onPatched(() => this._update());
-        useExternalListener(this.env.bus, "RTC-SERVICE:PLAY_MEDIA", async () => {
+        useExternalListener(this.bus, "RTC-SERVICE:PLAY_MEDIA", async () => {
             await this.play();
         });
     }

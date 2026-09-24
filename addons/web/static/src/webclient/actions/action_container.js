@@ -5,6 +5,7 @@ import { Component, markRaw, onWillDestroy, useState, xml } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { AppEvent } from "@web/core/events";
+import { useEventBus } from "@web/core/utils/hooks";
 
 const log = makeLogger("web.action.container");
 
@@ -19,6 +20,7 @@ export class ActionContainer extends Component {
         </t>`;
 
     setup() {
+        this.bus = useEventBus();
         this.state = useState({ info: markRaw({}) });
         /** @param {CustomEvent} event */
         useLifecycleLog(log);
@@ -30,12 +32,12 @@ export class ActionContainer extends Component {
             }));
             this.state.info = markRaw(info);
         };
-        this.env.bus.addEventListener(
+        this.bus.addEventListener(
             AppEvent.ACTION_MANAGER_UPDATE,
             this.onActionManagerUpdate,
         );
         onWillDestroy(() => {
-            this.env.bus.removeEventListener(
+            this.bus.removeEventListener(
                 AppEvent.ACTION_MANAGER_UPDATE,
                 this.onActionManagerUpdate,
             );

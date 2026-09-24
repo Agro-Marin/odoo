@@ -2,7 +2,7 @@
 import { _t } from "@web/core/translation";
 import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
-import { useBus, useRefListener, useService } from "@web/core/utils/hooks";
+import { useBus, useRefListener, useService, useEventBus } from "@web/core/utils/hooks";
 import { onWillStart, useRef, useEffect, useState } from "@odoo/owl";
 import { useViewConfig } from "@web/core/view_config_hooks";
 
@@ -14,6 +14,7 @@ export const ExpenseDocumentDropZone = (T) =>
 
         setup() {
             super.setup();
+            this.bus = useEventBus();
             this.dragState = useState({
                 showDragZone: false,
             });
@@ -61,7 +62,7 @@ export const ExpenseDocumentDropZone = (T) =>
 
         async onDrop(ev) {
             ev.preventDefault();
-            await this.env.bus.trigger("change_file_input", {
+            await this.bus.trigger("change_file_input", {
                 files: ev.dataTransfer.files,
             });
             this.dragState.showDragZone = false;
@@ -72,6 +73,7 @@ export const ExpenseDocumentUpload = (T) =>
     class ExpenseDocumentUpload extends T {
         setup() {
             super.setup();
+            this.bus = useEventBus();
             this.config = useViewConfig();
             this.actionService = useService("action");
             this.notification = useService("notification");
@@ -84,7 +86,7 @@ export const ExpenseDocumentUpload = (T) =>
             this.uploadsProcessing = 0;
             this.createdExpenseIds = [];
 
-            useBus(this.env.bus, "change_file_input", async (ev) => {
+            useBus(this.bus, "change_file_input", async (ev) => {
                 this.fileInput.el.files = ev.detail.files;
                 this.uploadsProcessing++;
                 await this.onChangeFileInput();

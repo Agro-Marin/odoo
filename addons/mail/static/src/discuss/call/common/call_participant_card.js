@@ -17,7 +17,7 @@ import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { isEventHandled } from "@web/core/utils/dom/events";
-import { useService } from "@web/core/utils/hooks";
+import { useEventBus, useService } from "@web/core/utils/hooks";
 
 const log = makeLogger("mail.rtc.ui");
 /** @type {Set<string>} */
@@ -38,6 +38,7 @@ export class CallParticipantCard extends Component {
 
     setup() {
         super.setup();
+        this.bus = useEventBus();
         this.contextMenuAnchorRef = useRef("contextMenuAnchor");
         this.root = useRef("root");
         this.rtc = useService("discuss.rtc");
@@ -245,7 +246,7 @@ export class CallParticipantCard extends Component {
     }
 
     async onClickReplay() {
-        this.env.bus.trigger("RTC-SERVICE:PLAY_MEDIA");
+        this.bus.trigger("RTC-SERVICE:PLAY_MEDIA");
     }
 
     onMouseDown() {
