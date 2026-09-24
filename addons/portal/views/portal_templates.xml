@@ -779,13 +779,65 @@
                         <button type="submit" class="btn btn-light">Change Password</button>
                     </form>
                 </section>
-                <section name="portal_revoke_all_devices_popup">
-                    <h4>Revoke All Sessions</h4>
+                <section name="portal_devices">
+                    <h4>Devices</h4>
+                    <p class="text-muted">
+                        The browsers signed in to your account. Log out from one you do
+                        not recognize, then change your password.
+                    </p>
+                    <ul class="list-group mb-3 o_portal_devices">
+                        <li
+                            t-foreach="devices"
+                            t-as="device"
+                            class="list-group-item d-flex align-items-center gap-3 o_portal_device"
+                            t-att-data-id="device.id">
+                            <i
+                                t-if="device.device_type == 'mobile'"
+                                class="fa-solid fa-mobile-screen-button fa-fw fs-3"
+                                title="Mobile"
+                                aria-label="Mobile" />
+                            <i
+                                t-else=""
+                                class="fa-solid fa-laptop fa-fw fs-3"
+                                title="Computer"
+                                aria-label="Computer" />
+                            <div class="flex-grow-1">
+                                <div>
+                                    <span
+                                        class="fw-bold"
+                                        t-field="device.display_name" />
+                                    <span
+                                        t-if="device.is_current"
+                                        class="badge text-bg-success ms-1 o_portal_device_current">
+                                        This device
+                                    </span>
+                                </div>
+                                <div class="small text-muted">
+                                    <t t-if="device.city or device.country">
+                                        <span
+                                            t-out="', '.join(part for part in (device.city, device.country) if part)" />
+                                        ·
+                                    </t>
+                                    <span t-field="device.ip_address" />
+                                    ·
+                                    <span
+                                        t-field="device.last_activity"
+                                        t-options="{&quot;widget&quot;: &quot;relative&quot;}" />
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                class="btn btn-link text-danger p-0 o_portal_revoke_device"
+                                t-att-data-id="device.id">
+                                Log out
+                            </button>
+                        </li>
+                    </ul>
                     <button
                         type="button"
                         class="btn btn-light"
                         id="portal_revoke_all_sessions_popup">
-                        Log out from all devices
+                        Log out from all other devices
                     </button>
                 </section>
                 <!-- Gated on the `portal.allow_api_keys` setting alone. It used

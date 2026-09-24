@@ -18,6 +18,7 @@ from . import test_portal_avatar
 from . import test_portal_hardening_v2
 from . import test_portal_share
 from . import test_portal_wizard
+from . import test_security_devices
 from . import test_signature_form_js
 from . import test_token_validation
 from . import test_tours

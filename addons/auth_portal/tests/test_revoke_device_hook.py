@@ -15,6 +15,8 @@ the first place; before that fix the fixture could not be built.
 
 from datetime import datetime, timedelta
 
+from lxml import html
+
 from odoo.tests import tagged
 
 from odoo.addons.base.tests.common import HttpCaseWithUserPortal
@@ -55,6 +57,33 @@ class TestRevokeDeviceHook(HttpCaseWithUserPortal):
             "to; RevokeTrustedDevice will never attach",
         )
         self.assertTrue(user.totp_trusted_device_ids)
+
+    def test_a_device_holding_the_trust_is_badged(self):
+        user = self._portal_user_with_a_trusted_device()
+        trust = self.env["auth_totp.device"].sudo().search([("user_id", "=", user.id)])
+        self.assertEqual(len(trust), 1)
+        Device = self.env["res.device"].sudo()
+        trusted, plain = Device.create(
+            [
+                {
+                    "user_id": user.id,
+                    "key_hash": "trusted",
+                    "name": "Trusted laptop",
+                    "totp_device_id": trust.id,
+                },
+                {"user_id": user.id, "key_hash": "plain", "name": "Plain laptop"},
+            ]
+        )
+
+        self.authenticate("portal", "portal")
+        page = html.fromstring(self.url_open("/my/security").content)
+
+        badged = page.xpath(
+            "//li[contains(@class, 'o_portal_device')]"
+            "[.//span[contains(@class, 'o_portal_device_trusted')]]//span[@class='fw-bold']"
+        )
+        self.assertEqual([span.text.strip() for span in badged], [trusted.name])
+        self.assertTrue(plain.active)
 
     def test_revoking_one_device_removes_it(self):
         """Click the button, answer the identity check, and lose the device."""

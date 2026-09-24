@@ -102,16 +102,18 @@ class ResUsersApikeys(models.Model):
             _debug.logic("apikeys_remove_noop", uid=self.env.uid)
             return {"type": "ir.actions.act_window_close"}
         if self.env.is_system() or self.mapped("user_id") == self.env.user:
+            # a portal owner may remove its keys but not read their scopes
+            keys = self.sudo()
             ip = request.httprequest.environ["REMOTE_ADDR"] if request else "n/a"
             _logger.info(
                 "API key(s) removed: scope: <%s> for '%s' (#%s) from %s",
-                self.mapped("scope_id.key"),
+                keys.mapped("scope_id.key"),
                 self.env.user.login,
                 self.env.uid,
                 ip,
             )
             _debug.lifecycle("apikeys_removed", count=len(self), by=self.env.uid)
-            self.sudo().unlink()
+            keys.unlink()
             return {"type": "ir.actions.act_window_close"}
         _debug.logic(
             "apikeys_remove_refused",

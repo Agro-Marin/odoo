@@ -100,9 +100,7 @@
         id="passkeys_portal_hook"
         name="Passkeys Portal hook"
         inherit_id="portal.portal_my_security">
-        <xpath
-            expr="//section[@name='portal_revoke_all_devices_popup']"
-            position="before">
+        <xpath expr="//section[@name='portal_devices']" position="before">
             <section name="portal_passkey_management">
                 <h4>
                     Passkeys
@@ -146,6 +144,19 @@
                     Add Passkey
                 </button>
             </section>
+        </xpath>
+    </template>
+
+    <template
+        id="portal_device_trusted_badge"
+        name="Trusted-for-2FA badge on portal devices"
+        inherit_id="portal.portal_my_security">
+        <xpath expr="//span[hasclass('o_portal_device_current')]" position="after">
+            <span
+                t-if="device.totp_device_id"
+                class="badge text-bg-info ms-1 o_portal_device_trusted">
+                Trusted for 2FA
+            </span>
         </xpath>
     </template>
 

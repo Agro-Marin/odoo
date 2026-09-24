@@ -971,6 +971,10 @@ class CustomerPortal(Controller):
             default=False,
         )
         values["open_deactivate_modal"] = False
+        values["devices"] = request.env["res.device"].search(
+            [("user_id", "=", request.env.uid)],
+            order="is_current desc, last_activity desc, id desc",
+        )
         return values
 
     def _update_password(self, old, new1, new2):

@@ -82,7 +82,7 @@ class DeviceCase(TransactionCase):
         device = self.env["res.device"].create(
             {
                 "user_id": self.env.uid,
-                "key_hash": f"hash_{vals.get('name', '')}_{sessions[0]}",
+                "key_hash": f"hash_{vals.get('name', '')}_{sessions[:1]}",
                 "last_activity": "2020-01-01 00:00:00",
                 "active": active,
                 **vals,
@@ -281,6 +281,15 @@ class TestDeviceModel(DeviceCase):
         self.assertFalse(
             device.with_context(active_test=False).session_ids.filtered("active")
         )
+
+    def test_revoking_a_device_without_a_live_session_archives_it(self):
+        device = self._device(sessions=())
+        with patch.object(
+            type(res_device.root.session_store), "remove_sessions_for_identifiers"
+        ) as remove:
+            device._revoke()
+        remove.assert_not_called()
+        self.assertFalse(device.active)
 
 
 class TestUpdateRevoked(DeviceCase):

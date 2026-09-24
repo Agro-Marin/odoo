@@ -384,7 +384,9 @@ class ResDevice(models.Model):
         must_logout = any(self.mapped("is_current"))
         if session_identifiers:
             root.session_store.remove_sessions_for_identifiers(session_identifiers)
-        revoked = self.env["res.device.session"]._mark_revoked(session_identifiers)
+        revoked = self.env["res.device.session"]._mark_revoked(
+            session_identifiers, self.ids
+        )
         _logger.info(
             "User %d revokes %d device(s), %d session(s), of user(s) %s",
             self.env.uid,
@@ -470,28 +472,33 @@ class ResDeviceSession(models.Model):
     _device_session_uniq = models.UniqueIndex("(device_id, session_identifier)")
 
     @api.model
-    def _mark_revoked(self, session_identifiers: Collection[str]) -> int:
+    def _mark_revoked(
+        self, session_identifiers: Collection[str], device_ids: Collection[int] = ()
+    ) -> int:
         identifiers = list(session_identifiers)
-        if not identifiers:
+        devices = set(device_ids)
+        if not identifiers and not devices:
             return 0
         self.env["res.device"].flush_model(["active"])
         self.flush_model(["session_identifier", "active"])
         uid, now = self.env.uid, self.env.cr.now()
-        self.env.cr.execute(
-            SQL(
-                """
-                UPDATE res_device_session
-                SET active = FALSE, write_uid = %s, write_date = %s
-                WHERE session_identifier = ANY(%s) AND active
-                RETURNING device_id
-                """,
-                uid,
-                now,
-                identifiers,
+        revoked = 0
+        if identifiers:
+            self.env.cr.execute(
+                SQL(
+                    """
+                    UPDATE res_device_session
+                    SET active = FALSE, write_uid = %s, write_date = %s
+                    WHERE session_identifier = ANY(%s) AND active
+                    RETURNING device_id
+                    """,
+                    uid,
+                    now,
+                    identifiers,
+                )
             )
-        )
-        revoked = self.env.cr.rowcount
-        devices = list({device_id for (device_id,) in self.env.cr.fetchall()})
+            revoked = self.env.cr.rowcount
+            devices.update(device_id for (device_id,) in self.env.cr.fetchall())
         if devices:
             self.env.cr.execute(
                 SQL(
@@ -508,7 +515,7 @@ class ResDeviceSession(models.Model):
                     """,
                     uid,
                     now,
-                    devices,
+                    sorted(devices),
                 )
             )
         self.invalidate_model(["active", "write_uid", "write_date"])

@@ -57,6 +57,9 @@ export class PortalSecurity extends Interaction {
                 }
             },
         },
+        ".o_portal_revoke_device": {
+            "t-on-click.prevent": this.onRevokeDeviceClick,
+        },
         "#portal_revoke_all_sessions_popup": {
             "t-on-click": this.onRevokeAllSessionsClick,
         },
@@ -155,6 +158,22 @@ export class PortalSecurity extends Interaction {
                 handleCheckIdentity(
                     this.waitFor(
                         this.services.orm.call("res.users.apikeys", "remove", [keyId]),
+                    ),
+                    this.services.orm,
+                    this.services.dialog,
+                ),
+            );
+            window.location.reload();
+        });
+    }
+    async onRevokeDeviceClick(ev) {
+        const deviceId = parseInt(ev.currentTarget.dataset.id, 10);
+        log.lifecycle("revoke device", () => ({ deviceId }));
+        return guardedByIdentity(async () => {
+            await this.waitFor(
+                handleCheckIdentity(
+                    this.waitFor(
+                        this.services.orm.call("res.device", "revoke", [[deviceId]]),
                     ),
                     this.services.orm,
                     this.services.dialog,

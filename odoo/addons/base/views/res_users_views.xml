@@ -775,7 +775,7 @@
                                         <button
                                             name="action_revoke_all_devices"
                                             type="object"
-                                            string="Log out from all devices"
+                                            string="Log out from all other devices"
                                             class="btn btn-secondary h-100" />
                                     </div>
                                 </div>

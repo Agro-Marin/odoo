@@ -39,6 +39,14 @@ class TestPortalApiKeysPolicy(TransactionCase):
         self.assertTrue(key)
         self.assertTrue(self.portal_user.api_key_ids)
 
+    def test_portal_user_removes_its_own_scoped_key(self):
+        self._set_allow_api_keys("True")
+        self.Apikeys.with_user(self.portal_user)._generate("rpc", "k", self.expiration)
+        keys = self.portal_user.api_key_ids
+        self.assertTrue(keys.sudo().scope_id)
+        keys.with_user(self.portal_user)._remove()
+        self.assertFalse(self.portal_user.api_key_ids)
+
     def test_make_key_ui_path_follows_same_policy(self):
         Description = self.env["res.users.apikeys.description"]
         self._set_allow_api_keys(False)
