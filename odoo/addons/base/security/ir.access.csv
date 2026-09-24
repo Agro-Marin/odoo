@@ -95,6 +95,11 @@ access_res_users_group_erp_manager,res_users group_erp_manager,model_res_users,g
 access_res_users_deletion_all,res_users_deletion all,model_res_users_deletion,group_everyone,permission,r,"[(0, '=', 1)]"
 access_res_users_deletion_group_erp_manager,res_users_deletion group_erp_manager,model_res_users_deletion,group_erp_manager,permission,crud,
 access_res_users_log_system,res_users_log_all,model_res_users_log,group_system,permission,cr,
+access_res_users_grant_erp_manager,res.users.grant: the access administrators give and end any grant,model_res_users_grant,group_erp_manager,permission,cru,
+access_res_users_grant_own,res.users.grant: a user reads their own grants,model_res_users_grant,group_user,permission,r,"[('user_id', '=', user.id)]"
+access_res_users_grant_delegated,res.users.grant: the members of a group's admin group give and end its grants,model_res_users_grant,group_user,permission,cru,"[('group_id.admin_group_id', 'in', user.all_group_ids.ids)]"
+access_ir_access_log_erp_manager,ir.access.log: the access administrators read the authorization log,model_ir_access_log,group_erp_manager,permission,r,
+access_ir_access_log_own,ir.access.log: a user reads the events about them,model_ir_access_log,group_user,permission,r,"[('subject_user_id', '=', user.id)]"
 access_res_users_identitycheck_employee,id check employees,model_res_users_identitycheck,group_user,permission,cru,
 access_res_users_identitycheck_portal,id check portal,model_res_users_identitycheck,group_portal,permission,cru,
 api_key_user_group_user,Users can read and delete their own keys,model_res_users_apikeys,group_user,permission,r,"[('user_id', '=', user.id)]"

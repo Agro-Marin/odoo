@@ -1,0 +1,542 @@
+import contextlib
+import contextvars
+from collections import defaultdict
+from collections.abc import Iterable, Iterator
+from datetime import datetime
+from typing import Any, Self
+
+from odoo import api, fields, models, tools
+from odoo.api import ValuesType
+from odoo.exceptions import AccessError, UserError, ValidationError
+from odoo.fields import Command, Domain
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
+# set while a grant writes the membership it projects, so the write-through of
+# res.users and res.groups does not turn the projection back into grants; an
+# in-process marker, not a context key a client could send
+_PROJECTING: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "res_users_grant_projecting", default=False
+)
+# set while the grant model itself changes a grant's lifecycle fields
+_LIFECYCLE: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "res_users_grant_lifecycle", default=False
+)
+# the users a create is making: no cache holds anything about them yet
+_FRESH_USERS: contextvars.ContextVar[frozenset[int]] = contextvars.ContextVar(
+    "res_users_grant_fresh_users", default=frozenset()
+)
+
+GRANT_CAUSES = [
+    ("manual", "Manual"),
+    ("module", "Module data"),
+    ("automation", "Automation"),
+    ("migration", "Migration"),
+    ("provisioning", "Provisioning"),
+    ("approval_request", "Access request"),
+    ("position", "Position"),
+    ("break_glass", "Break-glass"),
+]
+# causes whose producer is a later phase: a grant cannot claim them yet
+UNPRODUCED_CAUSES = frozenset({"approval_request", "position", "break_glass"})
+EDITABLE_FIELDS = frozenset({"date_from", "date_to", "reason"})
+
+
+@contextlib.contextmanager
+def _marked(marker: contextvars.ContextVar[bool]) -> Iterator[None]:
+    token = marker.set(True)
+    try:
+        yield
+    finally:
+        marker.reset(token)
+
+
+def projecting() -> bool:
+    return _PROJECTING.get()
+
+
+class ResUsersGrant(models.Model):
+    _name = "res.users.grant"
+    _description = "Group Grant"
+    _order = "user_id, group_id, id"
+    _rec_name = "group_id"
+    _allow_sudo_commands = False
+
+    user_id = fields.Many2one(
+        comodel_name="res.users",
+        index=True,
+        required=True,
+        ondelete="cascade",
+    )
+    group_id = fields.Many2one(
+        comodel_name="res.groups",
+        index=True,
+        required=True,
+        ondelete="cascade",
+    )
+    date_from = fields.Datetime(
+        string="From",
+        help="The grant holds from this moment; empty: from its creation.",
+    )
+    date_to = fields.Datetime(
+        string="Until",
+        help="The grant ends at this moment; empty: until it is revoked.",
+    )
+    state = fields.Selection(
+        selection=[
+            ("scheduled", "Scheduled"),
+            ("active", "Active"),
+            ("expired", "Expired"),
+            ("revoked", "Revoked"),
+        ],
+        default="active",
+        index=True,
+        copy=False,
+        readonly=True,
+        required=True,
+    )
+    cause = fields.Selection(
+        selection=GRANT_CAUSES,
+        default="manual",
+        readonly=True,
+        required=True,
+        help="Why the grant exists: given by hand, shipped by a module's data, "
+        "held by code that names itself, carried over by a migration.",
+    )
+    cause_model = fields.Char(
+        index=True,
+        readonly=True,
+    )
+    cause_res_id = fields.Many2oneReference(
+        model_field="cause_model",
+        string="Cause Record",
+        readonly=True,
+    )
+    reason = fields.Char()
+    granted_by_id = fields.Many2one(
+        comodel_name="res.users",
+        default=lambda self: self.env.uid,
+        readonly=True,
+        ondelete="set null",
+    )
+    revoked_by_id = fields.Many2one(
+        comodel_name="res.users",
+        copy=False,
+        readonly=True,
+        ondelete="set null",
+    )
+    revoked_at = fields.Datetime(
+        string="Revoked On",
+        copy=False,
+        readonly=True,
+    )
+    revoke_reason = fields.Char(
+        copy=False,
+        readonly=True,
+    )
+
+    _dates_ordered = models.Constraint(
+        "CHECK(date_to IS NULL OR date_from IS NULL OR date_to > date_from)",
+        "A grant must end after it starts.",
+    )
+
+    @api.depends("user_id", "group_id")
+    def _compute_display_name(self) -> None:
+        for grant in self:
+            grant.display_name = (
+                f"{grant.user_id.display_name}: {grant.group_id.full_name}"
+            )
+
+    @api.model
+    def _live_domain(self, now: datetime | None = None) -> Domain:
+        now = now or self.env.cr.now()
+        return (
+            Domain("state", "in", ("scheduled", "active"))
+            & (Domain("date_from", "=", False) | Domain("date_from", "<=", now))
+            & (Domain("date_to", "=", False) | Domain("date_to", ">", now))
+        )
+
+    def _state_at(self, date_from: Any, date_to: Any, now: datetime) -> str:
+        date_from = fields.Datetime.to_datetime(date_from)
+        date_to = fields.Datetime.to_datetime(date_to)
+        if date_to and date_to <= now:
+            return "expired"
+        if date_from and date_from > now:
+            return "scheduled"
+        return "active"
+
+    @api.model_create_multi
+    def create(self, vals_list: list[ValuesType]) -> Self:
+        now = self.env.cr.now()
+        for vals in vals_list:
+            if vals.get("cause") in UNPRODUCED_CAUSES and not self.env.su:
+                raise ValidationError(
+                    self.env._(
+                        "A grant cannot claim the cause %(cause)s: nothing produces "
+                        "it yet.",
+                        cause=vals["cause"],
+                    )
+                )
+            vals["state"] = self._state_at(
+                vals.get("date_from"), vals.get("date_to"), now
+            )
+            if vals["state"] == "expired":
+                raise ValidationError(
+                    self.env._("A grant cannot be created already expired.")
+                )
+        grants = super().create(vals_list)
+        grants._check_delegation()
+        grants._log("grant_created")
+        grants._project()
+        grants._schedule_boundaries()
+        grants._on_grant_changed("grant_created")
+        return grants
+
+    def write(self, vals: dict[str, Any]) -> bool:
+        if not _LIFECYCLE.get():
+            if forbidden := set(vals) - EDITABLE_FIELDS:
+                raise UserError(
+                    self.env._(
+                        "A grant's %(fields)s cannot be changed: revoke it and "
+                        "grant again.",
+                        fields=", ".join(sorted(forbidden)),
+                    )
+                )
+            if self.filtered(lambda grant: grant.state in ("expired", "revoked")):
+                raise UserError(
+                    self.env._("An expired or revoked grant cannot be changed.")
+                )
+            self._check_delegation()
+        result = super().write(vals)
+        if not _LIFECYCLE.get() and {"date_from", "date_to"} & vals.keys():
+            now = self.env.cr.now()
+            with _marked(_LIFECYCLE):
+                for grant in self:
+                    state = grant._state_at(grant.date_from, grant.date_to, now)
+                    if state != grant.state:
+                        grant.state = state
+            self._log("grant_changed")
+            self._project()
+            self._schedule_boundaries()
+            self._on_grant_changed("grant_changed")
+        return result
+
+    @api.ondelete(at_uninstall=False)
+    def _unlink_except_by_the_superuser(self) -> None:
+        if not self.env.su:
+            raise UserError(
+                self.env._(
+                    "A grant is part of the record of who could do what: revoke "
+                    "it instead of deleting it."
+                )
+            )
+
+    def unlink(self) -> bool:
+        pairs = self._pairs()
+        result = super().unlink()
+        self._project(pairs)
+        return result
+
+    def _check_delegation(self) -> None:
+        # who may give or change a grant besides the access administrators:
+        # the members of the group's admin group, for someone else, within
+        # their own companies, and only for groups whose implications they
+        # administer too or the grantee already holds
+        env = self.env
+        if env.su or env.user._has_group("base.group_erp_manager"):
+            return
+        actor = env.user
+        actor_groups = set(actor._get_group_ids())
+        actor_companies = set(actor._get_company_ids())
+        # what each grantee holds through their other grants, read from the
+        # grants rather than a cached answer that may already count these
+        held_by_user: defaultdict[int, set[int]] = defaultdict(set)
+        others = self.sudo().search(
+            self._live_domain()
+            & Domain("user_id", "in", self.sudo().user_id.ids)
+            & Domain("id", "not in", self.ids)
+        )
+        for other in others:
+            held_by_user[other.user_id.id].update(other.group_id.all_implied_ids._ids)
+        for grant in self.sudo():
+            group = grant.group_id
+            if grant.user_id.id == actor.id:
+                raise AccessError(
+                    env._("You cannot grant yourself %(group)s.", group=group.full_name)
+                )
+            if group.admin_group_id.id not in actor_groups:
+                raise AccessError(
+                    env._(
+                        "Only the members of %(admin)s may grant %(group)s.",
+                        admin=group.admin_group_id.full_name,
+                        group=group.full_name,
+                    )
+                )
+            if not set(grant.user_id._get_company_ids()) <= actor_companies:
+                raise AccessError(
+                    env._(
+                        "%(user)s works in companies you do not: a grant of "
+                        "%(group)s would reach beyond your own companies.",
+                        user=grant.user_id.name,
+                        group=group.full_name,
+                    )
+                )
+            held = held_by_user[grant.user_id.id]
+            beyond = [
+                implied.full_name
+                for implied in group.all_implied_ids - group
+                if implied.id not in held
+                and implied.admin_group_id.id not in actor_groups
+            ]
+            if beyond:
+                raise AccessError(
+                    env._(
+                        "%(group)s implies %(implied)s, which you may not grant.",
+                        group=group.full_name,
+                        implied=", ".join(beyond),
+                    )
+                )
+
+    def action_revoke(self, reason: str | None = None) -> bool:
+        live = self.filtered(lambda grant: grant.state in ("scheduled", "active"))
+        if not live:
+            return True
+        live._check_delegation()
+        with _marked(_LIFECYCLE):
+            live.write(
+                {
+                    "state": "revoked",
+                    "revoked_by_id": self.env.uid,
+                    "revoked_at": self.env.cr.now(),
+                    "revoke_reason": reason or False,
+                }
+            )
+        live._log("grant_revoked", reason=reason)
+        live._project()
+        live._on_grant_changed("grant_revoked")
+        return True
+
+    @api.model
+    def _grant(
+        self,
+        users: models.BaseModel,
+        groups: models.BaseModel,
+        *,
+        cause: str,
+        cause_ref: models.BaseModel | None = None,
+        date_to: datetime | None = None,
+        reason: str | None = None,
+    ) -> Self:
+        # an unscoped grant of each group to each user that holds none yet
+        live = self._live_pairs(users, groups)
+        vals_list = [
+            {
+                "user_id": user.id,
+                "group_id": group.id,
+                "cause": cause,
+                "cause_model": cause_ref._name if cause_ref else False,
+                "cause_res_id": cause_ref.id if cause_ref else False,
+                "date_to": date_to or False,
+                "reason": reason or False,
+            }
+            for user in users
+            for group in groups
+            if (user.id, group.id) not in live
+        ]
+        return self.create(vals_list) if vals_list else self.browse()
+
+    @api.model
+    def _revoke(
+        self,
+        users: models.BaseModel,
+        groups: models.BaseModel,
+        *,
+        reason: str | None = None,
+    ) -> Self:
+        grants = self.search(
+            self._live_domain()
+            & Domain("user_id", "in", users.ids)
+            & Domain("group_id", "in", groups.ids)
+        )
+        grants.action_revoke(reason)
+        return grants
+
+    def _live_pairs(
+        self, users: models.BaseModel, groups: models.BaseModel
+    ) -> set[tuple[int, int]]:
+        if not users or not groups:
+            return set()
+        rows = self.sudo()._read_group(
+            self._live_domain()
+            & Domain("user_id", "in", users.ids)
+            & Domain("group_id", "in", groups.ids),
+            ["user_id", "group_id"],
+        )
+        return {(user.id, group.id) for user, group in rows}
+
+    @api.model
+    def _membership_cause(self) -> str:
+        return "module" if self.env.context.get("install_module") else "manual"
+
+    @api.model
+    def _follow_membership(
+        self,
+        added: Iterable[tuple[int, int]],
+        removed: Iterable[tuple[int, int]],
+        fresh_user_ids: Iterable[int] = (),
+    ) -> None:
+        # a membership written through group_ids or user_ids: an added pair is
+        # granted unscoped, a removed one loses every live grant of it
+        token = _FRESH_USERS.set(frozenset(fresh_user_ids))
+        try:
+            self._follow_membership_pairs(added, removed)
+        finally:
+            _FRESH_USERS.reset(token)
+
+    def _follow_membership_pairs(
+        self,
+        added: Iterable[tuple[int, int]],
+        removed: Iterable[tuple[int, int]],
+    ) -> None:
+        cause = self._membership_cause()
+        by_group: defaultdict[int, list[int]] = defaultdict(list)
+        for user_id, group_id in added:
+            by_group[group_id].append(user_id)
+        grants = self.sudo()
+        users = self.env["res.users"].sudo()
+        groups = self.env["res.groups"].sudo()
+        for group_id, user_ids in by_group.items():
+            grants._grant(users.browse(user_ids), groups.browse(group_id), cause=cause)
+        removed = set(removed)
+        if removed:
+            candidates = grants.search(
+                grants._live_domain()
+                & Domain("user_id", "in", list({user_id for user_id, _ in removed}))
+                & Domain("group_id", "in", list({group_id for _, group_id in removed}))
+            )
+            candidates.filtered(
+                lambda grant: (grant.user_id.id, grant.group_id.id) in removed
+            ).action_revoke()
+
+    def _on_grant_changed(self, event: str) -> None:
+        # called once per batch after a grant is created, changed, revoked or
+        # expired, with the log event's name; modules that judge a grant (a
+        # separation-of-duties rule) extend it
+        return
+
+    def _log(self, event: str, reason: str | None = None) -> None:
+        self.env["ir.access.log"]._record(
+            [
+                {
+                    "event": event,
+                    "subject_user_id": grant.user_id.id,
+                    "group_id": grant.group_id.id,
+                    "grant_id": grant.id,
+                    "cause": grant.cause,
+                    "cause_model": grant.cause_model or False,
+                    "cause_res_id": grant.cause_res_id or False,
+                    "reason": reason or grant.reason or False,
+                }
+                for grant in self
+            ]
+        )
+
+    def _schedule_boundaries(self) -> None:
+        now = self.env.cr.now()
+        moments = sorted(
+            {
+                moment
+                for grant in self
+                for moment in (grant.date_from, grant.date_to)
+                if moment and moment > now
+            }
+        )
+        if moments:
+            cron = self.env.ref(
+                "base.ir_cron_res_users_grant_boundaries", raise_if_not_found=False
+            )
+            if cron:
+                cron.sudo()._trigger(moments)
+
+    @api.model
+    def _cron_cross_boundaries(self) -> None:
+        now = self.env.cr.now()
+        grants = self.sudo().with_context(active_test=False)
+        starting = grants.search(
+            Domain("state", "=", "scheduled")
+            & Domain("date_from", "<=", now)
+            & (Domain("date_to", "=", False) | Domain("date_to", ">", now))
+        )
+        ending = grants.search(
+            Domain("state", "in", ("scheduled", "active"))
+            & Domain("date_to", "!=", False)
+            & Domain("date_to", "<=", now)
+        )
+        _debug.lifecycle("grant_boundaries", starting=len(starting), ending=len(ending))
+        if not (starting or ending):
+            return
+        with _marked(_LIFECYCLE):
+            starting.write({"state": "active"})
+            ending.write({"state": "expired"})
+        ending._log("grant_expired")
+        (starting | ending)._project()
+        if starting:
+            starting._on_grant_changed("grant_started")
+        if ending:
+            ending._on_grant_changed("grant_expired")
+
+    def _pairs(self) -> set[tuple[int, int]]:
+        return {(grant.user_id.id, grant.group_id.id) for grant in self.sudo()}
+
+    def _project(self, pairs: set[tuple[int, int]] | None = None) -> None:
+        # group_ids holds the (user, group) pairs with an active grant, whatever
+        # its scope; only the pairs these grants name are touched, so a
+        # membership no grant covers yet (a database before its migration) is
+        # left as it is
+        pairs = self._pairs() if pairs is None else pairs
+        if not pairs:
+            return
+        user_ids = {user_id for user_id, _ in pairs}
+        rows = self.sudo()._read_group(
+            Domain("user_id", "in", list(user_ids))
+            & Domain("group_id", "in", list({group_id for _, group_id in pairs}))
+            & Domain("state", "=", "active"),
+            ["user_id", "group_id"],
+        )
+        active = {(user.id, group.id) for user, group in rows}
+        users = self.env["res.users"].sudo().with_context(active_test=False)
+        changed = False
+        with _marked(_PROJECTING):
+            for user in users.browse(sorted(user_ids)):
+                held = set(user.group_ids.ids)
+                mine = {group_id for user_id, group_id in pairs if user_id == user.id}
+                commands = [
+                    Command.link(group_id)
+                    for group_id in sorted(mine - held)
+                    if (user.id, group_id) in active
+                ] + [
+                    Command.unlink(group_id)
+                    for group_id in sorted(mine & held)
+                    if (user.id, group_id) not in active
+                ]
+                if commands:
+                    changed = True
+                    user.write({"group_ids": commands})
+        # a group_ids write clears the caches itself; a user this transaction
+        # is creating has nothing cached yet
+        if changed or not user_ids - _FRESH_USERS.get():
+            return
+        self.env["ir.access"]._clear_access_caches()
+
+    @api.model
+    @tools.ormcache(cache="stable")
+    def _grants_available(self) -> bool:
+        # false only while an upgrade from before the model has not created
+        # its table yet: the reflection that records the model runs with the
+        # table's creation, and reads the same in memory as in PostgreSQL
+        return bool(
+            self.env["ir.model"]
+            .sudo()
+            .search_count([("model", "=", self._name)], limit=1)
+        )

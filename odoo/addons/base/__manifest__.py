@@ -1,6 +1,6 @@
 {
     "name": "Base",
-    "version": "1.100",
+    "version": "1.101",
     "category": "Hidden",
     "description": """
 The kernel of Odoo, needed for all installation.
@@ -67,6 +67,7 @@ The kernel of Odoo, needed for all installation.
         "views/res_currency_views.xml",
         "views/res_groups_views.xml",
         "views/res_users_views.xml",
+        "views/res_users_grant_views.xml",
         "views/res_users_apikeys_views.xml",
         "views/res_users_apikeys_scope_views.xml",
         "views/res_device_views.xml",

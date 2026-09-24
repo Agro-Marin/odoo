@@ -8,6 +8,7 @@ from odoo.libs.debug_log import DebugLog
 from odoo.tools import SetDefinitions
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
+from odoo.addons.base.models.res_users_grant import projecting
 
 _debug = DebugLog(__name__)
 
@@ -30,6 +31,22 @@ class ResGroups(models.Model):
         column1="gid",
         column2="uid",
         help="Users explicitly in this group",
+    )
+    grant_ids = fields.One2many(
+        comodel_name="res.users.grant",
+        inverse_name="group_id",
+        string="Grants",
+    )
+    admin_group_id = fields.Many2one(
+        comodel_name="res.groups",
+        string="Administered By",
+        default=lambda self: self.env.ref(
+            "base.group_erp_manager", raise_if_not_found=False
+        ),
+        ondelete="set null",
+        help="The members of this group may grant and revoke this one, for "
+        "other users and within their own companies. The access administrators "
+        "may always.",
     )
     all_user_ids = fields.Many2many(
         comodel_name="res.users",
@@ -293,8 +310,18 @@ class ResGroups(models.Model):
                     self.env._('The name of the group can not start with "-"')
                 )
 
+        membership = (
+            self._user_membership()
+            if "user_ids" in vals and self.ids and not projecting()
+            else None
+        )
         _debug.lifecycle("write", count=len(self), fields=list(vals))
         res = super().write(vals)
+        if membership is not None:
+            after = self._user_membership()
+            self.env["res.users.grant"]._follow_membership(
+                after - membership, membership - after
+            )
 
         if self.ids:
             self.env["ir.access"]._clear_access_caches()
@@ -444,6 +471,10 @@ class ResGroups(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         groups = super().create(vals_list)
+        if not projecting():
+            self.env["res.users.grant"]._follow_membership(
+                groups._user_membership(), ()
+            )
         _debug.lifecycle("create", count=len(groups))
         self.env["ir.access"]._clear_access_caches()
         self.env.registry.clear_cache("groups")
@@ -455,6 +486,13 @@ class ResGroups(models.Model):
         self.env["ir.access"]._clear_access_caches()
         self.env.registry.clear_cache("groups")
         return res
+
+    def _user_membership(self) -> set[tuple[int, int]]:
+        return {
+            (user_id, group.id)
+            for group in self.sudo()
+            for user_id in group.with_context(active_test=False).user_ids.ids
+        }
 
     def _add_implied_group(self, implied_group: Self) -> None:
         groups = self.filtered(lambda g: implied_group not in g.all_implied_ids)

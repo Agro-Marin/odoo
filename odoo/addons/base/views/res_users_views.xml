@@ -291,6 +291,16 @@
                                 groups="!base.group_no_one"
                                 invisible="share" />
                         </page>
+                        <page
+                            name="grants"
+                            string="Grants"
+                            groups="base.group_erp_manager"
+                            invisible="not id">
+                            <field
+                                name="grant_ids"
+                                context="{'active_test': False}"
+                                readonly="1" />
+                        </page>
                         <page name="preferences" string="Preferences">
                             <group>
                                 <group>

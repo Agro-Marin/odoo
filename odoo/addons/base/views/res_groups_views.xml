@@ -133,12 +133,18 @@
                                 readonly="context.get('is_action_res_users')" />
                             <field name="api_key_duration" groups="base.group_no_one" />
                         </group>
+                        <group>
+                            <field name="admin_group_id" />
+                        </group>
                     </group>
                     <notebook>
                         <page name="user_ids" string="Users">
                             <field
                                 name="user_ids"
                                 context="{'search_default_filter_no_share':1}" />
+                        </page>
+                        <page name="grants" string="Grants" invisible="not id">
+                            <field name="grant_ids" readonly="1" />
                         </page>
                         <page name="inherit_groups" string="Inherited">
                             <group>

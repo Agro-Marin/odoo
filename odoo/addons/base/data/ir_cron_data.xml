@@ -21,4 +21,14 @@
         <field name="priority">8</field>
     </record>
 
+    <record id="ir_cron_res_users_grant_boundaries" model="ir.cron">
+        <field name="name">Base: Start and end timed grants</field>
+        <field name="model_id" ref="base.model_res_users_grant" />
+        <field name="state">code</field>
+        <field name="code">model._cron_cross_boundaries()</field>
+        <field name="repeat_interval">1</field>
+        <field name="repeat_unit">day</field>
+        <field name="priority">5</field>
+    </record>
+
 </odoo>

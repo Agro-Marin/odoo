@@ -38,6 +38,7 @@ from odoo.tools import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 from .res_users_auth import _DUMMY_PASSWORD_HASH, PasswordStore, session_token
+from .res_users_grant import projecting
 from .res_users_login_cooldown import LoginCooldown
 
 _logger = logging.getLogger(__name__)
@@ -277,12 +278,62 @@ class ResUsers(models.Model):
         )
         return self._hash_session_token(sid, field_values)
 
-    @tools.ormcache("self.id")
     def _get_group_ids(self) -> tuple[int, ...]:
         self.check_singleton()
-        group_ids = self.with_context({}).all_group_ids._ids
-        _debug.perf.count("group_ids_computed", uid=self.id, groups=len(group_ids))
+        group_ids, valid_until = self._get_group_state()
+        if valid_until is not None and self.env.cr.now() >= valid_until:
+            # a grant started or ended since the value was cached: answer at
+            # the second, until the boundary cron settles it and clears
+            group_ids = self._compute_group_state()[0]
         return group_ids
+
+    @tools.ormcache("self.id")
+    def _get_group_state(self) -> tuple[tuple[int, ...], datetime.datetime | None]:
+        return self._compute_group_state()
+
+    def _compute_group_state(
+        self,
+    ) -> tuple[tuple[int, ...], datetime.datetime | None]:
+        # the groups of the user's live grants, and when that answer next
+        # changes
+        grant_model = self.env["res.users.grant"].sudo()
+        valid_until = None
+        grants = (
+            grant_model.search_fetch(
+                [("user_id", "=", self.id), ("state", "in", ("scheduled", "active"))],
+                ["group_id", "date_from", "date_to"],
+            )
+            if grant_model._grants_available()
+            else grant_model
+        )
+        if not grants:
+            # a user whose memberships have no grant yet: while its create is
+            # making them, or before the migration that turns them into grants
+            held = set(self.sudo().with_context({}).group_ids._ids)
+        else:
+            held = set()
+            # the clock is read only for a user holding a timed grant
+            now = (
+                self.env.cr.now()
+                if any(grant.date_from or grant.date_to for grant in grants)
+                else None
+            )
+            for grant in grants:
+                start, end = grant.date_from, grant.date_to
+                for moment in (start, end):
+                    if (
+                        moment
+                        and moment > now
+                        and (valid_until is None or moment < valid_until)
+                    ):
+                        valid_until = moment
+                if (not start or start <= now) and (not end or end > now):
+                    held.add(grant.group_id.id)
+        group_ids = tuple(
+            sorted(self.env["res.groups"].sudo().browse(held).all_implied_ids._ids)
+        )
+        _debug.perf.count("group_ids_computed", uid=self.id, groups=len(group_ids))
+        return group_ids, valid_until
 
     def _get_effective_group_ids(self) -> tuple[int, ...]:
         self.check_singleton()
@@ -442,6 +493,13 @@ class ResUsers(models.Model):
         string="Groups",
         default=lambda s: s._default_group_ids(),
         help="Groups explicitly assigned to the user",
+    )
+    grant_ids = fields.One2many(
+        comodel_name="res.users.grant",
+        inverse_name="user_id",
+        string="Grants",
+        help="Every group the user was given, with its window, its cause and who "
+        "gave it; the groups above are those with an active grant.",
     )
     all_group_ids = fields.Many2many(
         comodel_name="res.groups",
@@ -968,6 +1026,10 @@ class ResUsers(models.Model):
                 {k: v for k, v in vals.items() if k not in backed} for vals in vals_list
             ]
         users = super().create(vals_list)
+        if not projecting():
+            self.env["res.users.grant"]._follow_membership(
+                users._group_membership(), (), fresh_user_ids=users.ids
+            )
         _debug.lifecycle(
             "create",
             count=len(users),
@@ -987,6 +1049,13 @@ class ResUsers(models.Model):
             if settings:
                 user.write(settings)
         return users
+
+    def _group_membership(self) -> set[tuple[int, int]]:
+        return {
+            (user.id, group_id)
+            for user in self.sudo().with_context(active_test=False)
+            for group_id in user.group_ids.ids
+        }
 
     def _update_missing_avatars(self) -> None:
         generated = 0
@@ -1057,6 +1126,12 @@ class ResUsers(models.Model):
         if not self._get_settings_backed_fields().isdisjoint(vals):
             self._add_missing_settings_records()
 
+        membership = (
+            self._group_membership()
+            if "group_ids" in vals and self.ids and not projecting()
+            else None
+        )
+
         if self == self.env.user and vals:
             writeable = self._get_self_accessible_fields()[1]
             if all(
@@ -1076,6 +1151,12 @@ class ResUsers(models.Model):
                 if env.user in self:
                     _debug.lifecycle("env_properties_reset", uid=env.uid)
                     reset_cached_properties(env)
+
+        if membership is not None:
+            after = self._group_membership()
+            self.env["res.users.grant"]._follow_membership(
+                after - membership, membership - after
+            )
 
         if "group_ids" in vals and self.ids:
             _debug.logic("write_cache_cleared", reason="group_ids")
