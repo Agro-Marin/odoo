@@ -25,7 +25,7 @@ against this document. None of them is typed by hand here or there.
 | Python test files | 22 |
 | HTTP routes | 13 |
 | Cron jobs | 2 |
-| Security groups | 5 |
+| Security groups | 6 |
 | JavaScript source files | 14 |
 | Migration script directories | 5 |
 
