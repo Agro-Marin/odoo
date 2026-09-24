@@ -1244,7 +1244,7 @@ class AccountReport(models.Model):
         if self.allow_foreign_vat:
             if (
                 self.country_id
-                == self.env.company.account_config_id.account_fiscal_country_id
+                == self.env.company.tax_config_id.account_fiscal_country_id
             ):
                 _debug.logic("foreign_vat_scope", report=self, scope="domestic")
                 # It's a domestic report
@@ -1541,7 +1541,7 @@ class AccountReport(models.Model):
         return date_from, date_to
 
     def _get_variant_preferred_country(self):
-        return self.env.company.account_config_id.account_fiscal_country_id
+        return self.env.company.tax_config_id.account_fiscal_country_id
 
     def _init_options_buttons(self, options, previous_options):
         super()._init_options_buttons(options, previous_options)
@@ -2881,7 +2881,7 @@ class AccountReport(models.Model):
             lambda r: r.availability_condition == "country"
         )
         if reports_by_country:
-            company_countries = companies.account_config_id.account_fiscal_country_id
+            company_countries = companies.tax_config_id.account_fiscal_country_id
 
             reports_foreign_vat = reports_by_country.filtered("allow_foreign_vat")
             reports_no_foreign_vat = reports_by_country - reports_foreign_vat

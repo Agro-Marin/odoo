@@ -12,9 +12,7 @@ class TestAccountTaxSettingsCompany(AccountTestInvoicingCommon):
         cls.company_data_2 = cls.setup_other_company(name="seam_company")
         cls.other_company = cls.company_data_2["company"]
         cls.other_country = cls.env.ref("base.fr")
-        cls.other_company.account_config_id.account_fiscal_country_id = (
-            cls.other_country
-        )
+        cls.other_company.tax_config_id.account_fiscal_country_id = cls.other_country
 
         cls.domestic_fp = cls._domestic_fiscal_position(cls.env.company)
         cls.other_domestic_fp = cls._domestic_fiscal_position(cls.other_company)
@@ -92,7 +90,7 @@ class TestAccountTaxSettingsCompany(AccountTestInvoicingCommon):
             return countries
 
         self.assertIn(
-            self.env.company.account_config_id.account_fiscal_country_id.id,
+            self.env.company.tax_config_id.account_fiscal_country_id.id,
             allowed_countries(rep_line),
         )
         self.assertNotIn(

@@ -16,7 +16,7 @@ class TestUblCiiCommon(AccountTestInvoicingCommon):
         # EXTENDS 'account'
         create_values.setdefault("currency_id", cls.env.ref("base.EUR").id)
         company = super()._create_company(**create_values)
-        company.account_config_id.tax_calculation_rounding_method = "round_globally"
+        company.tax_config_id.tax_calculation_rounding_method = "round_globally"
         return company
 
     @classmethod

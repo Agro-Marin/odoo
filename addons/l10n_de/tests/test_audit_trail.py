@@ -17,7 +17,7 @@ class TestAuditTrailDE(AccountTestInvoicingHttpCommon):
     def test_audit_trail_setting(self):
         self.assertEqual(self.env.company.country_id.code, "DE")
         self.assertEqual(
-            self.env.company.account_config_id.account_fiscal_country_id.code, "DE"
+            self.env.company.tax_config_id.account_fiscal_country_id.code, "DE"
         )
         self.assertTrue(self.env.company.account_config_id.restrictive_audit_trail)
         with self.assertRaisesRegex(

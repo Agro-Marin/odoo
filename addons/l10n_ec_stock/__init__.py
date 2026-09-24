@@ -5,7 +5,7 @@ from odoo import api, SUPERUSER_ID
 def post_init_hook(env):
     companies = env["res.company"].search(
         [
-            ("account_config_id.account_fiscal_country_id.code", "=", "EC"),
+            ("tax_config_id.account_fiscal_country_id.code", "=", "EC"),
             ("account_config_id.chart_template", "!=", False),
         ]
     )

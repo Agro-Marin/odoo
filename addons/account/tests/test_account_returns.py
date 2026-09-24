@@ -1281,7 +1281,7 @@ class TestAccountReturn(TestAccountReportsCommon):
     def test_multicompany_generation_tax_units(self):
         fiscal_country = self.company_data[
             "company"
-        ].account_config_id.account_fiscal_country_id
+        ].tax_config_id.account_fiscal_country_id
         self.basic_return_type.report_id.country_id = (
             fiscal_country  # To make sure the tax unit is properly detected
         )

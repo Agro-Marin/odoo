@@ -3778,7 +3778,7 @@ class TestUi(TestPointOfSaleHttpCommon):
         )
 
     def test_pos_ui_round_globally(self):
-        self.main_pos_config.company_id.account_config_id.tax_calculation_rounding_method = "round_globally"
+        self.main_pos_config.company_id.tax_config_id.tax_calculation_rounding_method = "round_globally"
         tax_16 = self.env["account.tax"].create(
             {
                 "name": "Tax 16%",

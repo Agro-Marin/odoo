@@ -62,7 +62,7 @@ class AccountFiscalPosition(models.Model):
         help="Apply only if partner has a VAT number.",
     )
     company_country_id = fields.Many2one(
-        related="company_id.account_config_id.account_fiscal_country_id",
+        related="company_id.tax_config_id.account_fiscal_country_id",
         string="Company Country",
     )
     fiscal_country_codes = fields.Char(
@@ -142,9 +142,7 @@ class AccountFiscalPosition(models.Model):
                     )
                 )
 
-            fiscal_country = (
-                record.company_id.account_config_id.account_fiscal_country_id
-            )
+            fiscal_country = record.company_id.tax_config_id.account_fiscal_country_id
             if (
                 record.country_id == fiscal_country
                 and not record.state_ids
@@ -355,7 +353,7 @@ class AccountFiscalPosition(models.Model):
     def _get_tax_country(self, company):
         if self.foreign_vat:
             return self.country_id
-        return company.account_config_id.account_fiscal_country_id
+        return company.tax_config_id.account_fiscal_country_id
 
     def map_tax(self, taxes):
         if not self:

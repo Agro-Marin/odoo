@@ -88,13 +88,9 @@ class AccountTaxGroup(models.Model):
     def _compute_country_id(self):
         for group in self:
             company = group._get_settings_company()
-            if "account_config_id" in company._fields:
-                group.country_id = (
-                    company.account_config_id.account_fiscal_country_id
-                    or company.country_id
-                )
-            else:
-                group.country_id = company.country_id
+            group.country_id = (
+                company.tax_config_id.account_fiscal_country_id or company.country_id
+            )
 
 
 class AccountTax(models.Model):
@@ -478,14 +474,11 @@ class AccountTax(models.Model):
     def _compute_country_id(self):
         for tax in self:
             company = tax._get_settings_company()
-            if "account_config_id" in company._fields:
-                tax.country_id = (
-                    company.account_config_id.account_fiscal_country_id
-                    or company.country_id
-                    or tax.country_id
-                )
-            else:
-                tax.country_id = company.country_id or tax.country_id
+            tax.country_id = (
+                company.tax_config_id.account_fiscal_country_id
+                or company.country_id
+                or tax.country_id
+            )
 
     @api.depends_context("company")
     @api.depends("country_id")
@@ -516,12 +509,9 @@ class AccountTax(models.Model):
 
     @api.depends_context("company")
     def _compute_company_price_include(self):
-        has_field = "account_config_id" in self.env["res.company"]._fields
         for tax in self:
             tax.company_price_include = (
-                tax._get_settings_company().account_config_id.account_price_include
-                if has_field
-                else False
+                tax._get_settings_company().tax_config_id.account_price_include
             )
 
     @api.depends("price_include_override")
@@ -541,10 +531,8 @@ class AccountTax(models.Model):
                 f"domains, got {operator!r} {value!r}"
             )
         tax_value = "tax_included" if operator == "in" else "tax_excluded"
-        if "account_config_id" not in self.env["res.company"]._fields:
-            return [("price_include_override", "=", tax_value)]
         if (
-            self._get_settings_company().account_config_id.account_price_include
+            self._get_settings_company().tax_config_id.account_price_include
             == tax_value
         ):
             return [
@@ -618,11 +606,7 @@ class AccountTax(models.Model):
                 if needs_markdown and (scope := scopes.get(record.tax_scope)):
                     name += wrapper % scope
                 branch = record._get_settings_company()._get_accessible_branches()[:1]
-                fiscal_country = (
-                    branch.account_config_id.account_fiscal_country_id
-                    if "account_fiscal_country_id" in branch._fields
-                    else branch.country_id
-                )
+                fiscal_country = branch.tax_config_id.account_fiscal_country_id
                 if record.country_id != fiscal_country:
                     name += wrapper % record.country_code
 
@@ -1437,10 +1421,8 @@ class AccountTax(models.Model):
 
     @api.model
     def _add_tax_details_in_base_line(self, base_line, company, rounding_method=None):
-        rounding_method = rounding_method or (
-            company.account_config_id.tax_calculation_rounding_method
-            if "account_config_id" in company._fields
-            else "round_per_line"
+        rounding_method = (
+            rounding_method or company.tax_config_id.tax_calculation_rounding_method
         )
         price_unit_after_discount = base_line["price_unit"] * (
             1 - (base_line["discount"] / 100.0)

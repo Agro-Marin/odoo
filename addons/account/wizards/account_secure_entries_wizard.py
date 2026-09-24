@@ -19,7 +19,7 @@ class AccountSecureEntriesWizard(models.TransientModel):
         required=True,
     )
     country_code = fields.Char(
-        related="company_id.account_config_id.account_fiscal_country_id.code"
+        related="company_id.tax_config_id.account_fiscal_country_id.code"
     )
     hash_date = fields.Date(
         string="Hash All Entries",

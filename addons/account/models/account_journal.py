@@ -304,7 +304,7 @@ class AccountJournal(models.Model):
         help="Company related to this journal",
     )
     country_code = fields.Char(
-        related="company_id.account_config_id.account_fiscal_country_id.code",
+        related="company_id.tax_config_id.account_fiscal_country_id.code",
         readonly=True,
     )
     account_fiscal_country_group_codes = fields.Json(

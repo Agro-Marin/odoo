@@ -39,7 +39,7 @@ class TestAccountConfig(TransactionCase):
         found = self.env["res.company"].search(
             [
                 (
-                    "account_config_id.tax_calculation_rounding_method",
+                    "tax_config_id.tax_calculation_rounding_method",
                     "=",
                     "round_per_line",
                 ),
@@ -51,7 +51,7 @@ class TestAccountConfig(TransactionCase):
             self.env["res.company"].search(
                 [
                     (
-                        "account_config_id.tax_calculation_rounding_method",
+                        "tax_config_id.tax_calculation_rounding_method",
                         "=",
                         "round_globally",
                     ),

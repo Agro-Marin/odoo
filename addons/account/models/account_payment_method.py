@@ -81,7 +81,7 @@ class AccountPaymentMethod(models.Model):
 
         if with_country and (country_id := information.get("country_id")):
             domain &= Domain(
-                "company_id.account_config_id.account_fiscal_country_id",
+                "company_id.tax_config_id.account_fiscal_country_id",
                 "=",
                 country_id,
             )

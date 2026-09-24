@@ -36,7 +36,7 @@ class ResCompany(models.Model):
     def onchange_country(self):
         """Argentinean companies use round_globally as tax_calculation_rounding_method"""
         for rec in self.filtered(lambda x: x.country_id.code == "AR"):
-            rec.account_config_id.tax_calculation_rounding_method = "round_globally"
+            rec.tax_config_id.tax_calculation_rounding_method = "round_globally"
 
     @api.depends("l10n_ar_afip_responsibility_type_id")
     def _compute_l10n_ar_company_requires_vat(self):

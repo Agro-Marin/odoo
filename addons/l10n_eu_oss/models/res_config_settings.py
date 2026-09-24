@@ -14,6 +14,6 @@ class ResConfigSettings(models.TransientModel):
         european_countries = self.env.ref("base.europe").country_ids
         for record in self:
             record.l10n_eu_oss_eu_country = (
-                record.company_id.account_config_id.account_fiscal_country_id
+                record.company_id.tax_config_id.account_fiscal_country_id
                 in european_countries
             )

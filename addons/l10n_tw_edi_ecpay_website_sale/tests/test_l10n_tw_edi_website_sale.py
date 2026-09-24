@@ -34,7 +34,7 @@ class TestUi(HttpCase):
                 ],
             }
         )
-        website.company_id.account_config_id.account_fiscal_country_id = (
+        website.company_id.tax_config_id.account_fiscal_country_id = (
             website.company_id.country_id
         ) = self.env.ref("base.tw")
         self.env.ref(

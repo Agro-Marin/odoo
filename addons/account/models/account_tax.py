@@ -742,7 +742,7 @@ class AccountTax(models.Model):
                 continue
             for company in tax.company_ids:
                 allowed = (
-                    company.account_config_id.account_fiscal_country_id
+                    company.tax_config_id.account_fiscal_country_id
                     | company.account_config_id.multi_vat_foreign_country_ids
                 )
                 if tax.country_id not in allowed:
@@ -1353,7 +1353,7 @@ class AccountTaxRepartitionLine(models.Model):
             company = rep_line.tax_id._get_settings_company()
             allowed_country_ids = (
                 False,
-                company.account_config_id.account_fiscal_country_id.id,
+                company.tax_config_id.account_fiscal_country_id.id,
                 *company.account_config_id.multi_vat_foreign_country_ids.ids,
             )
             rep_line.tag_ids_domain = [

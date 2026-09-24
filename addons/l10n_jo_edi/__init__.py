@@ -7,4 +7,4 @@ def _post_init_hook(env):
         [("account_config_id.chart_template", "=", "jo_standard")], order="parent_path"
     ):
         for company in jo_companies:
-            company.account_config_id.tax_calculation_rounding_method = "round_globally"
+            company.tax_config_id.tax_calculation_rounding_method = "round_globally"

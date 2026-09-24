@@ -66,7 +66,7 @@ class ResConfigSettings(models.TransientModel):
         check_company=True,
     )
     account_price_include = fields.Selection(
-        related="company_id.account_config_id.account_price_include",
+        related="company_id.tax_config_id.account_price_include",
         string="Default Sales Price Include",
         readonly=False,
         required=True,
@@ -74,7 +74,7 @@ class ResConfigSettings(models.TransientModel):
     )
 
     tax_calculation_rounding_method = fields.Selection(
-        related="company_id.account_config_id.tax_calculation_rounding_method",
+        related="company_id.tax_config_id.tax_calculation_rounding_method",
         string="Tax calculation rounding method",
         readonly=False,
     )
@@ -153,7 +153,7 @@ class ResConfigSettings(models.TransientModel):
         check_company=True,
     )
     account_fiscal_country_id = fields.Many2one(
-        related="company_id.account_config_id.account_fiscal_country_id",
+        related="company_id.tax_config_id.account_fiscal_country_id",
         string="Fiscal Country Code",
         store=False,
         readonly=False,
@@ -224,7 +224,7 @@ class ResConfigSettings(models.TransientModel):
     )
 
     country_code = fields.Char(
-        related="company_id.account_config_id.account_fiscal_country_id.code",
+        related="company_id.tax_config_id.account_fiscal_country_id.code",
         readonly=True,
     )
 

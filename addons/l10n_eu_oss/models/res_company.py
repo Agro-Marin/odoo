@@ -18,7 +18,7 @@ class ResCompany(models.Model):
         """Identifies EU companies and calls the _map_eu_taxes function"""
         eu_countries = self.env.ref("base.europe").country_ids
         companies = self.search(
-            [("account_config_id.account_fiscal_country_id", "in", eu_countries.ids)]
+            [("tax_config_id.account_fiscal_country_id", "in", eu_countries.ids)]
         )
         companies._map_eu_taxes()
 
@@ -58,7 +58,7 @@ class ResCompany(models.Model):
             )
             oss_countries = (
                 eu_countries
-                - company.account_config_id.account_fiscal_country_id
+                - company.tax_config_id.account_fiscal_country_id
                 - multi_tax_reports_countries_fpos.country_id
             )
             tg = self.env["account.tax.group"].search(  # noqa: E8507 - OSS setup runs once per company; every probe is keyed by the company
@@ -179,7 +179,7 @@ class ResCompany(models.Model):
                     )
                     if tax_amount and domestic_tax not in fpos.tax_ids.original_tax_ids:
                         if not foreign_taxes.get(tax_amount):
-                            oss_tax_group_local_xml_id = f"{company.id}_oss_tax_group_{str(tax_amount).replace('.', '_')}_{company.account_config_id.account_fiscal_country_id.code}"
+                            oss_tax_group_local_xml_id = f"{company.id}_oss_tax_group_{str(tax_amount).replace('.', '_')}_{company.tax_config_id.account_fiscal_country_id.code}"
                             if not self.env.ref(
                                 f"account.{oss_tax_group_local_xml_id}",
                                 raise_if_not_found=False,
@@ -239,7 +239,7 @@ class ResCompany(models.Model):
                                         .create(
                                             {
                                                 "name": f"OSS {tax_amount}%",
-                                                "country_id": company.account_config_id.account_fiscal_country_id.id,
+                                                "country_id": company.tax_config_id.account_fiscal_country_id.id,
                                                 "company_ids": [
                                                     Command.link(company.id)
                                                 ],
@@ -260,7 +260,7 @@ class ResCompany(models.Model):
                                     (
                                         "country_id",
                                         "=",
-                                        company.account_config_id.account_fiscal_country_id.id,
+                                        company.tax_config_id.account_fiscal_country_id.id,
                                     ),
                                 ],
                                 order="sequence,id desc",
@@ -285,7 +285,7 @@ class ResCompany(models.Model):
                                     "tax_group_id": self.env.ref(
                                         f"account.{oss_tax_group_local_xml_id}"
                                     ).id,
-                                    "country_id": company.account_config_id.account_fiscal_country_id.id,
+                                    "country_id": company.tax_config_id.account_fiscal_country_id.id,
                                     "sequence": 1000,
                                     "company_ids": [Command.set(company.ids)],
                                     "fiscal_position_ids": [Command.link(fpos.id)],
@@ -429,7 +429,7 @@ class ResCompany(models.Model):
                 )
         # otherwise fallback on the fiscal country
         if not country:
-            country = self.account_config_id.account_fiscal_country_id
+            country = self.tax_config_id.account_fiscal_country_id
         return country
 
     def _get_fields_country_specific_account_tax(self):

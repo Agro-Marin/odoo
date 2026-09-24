@@ -406,7 +406,7 @@ class AccountAccount(models.Model):
     @api.depends_context("company")
     def _compute_company_fiscal_country_code(self):
         self.company_fiscal_country_code = (
-            self.env.company.account_config_id.account_fiscal_country_id.code
+            self.env.company.tax_config_id.account_fiscal_country_id.code
         )
 
     @api.depends_context("company")

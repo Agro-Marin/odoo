@@ -237,9 +237,7 @@ class ResPartner(models.Model):
         """Determine whether to show VIES validity on the current VAT number"""
         for partner in self:
             to_check = partner.vat
-            company_code = (
-                self.env.company.account_config_id.account_fiscal_country_id.code
-            )
+            company_code = self.env.company.tax_config_id.account_fiscal_country_id.code
             partner.perform_vies_validation = (
                 to_check
                 and to_check[:2].upper() != company_code

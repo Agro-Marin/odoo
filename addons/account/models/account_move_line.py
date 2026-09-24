@@ -476,7 +476,7 @@ class AccountMoveLine(models.Model):
         default=0.0,
     )
     tax_calculation_rounding_method = fields.Selection(
-        related="company_id.account_config_id.tax_calculation_rounding_method",
+        related="company_id.tax_config_id.tax_calculation_rounding_method",
         string="Tax calculation rounding method",
         readonly=True,
     )

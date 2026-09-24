@@ -1139,7 +1139,7 @@ class PosConfig(models.Model):
 
     def _check_company_has_fiscal_country(self):
         self.check_singleton()
-        if not self.company_id.account_config_id.account_fiscal_country_id:
+        if not self.company_id.tax_config_id.account_fiscal_country_id:
             raise ValidationError(
                 self.env._("The company must have a fiscal country set.")
             )

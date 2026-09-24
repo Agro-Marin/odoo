@@ -247,7 +247,7 @@ class AccountReturnType(models.Model):
         """
         is_foreign_vat = (
             self.report_id
-            and company.account_config_id.account_fiscal_country_id.code
+            and company.tax_config_id.account_fiscal_country_id.code
             != self.report_id.country_id.code
         )
 
@@ -361,7 +361,7 @@ class AccountReturnType(models.Model):
 
         all_domestic_tax_units = self.env["account.tax.unit"]
         for company in root_companies:
-            fiscal_country = company.account_config_id.account_fiscal_country_id
+            fiscal_country = company.tax_config_id.account_fiscal_country_id
             domestic_tax_unit = all_tax_units.filtered_domain(
                 [
                     ("country_id", "=", fiscal_country.id),
@@ -437,7 +437,7 @@ class AccountReturnType(models.Model):
             return
 
         if (
-            main_company.sudo().account_config_id.account_fiscal_country_id.code
+            main_company.sudo().tax_config_id.account_fiscal_country_id.code
             == country_code
         ):
             search_domain = Domain.AND(
@@ -813,14 +813,14 @@ class AccountReturnType(models.Model):
         if (
             self.report_id
             and self.report_id.country_id
-            and main_company.account_config_id.account_fiscal_country_id
+            and main_company.tax_config_id.account_fiscal_country_id
             != self.report_id.country_id
         ):
             if self.report_id and self.report_id.country_id:
                 country_code = f"({self.report_id.country_id.code})"
             else:
                 country_code = (
-                    f"({main_company.account_config_id.account_fiscal_country_id.code})"
+                    f"({main_company.tax_config_id.account_fiscal_country_id.code})"
                 )
         _debug.logic(
             "return_name_country_suffix",

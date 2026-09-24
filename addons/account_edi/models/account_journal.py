@@ -53,7 +53,7 @@ class AccountJournal(models.Model):
             return super().write(vals)
 
     @api.depends(
-        "type", "company_id", "company_id.account_config_id.account_fiscal_country_id"
+        "type", "company_id", "company_id.tax_config_id.account_fiscal_country_id"
     )
     def _compute_compatible_edi_ids(self):
         edi_formats = self.env["account.edi.format"].search([])
@@ -65,7 +65,7 @@ class AccountJournal(models.Model):
             journal.compatible_edi_ids = compatible_edis
 
     @api.depends(
-        "type", "company_id", "company_id.account_config_id.account_fiscal_country_id"
+        "type", "company_id", "company_id.tax_config_id.account_fiscal_country_id"
     )
     def _compute_edi_format_ids(self):
         edi_formats = self.env["account.edi.format"].search([])

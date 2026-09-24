@@ -18,10 +18,7 @@ class TestTaxSettingsCompany(BaseTaxCommon):
                 "country_id": cls.other_country.id,
             }
         )
-        if "account_config_id" in cls.env["res.company"]._fields:
-            cls.other_company.account_config_id.account_fiscal_country_id = (
-                cls.other_country
-            )
+        cls.other_company.tax_config_id.account_fiscal_country_id = cls.other_country
         cls.cross_country_group = cls.env["account.tax.group"].create(
             {
                 "name": "tax cross-country group",
@@ -96,11 +93,8 @@ class TestTaxSettingsCompany(BaseTaxCommon):
         )
 
     def test_company_price_include_follows_the_seam(self):
-        if not self.account_installed:
-            self.skipTest("account_price_include is contributed by `account`")
-
-        self.company.account_config_id.account_price_include = "tax_excluded"
-        self.other_company.account_config_id.account_price_include = "tax_included"
+        self.company.tax_config_id.account_price_include = "tax_excluded"
+        self.other_company.tax_config_id.account_price_include = "tax_included"
 
         tax = self._tax(10)
         self.assertEqual(tax.company_price_include, "tax_excluded")

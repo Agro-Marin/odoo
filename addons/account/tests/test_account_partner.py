@@ -640,7 +640,7 @@ class TestAccountPartner(AccountTestInvoicingCommon):
 
         belgium = self.env["res.country"].search([("code", "=", "BE")], limit=1)
         company.partner_id.country_id = belgium
-        company.account_config_id.account_fiscal_country_id = japan
+        company.tax_config_id.account_fiscal_country_id = japan
         self.env.invalidate_all()
         self.assertEqual(
             company.company_registry_placeholder,

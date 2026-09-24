@@ -104,7 +104,7 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
                     "applicability": "taxes",
                     "country_id": cls.company_data[
                         "company"
-                    ].account_config_id.account_fiscal_country_id.id,
+                    ].tax_config_id.account_fiscal_country_id.id,
                 }
                 for i in range(10)
             ]

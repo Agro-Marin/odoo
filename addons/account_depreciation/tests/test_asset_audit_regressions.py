@@ -215,7 +215,7 @@ class TestAssetAuditRegressions(TestAccountAssetCommon):
                 "amount_type": "percent",
                 "amount": 20.0,
                 "type_tax_use": "purchase",
-                "country_id": self.company.account_config_id.account_fiscal_country_id.id,
+                "country_id": self.company.tax_config_id.account_fiscal_country_id.id,
                 "invoice_repartition_line_ids": [
                     Command.create({"repartition_type": "base"}),
                     Command.create(

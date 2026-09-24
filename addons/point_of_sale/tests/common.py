@@ -827,7 +827,7 @@ class TestPoSCommon(ValuationReconciliationTestCommon):
                 {
                     "name": name,
                     "applicability": "taxes",
-                    "country_id": cls.env.company.account_config_id.account_fiscal_country_id.id,
+                    "country_id": cls.env.company.tax_config_id.account_fiscal_country_id.id,
                 }
             )
 

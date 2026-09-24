@@ -1369,7 +1369,7 @@ class TestTaxesTaxTotalsSummary(TestTaxCommon):
             self.assert_invoice_tax_totals_summary(invoice, expected_values)
 
     def _test_reverse_charge_taxes_2(self):
-        self.env.company.account_config_id.tax_calculation_rounding_method = (
+        self.env.company.tax_config_id.tax_calculation_rounding_method = (
             "round_globally"
         )
         tax = self.percent_tax(
@@ -1425,7 +1425,7 @@ class TestTaxesTaxTotalsSummary(TestTaxCommon):
             self.assert_invoice_tax_totals_summary(invoice, expected_values)
 
     def _test_random_case_tax_included(self):
-        self.env.company.account_config_id.tax_calculation_rounding_method = (
+        self.env.company.tax_config_id.tax_calculation_rounding_method = (
             "round_globally"
         )
         tax = self.percent_tax(20.0, price_include_override="tax_included")
@@ -2506,7 +2506,7 @@ class TestTaxesTaxTotalsSummary(TestTaxCommon):
         self._run_js_tests()
 
     def _test_discount_with_round_globally(self):
-        self.env.company.account_config_id.tax_calculation_rounding_method = (
+        self.env.company.tax_config_id.tax_calculation_rounding_method = (
             "round_globally"
         )
         tax = self.percent_tax(21.0)

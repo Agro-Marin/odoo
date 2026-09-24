@@ -129,8 +129,7 @@ class AccountMove(models.Model):
         it_out_invoices = self.filtered(
             lambda i: (
                 i.move_type == "out_invoice"
-                and i.company_id.account_config_id.account_fiscal_country_id.code
-                == "IT"
+                and i.company_id.tax_config_id.account_fiscal_country_id.code == "IT"
             )
         )
         for invoice in it_out_invoices:

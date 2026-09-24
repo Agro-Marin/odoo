@@ -1,9 +1,3 @@
-def _set_fiscal_country(env):
-    env["account.config"]._for_each(
-        env["res.company"].search([])
-    )._compute_account_fiscal_country_id()
-
-
 def _load_deferred_accounts(env):
     for company in env["res.company"].search([], order="parent_path"):
         if not company.account_config_id.chart_template:
@@ -58,7 +52,6 @@ def _load_account_return_data(env):
 
 
 def _account_post_init(env):
-    _set_fiscal_country(env)
     _install_sepa_modules(env)
     _load_deferred_accounts(env)
     _load_account_return_data(env)

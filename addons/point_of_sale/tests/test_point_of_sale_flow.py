@@ -2370,9 +2370,7 @@ class TestPointOfSaleFlow(CommonPosTest):
         )
 
     def test_open_ui_missing_country(self):
-        self.pos_config_usd.company_id.account_config_id.account_fiscal_country_id = (
-            False
-        )
+        self.pos_config_usd.company_id.tax_config_id.account_fiscal_country_id = False
         with self.assertRaises(
             ValidationError, msg="The company must have a fiscal country set."
         ):

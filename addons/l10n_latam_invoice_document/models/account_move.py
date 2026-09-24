@@ -308,7 +308,7 @@ class AccountMove(models.Model):
             (
                 "country_id",
                 "=",
-                self.company_id.account_config_id.account_fiscal_country_id.id,
+                self.company_id.tax_config_id.account_fiscal_country_id.id,
             ),
         ]
 

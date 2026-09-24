@@ -69,7 +69,7 @@ class AccountAccountTag(models.Model):
                 tag.applicability == "taxes"
                 and tag.country_id
                 and tag.country_id
-                != self.env.company.account_config_id.account_fiscal_country_id
+                != self.env.company.tax_config_id.account_fiscal_country_id
             ):
                 name = self.env._(
                     "%(tag)s (%(country_code)s)",

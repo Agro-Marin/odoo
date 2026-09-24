@@ -704,7 +704,7 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         self.assertFalse(tax_details)
 
     def test_round_globally_rounding(self):
-        self.env.company.account_config_id.tax_calculation_rounding_method = (
+        self.env.company.tax_config_id.tax_calculation_rounding_method = (
             "round_globally"
         )
 
@@ -789,7 +789,7 @@ class TestAccountTaxDetailsReport(AccountTestInvoicingCommon):
         self.assertTotalAmounts(invoice, tax_details)
 
     def test_round_per_line_update(self):
-        self.env.company.account_config_id.tax_calculation_rounding_method = (
+        self.env.company.tax_config_id.tax_calculation_rounding_method = (
             "round_per_line"
         )
 

@@ -1000,7 +1000,7 @@ class AccountReturn(models.Model):
                 if (
                     report.country_id
                     and report.country_id
-                    == main_company.account_config_id.account_fiscal_country_id
+                    == main_company.tax_config_id.account_fiscal_country_id
                     and (
                         not main_company.account_config_id.tax_lock_date
                         or self.date_to > main_company.account_config_id.tax_lock_date
@@ -1059,7 +1059,7 @@ class AccountReturn(models.Model):
     def _get_tax_closing_payable_and_receivable_accounts(self):
         country = (
             self.type_id.report_id.country_id
-            or self.company_id.account_config_id.account_fiscal_country_id
+            or self.company_id.tax_config_id.account_fiscal_country_id
         )
         tax_groups_sudo = (
             self.env["account.tax"]
@@ -1278,7 +1278,7 @@ class AccountReturn(models.Model):
             if (
                 not report.country_id
                 or report.country_id
-                == self.company_id.account_config_id.account_fiscal_country_id
+                == self.company_id.tax_config_id.account_fiscal_country_id
             ):
                 # Check for locked return
                 violated_lock_dates = []
@@ -1350,7 +1350,7 @@ class AccountReturn(models.Model):
             main_company = self.tax_unit_id.main_company_id or self.company_id
             if (
                 report.country_id
-                == main_company.account_config_id.account_fiscal_country_id
+                == main_company.tax_config_id.account_fiscal_country_id
                 and main_company.account_config_id.tax_lock_date
                 and self.date_to <= main_company.account_config_id.tax_lock_date
             ):
@@ -2159,7 +2159,7 @@ class AccountReturn(models.Model):
         def filter_template(template):
             return template.code not in codes_to_ignore and (
                 not template.country_ids
-                or self.company_id.account_config_id.account_fiscal_country_id
+                or self.company_id.tax_config_id.account_fiscal_country_id
                 in template.country_ids
             )
 
@@ -2800,7 +2800,7 @@ class AccountReturn(models.Model):
                         (
                             "partner_id.country_id",
                             "!=",
-                            self.company_id.account_config_id.account_fiscal_country_id.id,
+                            self.company_id.tax_config_id.account_fiscal_country_id.id,
                         ),
                         ("partner_id.vies_valid", "=", False),
                         ("company_id", "in", self.company_ids.ids),

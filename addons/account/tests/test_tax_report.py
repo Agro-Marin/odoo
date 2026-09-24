@@ -320,9 +320,7 @@ class TaxReportTest(AccountTestInvoicingCommon):
             }
         )
 
-        self.env.company.account_config_id.account_fiscal_country_id = (
-            self.test_country_1
-        )
+        self.env.company.tax_config_id.account_fiscal_country_id = self.test_country_1
 
         test_invoice = self.env["account.move"].create(
             {

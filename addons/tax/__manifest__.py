@@ -1,6 +1,6 @@
 {
     "name": "Tax Computation Engine",
-    "version": "19.0.1.3.0",
+    "version": "19.0.1.4.0",
     "category": "Hidden",
     "summary": "Standalone tax computation for order types",
     "description": """

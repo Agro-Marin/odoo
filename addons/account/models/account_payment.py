@@ -323,7 +323,7 @@ class AccountPayment(models.Model):
         compute="_compute_show_require_partner_bank"
     )
     country_code = fields.Char(
-        related="company_id.account_config_id.account_fiscal_country_id.code"
+        related="company_id.tax_config_id.account_fiscal_country_id.code"
     )
     amount_signed = fields.Monetary(
         currency_field="currency_id",

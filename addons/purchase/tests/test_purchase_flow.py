@@ -99,7 +99,7 @@ class TestPurchaseOrderLineTaxPickerUI(AccountTestInvoicingCommon, HttpCase):
         foreign.fiscal_position_id = False
         self.assertEqual(
             foreign.tax_country_id,
-            self.env.company.account_config_id.account_fiscal_country_id,
+            self.env.company.tax_config_id.account_fiscal_country_id,
         )
 
     def test_a_foreign_vat_order_offers_only_taxes_of_that_country(self):

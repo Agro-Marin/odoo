@@ -24,6 +24,6 @@ class Picking(models.Model):
         )
 
         return (
-            picking.company_id.account_config_id.account_fiscal_country_id.code == "RO"
+            picking.company_id.tax_config_id.account_fiscal_country_id.code == "RO"
             and (picking.l10n_ro_edi_stock_enable or validate_carrier)
         )

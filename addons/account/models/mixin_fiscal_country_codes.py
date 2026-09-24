@@ -17,7 +17,7 @@ class MixinFiscalCountryCodes(models.AbstractModel):
             record.fiscal_country_codes = ",".join(
                 sorted(
                     record._get_fiscal_country_companies().mapped(
-                        "account_config_id.account_fiscal_country_id.code"
+                        "tax_config_id.account_fiscal_country_id.code"
                     )
                 )
             )

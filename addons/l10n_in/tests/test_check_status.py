@@ -50,7 +50,7 @@ class TestGSTStatusFeature(TransactionCase):
             },
         }
         self.env.company.l10n_in_config_id.l10n_in_gstin_status_feature = True
-        self.env.company.account_config_id.account_fiscal_country_id = self.env.ref(
+        self.env.company.tax_config_id.account_fiscal_country_id = self.env.ref(
             "base.in"
         )
 

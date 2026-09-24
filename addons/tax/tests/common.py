@@ -18,7 +18,6 @@ class BaseTaxCommon(TransactionCase):
             }
         )
         cls.currency = cls.company.currency_id
-        cls.account_installed = "account_config_id" in cls.env["res.company"]._fields
 
     _seq = 0
 

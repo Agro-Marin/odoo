@@ -16,7 +16,7 @@ class _FakeAccount:
 class TestFiscalCountryGroupCodes(common.TransactionCase):
     def test_a_company_without_a_fiscal_country_still_yields_a_list(self):
         company = self.env["res.company"].create({"name": "No Fiscal Country Co"})
-        self.assertFalse(company.account_config_id.account_fiscal_country_id)
+        self.assertFalse(company.tax_config_id.account_fiscal_country_id)
         codes = company.account_config_id.account_fiscal_country_group_codes
         self.assertIsInstance(
             codes,
@@ -202,7 +202,7 @@ class TestResCompanyMultiVat(common.TransactionCase):
         company = self.env["res.company"].create(
             {"name": "CC MultiVat", "country_id": us.id}
         )
-        company.account_config_id.account_fiscal_country_id = us
+        company.tax_config_id.account_fiscal_country_id = us
         fp = self.env["account.fiscal.position"].create(
             {
                 "name": "BE foreign VAT",

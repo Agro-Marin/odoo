@@ -314,7 +314,7 @@ class AccountReturnCheck(models.Model):
                 company.account_config_id.expense_currency_exchange_account_id.id,
             ),
             "company_currency_id": company.currency_id.id,
-            "company_country_code": company.account_config_id.account_fiscal_country_id.code,
+            "company_country_code": company.tax_config_id.account_fiscal_country_id.code,
             "company_id": company.id,
             "cash_journal_options": generate_journals_options(),
         }

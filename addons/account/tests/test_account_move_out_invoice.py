@@ -6376,7 +6376,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
         self.assertEqual(invoice_not_sent, res)
 
     def test_invoice_currency_rate_round_globally(self):
-        self.env.company.account_config_id.tax_calculation_rounding_method = (
+        self.env.company.tax_config_id.tax_calculation_rounding_method = (
             "round_globally"
         )
         eur = self.setup_other_currency("EUR")

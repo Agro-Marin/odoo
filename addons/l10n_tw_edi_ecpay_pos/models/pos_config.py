@@ -24,7 +24,7 @@ class PosConfig(models.Model):
             raise_if_not_found=False,
         )
         if (
-            self.company_id.account_config_id.account_fiscal_country_id.code == "TW"
+            self.company_id.tax_config_id.account_fiscal_country_id.code == "TW"
             and walk_in_customer
         ):
             walk_in_customer_id_tuple = (walk_in_customer.id,)
@@ -37,8 +37,7 @@ class PosConfig(models.Model):
         read_records = super()._load_pos_data_read(records, config)
         if (
             read_records
-            and config.company_id.account_config_id.account_fiscal_country_id.code
-            == "TW"
+            and config.company_id.tax_config_id.account_fiscal_country_id.code == "TW"
         ):
             walk_in_customer = self.env.ref(
                 "l10n_tw_edi_ecpay_pos.ecpay_default_walk_in_customer",

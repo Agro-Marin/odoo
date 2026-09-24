@@ -563,7 +563,7 @@ class TestArManual(common.TestAr):
 
     @skip("TODO: failing test. 'Fix' the rounding error")
     def test_l10n_ar_rounding_01(self):
-        self.env.company.account_config_id.tax_calculation_rounding_method = (
+        self.env.company.tax_config_id.tax_calculation_rounding_method = (
             "round_globally"
         )
         currency_usd = self.env.ref("base.USD")
@@ -601,7 +601,7 @@ class TestArManual(common.TestAr):
                 x.tax_repartition_line_id.id,
             )
         )
-        self.env.company.account_config_id.tax_calculation_rounding_method = (
+        self.env.company.tax_config_id.tax_calculation_rounding_method = (
             "round_per_line"
         )
         invoice_b = self._create_invoice_ar(

@@ -94,17 +94,10 @@ class ResCompany(models.Model):
         search="_search_account_config_id",
     )
 
-    account_fiscal_country_id = fields.Many2one(
-        related="account_config_id.account_fiscal_country_id",
-    )
-
     account_use_credit_limit = fields.Boolean(
         related="account_config_id.account_use_credit_limit",
     )
 
-    tax_calculation_rounding_method = fields.Selection(
-        related="account_config_id.tax_calculation_rounding_method",
-    )
     account_enabled_tax_country_ids = fields.Many2many(
         related="account_config_id.account_enabled_tax_country_ids"
     )
@@ -142,7 +135,7 @@ class ResCompany(models.Model):
         return company_sudo.account_config_id.batch_payment_sequence_id.next_by_id()
 
     @api.depends(
-        "account_config_id.account_fiscal_country_id",
+        "tax_config_id.account_fiscal_country_id",
         "account_config_id.fiscal_position_ids.foreign_vat",
         "account_config_id.fiscal_position_ids.country_id",
     )

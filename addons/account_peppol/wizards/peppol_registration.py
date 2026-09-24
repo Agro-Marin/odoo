@@ -306,7 +306,7 @@ class PeppolRegistration(models.TransientModel):
         )
 
     def _check_mandatory_fields(self):
-        if not self.selected_company_id.account_config_id.account_fiscal_country_id.code:
+        if not self.selected_company_id.tax_config_id.account_fiscal_country_id.code:
             raise ValidationError(
                 self.env._("Please select a country for your company.")
             )

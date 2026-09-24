@@ -157,13 +157,6 @@ class AccountConfig(models.Model):
         string="Default Purchase Receipt Fiscal Position",
         check_company=True,
     )
-    tax_calculation_rounding_method = fields.Selection(
-        selection=[
-            ("round_globally", "Round per Tax"),
-            ("round_per_line", "Round per Line"),
-        ],
-        default="round_globally",
-    )
     currency_exchange_journal_id = fields.Many2one(
         comodel_name="account.journal",
         string="Exchange Gain or Loss Journal",
@@ -278,14 +271,6 @@ class AccountConfig(models.Model):
         comodel_name="account.fiscal.position",
         compute="_compute_domestic_fiscal_position_id",
     )
-    account_fiscal_country_id = fields.Many2one(
-        comodel_name="res.country",
-        string="Fiscal Country",
-        compute="_compute_account_fiscal_country_id",
-        store=True,
-        readonly=False,
-        help="The country to use the tax reports from for this company",
-    )
     account_fiscal_country_group_codes = fields.Json(
         compute="_compute_account_fiscal_country_group_codes"
     )
@@ -363,13 +348,6 @@ class AccountConfig(models.Model):
         default=True,
     )
 
-    account_price_include = fields.Selection(
-        selection=[("tax_included", "Tax Included"), ("tax_excluded", "Tax Excluded")],
-        string="Default Sales Price Include",
-        default="tax_excluded",
-        required=True,
-        help="Default on whether the sales price used on the product and invoices with this Company includes its taxes.",
-    )
     company_vat_placeholder = fields.Char(compute="_compute_company_vat_placeholder")
 
     income_account_id = fields.Many2one(
@@ -526,15 +504,6 @@ class AccountConfig(models.Model):
                 )
             )
 
-    @api.constrains("account_price_include")
-    def _check_set_account_price_include(self):
-        if any(config.company_id.sudo()._existing_accounting() for config in self):
-            raise ValidationError(
-                self.env._(
-                    "Cannot change Price Tax computation method on a company that has already started invoicing."
-                )
-            )
-
     @api.constrains(
         "account_opening_move_id", "fiscalyear_last_day", "fiscalyear_last_month"
     )
@@ -591,12 +560,12 @@ class AccountConfig(models.Model):
             ).sorted(lambda fp: (fp.sequence, fp.country_id.id or float("inf")))
             config.domestic_fiscal_position_id = potential_domestic_fps[:1]
 
-    @api.depends("account_fiscal_country_id")
+    @api.depends("company_id.tax_config_id.account_fiscal_country_id")
     def _compute_account_fiscal_country_group_codes(self):
         for config in self:
             config.account_fiscal_country_group_codes = (
-                config.account_fiscal_country_id.country_group_codes
-                if config.account_fiscal_country_id
+                config.company_id.tax_config_id.account_fiscal_country_id.country_group_codes
+                if config.company_id.tax_config_id.account_fiscal_country_id
                 else [""]
             )
 
@@ -624,13 +593,7 @@ class AccountConfig(models.Model):
                 config.company_id.id, self.env["res.country"]
             )
 
-    @api.depends("company_id.country_id")
-    def _compute_account_fiscal_country_id(self):
-        for config in self:
-            if not config.account_fiscal_country_id:
-                config.account_fiscal_country_id = config.company_id.country_id
-
-    @api.depends("account_fiscal_country_id")
+    @api.depends("company_id.tax_config_id.account_fiscal_country_id")
     @api.depends_context("uid")
     def _compute_account_enabled_tax_country_ids(self):
         allowed_companies = self.env.user.company_ids
@@ -645,7 +608,8 @@ class AccountConfig(models.Model):
                 config.company_id.id, self.env["res.country"]
             )
             config.account_enabled_tax_country_ids = (
-                foreign_vat_countries + config.account_fiscal_country_id
+                foreign_vat_countries
+                + config.company_id.tax_config_id.account_fiscal_country_id
             )
 
     @api.depends("terms_type")
@@ -705,26 +669,32 @@ class AccountConfig(models.Model):
                 for parent in parents
             )
 
-    @api.depends("account_fiscal_country_id")
+    @api.depends("company_id.tax_config_id.account_fiscal_country_id")
     def _compute_account_storno(self):
         for config in self:
             config.account_storno = (
-                config.account_fiscal_country_id.code in STORNO_MANDATORY_COUNTRIES
+                config.company_id.tax_config_id.account_fiscal_country_id.code
+                in STORNO_MANDATORY_COUNTRIES
             )
 
-    @api.depends("account_fiscal_country_id")
+    @api.depends("company_id.tax_config_id.account_fiscal_country_id")
     def _compute_display_account_storno(self):
         for config in self:
             config.display_account_storno = (
-                config.account_fiscal_country_id.code
+                config.company_id.tax_config_id.account_fiscal_country_id.code
                 in STORNO_MANDATORY_COUNTRIES | STORNO_OPTIONAL_COUNTRIES
             )
 
-    @api.depends("account_fiscal_country_id", "company_id.country_id")
+    @api.depends(
+        "company_id.tax_config_id.account_fiscal_country_id", "company_id.country_id"
+    )
     def _compute_company_vat_placeholder(self):
         Partner = self.env["res.partner"]
         for config in self:
-            country = config.company_id.country_id or config.account_fiscal_country_id
+            country = (
+                config.company_id.country_id
+                or config.company_id.tax_config_id.account_fiscal_country_id
+            )
             expected_vat = Partner._get_expected_vat_format(country.code)
             config.company_vat_placeholder = (
                 self.env._("%s, or / if not applicable", expected_vat)
@@ -737,12 +707,13 @@ class AccountConfig(models.Model):
             "account.onboarding_onboarding_step_sales_tax"
         )
 
-    @api.depends("account_fiscal_country_id.code")
+    @api.depends("company_id.tax_config_id.account_fiscal_country_id.code")
     def _compute_account_display_representative_field(self):
         for config in self:
             country_set = config.company_id._get_countries_allowing_tax_representative()
             config.account_display_representative_field = (
-                config.account_fiscal_country_id.code in country_set
+                config.company_id.tax_config_id.account_fiscal_country_id.code
+                in country_set
             )
 
     @api.depends("anglo_saxon_accounting")

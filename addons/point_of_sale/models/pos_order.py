@@ -101,7 +101,7 @@ class PosOrder(models.Model):
         required=True,
     )
     country_code = fields.Char(
-        related="company_id.account_config_id.account_fiscal_country_id.code"
+        related="company_id.tax_config_id.account_fiscal_country_id.code"
     )
     pricelist_id = fields.Many2one(comodel_name="product.pricelist")
     partner_id = fields.Many2one(

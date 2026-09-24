@@ -1006,11 +1006,12 @@ class AccountChartTemplate(models.AbstractModel):
     def _pre_load_data(self, template_code, company, template_data, data):
         _debug.lifecycle("_pre_load_data", records=self)
         config = company.account_config_id
-        config_data = data.get("account.config", {}).get(config.id, {})
+        tax_config = company.tax_config_id
+        tax_config_data = data.get("tax.config", {}).get(tax_config.id, {})
         fiscal_country = (
-            self.ref(config_data["account_fiscal_country_id"])
-            if "account_fiscal_country_id" in config_data
-            else config.account_fiscal_country_id
+            self.ref(tax_config_data["account_fiscal_country_id"])
+            if "account_fiscal_country_id" in tax_config_data
+            else tax_config.account_fiscal_country_id
         )
         company.write(
             self._pre_load_company_vals(company, template_data, fiscal_country)
@@ -1069,19 +1070,19 @@ class AccountChartTemplate(models.AbstractModel):
                 self.ref(value).id if value not in ("", "False", "None") else False
             )
         except ValueError:
+            is_config = getattr(model, "_company_config", False)
             _debug.logic(
                 "many2one_ref_unresolved",
                 field=fname,
                 ref=value,
-                company_fallback=model._name in ("res.company", "account.config"),
+                company_fallback=model._name == "res.company" or is_config,
             )
-            if model._name in ("res.company", "account.config"):
+            if model._name == "res.company" or is_config:
                 current = self.env.company
-                if model._name == "account.config":
-                    current = current.account_config_id
-                    root = self.env.company.root_id.account_config_id
-                else:
-                    root = self.env.company.root_id
+                root = current.root_id
+                if is_config:
+                    current = model._for(current)
+                    root = model._for(root)
                 values[fname] = current[fname] or root[fname] or False
             else:
                 _logger.warning(
@@ -1694,7 +1695,7 @@ class AccountChartTemplate(models.AbstractModel):
                     (
                         "country_id",
                         "=",
-                        company.account_config_id.account_fiscal_country_id.id,
+                        company.tax_config_id.account_fiscal_country_id.id,
                     ),
                     (field, "!=", False),
                 ],
@@ -1740,7 +1741,7 @@ class AccountChartTemplate(models.AbstractModel):
             (
                 "tax_id.country_id",
                 "=",
-                company.account_config_id.account_fiscal_country_id.id,
+                company.tax_config_id.account_fiscal_country_id.id,
             ),
             ("tax_id", "in", default_company_taxes.ids),
         ]
@@ -1799,7 +1800,7 @@ class AccountChartTemplate(models.AbstractModel):
                 (
                     "country_id",
                     "=",
-                    company.account_config_id.account_fiscal_country_id.id,
+                    company.tax_config_id.account_fiscal_country_id.id,
                 ),
                 ("tax_exigibility", "=", "on_payment"),
                 ("cash_basis_transition_account_id", "!=", False),

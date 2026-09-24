@@ -6,20 +6,16 @@ from .common import BaseTaxCommon
 
 @tagged("post_install", "-at_install")
 class TestBaseTaxComputation(BaseTaxCommon):
-    def test_standalone_seams_absent_without_account(self):
-        if self.account_installed:
-            self.skipTest("account installed: standalone fallbacks not exercised")
-        company_fields = self.env["res.company"]._fields
-        self.assertNotIn("account_config_id", company_fields)
+    def test_the_tax_configuration_drives_price_include(self):
+        self.company.tax_config_id.account_price_include = "tax_excluded"
         tax = self._tax(21.0)
-        self.assertFalse(tax.company_price_include)
+        self.assertEqual(tax.company_price_include, "tax_excluded")
         self.assertFalse(tax.price_include)
         tax_incl = self._tax(21.0, price_include_override="tax_included")
         self.assertTrue(tax_incl.price_include)
 
-    def test_default_rounding_is_round_per_line_standalone(self):
-        if self.account_installed:
-            self.skipTest("account installed: company drives the rounding method")
+    def test_the_tax_configuration_drives_the_rounding_method(self):
+        self.company.tax_config_id.tax_calculation_rounding_method = "round_per_line"
         tax = self._tax(21.0)
         base_line = self._base_line(tax, 21.53, quantity=2.0)
         self.env["account.tax"]._add_tax_details_in_base_line(base_line, self.company)

@@ -153,7 +153,7 @@ class MixinOrder(models.AbstractModel):
         required=True,
     )
     company_price_include = fields.Selection(
-        related="company_id.account_config_id.account_price_include"
+        related="company_id.tax_config_id.account_price_include"
     )
     currency_id = fields.Many2one(
         comodel_name="res.currency",
@@ -564,7 +564,7 @@ class MixinOrder(models.AbstractModel):
             order.fiscal_position_id = cache[key]
 
     @api.depends(
-        "company_id.account_config_id.account_fiscal_country_id",
+        "company_id.tax_config_id.account_fiscal_country_id",
         "fiscal_position_id.country_id",
         "fiscal_position_id.foreign_vat",
     )

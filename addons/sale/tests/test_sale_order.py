@@ -434,7 +434,7 @@ class TestSaleOrder(SaleCommon):
             }
         )
 
-        self.env.company.account_config_id.tax_calculation_rounding_method = (
+        self.env.company.tax_config_id.tax_calculation_rounding_method = (
             "round_per_line"
         )
         sale_order = self.env["sale.order"].create(
@@ -464,7 +464,7 @@ class TestSaleOrder(SaleCommon):
         )
         self.assertEqual(sale_order.amount_total, 15.42, "")
 
-        self.env.company.account_config_id.tax_calculation_rounding_method = (
+        self.env.company.tax_config_id.tax_calculation_rounding_method = (
             "round_globally"
         )
         sale_order = self.env["sale.order"].create(

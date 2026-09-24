@@ -586,7 +586,7 @@ class AccountMove(models.Model):
     show_name_warning = fields.Boolean(store=False)
     type_name = fields.Char(compute="_compute_type_name")
     country_code = fields.Char(
-        related="company_id.account_config_id.account_fiscal_country_id.code",
+        related="company_id.tax_config_id.account_fiscal_country_id.code",
         depends=["company_id"],
         readonly=True,
     )
@@ -594,7 +594,7 @@ class AccountMove(models.Model):
         related="company_id.account_config_id.account_fiscal_country_group_codes"
     )
     company_price_include = fields.Selection(
-        related="company_id.account_config_id.account_price_include",
+        related="company_id.tax_config_id.account_price_include",
         readonly=True,
     )
     attachment_ids = fields.One2many(
@@ -706,7 +706,7 @@ class AccountMove(models.Model):
     )
     needed_terms_dirty = fields.Boolean(compute="_compute_payment_terms")
     tax_calculation_rounding_method = fields.Selection(
-        related="company_id.account_config_id.tax_calculation_rounding_method",
+        related="company_id.tax_config_id.tax_calculation_rounding_method",
         string="Tax calculation rounding method",
         readonly=True,
     )
@@ -2746,7 +2746,7 @@ class AccountMove(models.Model):
             )
 
     @api.depends(
-        "company_id.account_config_id.account_fiscal_country_id",
+        "company_id.tax_config_id.account_fiscal_country_id",
         "fiscal_position_id",
         "fiscal_position_id.country_id",
         "fiscal_position_id.foreign_vat",

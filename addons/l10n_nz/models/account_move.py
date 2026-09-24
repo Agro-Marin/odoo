@@ -11,7 +11,7 @@ class AccountMove(models.Model):
         )
         if (
             template
-            and self.company_id.account_config_id.account_fiscal_country_id.code == "NZ"
+            and self.company_id.tax_config_id.account_fiscal_country_id.code == "NZ"
         ):
             return "l10n_nz.report_invoice_document"
         return super()._get_name_invoice_report()

@@ -772,7 +772,7 @@ class TestTaxReport(TestAccountReportsCommon):
         tax_report = self.env["report.formula"].create(
             {
                 "name": "Test",
-                "country_id": company.account_config_id.account_fiscal_country_id.id,
+                "country_id": company.tax_config_id.account_fiscal_country_id.id,
                 "root_report_id": self.env.ref("account.generic_tax_report").id,
                 "column_ids": [
                     Command.create(
@@ -2987,7 +2987,7 @@ class TestTaxReport(TestAccountReportsCommon):
                     "name": "The Local Tax Report",
                     "country_id": self.company_data[
                         "company"
-                    ].account_config_id.account_fiscal_country_id.id,
+                    ].tax_config_id.account_fiscal_country_id.id,
                     "root_report_id": self.env.ref("account.generic_tax_report").id,
                     "column_ids": [
                         Command.create(

@@ -16,7 +16,7 @@ class PosOrderLine(models.Model):
     def _compute_l10n_in_hsn_code(self):
         indian_lines = self.filtered(
             lambda line: (
-                line.company_id.account_config_id.account_fiscal_country_id.code == "IN"
+                line.company_id.tax_config_id.account_fiscal_country_id.code == "IN"
             )
         )
         (self - indian_lines).l10n_in_hsn_code = False

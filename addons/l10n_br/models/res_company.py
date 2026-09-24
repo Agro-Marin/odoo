@@ -38,5 +38,5 @@ class ResCompany(models.Model):
     def _is_latam(self):
         return (
             super()._is_latam()
-            or self.account_config_id.account_fiscal_country_id.code == "BR"
+            or self.tax_config_id.account_fiscal_country_id.code == "BR"
         )

@@ -277,7 +277,7 @@ class AccountTestInvoicingCommon(ProductCommon):
     @classmethod
     def change_company_country(cls, company, country):
         company.country_id = country
-        company.account_config_id.account_fiscal_country_id = country
+        company.tax_config_id.account_fiscal_country_id = country
         for model in ("account.tax", "account.tax.group"):
             cls.env.add_to_compute(
                 cls.env[model]._fields["country_id"],
@@ -394,8 +394,8 @@ class AccountTestInvoicingCommon(ProductCommon):
         cls.env["account.chart.template"].try_loading(
             chart_template_ref, company=company, install_demo=False
         )
-        if not company.account_config_id.account_fiscal_country_id:
-            company.account_config_id.account_fiscal_country_id = cls.env.ref("base.us")
+        if not company.tax_config_id.account_fiscal_country_id:
+            company.tax_config_id.account_fiscal_country_id = cls.env.ref("base.us")
 
     @classmethod
     def collect_company_accounting_data(cls, company):
@@ -591,7 +591,7 @@ class AccountTestInvoicingCommon(ProductCommon):
                 "amount": 0.0,
                 "country_id": company_data[
                     "company"
-                ].account_config_id.account_fiscal_country_id.id,
+                ].tax_config_id.account_fiscal_country_id.id,
                 "children_tax_ids": [
                     (
                         0,
@@ -603,7 +603,7 @@ class AccountTestInvoicingCommon(ProductCommon):
                             "type_tax_use": type_tax_use,
                             "country_id": company_data[
                                 "company"
-                            ].account_config_id.account_fiscal_country_id.id,
+                            ].tax_config_id.account_fiscal_country_id.id,
                             "price_include_override": "tax_included",
                             "include_base_amount": True,
                             "tax_exigibility": "on_invoice",
@@ -675,7 +675,7 @@ class AccountTestInvoicingCommon(ProductCommon):
                             "type_tax_use": type_tax_use,
                             "country_id": company_data[
                                 "company"
-                            ].account_config_id.account_fiscal_country_id.id,
+                            ].tax_config_id.account_fiscal_country_id.id,
                             "tax_exigibility": "on_payment"
                             if cash_basis_transition_account
                             else "on_invoice",
@@ -1794,9 +1794,7 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
 
     @contextmanager
     def with_tax_calculation_rounding_method(self, rounding_method):
-        self.env.company.account_config_id.tax_calculation_rounding_method = (
-            rounding_method
-        )
+        self.env.company.tax_config_id.tax_calculation_rounding_method = rounding_method
         yield
 
     def _create_assert_test(
@@ -1920,9 +1918,9 @@ class TestTaxCommon(AccountTestInvoicingHttpCommon):
     def _jsonify_company(self, company):
         return {
             "id": company.id,
-            "tax_calculation_rounding_method": company.account_config_id.tax_calculation_rounding_method,
+            "tax_calculation_rounding_method": company.tax_config_id.tax_calculation_rounding_method,
             "account_fiscal_country_id": self._jsonify_country(
-                company.account_config_id.account_fiscal_country_id
+                company.tax_config_id.account_fiscal_country_id
             ),
             "currency_id": self._jsonify_currency(company.currency_id),
         }
