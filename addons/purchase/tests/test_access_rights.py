@@ -87,6 +87,29 @@ class TestPurchaseInvoice(AccountTestInvoicingCommon):
         with self.assertRaises(AccessError):
             invoice.action_post()
 
+    def test_a_purchase_user_records_the_vendor_as_seller_and_nothing_more(self):
+        order = Form(self.env["purchase.order"].with_user(self.purchase_user))
+        order.partner_id = self.vendor
+        with order.line_ids.new() as line:
+            line.product_id = self.product
+            line.product_qty = 1
+            line.price_unit = 7
+        order.save().action_confirm()
+        self.assertEqual(self.product.seller_ids.partner_id, self.vendor)
+
+        Supplierinfo = self.env["product.supplierinfo"].with_user(self.purchase_user)
+        values = {
+            "partner_id": self.vendor.id,
+            "product_tmpl_id": self.product.product_tmpl_id.id,
+        }
+        with self.assertRaises(AccessError):
+            Supplierinfo.create(values)
+        recorded = Supplierinfo.with_privilege(
+            "purchase.privilege_record_vendor_price"
+        ).create(values)
+        with self.assertRaises(AccessError):
+            recorded.with_privilege("purchase.privilege_record_vendor_price").price = 1
+
     def test_read_purchase_order(self):
         self.purchase_user.write(
             {

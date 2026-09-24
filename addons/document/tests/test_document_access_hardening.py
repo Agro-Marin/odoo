@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import fields
 from odoo.exceptions import AccessError
-from odoo.tests import HttpCase, JsonRpcException, tagged
+from odoo.tests import HttpCase, JsonRpcException, new_test_user, tagged
 from odoo.tools import mute_logger
 
 from .test_document_common import GIF, TransactionCaseDocuments
@@ -359,6 +359,19 @@ class TestUploadRequestNeedsTheFolder(TransactionCaseDocuments):
         with self.assertRaises(AccessError):
             self._schedule(self.doc_user)
         self.assertFalse(self._planted())
+
+    def test_an_employee_editing_only_that_folder_plants_it_for_another_owner(self):
+        employee = new_test_user(
+            self.env, login="upload_requester", groups="base.group_user"
+        )
+        self.upload_type.default_user_id = self.doc_user
+        self.private_folder.action_update_access_rights(
+            partners={employee.partner_id: ("edit", False)}
+        )
+        activity = self._schedule(employee)
+        planted = self._planted()
+        self.assertEqual(planted.request_activity_id, activity)
+        self.assertEqual(planted.owner_id, self.doc_user)
 
     def test_a_folder_editor_still_gets_the_request_document(self):
         self.private_folder.action_update_access_rights(

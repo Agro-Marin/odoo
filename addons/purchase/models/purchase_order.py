@@ -681,9 +681,10 @@ class PurchaseOrder(models.Model):
         ]
         for company, vals_list in vals_by_company.items():
             with self.env.protecting(promised_dates):
-                self.env["product.supplierinfo"].sudo().with_company(company).create(
-                    vals_list
-                )
+                self.env["product.supplierinfo"].with_privilege(
+                    "purchase.privilege_record_vendor_price",
+                    reason="the vendor of a confirmed order",
+                ).with_company(company).create(vals_list)
 
     def get_acknowledge_url(self):
         return self.get_portal_url(query_string="&acknowledge=True")

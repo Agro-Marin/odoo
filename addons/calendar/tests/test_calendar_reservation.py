@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from odoo.exceptions import ValidationError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.libs.datetime import timezone
 from odoo.tests import TransactionCase, new_test_user, tagged
 
@@ -395,6 +395,15 @@ class TestCalendarReservation(TransactionCase):
         resource = user._get_or_create_calendar_event_resource()
         self.assertEqual(self._reservations(event).resource_id, resource)
         self.assertEqual(user._get_or_create_calendar_event_resource(), resource)
+
+    def test_only_its_elevated_callers_make_an_attendee_s_resource(self):
+        user = new_test_user(
+            self.env, "attendee_without_resource", groups="base.group_user"
+        )
+        booker = new_test_user(self.env, "booker", groups="base.group_user")
+        with self.assertRaises(AccessError):
+            user.with_user(booker)._get_or_create_calendar_event_resource()
+        self.assertEqual(user._get_or_create_calendar_event_resource().user_id, user)
 
     def test_clearing_then_restoring_attendees_has_no_duplicates(self):
         event = self._make_event()

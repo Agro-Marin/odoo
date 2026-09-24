@@ -42,17 +42,13 @@ class ResUsers(models.Model):
         )
         resource = self._get_calendar_event_resource()
         if not resource:
-            resource = (
-                self.env["resource.resource"]
-                .sudo()
-                .create(
-                    {
-                        "name": self.name,
-                        "user_id": self.id,
-                        "company_id": self.company_id.id,
-                        "tz": self.tz or "UTC",
-                    }
-                )
+            resource = self.env["resource.resource"].create(
+                {
+                    "name": self.name,
+                    "user_id": self.id,
+                    "company_id": self.company_id.id,
+                    "tz": self.tz or "UTC",
+                }
             )
             self.env["calendar.event"].sudo().search(
                 [

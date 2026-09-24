@@ -1938,7 +1938,10 @@ class HrExpense(models.Model):
 
     def _do_reset_approval(self):
         _debug.lifecycle("reset_approval", expenses=self)
-        self.sudo().write(
+        self.with_privilege(
+            "hr_expense.privilege_reset_own_approval",
+            reason="the employee resets their own expense",
+        ).write(
             {"review_state": False, "approval_date": False, "account_move_id": False}
         )
         self.update_activities_and_mails()

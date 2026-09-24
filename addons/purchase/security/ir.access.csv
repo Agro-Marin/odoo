@@ -46,6 +46,7 @@ access_account_payment_purchase_readonly,account.payment.purchase.readonly,accou
 purchase_config_rule_company_group_user,purchase.config: the reader's companies,model_purchase_config,base.group_user,permission,r,"[('company_id', 'in', company_ids)]"
 purchase_config_rule_erp_manager,purchase.config: every company for an access-rights manager,model_purchase_config,base.group_erp_manager,permission,r,
 purchase_config_rule_erp_manager_group_system,purchase.config: every company for an access-rights manager,model_purchase_config,base.group_system,permission,cud,
+privilege_record_vendor_price_supplierinfo,Privilege: record the vendor price of a confirmed order,product.model_product_supplierinfo,privilege_record_vendor_price,permission,c,
 purchase_order_comp_rule,Purchase Order multi-company,model_purchase_order,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids)]"
 purchase_order_line_comp_rule,Purchase Order Line multi-company,model_purchase_order_line,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids)]"
 purchase_order_report_comp_rule,Purchase Order Report multi-company,model_purchase_report,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids)]"

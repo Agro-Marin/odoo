@@ -7,6 +7,11 @@
             <field name="sequence">8</field>
             <field name="category_id" ref="base.module_category_supply_chain" />
         </record>
+        <record id="privilege_record_vendor_price" model="res.groups">
+            <field
+                name="name">Privilege: record the vendor a purchase order is confirmed with as a seller of its products</field>
+            <field name="is_privilege" eval="True" />
+        </record>
         <record id="group_send_reminder" model="res.groups">
             <field
                 name="name">Send an automatic reminder email to confirm delivery</field>

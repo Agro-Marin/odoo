@@ -54,6 +54,22 @@ class TestExpensesAccessRights(TestExpenseCommon, HttpCase):
         expense.with_user(self.expense_user_employee).action_reset()
         self.assertEqual(expense.state, "draft")
 
+    def test_the_reset_privilege_reaches_only_the_employee_s_own_expenses(self):
+        other = self.env["hr.employee"].sudo().create({"name": "Someone else"})
+        values = {"product_id": self.product_a.id, "quantity": 1.0}
+        own, others = self.env["hr.expense"].create(
+            [
+                {**values, "name": "own", "employee_id": self.expense_employee.id},
+                {**values, "name": "others", "employee_id": other.id},
+            ]
+        )
+        (own | others).action_submit()
+        name = "hr_expense.privilege_reset_own_approval"
+        employee_env = self.env["hr.expense"].with_user(self.expense_user_employee)
+        own.with_env(employee_env.env).with_privilege(name).review_state = False
+        with self.assertRaises(AccessError):
+            others.with_env(employee_env.env).with_privilege(name).name = "mine now"
+
     def test_expense_access_rights_user(self):
 
         user = new_test_user(self.env, login="test-expense", groups="base.group_user")
