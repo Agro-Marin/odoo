@@ -469,7 +469,11 @@ test("can lazy translate", async () => {
 });
 
 test("a blank or non-string source is returned as a string before translations load", () => {
+    const loaded = translatedTerms[translationLoaded];
     translatedTerms[translationLoaded] = false;
+    after(() => {
+        translatedTerms[translationLoaded] = loaded;
+    });
     expect(basic_t("")).toBe("");
     expect(basic_t("  ")).toBe("  ");
     expect(basic_t(/** @type {any} */ (markup("<p>help</p>")))).toBe("<p>help</p>");
