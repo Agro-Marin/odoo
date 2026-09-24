@@ -4,6 +4,7 @@
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { checkFileSize } from "@web/core/utils/files";
+import { useServices } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
 export class AttachDocumentWidget extends Component {
@@ -19,12 +20,13 @@ export class AttachDocumentWidget extends Component {
     fileInput;
 
     setup() {
-        // eslint-disable-next-line no-restricted-syntax -- see comment above: raw services outlive the component
-        this.http = this.env.services.http;
-        // eslint-disable-next-line no-restricted-syntax -- see comment above: raw services outlive the component
-        this.notification = this.env.services.notification;
-        // eslint-disable-next-line no-restricted-syntax -- see comment above: raw services outlive the component
-        this.orm = this.env.services.orm;
+        this.appServices = useServices();
+
+        this.http = this.appServices.http;
+
+        this.notification = this.appServices.notification;
+
+        this.orm = this.appServices.orm;
         this.fileInput = document.createElement("input");
         this.fileInput.type = "file";
         this.fileInput.accept = "*";

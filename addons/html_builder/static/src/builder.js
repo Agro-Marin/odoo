@@ -25,7 +25,7 @@ import {
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/translation";
 import { addLoadingEffect as addButtonLoadingEffect } from "@web/core/utils/dom/ui";
-import { useService } from "@web/core/utils/hooks";
+import { useService, useServices } from "@web/core/utils/hooks";
 import { MEDIAS_BREAKPOINTS, SIZES } from "@web/ui/viewport";
 
 // These elements should only have inline content (even if they have a `block`
@@ -70,6 +70,7 @@ export class Builder extends Component {
 
     setup() {
         this.overlayContext = useEditorOverlayContext();
+        this.appServices = useServices();
         this.ThemeTab = this.props.getThemeTab?.();
         this.CustomizeTranslationTab = this.props.getCustomizeTranslationTab?.();
         // const actionService = useService("action");
@@ -223,7 +224,7 @@ export class Builder extends Component {
                 publicAttachments: true,
                 direction: "ltr",
             },
-            this.env.services,
+            this.appServices,
         );
         this.props.onEditorLoad?.(this.editor);
 

@@ -11,7 +11,12 @@ import {
 } from "@odoo/owl";
 import { getDefaultDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
-import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
+import {
+    CallbackRecorder,
+    provideActionCallbackRecorders,
+    useActionCallbackRecorders,
+    useSetupAction,
+} from "@web/core/action_hook";
 import { SEARCH_KEYS } from "@web/core/constants";
 import { SearchModelEvent } from "@web/core/events";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
@@ -53,11 +58,12 @@ export class WithSearch extends Component {
     };
 
     setup() {
-        if (!this.env.__getContext__) {
-            useSubEnv({ __getContext__: new CallbackRecorder() });
+        const parentCallbacks = useActionCallbackRecorders();
+        if (!parentCallbacks.__getContext__) {
+            provideActionCallbackRecorders({ __getContext__: new CallbackRecorder() });
         }
-        if (!this.env.__getOrderBy__) {
-            useSubEnv({ __getOrderBy__: new CallbackRecorder() });
+        if (!parentCallbacks.__getOrderBy__) {
+            provideActionCallbackRecorders({ __getOrderBy__: new CallbackRecorder() });
         }
 
         const SearchModelClass = this.props.SearchModel || SearchModel;

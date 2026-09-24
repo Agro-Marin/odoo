@@ -65,6 +65,16 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
     return ref;
 }
 
+/** @param {Record<string, any>} services */
+export function provideServices(services) {
+    useSubEnv({ services });
+}
+
+/** @returns {Record<string, any>} */
+export function useServices() {
+    return useEnv().services;
+}
+
 /** @param {import("@odoo/owl").EventBus} bus */
 export function provideEventBus(bus) {
     useSubEnv({ bus });

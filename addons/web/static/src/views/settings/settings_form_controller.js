@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { useEffect, useRef, useState } from "@odoo/owl";
+import { useActionCallbackRecorders } from "@web/core/action_hook";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
@@ -22,6 +23,7 @@ export class SettingsFormController extends formView.Controller {
 
     setup() {
         super.setup();
+        this.actionCallbacks = useActionCallbackRecorders();
         this.viewButtonContext = useViewButtonContext();
         this.dialogContext = useDialogContext();
         this.ui = useService("ui");
@@ -45,8 +47,8 @@ export class SettingsFormController extends formView.Controller {
         );
         useEffect(
             () => {
-                if (this.env.__getLocalState__) {
-                    this.env.__getLocalState__.remove(this);
+                if (this.actionCallbacks.__getLocalState__) {
+                    this.actionCallbacks.__getLocalState__.remove(this);
                 }
             },
             () => [],

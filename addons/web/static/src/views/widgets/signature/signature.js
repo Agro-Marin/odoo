@@ -5,7 +5,7 @@ import { Component } from "@odoo/owl";
 import { SignatureDialog } from "@web/components/signature/signature_dialog";
 import { getSignatureDefaultName } from "@web/components/signature/signature_name";
 import { registry } from "@web/core/registry";
-import { useService } from "@web/core/utils/hooks";
+import { useService, useServices } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
 export class SignatureWidget extends Component {
@@ -24,6 +24,7 @@ export class SignatureWidget extends Component {
     orm;
 
     setup() {
+        this.appServices = useServices();
         this.dialogService = useService("dialog");
         this.orm = useService("orm");
     }
@@ -60,8 +61,8 @@ export class SignatureWidget extends Component {
             await record.save();
             return;
         }
-        // eslint-disable-next-line no-restricted-syntax -- deliberate raw access; see comment above
-        const orm = this.env.services.orm;
+
+        const orm = this.appServices.orm;
 
         await orm.write(resModel, [resId], { [signatureField]: file });
         await record.load();

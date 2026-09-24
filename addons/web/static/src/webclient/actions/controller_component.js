@@ -11,7 +11,10 @@ import {
     useChildSubEnv,
     xml,
 } from "@odoo/owl";
-import { CallbackRecorder } from "@web/core/action_hook";
+import {
+    CallbackRecorder,
+    provideChildActionCallbackRecorders,
+} from "@web/core/action_hook";
 import { useDebugCategory } from "@web/core/debug/debug_context";
 import { AppEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";
@@ -37,7 +40,7 @@ function useControllerStateRecorders(component, action, am) {
         ev.detail.push(...component.__beforeLeave__.callbacks);
     });
     if (component.Component !== View) {
-        useChildSubEnv({
+        provideChildActionCallbackRecorders({
             __beforeLeave__: component.__beforeLeave__,
             __getGlobalState__: component.__getGlobalState__,
             __getLocalState__: component.__getLocalState__,

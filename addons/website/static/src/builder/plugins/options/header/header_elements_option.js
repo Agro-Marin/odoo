@@ -2,6 +2,7 @@
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { useServices } from "@web/core/utils/hooks";
 
 import { basicHeaderOptionSettings } from "./basicHeaderOptionSettings.js";
 
@@ -13,6 +14,7 @@ export class HeaderElementsOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.appServices = useServices();
         useLifecycleLog(log);
         this.customizeWebsite = this.dependencies.customizeWebsite;
         const views = [

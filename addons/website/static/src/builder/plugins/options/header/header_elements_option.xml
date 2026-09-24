@@ -42,7 +42,7 @@
                 resetViewArch: true,
             }"
         />
-        <t t-set="language_ids" t-value="this.env.services.website.currentWebsite.language_ids || []"/>
+        <t t-set="language_ids" t-value="this.appServices.website.currentWebsite.language_ids || []"/>
         <BuilderButton t-if="language_ids.length > 1"
             title.translate="Language Selector"
             className="'fa-solid fa-flag flex-grow-1'"

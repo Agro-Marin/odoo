@@ -1,7 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onMounted, useEffect, useEnv, useExternalListener } from "@odoo/owl";
+import {
+    onMounted,
+    useChildSubEnv,
+    useEffect,
+    useEnv,
+    useExternalListener,
+    useSubEnv,
+} from "@odoo/owl";
 import { useProps } from "@web/core/utils/owl_bridge";
 
 export const scrollSymbol = Symbol("scroll");
@@ -31,6 +38,21 @@ export class CallbackRecorder {
     remove(owner) {
         this._callbacks = this._callbacks.filter((s) => s.owner !== owner);
     }
+}
+
+/** @param {Record<string, any>} recorders */
+export function provideActionCallbackRecorders(recorders) {
+    useSubEnv(recorders);
+}
+
+/** @param {Record<string, any>} recorders */
+export function provideChildActionCallbackRecorders(recorders) {
+    useChildSubEnv(recorders);
+}
+
+/** @returns {Record<string, any>} */
+export function useActionCallbackRecorders() {
+    return useEnv();
 }
 
 /**

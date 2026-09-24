@@ -16,7 +16,6 @@ import {
     useEnv,
     useRef,
     useState,
-    useSubEnv,
 } from "@odoo/owl";
 import { LazyComponent, loadBundle } from "@web/core/assets";
 import { isBrowserSafari } from "@web/core/browser/feature_detection";
@@ -26,7 +25,13 @@ import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { closestScrollableY } from "@web/core/utils/dom/scrolling";
 import { uniqueId } from "@web/core/utils/functions";
-import { useChildRef, useForwardRefToParent, useService } from "@web/core/utils/hooks";
+import {
+    provideServices,
+    useChildRef,
+    useForwardRefToParent,
+    useService,
+    useServices,
+} from "@web/core/utils/hooks";
 import { renderToFragment } from "@web/core/utils/render";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
@@ -55,7 +60,7 @@ export function useOverlayServiceOffset() {
         };
         return originalOverlay.add(C, props, opts);
     };
-    useSubEnv({ services: subServices });
+    provideServices(subServices);
 }
 
 export class MassMailingIframe extends Component {
@@ -82,6 +87,7 @@ export class MassMailingIframe extends Component {
     };
 
     setup() {
+        this.appServices = useServices();
         this.dialogContext = useDialogContext();
         this.ui = useService("ui");
         useOverlayServiceOffset();
@@ -115,7 +121,7 @@ export class MassMailingIframe extends Component {
             }
         });
         if (!this.props.readonly && !this.props.withBuilder) {
-            this.editor = new Editor(this.props.config, this.env.services);
+            this.editor = new Editor(this.props.config, this.appServices);
             this.props.onEditorLoad(this.editor);
             onWillDestroy(() => {
                 this.editor.destroy(true);

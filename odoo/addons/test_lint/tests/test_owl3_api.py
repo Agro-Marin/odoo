@@ -42,7 +42,8 @@ ENV_KEYS = {
         r"childField|increaseQuantity|decreaseQuantity|addProduct|removeProduct|"
         r"setQuantity|mainProductTmplId|currency|canChangeVariant|showQuantity|"
         r"showPackaging|showPrice|setUoM|updateProductTemplateSelectedPTAV|"
-        r"updatePTAVCustomValue|isPossibleCombination)\b"
+        r"updatePTAVCustomValue|isPossibleCombination|__beforeLeave__|"
+        r"__getGlobalState__|__getLocalState__|__getContext__|__getOrderBy__)\b"
     ),
     "owl_env_bus": re.compile(r"\bthis\.env\.bus\b"),
     "owl_env_debug": re.compile(r"\bthis\.env\.debug\b"),

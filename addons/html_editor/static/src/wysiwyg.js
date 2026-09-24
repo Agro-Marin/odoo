@@ -5,7 +5,7 @@ import {
 } from "@html_editor/core/editor_overlay_context";
 import { Component, onMounted, onWillDestroy, useRef } from "@odoo/owl";
 import { uniqueId } from "@web/core/utils/functions";
-import { useChildRef, useSpellCheck } from "@web/core/utils/hooks";
+import { useChildRef, useServices, useSpellCheck } from "@web/core/utils/hooks";
 
 import { Editor } from "./editor.js";
 import { LocalOverlayContainer } from "./local_overlay_container.js";
@@ -51,6 +51,7 @@ export class Wysiwyg extends Component {
     };
 
     setup() {
+        this.appServices = useServices();
         this.overlayRef = useChildRef();
         provideEditorOverlayContext({
             localOverlayContainerKey: uniqueId("wysiwyg"),
@@ -59,7 +60,7 @@ export class Wysiwyg extends Component {
         const contentRef = useRef("content");
         this.editor = this.props.editor;
         const config = this.getEditorConfig();
-        this.editor = new Editor(config, this.env.services);
+        this.editor = new Editor(config, this.appServices);
         this.props.onLoad(this.editor);
         useSpellCheck({
             refName: "content",
