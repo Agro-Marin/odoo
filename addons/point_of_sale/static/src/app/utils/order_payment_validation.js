@@ -249,6 +249,10 @@ export default class OrderPaymentValidation {
                 endFinalize({ order: this.orderUuid, synced: false });
                 return false;
             }
+            const pendingSyncResult = await this.pos.syncAllOrders();
+            const syncedOrders = Array.isArray(pendingSyncResult)
+                ? [...syncOrderResult, ...pendingSyncResult]
+                : syncOrderResult;
 
             if (this.shouldDownloadInvoice() && this.order.isToInvoice()) {
                 log.logic("finalizeValidation: invoice", () => ({
@@ -269,12 +273,12 @@ export default class OrderPaymentValidation {
                 }
             }
 
-            const postPushOrders = syncOrderResult.filter((order) =>
+            const postPushOrders = syncedOrders.filter((order) =>
                 order.waitForPushOrder(),
             );
             log.logic("finalizeValidation: post push", () => ({
                 order: this.orderUuid,
-                synced: syncOrderResult.length,
+                synced: syncedOrders.length,
                 postPush: postPushOrders.map((o) => o.id),
             }));
             if (postPushOrders.length > 0) {
