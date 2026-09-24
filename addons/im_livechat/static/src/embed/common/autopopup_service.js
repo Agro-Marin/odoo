@@ -22,7 +22,7 @@ export class AutopopupService {
         this.livechatService = livechatService;
         this.ui = ui;
 
-        storeService.isReady.then(() => {
+        livechatService.initialized.then(() => {
             browser.setTimeout(async () => {
                 await storeService.chatHub.initPromise;
                 if (this.allowAutoPopup) {

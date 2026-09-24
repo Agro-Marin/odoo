@@ -15,7 +15,7 @@ const threadStaticPatch = {
         if (thread) {
             return thread;
         }
-        await this.store.isReady;
+        await this.store.env.services["im_livechat.livechat"].initialized;
         return super.getOrFetch(...arguments);
     },
 };

@@ -24,7 +24,7 @@ export const ODOO_VERSION_KEY = `${location.origin.replace(
 const OPERATOR_STORAGE_KEY = "im_livechat_previous_operator";
 
 export class LivechatService {
-    initialized = false;
+    initialized = Promise.resolve();
 
     constructor(env, services) {
         this.setup(env, services);
@@ -44,9 +44,11 @@ export class LivechatService {
 
     async initialize() {
         log("initialize", `channel=${this.options.channel_id}`);
-        this.store.fetchStoreData("init_livechat", this.options.channel_id, {
-            readonly: false,
-        });
+        this.initialized = this.store.fetchStoreData(
+            "init_livechat",
+            this.options.channel_id,
+            { readonly: false },
+        );
         if (this.options.chatbot_test_store) {
             await this.store.chatHub.initPromise;
             this.store.insert(this.options.chatbot_test_store);

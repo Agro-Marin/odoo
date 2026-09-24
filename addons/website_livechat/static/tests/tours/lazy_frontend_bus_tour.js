@@ -25,8 +25,8 @@ registry.category("web_tour.tours").add("website_livechat.lazy_frontend_bus", {
                 return super.ensureWorkerStarted(...arguments);
             },
         });
-        odoo.__WOWL_DEBUG__.root.env.services["mail.store"].isReady.then(() =>
-            document.body.classList.add("o-mail-store-ready"),
+        odoo.__WOWL_DEBUG__.root.env.services["im_livechat.livechat"].initialized.then(
+            () => document.body.classList.add("o-mail-store-ready"),
         );
         return [
             {
