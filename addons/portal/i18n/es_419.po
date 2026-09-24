@@ -218,6 +218,12 @@ msgid "<strong>Open </strong>"
 msgstr "<strong>Abrir</strong>"
 
 #. module: portal
+#. odoo-javascript
+#: code:addons/portal/static/src/xml/portal_security.xml:0
+msgid "A name of your choosing, shown instead of the platform and browser."
+msgstr "Un nombre de su elección, que se muestra en lugar de la plataforma y el navegador."
+
+#. module: portal
 #: model:ir.model,name:portal.model_res_users_apikeys_description
 msgid "API Key Description"
 msgstr "Descripción de la clave API"
@@ -1007,6 +1013,17 @@ msgid "Remove this address"
 msgstr "Eliminar esta dirección"
 
 #. module: portal
+#: model_terms:ir.ui.view,arch_db:portal.portal_my_security
+msgid "Rename"
+msgstr "Renombrar"
+
+#. module: portal
+#. odoo-javascript
+#: code:addons/portal/static/src/interactions/portal_security.js:0
+msgid "Rename Device"
+msgstr "Renombrar dispositivo"
+
+#. module: portal
 #: model_terms:ir.ui.view,arch_db:portal.wizard_view
 msgid "Revoke Access"
 msgstr "Revocar el acceso"
@@ -1493,6 +1510,12 @@ msgstr "Tu nombre"
 #: model_terms:ir.ui.view,arch_db:portal.address_form_fields
 msgid "Zip Code"
 msgstr "Código postal"
+
+#. module: portal
+#. odoo-javascript
+#: code:addons/portal/static/src/xml/portal_security.xml:0
+msgid "e.g. Work laptop"
+msgstr "p. ej., Laptop del trabajo"
 
 #. module: portal
 #. odoo-javascript

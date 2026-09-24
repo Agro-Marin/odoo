@@ -806,6 +806,15 @@
                                     <span
                                         class="fw-bold"
                                         t-field="device.display_name" />
+                                    <button
+                                        type="button"
+                                        class="btn btn-link p-0 ms-1 align-baseline o_portal_rename_device"
+                                        t-att-data-id="device.id"
+                                        t-att-data-name="device.name or ''"
+                                        title="Rename"
+                                        aria-label="Rename">
+                                        <i class="fa-solid fa-pencil small" />
+                                    </button>
                                     <span
                                         t-if="device.is_current"
                                         class="badge text-bg-success ms-1 o_portal_device_current">

@@ -57,6 +57,9 @@ export class PortalSecurity extends Interaction {
                 }
             },
         },
+        ".o_portal_rename_device": {
+            "t-on-click.prevent": this.onRenameDeviceClick,
+        },
         ".o_portal_revoke_device": {
             "t-on-click.prevent": this.onRevokeDeviceClick,
         },
@@ -164,6 +167,26 @@ export class PortalSecurity extends Interaction {
                 ),
             );
             window.location.reload();
+        });
+    }
+    onRenameDeviceClick(ev) {
+        const deviceId = parseInt(ev.currentTarget.dataset.id, 10);
+        this.services.dialog.add(InputConfirmationDialog, {
+            title: _t("Rename Device"),
+            body: renderToMarkup("portal.devicename", {
+                name: ev.currentTarget.dataset.name,
+            }),
+            confirmLabel: _t("Save"),
+            confirm: async ({ inputEl }) => {
+                // an empty name falls back to the platform and browser
+                const name = inputEl.value.trim() || false;
+                log.lifecycle("rename device", () => ({ deviceId, named: !!name }));
+                await this.waitFor(
+                    this.services.orm.write("res.device", [deviceId], { name }),
+                );
+                window.location.reload();
+            },
+            cancel: () => {},
         });
     }
     async onRevokeDeviceClick(ev) {

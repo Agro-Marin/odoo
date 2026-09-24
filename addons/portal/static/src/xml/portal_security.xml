@@ -35,6 +35,13 @@
             </p>
         </form>
     </t>
+    <t t-name="portal.devicename">
+        <form string="Rename Device">
+            <p>A name of your choosing, shown instead of the platform and browser.</p>
+            <input type="text" class="form-control" name="name"
+                placeholder="e.g. Work laptop" t-attf-value="{{name}}"/>
+        </form>
+    </t>
     <t t-name="portal.keyshow">
         <div>
             <h3><strong>Write down your key</strong></h3>

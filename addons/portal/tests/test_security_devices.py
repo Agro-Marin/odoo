@@ -74,22 +74,25 @@ class TestPortalDevices(HttpCaseWithUserPortal):
         self.session["identity-check-last"] = time.time()
         odoo.http.root.session_store.save(self.session)
 
-    def _revoke(self, device):
+    def _call(self, method, device, *args):
         payload = {
             "jsonrpc": "2.0",
             "method": "call",
             "params": {
                 "model": "res.device",
-                "method": "revoke",
-                "args": [device.ids],
+                "method": method,
+                "args": [device.ids, *args],
                 "kwargs": {},
             },
         }
         return self.url_open(
-            "/web/dataset/call_kw/res.device/revoke",
+            f"/web/dataset/call_kw/res.device/{method}",
             data=json.dumps(payload),
             headers={"Content-Type": "application/json"},
         ).json()
+
+    def _revoke(self, device):
+        return self._call("revoke", device)
 
     def test_the_page_lists_the_users_own_devices(self):
         rows = self._rows()
@@ -128,3 +131,31 @@ class TestPortalDevices(HttpCaseWithUserPortal):
     def test_logging_out_from_the_page(self):
         self.start_tour("/my/security", "portal_log_out_a_device", login="portal")
         self.assertFalse(self.phone.active)
+
+    def test_a_portal_user_renames_their_device(self):
+        response = self._call("write", self.phone, {"name": "Kitchen tablet"})
+        self.assertIs(response.get("result"), True, response.get("error"))
+        self.assertEqual(self.phone.name, "Kitchen tablet")
+        self.assertIn("Kitchen tablet", self._rows())
+
+    def test_clearing_the_name_shows_platform_and_browser(self):
+        self._call("write", self.phone, {"name": False})
+        self.assertIn("Android Chrome", self._rows())
+
+    def test_another_users_device_cannot_be_renamed(self):
+        response = self._call("write", self.foreign, {"name": "Mine now"})
+        self.assertEqual(
+            response["error"]["data"]["name"], "odoo.exceptions.AccessError"
+        )
+        self.assertEqual(self.foreign.name, "Admin laptop")
+
+    def test_only_the_name_can_change(self):
+        response = self._call("write", self.phone, {"active": False})
+        self.assertEqual(
+            response["error"]["data"]["name"], "odoo.exceptions.AccessError"
+        )
+        self.assertTrue(self.phone.active)
+
+    def test_renaming_from_the_page(self):
+        self.start_tour("/my/security", "portal_rename_a_device", login="portal")
+        self.assertEqual(self.phone.name, "Kitchen tablet")
