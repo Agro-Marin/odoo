@@ -5,7 +5,7 @@ from ..tools import create_image_attachment
 
 @odoo.tests.common.tagged("post_install", "-at_install")
 class TestWebsiteAttachment(odoo.tests.HttpCase):
-    def test_01_type_url_301_image(self):
+    def test_01_type_url_image_redirects_temporarily(self):
         IMD = self.env["ir.model.data"]
 
         img1 = create_image_attachment(
@@ -28,7 +28,7 @@ class TestWebsiteAttachment(odoo.tests.HttpCase):
 
         IMD.create(
             {
-                "name": "an_image_redirect_301",
+                "name": "an_image_redirect",
                 "module": "test",
                 "model": img2._name,
                 "res_id": img2.id,
@@ -40,13 +40,13 @@ class TestWebsiteAttachment(odoo.tests.HttpCase):
 
         base = self.base_url()
         req = self.url_open(
-            base + "/web/image/test.an_image_redirect_301", allow_redirects=False
+            base + "/web/image/test.an_image_redirect", allow_redirects=False
         )
-        self.assertEqual(req.status_code, 301)
+        self.assertEqual(req.status_code, 302)
         self.assertURLEqual(req.headers["Location"], "/web/image/test.an_image_url")
 
         req = self.url_open(
-            base + "/web/image/test.an_image_redirect_301", allow_redirects=True
+            base + "/web/image/test.an_image_redirect", allow_redirects=True
         )
         self.assertEqual(req.status_code, 200)
 
