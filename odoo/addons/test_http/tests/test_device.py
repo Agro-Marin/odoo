@@ -3,12 +3,14 @@ import time
 from datetime import datetime
 from unittest.mock import patch
 
+import requests
 from freezegun import freeze_time
 
 import odoo
 from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.http import STORED_SESSION_BYTES
+from odoo.libs.debug_log import DebugLog
 from odoo.service import security
 from odoo.tests.utils import HOST, get_db_name
 
@@ -20,6 +22,8 @@ from odoo.addons.test_http.utils import (
     USER_AGENT_linux_chrome,
     USER_AGENT_linux_firefox,
 )
+
+_debug = DebugLog(__name__)
 
 
 class TestDevice(TestHttpBase):
@@ -472,10 +476,8 @@ class TestDevice(TestHttpBase):
         )
 
         devices, logs = self.get_devices_logs(self.user_admin)
-        self.assertEqual(len(devices), 2, "one Chrome across two logins, one Firefox")
-        self.assertEqual(len(logs), 2)
-        chrome = devices.filtered(lambda device: device.browser == "chrome")
-        self.assertEqual(len(chrome.session_ids), 2)
+        self.assertEqual(len(devices), 3, "no login issued a browser key")
+        self.assertEqual(len(logs), 3)
 
         self.user_admin.device_ids.filtered(
             lambda device: "firefox" in device.browser
@@ -692,10 +694,12 @@ class TestDevice(TestHttpBase):
             other.sid[:STORED_SESSION_BYTES],
         )
 
-    def _session_without_device(self, user):
+    def _session_without_device(self, user, *, traced=False):
         session = odoo.http.root.session_store.new()
         session.update(
-            odoo.http.prepare_default_session(), db=get_db_name(), _trace_disable=True
+            odoo.http.prepare_default_session(),
+            db=get_db_name(),
+            _trace_disable=not traced,
         )
         session.uid = user.id
         session.login = user.login
@@ -703,9 +707,27 @@ class TestDevice(TestHttpBase):
         odoo.http.root.session_store.save(session)
         return session
 
-    def _open_with(self, session, url):
-        self.opener.cookies.set("session_id", session.sid, domain=HOST)
-        return self.url_open(url)
+    def _greets(self, sid, user_agent=USER_AGENT_linux_firefox):
+        with self.allow_requests():
+            cookies = self.opener.cookies.copy()
+            cookies.set("session_id", None)
+            cookies.set("session_id", sid, domain=HOST)
+            response = requests.get(
+                f"{self.base_url()}/test_http/greeting-user",
+                cookies=cookies,
+                headers={"User-Agent": user_agent},
+                timeout=10,
+            )
+        greeted = response.text == "Tek'ma'te"
+        _debug.logic(
+            "test.device.greets",
+            sid=sid[:8],
+            status=response.status_code,
+            url=response.url,
+            greeted=greeted,
+            cookies=sorted(cookies.keys()),
+        )
+        return greeted
 
     def test_revoke_all_ends_a_session_that_has_no_device(self):
         victim = self.authenticate(self.user_internal.login, self.user_internal.login)
@@ -713,13 +735,10 @@ class TestDevice(TestHttpBase):
         odoo.http.root.session_store.save(victim)
         self.url_open("/test_http/greeting-user?readonly=0")
         unlisted = self._session_without_device(self.user_internal)
-        self.assertNotIn(
-            "/web/login", self._open_with(unlisted, "/test_http/greeting-user").url
-        )
+        self.assertTrue(self._greets(unlisted.sid))
         self.env.invalidate_all()
         self.assertEqual(len(self.user_internal.device_ids), 1, "only the victim's")
 
-        self._open_with(victim, "/odoo")
         response = self._call_kw(
             "res.users", "action_revoke_all_devices", self.user_internal.ids
         )
@@ -727,12 +746,10 @@ class TestDevice(TestHttpBase):
         self.assertEqual(
             response.get("result"), {"type": "ir.actions.client", "tag": "reload"}
         )
-        self.assertIn(
-            "/web/login", self._open_with(unlisted, "/test_http/greeting-user").url
-        )
-        self.assertNotIn(
-            "/web/login", self._open_with(victim, "/test_http/greeting-user").url
-        )
+        self.assertFalse(self._greets(unlisted.sid))
+        victim_now = self.opener.cookies["session_id"]
+        self.assertNotEqual(victim_now, victim.sid, "the current session got a new id")
+        self.assertTrue(self._greets(victim_now))
 
     def test_login_records_the_device_of_the_session_it_keeps(self):
         self.authenticate(None, None)
@@ -760,3 +777,76 @@ class TestDevice(TestHttpBase):
             device.session_ids.session_identifier, sid[:STORED_SESSION_BYTES]
         )
         self.assertNotIn("/web/login", self.url_open("/test_http/greeting-user").url)
+
+    def test_revoke_all_ends_a_stolen_copy_of_the_current_session(self):
+        victim = self.authenticate(self.user_internal.login, self.user_internal.login)
+        victim["identity-check-last"] = time.time()
+        odoo.http.root.session_store.save(victim)
+        self.url_open("/test_http/greeting-user?readonly=0")
+        stolen = victim.sid
+        self.assertTrue(self._greets(stolen, USER_AGENT_android_chrome))
+
+        self._call_kw("res.users", "action_revoke_all_devices", self.user_internal.ids)
+
+        self.assertFalse(self._greets(stolen, USER_AGENT_android_chrome))
+        rotated = self.opener.cookies["session_id"]
+        self.assertNotEqual(rotated, stolen)
+        self.assertTrue(self._greets(rotated))
+        self.env.invalidate_all()
+        devices = self.Device.with_context(active_test=False).search(
+            [("user_id", "=", self.user_internal.id)]
+        )
+        kept = devices.filtered("active")
+        self.assertEqual(len(kept), 1, "the thief's device is archived")
+        self.assertEqual(
+            kept.session_ids.filtered("active").session_identifier,
+            rotated[:STORED_SESSION_BYTES],
+            "the kept device follows its session to the new id",
+        )
+
+    def test_one_browser_logging_in_twice_is_one_device(self):
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+                "db": get_db_name(),
+                "login": self.user_internal.login,
+                "password": self.user_internal.login,
+            },
+        }
+        self.authenticate(None, None)
+        for _login in range(2):
+            self.url_open(
+                "/web/session/authenticate",
+                data=json.dumps(payload),
+                headers={"Content-Type": "application/json"},
+            )
+            self.url_open("/web/session/logout")
+
+        self.env.invalidate_all()
+        device = self.Device.with_context(active_test=False).search(
+            [("user_id", "=", self.user_internal.id)]
+        )
+        self.assertEqual(len(device), 1)
+        self.assertEqual(len(device.with_context(active_test=False).session_ids), 2)
+        self.assertTrue(self.opener.cookies.get(DEVICE_KEY_COOKIE))
+
+    def test_archiving_a_device_revokes_it(self):
+        session = self.authenticate(self.user_internal.login, self.user_internal.login)
+        session["identity-check-last"] = time.time()
+        odoo.http.root.session_store.save(session)
+        self.url_open("/test_http/greeting-user?readonly=0")
+        other = self._session_without_device(self.user_internal, traced=True)
+        self.assertTrue(self._greets(other.sid, USER_AGENT_android_chrome))
+        self.env.invalidate_all()
+        foreign = self.user_internal.device_ids.filtered(
+            lambda device: device.browser == "chrome"
+        )
+        self.assertEqual(len(foreign), 1)
+
+        self._call_kw("res.device", "action_archive", foreign.ids)
+
+        self.env.invalidate_all()
+        self.assertFalse(foreign.active)
+        self.assertFalse(self._greets(other.sid, USER_AGENT_android_chrome))
+        self.assertTrue(self._greets(self.opener.cookies["session_id"]))

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import odoo.http
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.libs._vendor.useragents import UserAgentParser
 from odoo.tests import TransactionCase, new_test_user
 
@@ -49,6 +49,7 @@ class DeviceCase(TransactionCase):
         browser="firefox",
         issue=False,
         uid=None,
+        at_login=None,
     ):
         session = _Session(uid or self.env.uid, sid)
         stamp = datetime.fromisoformat(when).replace(tzinfo=UTC).timestamp()
@@ -68,7 +69,9 @@ class DeviceCase(TransactionCase):
             ),
             future_response=response,
         )
-        self.env["res.device"]._update_device(request)
+        self.env["res.device"]._update_device(
+            request, at_login=issue if at_login is None else at_login
+        )
         self.env.invalidate_all()
         return response
 
@@ -126,6 +129,14 @@ class TestDeviceUpsert(DeviceCase):
         self.assertIsNone(again)
         self.assertEqual(self._devices(), device)
         self.assertEqual(len(device.session_ids), 2)
+
+    def test_a_session_without_a_key_gets_none_until_it_logs_in(self):
+        responses = [
+            self._seen("2026-07-01 09:00:00", key=None, issue=True, at_login=False)
+            for _parallel_request in range(3)
+        ]
+        self.assertFalse(any(response.cookies for response in responses))
+        self.assertEqual(len(self._devices()), 1, "one browser, one device")
 
     def test_a_malformed_key_is_replaced(self):
         response = self._seen("2026-07-01 08:00:00", key="not-a-key", issue=True)
@@ -238,6 +249,12 @@ class TestDeviceModel(DeviceCase):
         self.assertEqual(
             action["views"], [(self.env.ref("base.res_device_view_rename").id, "form")]
         )
+
+    def test_a_revoked_device_cannot_be_unarchived(self):
+        device = self._device(active=False)
+        with self.assertRaises(UserError):
+            device.action_unarchive()
+        self.assertFalse(device.active)
 
     def test_is_current_without_request(self):
         self.assertFalse(self._device().is_current)

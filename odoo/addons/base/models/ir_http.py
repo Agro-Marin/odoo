@@ -405,7 +405,7 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _post_login(cls, env: api.Environment) -> None:
-        env["res.device"]._update_device(request)
+        env["res.device"]._update_device(request, at_login=True)
 
     @classmethod
     def _post_logout(cls, retired_identifier: str | None) -> None:

@@ -1828,7 +1828,8 @@ Partner bank accounts.
 One row per browser of a user (`_identity_uniq` on user and `key_hash`). A
 browser is recognized by the `device_key` cookie: 32 random bytes, HttpOnly,
 400 days, of which only the SHA-256 is stored; an identifier, never a
-credential. A client without it (RPC, API keys) is one device per session and
+credential. Only a login issues it (one request; a session's later requests
+run in parallel and would each issue their own). A client without it (RPC, API keys) is one device per session and
 browser, keyed by a hash of those. Archived once none of its sessions lives,
 kept for `base.device_retention_days` (default 90, 0 keeps it forever).
 
@@ -1842,9 +1843,10 @@ kept for `base.device_retention_days` (default 90, 0 keeps it forever).
 - `is_current` (Boolean, computed, sortable: the browser of the current request)
 
 **Key Methods:**
-- `_update_device(request)` — Issue the browser key if missing; upsert the device, its session and its address in one statement; at login (`ir.http._post_login`) and on each trace change
+- `_update_device(request, at_login=False)` — Upsert the device, its session and its address in one statement; at login (`ir.http._post_login`, which also issues the browser key) and on each trace change
 - `revoke()` — Revoke every session of the device (`@check_identity`); reloads when it is the current one
 - `action_rename()` — Open the rename form; a user may write `name` and nothing else
+- `action_archive()` — Revoke (archiving a device ends its sessions); `action_unarchive()` refuses
 - `_gc_revoked_devices()` — Autovacuum: delete archived devices past the retention
 
 #### ResDeviceSession — `res.device.session` (`_name`)
@@ -1855,6 +1857,7 @@ these, and a device is archived when its last live session ends.
 **Key Methods:**
 - `_mark_revoked(session_identifiers)` — End those sessions; archive the devices left without a live one
 - `_mark_logged_out(session_identifier)` — At logout (`ir.http._post_logout`); a readonly cursor leaves it to the sweep
+- `_follow_rotation(retired, successor)` — "Log out from all devices" gives the current session a new id: its device follows it, and every other device still on the old id (a stolen copy) is ended
 - `_update_revoked()` — Autovacuum: end the sessions the store lost
 - `_gc_ended_sessions()` — Autovacuum: delete ended sessions past the retention
 

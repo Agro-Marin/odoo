@@ -22,7 +22,7 @@ from odoo.exceptions import (
     ValidationError,
 )
 from odoo.fields import Command, Domain
-from odoo.http import DEFAULT_LANG, request
+from odoo.http import DEFAULT_LANG, STORED_SESSION_BYTES, request
 from odoo.libs import netguard
 from odoo.libs.datetime import all_timezones
 from odoo.libs.debug_log import DebugLog
@@ -1631,10 +1631,12 @@ class ResUsers(models.Model):
 
     def _action_revoke_all_devices(self) -> dict[str, Any]:
         self.check_singleton()
+        # the current session moves to a new id first: a device still holding
+        # the old one is a stolen copy, and revoking it must not reach this one
+        self._end_other_sessions()
         others = self.device_ids.filtered(lambda d: not d.is_current)
         _debug.lifecycle("all_devices_revoked", user=self.id, devices=len(others))
         others._revoke()
-        self._end_other_sessions()
         return {"type": "ir.actions.client", "tag": "reload"}
 
     def _end_other_sessions(self) -> None:
@@ -1650,7 +1652,17 @@ class ResUsers(models.Model):
         self._invalidate_session_tokens()
         keeps_current = bool(request) and request.session.uid == self.id
         if keeps_current:
-            request.session.session_token = self._get_session_token(request.session.sid)
+            # a stolen copy of this very session shares its id: only a new id,
+            # whose rotation removes the old family, leaves it behind
+            session = request.session
+            retired = session.sid[:STORED_SESSION_BYTES]
+            session._require_hard_rotation()
+            if session.store is not None:
+                session.store.stage_rotation(session, self.env)
+            session.session_token = self._get_session_token(session.sid)
+            successor = session.sid[:STORED_SESSION_BYTES]
+            if successor != retired:
+                self.env["res.device.session"]._follow_rotation(retired, successor)
         _debug.lifecycle(
             "other_sessions_ended", user=self.id, keeps_current=keeps_current
         )

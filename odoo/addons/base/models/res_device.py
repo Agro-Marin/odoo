@@ -8,7 +8,7 @@ from itertools import batched
 from typing import Any
 
 from odoo import api, fields, models
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, UserError
 from odoo.fields import Field
 from odoo.http import (
     STORED_SESSION_BYTES,
@@ -202,6 +202,18 @@ class ResDevice(models.Model):
             raise AccessError(self.env._("You can only rename a device."))
         return super().write(vals)
 
+    def action_archive(self) -> dict[str, Any] | None:
+        # archiving a device is revoking it: its sessions end with it
+        return self.revoke()
+
+    def action_unarchive(self) -> None:
+        raise UserError(
+            self.env._(
+                "A revoked device cannot be restored: it comes back by itself "
+                "when its browser signs in again."
+            )
+        )
+
     def action_rename(self) -> dict[str, Any]:
         self.check_singleton()
         return {
@@ -214,14 +226,16 @@ class ResDevice(models.Model):
         }
 
     @api.model
-    def _update_device(self, request: Any) -> None:
+    def _update_device(self, request: Any, *, at_login: bool = False) -> None:
         trace = request.session.update_trace(request)
         if not trace:
             _debug.logic("device_log_skipped", reason="trace_unchanged")
             return
 
         session_identifier = request.session.sid[:STORED_SESSION_BYTES]
-        key = _browser_key(request, issue=True)
+        # only a login issues a key: it is one request, where a session's later
+        # requests come in parallel and would each issue their own
+        key = _browser_key(request, issue=at_login)
         geoip = GeoIP(trace["ip_address"], app=request.app)
         values = {
             "user_id": request.session.uid,
@@ -486,6 +500,57 @@ class ResDeviceSession(models.Model):
         self.env["res.device"].invalidate_model(["active", "write_uid", "write_date"])
         _debug.lifecycle("sessions_revoked", sessions=revoked, devices=len(devices))
         return revoked
+
+    @api.model
+    def _follow_rotation(self, retired: str, successor: str) -> None:
+        key = _browser_key(request, issue=False)
+        user_agent = request.httprequest.user_agent
+        before, after = (
+            _device_key_hash(key, identifier, user_agent.platform, user_agent.browser)
+            for identifier in (retired, successor)
+        )
+        uid, now = self.env.uid, self.env.cr.now()
+        self.env["res.device"].flush_model(["key_hash"])
+        self.flush_model(["session_identifier", "device_id"])
+        self.env.cr.execute(
+            SQL(
+                """
+                UPDATE res_device_session session
+                SET session_identifier = %s, write_uid = %s, write_date = %s
+                FROM res_device device
+                WHERE device.id = session.device_id
+                  AND device.user_id = %s
+                  AND device.key_hash = %s
+                  AND session.session_identifier = %s
+                """,
+                successor,
+                uid,
+                now,
+                uid,
+                before,
+                retired,
+            )
+        )
+        followed = self.env.cr.rowcount
+        if after != before:
+            # a device without a browser key is keyed by its session
+            self.env.cr.execute(
+                SQL(
+                    """
+                    UPDATE res_device SET key_hash = %s, write_uid = %s, write_date = %s
+                    WHERE user_id = %s AND key_hash = %s
+                    """,
+                    after,
+                    uid,
+                    now,
+                    uid,
+                    before,
+                )
+            )
+        self.invalidate_model(["session_identifier", "write_uid", "write_date"])
+        self.env["res.device"].invalidate_model(["key_hash", "write_uid", "write_date"])
+        ended = self._mark_revoked([retired])
+        _debug.lifecycle("session_rotation_followed", followed=followed, ended=ended)
 
     @api.model
     def _mark_logged_out(self, session_identifier: str) -> None:
