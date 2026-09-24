@@ -69,3 +69,23 @@ def migrate(cr, version):
                 old,
                 new,
             )
+    # the for_* flags are stored computes of operation that a SQL rewrite leaves
+    # stale, and the form's inverse writes operation back from them
+    cr.execute(
+        SQL(
+            """
+            UPDATE ir_access
+            SET for_create = position('c' IN operation) > 0,
+                for_read = position('r' IN operation) > 0,
+                for_write = position('u' IN operation) > 0,
+                for_unlink = position('d' IN operation) > 0
+            FROM ir_model_data data
+            WHERE data.module = 'base'
+              AND data.name = ANY(%s)
+              AND data.model = 'ir.access'
+              AND ir_access.id = data.res_id
+              AND operation IS NOT NULL
+            """,
+            [xmlid for xmlid, column, _old, _new in _REWRITES if column == "operation"],
+        )
+    )
