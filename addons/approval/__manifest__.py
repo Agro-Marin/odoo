@@ -56,6 +56,7 @@ activities to a substitute for a dated window; escalation reminds by priority.
         "reports/approval_request_report.xml",
         "views/approval_category_views.xml",
         "views/approval_category_step_views.xml",
+        "views/approval_authority_limit_views.xml",
         "views/approval_request_views.xml",
         "views/approval_refusal_reason_views.xml",
         "views/approval_rule_views.xml",

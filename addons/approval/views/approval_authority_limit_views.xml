@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="approval_authority_limit_view_list" model="ir.ui.view">
+        <field name="name">approval.authority.limit.list</field>
+        <field name="model">approval.authority.limit</field>
+        <field name="arch" type="xml">
+            <list string="Authority Limits" editable="bottom">
+                <field name="grant_id" options="{'no_create': True}" />
+                <field name="user_id" />
+                <field name="model_id" options="{'no_create': True}" />
+                <field name="verb" />
+                <field name="amount_max" />
+                <field name="currency_id" options="{'no_create': True}" />
+            </list>
+        </field>
+    </record>
+
+    <record id="action_approval_authority_limit" model="ir.actions.act_window">
+        <field name="name">Authority Limits</field>
+        <field name="res_model">approval.authority.limit</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No authority limit is set</p>
+            <p>
+                A limit qualifies a grant: up to which amount its holder may approve a verb of a
+                document, while the grant holds and in the companies it is scoped to. A step that
+                walks the manager chain or its group by limit stops at the first approver whose
+                limit covers the amount.
+            </p>
+        </field>
+    </record>
+
+</odoo>

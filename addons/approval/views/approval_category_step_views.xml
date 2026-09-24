@@ -15,6 +15,10 @@
                             <field name="group_id" options="{'no_create': True}" />
                             <field name="asks_group_members" invisible="not group_id" />
                             <field name="minimum" />
+                            <field name="walk" />
+                            <field
+                                name="walk_from"
+                                invisible="walk != 'manager_chain'" />
                             <field name="exclusive" />
                             <field name="in_order" />
                             <field name="counts_added_approvers" />

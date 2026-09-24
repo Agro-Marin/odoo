@@ -39,6 +39,7 @@ class SaleOrder(models.Model):
         "confirm": models.Verb(
             methods=("action_confirm",),
             transition=("state", "*", "done"),
+            amount="amount_total",
         ),
     }
 

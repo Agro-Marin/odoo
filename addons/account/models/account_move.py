@@ -304,6 +304,7 @@ class AccountMove(models.Model):
         "post": models.Verb(
             methods=("action_post",),
             checkpoints=("_post_check_business_rules",),
+            amount="amount_total",
         ),
     }
 

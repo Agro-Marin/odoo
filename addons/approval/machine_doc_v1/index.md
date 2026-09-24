@@ -60,6 +60,7 @@ dashboards.
 | `approval_category_step.py` | `approval.category.step`, `approval.category.step.member` | Steps: a category that needs several pools, each with its own quorum, declares them. A pool is its members (each with an optional end date, so a delegation is a membership that expires) together with a group. Every request routes by the steps that apply to it |
 | `approval_binding.py` | `approval.binding` | Gates a model's method on an approval by wrapping it at registry load: Observe, Block or Request, with a `sudo_policy` that tells the real superuser apart from an ordinary user elevated by `sudo()` |
 | `ir_access_obligation.py` | extends `ir.access.obligation` | What the kernel asks at a verb's door and checkpoint: the verb's `approval.binding` rows. A document's own obligation (no category) asks the document's approval; a configured one gates like a method binding |
+| `approval_authority_limit.py` | `approval.authority.limit` | Up to which amount a grant's holder approves a verb of a document: qualifies a P2 `res.users.grant`, holds while it does and where it is scoped. A walking step reads them |
 | `approval_observation.py` | `approval.observation` | Append-only record of each gated call with the caller's elevation and whether Block would have refused it — how a binding is sized before it is switched on |
 | `approval_binding_client.py` | extends `approval.binding` | What the approval button asks: `get_button_approvals`, `check_button_approval`, `action_decide_approval`, `action_withdraw_decision`, and the gated-model set `get_views` reads |
 | `approval_binding_editor.py` | extends `approval.binding` | What Studio's editor asks: `create_step_for_button` (binds the button on its first step), `action_open_button_steps` (a kanban of the button's steps first) |
@@ -187,7 +188,7 @@ into `test_approvals.py`).
 
 | File | Content |
 |------|---------|
-| `res_groups.xml` | 3 groups — `group_approval_approver`, `group_approval_manager` under one `res.groups.privilege` (`res_groups_privilege_approvals`), and `group_approval_decider`, which only carries the approver-reach rows the adopters ship |
+| `res_groups.xml` | 4 groups — `group_approval_approver`, `group_approval_manager` under one `res.groups.privilege` (`res_groups_privilege_approvals`), `group_approval_decider`, which only carries the approver-reach rows the adopters ship, and the privilege `privilege_walk_authority`, under which a walking step reads the limits, grants and managers it walks |
 | `ir.access.csv` | Permissions and guards for every shipped model: multi-company, ownership, per-category `privacy_visibility` read audiences. The mixin's concrete test consumer is not one of them: `approval.test.document` lives in `test_approval`, which ships no row for it |
 
 ## Directory Structure
@@ -220,6 +221,7 @@ approval/
 |   +-- approval_refusal_reason.py    # Refusal reasons
 |   +-- approval_rule.py              # Conditional rules
 |   +-- approval_binding.py           # Method gates wrapped at registry load
+|   +-- approval_authority_limit.py   # Authority limits on grants, for walking steps
 |   +-- approval_observation.py        # Observed gated calls, both gates
 |   +-- ir_actions_server.py          # Server actions consult bindings in run()
 |   +-- ir_actions_report.py          # Report render entry points consult bindings
@@ -253,7 +255,7 @@ approval/
 | XML files (static templates) | 4 |
 | JS files | 25 |
 | SCSS files | 4 |
-| ORM models (new) | 19 in `models/` + 2 wizards + 3 report models |
+| ORM models (new) | 20 in `models/` + 2 wizards + 3 report models |
 | ORM models (extended) | 8 (base, ir.actions.report, ir.actions.server, ir.attachment, mail.activity, mail.activity.type, res.groups, res.users) |
 | Abstract models | 9 (mixin.approval.source, mixin.approval, mixin.approval.state.sync, mixin.approval.gate, mixin.approval.lifecycle, mixin.approval.subjects, mixin.approval.access, mixin.approval.threshold, mixin.approval.domain) |
 | SQL view models | 2 |

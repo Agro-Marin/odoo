@@ -58,6 +58,11 @@ def collect_verbs(model_cls: type[BaseModel]) -> dict[str, Verb]:
                     f"{model_cls._name}: verb {name!r} names {method!r}, "
                     f"which the model does not define"
                 )
+        if verb.amount is not None and verb.amount not in model_cls._fields:
+            raise TypeError(
+                f"{model_cls._name}: verb {name!r} reads its amount from "
+                f"{verb.amount!r}, which is not a field"
+            )
         if verb.transition is not None:
             field = model_cls._fields.get(verb.transition[0])
             if field is None or not field.store:

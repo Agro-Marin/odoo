@@ -24,6 +24,13 @@
         <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]" />
     </record>
 
+    <record id="privilege_walk_authority" model="res.groups">
+        <field name="name">Walk Approval Authority</field>
+        <field
+            name="comment">A step that walks to the approver whose limit covers the amount reads everyone's limits, the grants they qualify and the managers it climbs, whoever routes the request.</field>
+        <field name="is_privilege" eval="True" />
+    </record>
+
     <record id="group_approval_manager" model="res.groups">
         <field name="name">Administrator</field>
         <field name="sequence" eval="10" />

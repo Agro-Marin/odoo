@@ -3,6 +3,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 
 from . import approval_trace as trace
+from .approval_utils import ApprovalStepUnstaffed
 
 
 class ApprovalCategoryStep(models.Model):
@@ -150,6 +151,61 @@ class ApprovalCategoryStep(models.Model):
         help="Field path on the source document naming users who approve this step, "
         "e.g. employee_id.leave_manager_id. Each document names its own approvers.",
     )
+    walk = fields.Selection(
+        selection=[
+            ("none", "Everyone in the pool"),
+            ("manager_chain", "Up the manager chain"),
+            ("group_by_limit", "The group, by authority limit"),
+        ],
+        default="none",
+        required=True,
+        help="Up the manager chain: the first manager above the walk's start whose "
+        "authority limit covers the amount. The group, by authority limit: of the "
+        "group's members, the one with the lowest limit that covers it. Either way "
+        "one person decides the step, and a walk that ends uncovered cannot be "
+        "staffed.",
+    )
+    walk_from = fields.Selection(
+        selection=[("requester", "The requester"), ("owner", "Who asked")],
+        default="requester",
+        required=True,
+        help="Whose managers a manager-chain walk climbs: the person the document "
+        "is for, or the person who asked for its approval.",
+    )
+
+    @api.constrains("walk", "group_id", "minimum")
+    def _check_walk(self) -> None:
+        for step in self.filtered(lambda step: step.walk != "none"):
+            if step.minimum != 1:
+                trace.REFUSAL.event("walk_with_quorum", step=step.id)
+                raise ValidationError(
+                    self.env._(
+                        "Step '%(step)s' walks to one approver, so it needs exactly "
+                        "one approval.",
+                        step=step.name,
+                    )
+                )
+            if step.walk == "group_by_limit" and not step.group_id:
+                trace.REFUSAL.event("walk_by_limit_without_group", step=step.id)
+                raise ValidationError(
+                    self.env._(
+                        "Step '%(step)s' walks its group by authority limit and "
+                        "names no group.",
+                        step=step.name,
+                    )
+                )
+            if (
+                step.walk == "manager_chain"
+                and not self.env["approval.request"]._supplies_manager_chain()
+            ):
+                trace.REFUSAL.event("walk_without_manager_chain", step=step.id)
+                raise ValidationError(
+                    self.env._(
+                        "Step '%(step)s' walks the manager chain, which needs the "
+                        "employees' managers: install Approvals - HR.",
+                        step=step.name,
+                    )
+                )
 
     @api.constrains("in_order")
     def _check_in_order_without_consent(self) -> None:
@@ -229,7 +285,7 @@ class ApprovalCategoryStep(models.Model):
         return "subject_domain"
 
     @api.constrains(
-        "minimum", "member_ids", "group_id", "user_ids", "subject_user_path"
+        "minimum", "member_ids", "group_id", "user_ids", "subject_user_path", "walk"
     )
     def _check_pool(self) -> None:
         for step in self:
@@ -247,6 +303,7 @@ class ApprovalCategoryStep(models.Model):
                 or step.group_id
                 or step.subject_user_path
                 or step.counts_added_approvers
+                or step.walk == "manager_chain"
             ):
                 trace.REFUSAL.event("step_has_no_pool", step=step.id)
                 raise ValidationError(
@@ -397,6 +454,8 @@ class ApprovalCategoryStep(models.Model):
         names, and the group's users -- of those, the ones who work in `company` and
         whom the document's own policy lets decide it."""
         self.check_singleton()
+        if self.walk != "none" and request:
+            return self._walk(document, company, request)
         members = self._get_member_user_ids(document, company, request)
         users = set(members)
         if self.group_id:
@@ -418,6 +477,82 @@ class ApprovalCategoryStep(models.Model):
         )
         return pool
 
+    def _walk(self, document, company, request) -> set[int]:
+        """The one approver the walk stops at: the first whose limit covers the amount.
+
+        Excluded principals are passed over, not stopped at.
+        """
+        self.check_singleton()
+        verb = request.operation or (
+            document._get_gated_operation()
+            if isinstance(document, self.env.registry["mixin.approval.gate"])
+            else False
+        )
+        Users = self.env["res.users"]
+        excluded = request._get_excluded_approvers()
+        if self.walk == "manager_chain":
+            start = (
+                request.requester_id or request.request_owner_id
+                if self.walk_from == "requester"
+                else request.request_owner_id
+            )
+            candidates = request._get_manager_chain(start)
+        else:
+            pool = self._filter_document_user_ids(
+                self._filter_company_user_ids(
+                    set(self.group_id.all_user_ids.ids), company
+                ),
+                document,
+            )
+            candidates = Users.browse(sorted(pool))
+        candidates = candidates.filtered(
+            lambda user: user.active and user not in excluded
+        )
+        limits = self.env["approval.authority.limit"]._get_user_limits(
+            candidates, document._name if document else request.res_model, verb, request
+        )
+        if self.walk == "group_by_limit":
+            candidates = candidates.filtered(lambda user: user.id in limits).sorted(
+                lambda user: (limits[user.id], user.id)
+            )
+        amount = request.amount
+        for user in candidates:
+            if limits.get(user.id, -1.0) >= amount:
+                trace.STEPS.event(
+                    "walk_stopped",
+                    step=self.id,
+                    walk=self.walk,
+                    request=request.id,
+                    user=user.id,
+                    limit=limits[user.id],
+                    amount=amount,
+                )
+                return {user.id}
+        highest = max(limits.values(), default=0.0)
+        trace.REFUSAL.event(
+            "walk_uncovered",
+            step=self.id,
+            walk=self.walk,
+            request=request.id,
+            amount=amount,
+            highest=highest,
+        )
+        raise ApprovalStepUnstaffed(
+            self.env._(
+                "Nobody on step '%(step)s' may approve %(amount)s: the highest "
+                "authority limit met is %(highest)s.",
+                step=self.name,
+                amount=request.currency_id.format(amount)
+                if request.currency_id
+                else amount,
+                highest=request.currency_id.format(highest)
+                if request.currency_id
+                else highest,
+            ),
+            step=self,
+            company=company,
+        )
+
     def _get_candidate_user_ids(self, document=None, request=None) -> set[int]:
         """Every user the step names for `document`, before the request's company or
         the document's policy narrows them: routing owns the rows of all of them."""
@@ -425,6 +560,13 @@ class ApprovalCategoryStep(models.Model):
         users = self._get_member_user_ids(document, request=request)
         if self.group_id:
             users.update(self.group_id.all_user_ids.ids)
+        if self.walk == "manager_chain" and request:
+            start = (
+                request.requester_id or request.request_owner_id
+                if self.walk_from == "requester"
+                else request.request_owner_id
+            )
+            users.update(request._get_manager_chain(start).ids)
         return users
 
     def _filter_document_user_ids(self, user_ids: set[int], document) -> set[int]:

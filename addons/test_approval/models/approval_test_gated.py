@@ -10,7 +10,11 @@ class ApprovalTestGated(models.Model):
     _inherit = ["mixin.mail.thread", "mixin.approval.gate"]
     _approval_requester_field = "user_id"
     _access_verbs = {
-        "ship": models.Verb(methods=("action_ship",), checkpoints=("_check_ship",)),
+        "ship": models.Verb(
+            methods=("action_ship",),
+            checkpoints=("_check_ship",),
+            amount="amount_total",
+        ),
         "bill": models.Verb(methods=("action_bill",)),
     }
 

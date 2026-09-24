@@ -41,3 +41,8 @@ approval_approver_rule,Approval Approver: multi-company,model_approval_approver,
 approval_rule_rule,Approval Rule: multi-company,model_approval_rule,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
 approval_category_step_rule,Approval Step: multi-company,model_approval_category_step,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
 approval_category_step_member_rule,Approval Step Member: multi-company,model_approval_category_step_member,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
+access_approval_authority_limit_manager,Authority Limit: approval administrators set the limits,model_approval_authority_limit,group_approval_manager,permission,crud,
+access_approval_authority_limit_own,Authority Limit: a user reads their own limits,model_approval_authority_limit,base.group_user,permission,r,"[('user_id', '=', user.id)]"
+access_approval_authority_limit_walk,Authority Limit: a walking step reads every limit,model_approval_authority_limit,privilege_walk_authority,permission,r,
+access_res_users_grant_walk,res.users.grant: a walking step reads the grants limits qualify,base.model_res_users_grant,privilege_walk_authority,permission,r,
+access_res_users_grant_approval_manager,res.users.grant: approval administrators read the grants they set limits on,base.model_res_users_grant,group_approval_manager,permission,r,

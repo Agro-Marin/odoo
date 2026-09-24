@@ -624,6 +624,15 @@ class ApprovalRequestRouting(models.Model):
                 message_type="notification",
             )
 
+    @api.model
+    def _supplies_manager_chain(self) -> bool:
+        return False
+
+    def _get_manager_chain(self, user):
+        """The managers above `user`, nearest first, as a step's walk climbs them."""
+        self.check_singleton()
+        return self.env["res.users"]
+
     def _get_desired_approvers(self) -> DesiredApprovers:
         self.check_singleton()
         users_to_approver: dict[int, Any] = {}

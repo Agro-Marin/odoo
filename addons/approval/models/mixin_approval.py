@@ -79,6 +79,12 @@ class MixinApproval(models.AbstractModel):
         compute="_compute_can_request_approval",
         help="Whether approval can be requested (all required fields filled)",
     )
+    approval_chain_preview = fields.Html(
+        string="Who Will Approve",
+        compute="_compute_approval_chain_preview",
+        help="The approvers asking for approval would route this document to now, "
+        "in the order they decide. Nothing is written to find them.",
+    )
     approval_pending_user_ids = fields.Many2many(
         comodel_name="res.users",
         string="Deciding Now",
@@ -86,6 +92,56 @@ class MixinApproval(models.AbstractModel):
         search="_search_approval_pending_user_ids",
         help="Who is deciding this document's approval request right now.",
     )
+
+    @api.depends_context("uid", "company")
+    def _compute_approval_chain_preview(self) -> None:
+        for record in self:
+            record.approval_chain_preview = record._render_approval_chain_preview()
+
+    def _get_approval_chain_preview(self) -> list[dict[str, Any]]:
+        """The rows routing would stage for a request raised now, without writing one."""
+        self.check_singleton()
+        if not self.id or self.approval_request_id or not self.approval_required:
+            return []
+        try:
+            category = self._get_approval_category()
+            if not category:
+                return []
+            request = self.env["approval.request"].new(
+                self._prepare_approval_request_values(category)
+            )
+            staging = request._get_desired_approvers().staging
+        except UserError as error:
+            trace.MIXIN.event(
+                "approval_chain_preview_unavailable",
+                record=self,
+                error=type(error).__name__,
+            )
+            return [{"error": str(error)}]
+        users = self.env["res.users"].browse(list(staging))
+        return [
+            {
+                "user": user.display_name,
+                "sequence": staging[user.id]["sequence"],
+                "required": staging[user.id]["required"],
+            }
+            for user in users.sorted(
+                lambda user: (staging[user.id]["sequence"], user.display_name)
+            )
+        ]
+
+    def _render_approval_chain_preview(self) -> Markup | bool:
+        rows = self._get_approval_chain_preview()
+        if not rows:
+            return False
+        if "error" in rows[0]:
+            return Markup("<p>%s</p>") % rows[0]["error"]
+        items = Markup("").join(
+            Markup("<li>%s%s</li>")
+            % (row["user"], self.env._(" (required)") if row["required"] else "")
+            for row in rows
+        )
+        return Markup("<ol>%s</ol>") % items
 
     @api.depends_context("uid", "company")
     def _compute_approval_required(self) -> None:

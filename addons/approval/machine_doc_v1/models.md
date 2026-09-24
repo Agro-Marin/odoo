@@ -530,6 +530,7 @@ What the engine asks of any record a request is raised for, whichever adopter sh
 | `approval_user_ids` | Many2many(`res.users`) | No | No | related |
 | `approval_required` | Boolean | No | No | compute (memoised per domain+company) |
 | `can_request_approval` | Boolean | No | No | compute |
+| `approval_chain_preview` | Html | No | No | compute: the approvers routing would stage for a request raised now, in deciding order (`_get_approval_chain_preview` runs `_get_desired_approvers()` on a new-mode request built by `_prepare_approval_request_values`; nothing is written). Empty once a request exists or when none is required |
 | `approval_pending_user_ids` | Many2many(`res.users`) | No | No | compute + search: the request's `pending_user_ids`, searched as `approval_request_id IN (SELECT request_id FROM approval_request_pending_user_rel ...)`. The adopters' approver-reach read rows are written on it |
 
 ### Key Methods (Override Points)
@@ -941,6 +942,36 @@ Kill switch: `ir.config_parameter` `approval.binding_enabled`.
 
 ---
 
+## approval.authority.limit
+
+| Key | Value |
+|-----|-------|
+| Model | `approval.authority.limit` |
+| File | `models/approval_authority_limit.py` |
+| Type | Model |
+| Order | `grant_id, model_id, verb, amount_max` |
+
+Up to which amount the holder of a grant approves a verb of a document (P3 §7.2,
+decision W1): the limit qualifies P2's `res.users.grant`, so it is dated, scoped,
+caused and revoked with the authority it qualifies. A walking step
+(`approval.category.step.walk`) reads it through `_get_user_limits(users, model,
+verb, request)`: each user's highest limit whose grant is live and, when scoped,
+scoped to the request's company, converted to the request's currency at its date.
+It reads under `with_privilege("approval.privilege_walk_authority")`.
+
+### Fields
+
+| Field | Type | Stored | Required | Key Attributes |
+|-------|------|--------|----------|----------------|
+| `grant_id` | Many2one(`res.users.grant`) | Yes | **Yes** | ondelete=cascade, index. The authority the limit qualifies; `_access_anchors` company is its `company_ids` |
+| `user_id` | Many2one(`res.users`) | No | No | related `grant_id.user_id` |
+| `model_id` / `model_name` | Many2one(`ir.model`) / Char | Yes / No | **Yes** / No | the document; `model_name` related |
+| `verb` | Char | Yes | **Yes** | a verb the model declares with an `amount` (`_check_verb`) |
+| `amount_max` | Monetary | Yes | **Yes** | string="Up To" |
+| `currency_id` | Many2one(`res.currency`) | Yes | **Yes** | default the company's |
+
+---
+
 ## approval.observation
 
 | Key | Value |
@@ -1021,6 +1052,8 @@ since 19.0.2.8.0 every category routes by steps.
 | `condition_field` / `operator` / `threshold` / `threshold_max` / `currency_id` | Selection / Selection / Float / Float / Many2one | Yes | No | from `mixin.approval.threshold`. The step applies only when the request's amount (converted into `currency_id`), quantity, date range in days or priority compares true. Unlike `subject_domain` it needs no source document, which is what lets a threshold rule or a replacement band be written as a step |
 | `when_rule_ids` / `unless_rule_ids` | Many2many(`approval.rule`) | Yes | No | The step applies only when every `when` rule matches and no `unless` rule does, as `approval.rule._evaluate` and the rule's company decide (`_matches_request_rules`). The conversion writes them for rule sets figure conditions cannot express |
 | `subject_user_path` | Char | Yes | No | string="Approvers From". A field path on the source document ending in `res.users` (e.g. `employee_id.leave_manager_id`): each document names its own approvers, who join the step's members. What a time off manager is, and neither a listed member nor a group can say |
+| `walk` | Selection(none/manager_chain/group_by_limit) | Yes | **Yes** | default="none". `manager_chain`: the first manager above `walk_from` whose authority limit covers the request's amount (approval_hr supplies `_get_manager_chain`; without it the step is refused). `group_by_limit`: of `group_id`'s members, the lowest limit that covers it. Excluded principals are passed over; one approver decides (`minimum` must be 1); a walk that ends uncovered raises `ApprovalStepUnstaffed` naming the amount and the highest limit met (`_walk`) |
+| `walk_from` | Selection(requester/owner) | Yes | **Yes** | default="requester". Whose managers a manager-chain walk climbs |
 | `activity_type_id` | Many2one(`mail.activity.type`) | Yes | No | The activity this step's asked approvers get; empty uses `approval.mail_activity_data_approval` |
 | `user_ids` | Many2many(`res.users`) | No | No | compute + inverse: the current members as an editable list; the inverse syncs plain members and leaves delegation rows (`delegated_by_id`) alone |
 | `_get_member_user_ids(document, company)` / `_get_pool_user_ids(document, company)` | Listed members within their term plus the users the document names, who are asked; the pool adds the group's users, who may decide but are not asked. Given a company, both keep only users allowed in it (`_filter_company_user_ids`), since an approver row belongs to its request's company. Every caller passes the request's source document and company, or on the approval button the gated record and the company its request is (or would be) raised in. Past the company, the pool asks a record adopting `mixin.approval.source` to narrow it through `_filter_approval_step_user_ids` (`_filter_document_user_ids`), so no one holds a row the document's own policy would refuse. `_get_managed_approver_user_ids` alone reads `_get_candidate_user_ids(document)`, every user the step names before either narrowing, so a row whose user lost the company or the document's favour is still recognised as routing's own |

@@ -30,6 +30,13 @@
         sequence="22" />
 
     <menuitem
+        id="menu_approval_technical_authority_limit"
+        name="Authority Limits"
+        parent="menu_approval_technical"
+        action="action_approval_authority_limit"
+        sequence="15" />
+
+    <menuitem
         id="menu_approval_technical_observation"
         name="Watched Calls"
         parent="menu_approval_technical"
