@@ -343,6 +343,45 @@ the model: `has_access`, `check_access`, `_filtered_access`, `_access_domain`.
 - `customize()` — archive a module's row and open an editable copy
 - `_bound_access_rows(model_name, operation)` — the permission and guard domains that bind the current principal (what `registry.access_policy` asks)
 - `_eval_context()`, `_get_access_context()` — what a domain is evaluated with, and the context values it depends on (website extends both)
+- `_scoped()`, `_company_scope_domain()` — a row held through a grant limited to some companies reaches their records and the shared ones (a members guard binds only there); `_explain(model, operation)` says it in words
+
+### models/ir_access_log.py
+
+#### IrAccessLog — `ir.access.log` (`_name`)
+
+The authorization log, append-only: grants created, changed, revoked,
+expired and migrated, and every create, write or delete made under a
+privilege on an audited model (`_access_audit`) or under a privilege with
+`audit_privilege`. The access administrators read it; a user reads the rows
+about them.
+
+**Fields:**
+- `event` (Selection, required), `actor_id`, `subject_user_id` (Many2one → res.users)
+- `group_id` (Many2one → res.groups), `grant_id` (Many2one → res.users.grant)
+- `model_name`, `operation`, `res_ids`, `cause`, `cause_model`, `reason` (Char), `cause_res_id` (Many2oneReference), `count` (Integer)
+
+**Key Methods:**
+- `_record(vals_list)` — the one writer, as the superuser with the real actor
+- `_record_privileged(model_name, operation, ids)` — what the access policy calls for a privileged operation
+
+### models/res_users_grant.py
+
+#### ResUsersGrant — `res.users.grant` (`_name`)
+
+A group membership with a cause, a window and a company scope;
+`res.users.group_ids` is the projection of the active grants, and writing it
+grants or revokes. Never deleted by a user: `action_revoke()` ends it.
+
+**Fields:**
+- `user_id`, `group_id` (Many2one, required, indexed); `company_ids` (Many2many → res.company), `scoped` (Boolean, stored compute)
+- `date_from`, `date_to` (Datetime), `state` (Selection scheduled/active/expired/revoked)
+- `cause` (Selection), `cause_model`, `cause_res_id`, `reason`; `granted_by_id`, `revoked_by_id`, `revoked_at`, `revoke_reason`
+
+**Key Methods:**
+- `_grant(users, groups, *, cause, ...)`, `_revoke(users, groups)` — what code calls instead of writing memberships
+- `_check_delegation()` — a group's admin group grants it, for someone else, within their own companies, and only groups whose implications they administer too
+- `_cron_cross_boundaries()` — starts and ends timed grants (triggered at each boundary)
+- `_on_grant_changed(event)` — the hook a module judging grants extends
 - `_get_models_bound_by(model_name)` — the model and, under a table-inheritance root, the root whose rows bind it
 - `_get_groups_with_access(model_name, operation)` — the groups (and the groups implying them) for which some record is reachable: their permissions' `'access'` conditions, the guards, the model's `_access_guard` and every delegated parent resolved (ormcache stable, `_group_ids_with_access`)
 - `_make_model_access_error()`, `_make_record_access_error()` — the AccessError texts: the groups that would allow, and in debug mode the failing rows, the model's own guard and the delegated parent's rows

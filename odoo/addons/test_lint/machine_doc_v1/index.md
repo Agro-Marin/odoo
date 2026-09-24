@@ -38,7 +38,18 @@ model, and `lint_hand_rolled_range`, the numeric min/max pairs declared outside
 `mixin.band` -- the three AST rules with a floor. `access_check_override` counts
 the overrides outside base that still decide access in code instead of in
 ir.access rows or `_access_guard` (the owners held by a many2one_reference, until
-P4); it only shrinks. `lint_receiver_fail_open` carried one
+P4); it only shrinks. `access_scope_anchorless` counts the models where a group
+that can be held in some companies only has a permission and the model has no
+company anchor, so such a grant applies to all its records (authorization plan
+P2); it only shrinks. The elevation gates of `tests/test_elevation.py` count, per
+repository, the bare `sudo()` calls (`bare_sudo_odoo`, `bare_sudo_enterprise`,
+`bare_sudo_agromarin`) that `with_privilege` replaces where code acts on someone's
+behalf, and the `has_group` checks (`has_group_odoo`, `has_group_enterprise`,
+`has_group_agromarin`) that ir.access rows replace as authority;
+`grant_membership_write` counts the memberships odoo's modules still write
+outside base instead of granting them with a cause. All of them only shrink; the
+sibling repositories' floors are read on the full addons path, and the narrow
+scope grades the odoo ones alone. `lint_receiver_fail_open` carried one
 for the six hours between the rule's rewrite and the last family's conversion. Everything else -- every other AST rule,
 every XML rule, the manifest and record-order gates -- is a hard zero. `n-plus-one-query` reached
 zero on 2026-09-12 by reading each of its 295 sites: a loop over the records
