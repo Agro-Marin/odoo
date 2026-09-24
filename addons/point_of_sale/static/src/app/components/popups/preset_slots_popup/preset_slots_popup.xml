@@ -18,15 +18,15 @@
                     t-if="preset.id === this.state.selectedPresetId">
                     <div class="d-flex w-100 flex-wrap gap-2 mt-2">
                         <button class="btn flex-grow-1"
-                            t-foreach="Object.keys(preset.availabilities)" t-as="sqlDate" t-key="sqlDate"
+                            t-foreach="Object.keys(preset.upcomingAvailabilities)" t-as="sqlDate" t-key="sqlDate"
                             t-attf-class="{{ this.state.selectedDate === sqlDate ? 'btn-primary' : 'btn-secondary' }}"
-                            t-att-class="{'o_colorlist_item_color_transparent_6': Object.values(preset.availabilities[sqlDate]).length === 0}"
+                            t-att-class="{'o_colorlist_item_color_transparent_6': Object.values(preset.upcomingAvailabilities[sqlDate]).length === 0}"
                             t-on-click="() => this.state.selectedDate = sqlDate"
                             t-out="this.formatDate(sqlDate)" />
                     </div>
                     <hr/>
                     <div class="w-100 mt-3">
-                        <div t-foreach="Object.keys(preset.availabilities)" t-as="sqlDate" t-key="sqlDate" t-if="this.state.selectedDate === sqlDate" class="row">
+                        <div t-foreach="Object.keys(preset.upcomingAvailabilities)" t-as="sqlDate" t-key="sqlDate" t-if="this.state.selectedDate === sqlDate" class="row">
                             <t t-set="slotByPeriod" t-value="Object.entries(this.getSlotsForDate(preset, sqlDate))"/>
                             <div t-foreach="slotByPeriod"
                                 t-as="entries"
@@ -44,7 +44,7 @@
                                     </button>
                                 </div>
                             </div>
-                            <div t-if="Object.values(preset.availabilities[sqlDate]).length === 0" class="w-100 mt-2">
+                            <div t-if="Object.values(preset.upcomingAvailabilities[sqlDate]).length === 0" class="w-100 mt-2">
                                 <div class="alert alert-warning" role="alert">
                                     No slot available for this day
                                 </div>

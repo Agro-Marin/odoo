@@ -99,7 +99,7 @@ export class PresetInfoPopup extends Component {
     }
 
     get slots() {
-        return Object.entries(this.preset.uiState.availabilities).filter(
+        return Object.entries(this.preset.upcomingAvailabilities).filter(
             (s) => Object.keys(s[1]).length > 0,
         );
     }

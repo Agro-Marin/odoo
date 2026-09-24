@@ -70,7 +70,7 @@ export class PresetSlotsPopup extends Component {
     }
 
     getSlotsForDate(preset, date) {
-        const slots = Object.values(preset.availabilities[date]);
+        const slots = Object.values(preset.upcomingAvailabilities[date]);
         return slots.reduce((acc, slot) => {
             if (!acc[slot.periode]) {
                 acc[slot.periode] = [];

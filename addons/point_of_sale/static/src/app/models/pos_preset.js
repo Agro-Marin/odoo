@@ -14,6 +14,7 @@ export class PosPreset extends Base {
         "nextSlot",
         "currentSlot",
         "availabilities",
+        "upcomingAvailabilities",
     ];
 
     initState() {
@@ -60,6 +61,18 @@ export class PosPreset extends Base {
             this.computeAvailabilities(this.uiState.serverUsage, now);
         }
         return this.uiState.availabilities;
+    }
+
+    get upcomingAvailabilities() {
+        const now = DateTime.now();
+        return Object.fromEntries(
+            Object.entries(this.availabilities).map(([date, slots]) => [
+                date,
+                Object.fromEntries(
+                    Object.entries(slots).filter(([, slot]) => slot.datetime >= now),
+                ),
+            ]),
+        );
     }
 
     get slotsUsage() {
