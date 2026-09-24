@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates>
     <t t-name="report_formula.AccountReportLineCell">
-        <t t-call="{{ this.env.template('AccountReportLineCell') }}"/>
+        <t t-call="{{ this.reportContext.template('AccountReportLineCell') }}"/>
     </t>
 
     <t t-name="report_formula.AccountReportLineCellCustomizable">
@@ -26,7 +26,7 @@
                     <div class="content">
                         <t t-if="this.props.cell.auditable">
                             <a class="cursor-pointer" t-on-click="() => this.audit()">
-                                <t t-component="this.env.component('AccountReportEllipsis')" t-props="{
+                                <t t-component="this.reportContext.component('AccountReportEllipsis')" t-props="{
                                     name: this.props.cell.name?.toString(),
                                     no_format: this.props.cell.no_format,
                                     type: this.props.cell.figure_type,
@@ -35,7 +35,7 @@
                             </a>
                         </t>
                         <t t-else="">
-                            <t t-component="this.env.component('AccountReportEllipsis')" t-props="{
+                            <t t-component="this.reportContext.component('AccountReportEllipsis')" t-props="{
                                 name: this.props.cell.name?.toString(),
                                 no_format: this.props.cell.no_format,
                                 type: this.props.cell.figure_type,

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useEditorOverlayContext } from "@html_editor/core/editor_overlay_context";
 import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
@@ -24,11 +25,12 @@ export class FontSizeSelector extends Component {
     static components = { Dropdown, DropdownItem };
 
     setup() {
+        this.overlayContext = useEditorOverlayContext();
         this.items = this.props.getItems();
         this.state = useState(this.props.getDisplay());
         this.dropdown = useDropdownState();
         this.menuRef = useChildRef();
-        useDropdownAutoVisibility(this.env.overlayState, this.menuRef);
+        useDropdownAutoVisibility(this.overlayContext.overlayState, this.menuRef);
         this.iframeContentRef = useRef("iframeContent");
         this.debouncedCustomFontSizeInput = useDebounced(
             this.onCustomFontSizeInput.bind(this),

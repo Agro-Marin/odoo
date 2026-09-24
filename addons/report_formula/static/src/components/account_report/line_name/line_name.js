@@ -3,6 +3,7 @@ import { parseLineId } from "@report_formula/js/util";
 import { Component, useRef, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
+import { useAccountReportContext } from "@report_formula/components/account_report/account_report_context";
 
 export class AccountReportLineName extends Component {
     static template = "report_formula.AccountReportLineName";
@@ -16,10 +17,11 @@ export class AccountReportLineName extends Component {
     };
 
     setup() {
+        this.reportContext = useAccountReportContext();
         this.action = useService("action");
         this.orm = useService("orm");
         this.ui = useService("ui");
-        this.controller = useState(this.env.controller);
+        this.controller = useState(this.reportContext.controller);
 
         this.lineNameCell = useRef("lineNameCell");
     }

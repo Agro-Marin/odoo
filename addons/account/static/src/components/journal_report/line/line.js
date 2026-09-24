@@ -1,9 +1,15 @@
 /** @odoo-module native */
 import { AccountReport } from "@report_formula/components/account_report/account_report";
+import { useAccountReportContext } from "@report_formula/components/account_report/account_report_context";
 import { AccountReportLine } from "@report_formula/components/account_report/line/line";
 
 export class JournalReportLine extends AccountReportLine {
     static template = "account.JournalReportLine";
+
+    setup() {
+        super.setup();
+        this.reportContext = useAccountReportContext();
+    }
 
     // -----------------------------------------------------------------------------------------------------------------
     // Classes

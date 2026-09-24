@@ -3,6 +3,7 @@
 
 import { useState } from "@odoo/owl";
 import { FormRenderer } from "@web/views/form/form_renderer";
+import { useSettingsSearchContext } from "@web/views/settings/settings_search_context";
 
 import { FormLabelHighlightText } from "./highlight_text/form_label_highlight_text.js";
 import { HighlightText } from "./highlight_text/highlight_text.js";
@@ -30,7 +31,8 @@ export class SettingsFormRenderer extends FormRenderer {
 
     setup() {
         super.setup();
-        this.searchState = useState(this.env.searchState);
+        this.settingsContext = useSettingsSearchContext();
+        this.searchState = useState(this.settingsContext.searchState);
     }
 
     get shouldAutoFocus() {

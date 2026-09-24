@@ -2,12 +2,14 @@
 import { AccountReportLineCell } from "@report_formula/components/account_report/line_cell/line_cell";
 import { useRef, useState } from "@odoo/owl";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { useAccountReportContext } from "@report_formula/components/account_report/account_report_context";
 
 export class AccountReportLineCellEditable extends AccountReportLineCell {
     static template = "report_formula.AccountReportLineCellEditable";
 
     setup() {
         super.setup();
+        this.reportContext = useAccountReportContext();
         this.input = useRef("input");
         this.focused = useState({ value: false });
 

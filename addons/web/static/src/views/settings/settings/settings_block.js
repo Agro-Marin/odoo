@@ -5,6 +5,7 @@ import { Component, useChildSubEnv, useEffect, useRef, useState } from "@odoo/ow
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { normalizedMatch } from "@web/core/l10n/utils";
 import { HighlightText } from "@web/views/settings/highlight_text/highlight_text";
+import { useSettingsSearchContext } from "@web/views/settings/settings_search_context";
 
 const log = makeLogger("web.views.settings.block");
 
@@ -31,12 +32,13 @@ export class SettingsBlock extends Component {
     state;
 
     setup() {
+        this.settingsContext = useSettingsSearchContext();
         this.state = useState({
-            search: this.env.searchState,
+            search: this.settingsContext.searchState,
         });
         const block = this;
         this.showAllContainerState = {
-            searchState: this.env.searchState,
+            searchState: this.settingsContext.searchState,
             get showAllContainer() {
                 const matches = block.matches(this.searchState.value);
                 log.logic("showAllContainer", () => ({

@@ -1,6 +1,10 @@
 /** @odoo-module native */
+import {
+    provideAppointmentCalendarContext,
+    useAppointmentCalendarContext,
+} from "@calendar/booking/views/appointment_calendar/appointment_calendar_context";
 import { AttendeeCalendarController } from "@calendar/views/attendee_calendar/attendee_calendar_controller";
-import { onWillStart, useRef, useState, useSubEnv } from "@odoo/owl";
+import { onWillStart, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { serializeDateTime } from "@web/core/l10n/dates";
@@ -31,11 +35,12 @@ patch(AttendeeCalendarController.prototype, {
             lastAppointment: false,
         });
 
-        useSubEnv({
+        provideAppointmentCalendarContext({
             calendarState: useState({
                 mode: "default",
             }),
         });
+        this.appointmentCalendarContext = useAppointmentCalendarContext();
 
         onWillStart(async () => {
             [
@@ -132,7 +137,7 @@ patch(AttendeeCalendarController.prototype, {
     },
 
     onClickSelectAvailabilities() {
-        this.env.calendarState.mode = "slots-creation";
+        this.appointmentCalendarContext.calendarState.mode = "slots-creation";
     },
 
     async onClickGetShareLink() {
@@ -140,7 +145,7 @@ patch(AttendeeCalendarController.prototype, {
             await this._createCustomAppointmentType();
         } else if (
             this.appointmentState.lastAppointment.isCustom &&
-            this.env.calendarState.mode === "slots-creation"
+            this.appointmentCalendarContext.calendarState.mode === "slots-creation"
         ) {
             await this._updateCustomAppointmentSlots();
         }
@@ -149,7 +154,7 @@ patch(AttendeeCalendarController.prototype, {
             return;
         }
         if (this.appointmentState.lastAppointment.isCustom) {
-            this.env.calendarState.mode = "default";
+            this.appointmentCalendarContext.calendarState.mode = "default";
             this.model.clearSlots();
         }
         this.appointmentState.lastAppointment.waitingCopyLinkCustomType = false;
@@ -162,7 +167,7 @@ patch(AttendeeCalendarController.prototype, {
             await this._createCustomAppointmentType();
         } else if (
             this.appointmentState.lastAppointment.isCustom &&
-            this.env.calendarState.mode === "slots-creation"
+            this.appointmentCalendarContext.calendarState.mode === "slots-creation"
         ) {
             await this._updateCustomAppointmentSlots();
         }
@@ -171,7 +176,7 @@ patch(AttendeeCalendarController.prototype, {
             // The url copy paste may be done in the configuration dialog.
             // This is used in order to not display the "Link Copied" message too early.
             this.appointmentState.lastAppointment.waitingCopyLinkCustomType =
-                this.env.calendarState.mode === "slots-creation";
+                this.appointmentCalendarContext.calendarState.mode === "slots-creation";
             this.displayDialog(CustomAppointmentFormViewDialog, {
                 context: this.props.context,
                 inviteUrl: this.appointmentState.lastAppointment.url,
@@ -182,7 +187,7 @@ patch(AttendeeCalendarController.prototype, {
                 viewId: this.appointmentState.lastAppointment.viewId,
                 onLinkCopied: () => {
                     this.appointmentState.lastAppointment.waitingCopyLinkCustomType = false;
-                    this.env.calendarState.mode = "default";
+                    this.appointmentCalendarContext.calendarState.mode = "default";
                     this.model.clearSlots();
                 },
             });
@@ -198,10 +203,10 @@ patch(AttendeeCalendarController.prototype, {
     },
 
     onClickDiscard() {
-        if (this.env.calendarState.mode === "slots-creation") {
+        if (this.appointmentCalendarContext.calendarState.mode === "slots-creation") {
             this.model.clearSlots();
         }
-        this.env.calendarState.mode = "default";
+        this.appointmentCalendarContext.calendarState.mode = "default";
         this.appointmentState.lastAppointment = false;
     },
 

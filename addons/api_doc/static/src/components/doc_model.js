@@ -2,6 +2,7 @@
 import { DocLoadingIndicator } from "@api_doc/components/doc_loading_indicator";
 import { DocMethod } from "@api_doc/components/doc_method";
 import { DocTable, TABLE_TYPES } from "@api_doc/components/doc_table";
+import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { getCrudMethodsExamples } from "@api_doc/utils/doc_model_utils";
 import { useDocUI } from "@api_doc/utils/doc_ui_store";
 import { Component, markup, onPatched, useEffect, useState } from "@odoo/owl";
@@ -51,6 +52,7 @@ export class DocModel extends Component {
     static props = {};
 
     setup() {
+        this.docContext = useDocModelStore();
         this.state = useState({
             model: undefined,
             modelData: { items: [] },
@@ -68,7 +70,7 @@ export class DocModel extends Component {
         });
 
         this.ui = useDocUI();
-        this.modelStore = useState(this.env.modelStore);
+        this.modelStore = useState(this.docContext.modelStore);
         this.update();
 
         useEffect(

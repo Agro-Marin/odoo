@@ -5,6 +5,7 @@ import { InvisibleElementsPanel } from "@html_builder/sidebar/invisible_elements
 import { useSnippets } from "@html_builder/snippets/snippet_service";
 import { isVisible } from "@html_builder/utils/utils";
 import { setBuilderCSSVariables } from "@html_builder/utils/utils_css";
+import { useEditorOverlayContext } from "@html_editor/core/editor_overlay_context";
 import { Editor } from "@html_editor/editor";
 import { getHtmlStyle } from "@html_editor/utils/formatting";
 import { withSequence } from "@html_editor/utils/resource";
@@ -68,6 +69,7 @@ export class Builder extends Component {
     };
 
     setup() {
+        this.overlayContext = useEditorOverlayContext();
         this.ThemeTab = this.props.getThemeTab?.();
         this.CustomizeTranslationTab = this.props.getCustomizeTranslationTab?.();
         // const actionService = useService("action");
@@ -193,7 +195,7 @@ export class Builder extends Component {
                         undefined,
                 },
                 localOverlayContainers: {
-                    key: this.env.localOverlayContainerKey,
+                    key: this.overlayContext.localOverlayContainerKey,
                     ref: this.props.overlayRef,
                 },
                 saveSnippet: (

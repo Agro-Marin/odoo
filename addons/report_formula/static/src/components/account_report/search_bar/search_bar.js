@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
+import { useAccountReportContext } from "@report_formula/components/account_report/account_report_context";
 
 export class AccountReportSearchBar extends Component {
     static template = "report_formula.AccountReportSearchBar";
@@ -8,8 +9,9 @@ export class AccountReportSearchBar extends Component {
     };
 
     setup() {
+        this.reportContext = useAccountReportContext();
         this.searchText = useRef("search_bar_input");
-        this.controller = useState(this.env.controller);
+        this.controller = useState(this.reportContext.controller);
 
         onMounted(() => {
             if (this.props.initialQuery) {

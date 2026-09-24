@@ -1,12 +1,14 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
+import { useAccountReportContext } from "@report_formula/components/account_report/account_report_context";
 
 export class AccountReportButtonsBar extends Component {
     static template = "report_formula.AccountReportButtonsBar";
     static props = {};
 
     setup() {
-        this.controller = useState(this.env.controller);
+        this.reportContext = useAccountReportContext();
+        this.controller = useState(this.reportContext.controller);
     }
 
     //------------------------------------------------------------------------------------------------------------------

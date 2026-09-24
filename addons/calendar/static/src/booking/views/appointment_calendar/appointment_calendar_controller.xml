@@ -11,7 +11,7 @@
         <xpath expr="//div[hasclass('o_calendar_header')]" position="inside">
             <div class="o_appointment_scheduling_box position-fixed position-md-static start-0 bottom-0 d-flex align-items-center justify-content-center gap-2 order-last order-lg-0"
                  t-att-class="{ 'flex-lg-row flex-column' : this.appointmentState.lastAppointment.id || this.hasSlotEvents() }">
-                <t t-if="this.env.calendarState.mode === 'slots-creation' || this.appointmentState.lastAppointment.url">
+                <t t-if="this.appointmentCalendarContext.calendarState.mode === 'slots-creation' || this.appointmentState.lastAppointment.url">
                     <span t-if="this.appointmentState.lastAppointment.url and !this.appointmentState.lastAppointment.waitingCopyLinkCustomType" class="text-center">
                         <i class="fa-solid fa-check text-success" role="img" aria-label="Link copied to your clipboard!"/> Link copied to your clipboard!
                     </span>

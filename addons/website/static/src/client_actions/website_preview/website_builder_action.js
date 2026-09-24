@@ -1,4 +1,8 @@
 /** @odoo-module native */
+import {
+    provideEditorOverlayContext,
+    useEditorOverlayContext,
+} from "@html_editor/core/editor_overlay_context";
 import { LocalOverlayContainer } from "@html_editor/local_overlay_container";
 import {
     Component,
@@ -130,9 +134,10 @@ export class WebsiteBuilderClientAction extends Component {
         });
 
         this.overlayRef = useChildRef();
-        useSubEnv({
+        provideEditorOverlayContext({
             localOverlayContainerKey: uniqueId("website"),
         });
+        this.overlayContext = useEditorOverlayContext();
         this.websitePreviewRef = useRef("website_preview");
 
         onWillStart(async () => {

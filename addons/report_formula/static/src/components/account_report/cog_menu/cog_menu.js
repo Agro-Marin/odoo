@@ -4,6 +4,7 @@ import { Dropdown } from "@web/components/dropdown";
 import { COG_GROUP } from "@web/search/cog_menu/cog_menu_group";
 import { CogMenuItem } from "@web/search/cog_menu/cog_menu_item";
 import { useService } from "@web/core/utils/hooks";
+import { useAccountReportContext } from "@report_formula/components/account_report/account_report_context";
 
 export class AccountReportCogMenu extends Component {
     static template = "report_formula.AccountReportCogMenu";
@@ -11,8 +12,9 @@ export class AccountReportCogMenu extends Component {
     static props = {};
 
     setup() {
+        this.reportContext = useAccountReportContext();
         this.ui = useService("ui");
-        this.controller = useState(this.env.controller);
+        this.controller = useState(this.reportContext.controller);
     }
 
     //------------------------------------------------------------------------------------------------------------------

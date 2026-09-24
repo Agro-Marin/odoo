@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { AccountReturnSelectionBadge } from "@account/components/account_return/widgets/account_return_selection_badge";
 import { useEffect, useState } from "@odoo/owl";
+import { useAccountReportContext } from "@report_formula/components/account_report/account_report_context";
 import { AccountReportLineName } from "@report_formula/components/account_report/line_name/line_name";
 import { patch } from "@web/core/utils/patch";
 import { RelationalModel } from "@web/model/relational_model";
@@ -12,6 +13,7 @@ patch(AccountReportLineName, {
 patch(AccountReportLineName.prototype, {
     setup() {
         super.setup();
+        this.reportContext = useAccountReportContext();
         this.accountStatus = useState({ record: false });
         useEffect(
             () => {
@@ -62,7 +64,7 @@ patch(AccountReportLineName.prototype, {
             this.accountStatus.record = new model.constructor.Record(
                 model,
                 {
-                    context: this.env.controller.context,
+                    context: this.reportContext.controller.context,
                     activeFields: fields,
                     fields: fields,
                     resModel: "account.audit.account.status",

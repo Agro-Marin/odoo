@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { useSettingsSearchContext } from "@web/views/settings/settings_search_context";
 
 export class SettingsApp extends Component {
     static template = "web.SettingsApp";
@@ -13,9 +14,10 @@ export class SettingsApp extends Component {
         slots: Object,
     };
     setup() {
+        this.settingsContext = useSettingsSearchContext();
         /** @type {{ search: { value: string } }} */
         this.state = useState({
-            search: this.env.searchState,
+            search: this.settingsContext.searchState,
         });
         this.settingsAppRef = useRef("settingsApp");
         useEffect(

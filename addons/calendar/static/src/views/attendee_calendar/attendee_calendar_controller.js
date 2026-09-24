@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useAppointmentCalendarContext } from "@calendar/booking/views/appointment_calendar/appointment_calendar_context";
 import { CalendarQuickCreate } from "@calendar/views/calendar_form/calendar_quick_create";
 import { onWillStart } from "@odoo/owl";
 import { _t } from "@web/core/translation";
@@ -14,6 +15,7 @@ export class AttendeeCalendarController extends CalendarController {
 
     setup() {
         super.setup();
+        this.appointmentCalendarContext = useAppointmentCalendarContext();
         this.ui = useService("ui");
         this.actionService = useService("action");
         this.orm = useService("orm");

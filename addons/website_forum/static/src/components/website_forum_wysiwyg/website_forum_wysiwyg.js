@@ -5,6 +5,7 @@ import { markup, onMounted, useExternalListener } from "@odoo/owl";
 import { BASIC_PLUGINS, FULL_EDIT_PLUGINS } from "../../plugins/plugin_sets.js";
 import { useResizer } from "./resizer_hook.js";
 import { Wysiwyg } from "@html_editor/wysiwyg";
+import { useEditorOverlayContext } from "@html_editor/core/editor_overlay_context";
 
 export class WebsiteForumWysiwyg extends Wysiwyg {
     static template = "website_forum.WebsiteForumWysiwyg";
@@ -25,6 +26,7 @@ export class WebsiteForumWysiwyg extends Wysiwyg {
     /** @override */
     setup() {
         super.setup();
+        this.overlayContext = useEditorOverlayContext();
         if (this.props.resizable) {
             this.onResizerMouseDown = useResizer("content");
         }

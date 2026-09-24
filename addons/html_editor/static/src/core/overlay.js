@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { provideEditorOverlayContext } from "@html_editor/core/editor_overlay_context";
 import {
     Component,
     onWillDestroy,
@@ -6,7 +7,6 @@ import {
     useExternalListener,
     useRef,
     useState,
-    useSubEnv,
     xml,
 } from "@odoo/owl";
 import { usePosition } from "@web/core/position/position_hook";
@@ -116,7 +116,7 @@ export class EditorOverlay extends Component {
         position = usePosition("root", getTarget, positionOptions);
 
         this.overlayState = useState({ isOverlayVisible: true });
-        useSubEnv({ overlayState: this.overlayState });
+        provideEditorOverlayContext({ overlayState: this.overlayState });
     }
 
     getSelectionTarget() {

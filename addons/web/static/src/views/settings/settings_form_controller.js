@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
+import { useEffect, useRef, useState } from "@odoo/owl";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { formView } from "@web/views/form/form_view";
+import { provideSettingsSearchContext } from "@web/views/settings/settings_search_context";
 import { recordResParams } from "@web/views/view_button/view_button";
 
 import { SettingsConfirmationDialog } from "./settings_confirmation_dialog.js";
@@ -27,7 +28,7 @@ export class SettingsFormController extends formView.Controller {
         this.searchState = useState({ value: "" });
         this.rootRef = useRef("root");
         this.canCreate = false;
-        useSubEnv({ searchState: this.searchState });
+        provideSettingsSearchContext({ searchState: this.searchState });
         useEffect(
             () => {
                 if (this.searchState.value) {

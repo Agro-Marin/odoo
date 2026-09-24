@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { simplifyString } from "@api_doc/utils/doc_model_search";
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 
@@ -9,8 +10,9 @@ export class DocSidebar extends Component {
     static props = {};
 
     setup() {
+        this.docContext = useDocModelStore();
         this.containerRef = useRef("containerRef");
-        this.modelStore = useState(this.env.modelStore);
+        this.modelStore = useState(this.docContext.modelStore);
         this.state = useState({
             collapseAddons: {},
             searchValue: "",

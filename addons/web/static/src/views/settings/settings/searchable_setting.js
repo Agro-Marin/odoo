@@ -7,6 +7,7 @@ import { normalizedMatch } from "@web/core/l10n/utils";
 import { Setting } from "@web/views/form/setting/setting";
 import { FormLabelHighlightText } from "@web/views/settings/highlight_text/form_label_highlight_text";
 import { HighlightText } from "@web/views/settings/highlight_text/highlight_text";
+import { useSettingsSearchContext } from "@web/views/settings/settings_search_context";
 
 export class SearchableSetting extends Setting {
     static template = "web.SearchableSetting";
@@ -20,10 +21,11 @@ export class SearchableSetting extends Setting {
     labels;
 
     setup() {
+        this.settingsContext = useSettingsSearchContext();
         this.settingRef = useRef("setting");
         /** @type {{ search: { value: string }, showAllContainer: { showAllContainer: boolean }, highlightClass: Record<string, boolean> }} */
         this.state = useState({
-            search: this.env.searchState,
+            search: this.settingsContext.searchState,
             showAllContainer: this.env.showAllContainer,
             highlightClass: {},
         });

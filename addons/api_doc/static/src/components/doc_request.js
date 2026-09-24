@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { createRequestCode, LANGUAGES } from "@api_doc/utils/doc_code_gen";
 import { Component, useState } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor";
@@ -30,6 +31,7 @@ export class DocRequest extends Component {
     };
 
     setup() {
+        this.docContext = useDocModelStore();
         this.maxLines = Infinity;
         this.LANGUAGES = LANGUAGES;
         this.state = useState({
@@ -53,7 +55,7 @@ export class DocRequest extends Component {
         return createRequestCode({
             language,
             url: window.location.origin + this.props.url,
-            apiKey: this.env.modelStore.apiKey,
+            apiKey: this.docContext.modelStore.apiKey,
             requestObj: this.props.request,
         });
     }
@@ -69,7 +71,7 @@ export class DocRequest extends Component {
 
     async execute() {
         this.state.response = {};
-        const result = await this.env.modelStore.executeRequest(
+        const result = await this.docContext.modelStore.executeRequest(
             this.props.url,
             this.state.requestCode,
         );

@@ -1,5 +1,9 @@
 /** @odoo-module native */
-import { EventBus, useSubEnv } from "@odoo/owl";
+import {
+    provideTimeOffContext,
+    useTimeOffContext,
+} from "@hr_holidays/views/time_off_context";
+import { EventBus } from "@odoo/owl";
 import { serializeDate } from "@web/core/l10n/dates";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -21,9 +25,10 @@ export class TimeOffCalendarController extends CalendarController {
     setup() {
         super.setup();
         this.ui = useService("ui");
-        useSubEnv({
+        provideTimeOffContext({
             timeOffBus: new EventBus(),
         });
+        this.timeOffContext = useTimeOffContext();
         this.leaveCancelWizard = useLeaveCancelWizard();
     }
 
@@ -58,7 +63,7 @@ export class TimeOffCalendarController extends CalendarController {
             viewId: this.model.formViewId,
             onRecordSaved: () => {
                 this.model.load();
-                this.env.timeOffBus.trigger("update_dashboard");
+                this.timeOffContext.timeOffBus.trigger("update_dashboard");
             },
             onRecordDeleted: (record) => {},
             onLeaveCancelled: (record) => {},
@@ -74,14 +79,14 @@ export class TimeOffCalendarController extends CalendarController {
                 body: _t("Are you sure you want to delete this record?"),
                 confirm: async () => {
                     await this.model.unlinkRecord(resId);
-                    this.env.timeOffBus.trigger("update_dashboard");
+                    this.timeOffContext.timeOffBus.trigger("update_dashboard");
                 },
                 cancel: () => {},
             });
         } else {
             this.leaveCancelWizard(resId, () => {
                 this.model.load();
-                this.env.timeOffBus.trigger("update_dashboard");
+                this.timeOffContext.timeOffBus.trigger("update_dashboard");
             });
         }
     }
@@ -93,7 +98,7 @@ export class TimeOffCalendarController extends CalendarController {
     _editRecord(record, context, props = {}) {
         const onDialogClosed = () => {
             this.model.load();
-            this.env.timeOffBus.trigger("update_dashboard");
+            this.timeOffContext.timeOffBus.trigger("update_dashboard");
         };
 
         return new Promise((resolve) => {

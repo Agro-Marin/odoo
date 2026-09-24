@@ -1,5 +1,9 @@
 /** @odoo-module native */
-import { Component, onMounted, onWillDestroy, useRef, useSubEnv } from "@odoo/owl";
+import {
+    provideEditorOverlayContext,
+    useEditorOverlayContext,
+} from "@html_editor/core/editor_overlay_context";
+import { Component, onMounted, onWillDestroy, useRef } from "@odoo/owl";
 import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef, useSpellCheck } from "@web/core/utils/hooks";
 
@@ -48,9 +52,10 @@ export class Wysiwyg extends Component {
 
     setup() {
         this.overlayRef = useChildRef();
-        useSubEnv({
+        provideEditorOverlayContext({
             localOverlayContainerKey: uniqueId("wysiwyg"),
         });
+        this.overlayContext = useEditorOverlayContext();
         const contentRef = useRef("content");
         this.editor = this.props.editor;
         const config = this.getEditorConfig();
@@ -97,7 +102,7 @@ export class Wysiwyg extends Component {
         return {
             ...this.props.config,
             localOverlayContainers: {
-                key: this.env.localOverlayContainerKey,
+                key: this.overlayContext.localOverlayContainerKey,
                 ref: this.overlayRef,
             },
         };

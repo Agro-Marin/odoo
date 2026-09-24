@@ -9,14 +9,7 @@ import { AccountReportLine } from "@report_formula/components/account_report/lin
 import { AccountReportLineCell } from "@report_formula/components/account_report/line_cell/line_cell";
 import { AccountReportLineName } from "@report_formula/components/account_report/line_name/line_name";
 import { AccountReportSearchBar } from "@report_formula/components/account_report/search_bar/search_bar";
-import {
-    Component,
-    onWillDestroy,
-    onWillStart,
-    useRef,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
+import { Component, onWillDestroy, onWillStart, useRef, useState } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
@@ -25,6 +18,10 @@ import { useService } from "@web/core/utils/hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { standardActionServiceProps } from "@web/webclient/actions";
 import { useViewConfig } from "@web/core/view_config_hooks";
+import {
+    provideAccountReportContext,
+    useAccountReportContext,
+} from "@report_formula/components/account_report/account_report_context";
 
 const log = makeLogger("account.report.ui");
 
@@ -85,11 +82,12 @@ export class AccountReport extends Component {
             this.controller.destroyed = true;
         });
 
-        useSubEnv({
+        provideAccountReportContext({
             controller: this.controller,
             component: this.getComponent.bind(this),
             template: this.getTemplate.bind(this),
         });
+        this.reportContext = useAccountReportContext();
     }
 
     // -----------------------------------------------------------------------------------------------------------------

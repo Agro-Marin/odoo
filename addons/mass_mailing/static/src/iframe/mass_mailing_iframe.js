@@ -1,4 +1,8 @@
 /** @odoo-module native */
+import {
+    provideEditorOverlayContext,
+    useEditorOverlayContext,
+} from "@html_editor/core/editor_overlay_context";
 import { Editor } from "@html_editor/editor";
 import { LocalOverlayContainer } from "@html_editor/local_overlay_container";
 import { DesignTab } from "@mass_mailing/builder/tabs/design_tab";
@@ -85,9 +89,10 @@ export class MassMailingIframe extends Component {
         this.iframeRef = useForwardRefToParent("iframeRef");
         this.sidebarRef = useRef("sidebarRef");
         this.isRTL = localization.direction === "rtl";
-        useSubEnv({
+        provideEditorOverlayContext({
             localOverlayContainerKey: uniqueId("mass_mailing_iframe"),
         });
+        this.overlayContext = useEditorOverlayContext();
         this.state = useState({
             showFullscreen: false,
             isMobile: false,
@@ -322,7 +327,7 @@ export class MassMailingIframe extends Component {
             return;
         }
         this.editor.config.localOverlayContainers = {
-            key: this.env.localOverlayContainerKey,
+            key: this.overlayContext.localOverlayContainerKey,
             ref: this.overlayRef,
         };
         this.editor.attachTo(

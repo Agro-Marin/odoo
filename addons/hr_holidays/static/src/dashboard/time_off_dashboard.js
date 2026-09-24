@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { useNewAllocationRequest } from "@hr_holidays/views/hooks";
+import { useTimeOffContext } from "@hr_holidays/views/time_off_context";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { DateTimeInput } from "@web/components/datetime";
 import { luxon } from "@web/core/l10n/luxon";
@@ -13,6 +14,7 @@ export class TimeOffDashboard extends Component {
     static props = ["employeeId"];
 
     setup() {
+        this.timeOffContext = useTimeOffContext();
         this.orm = useService("orm");
         this.actionService = useService("action");
         this.newRequest = useNewAllocationRequest();
@@ -22,7 +24,7 @@ export class TimeOffDashboard extends Component {
             holidays: [],
             allocationRequests: 0,
         });
-        useBus(this.env.timeOffBus, "update_dashboard", async () => {
+        useBus(this.timeOffContext.timeOffBus, "update_dashboard", async () => {
             await this.loadDashboardData();
         });
 

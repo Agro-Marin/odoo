@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useEditorOverlayContext } from "@html_editor/core/editor_overlay_context";
 import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { Component } from "@odoo/owl";
@@ -18,8 +19,9 @@ export class ListSelector extends Component {
     static components = { Dropdown };
 
     setup() {
+        this.overlayContext = useEditorOverlayContext();
         this.menuRef = useChildRef();
-        useDropdownAutoVisibility(this.env.overlayState, this.menuRef);
+        useDropdownAutoVisibility(this.overlayContext.overlayState, this.menuRef);
     }
     getActiveMode() {
         const { editableSelection: selection } = this.props.getSelection();

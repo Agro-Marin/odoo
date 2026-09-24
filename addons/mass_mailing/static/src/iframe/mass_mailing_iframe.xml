@@ -7,7 +7,7 @@
             }">
             <div class="d-flex w-100 h-100">
                 <div class="flex-grow-1" t-att-class="{'align-self-center': this.state.isMobile}">
-                    <LocalOverlayContainer localOverlay="this.overlayRef" identifier="this.env.localOverlayContainerKey"/>
+                    <LocalOverlayContainer localOverlay="this.overlayRef" identifier="this.overlayContext.localOverlayContainerKey"/>
                     <div t-att-class="{ 'o_is_mobile': this.state.isMobile, 'h-100': !this.state.isMobile }">
                         <iframe t-att-sandbox="this.isBrowserSafari ? 'allow-same-origin allow-scripts' : 'allow-same-origin'"
                             t-att-scrolling="this.state.isMobile ? '' : 'no'"

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates>
     <t t-name="report_formula.AccountReportLineName">
-        <t t-call="{{ this.env.template('AccountReportLineName') }}"/>
+        <t t-call="{{ this.reportContext.template('AccountReportLineName') }}"/>
     </t>
 
     <t t-name="report_formula.AccountReportLineNameCustomizable">
@@ -40,7 +40,7 @@
                 </t>
                 <t t-else="">
                     <div data-id="content" class="content">
-                        <t t-component="this.env.component('AccountReportEllipsis')" t-props="{
+                        <t t-component="this.reportContext.component('AccountReportEllipsis')" t-props="{
                             name: this.props.line.name?.toString(),
                             type: 'string',
                             maxCharacters: 80,

@@ -35,6 +35,10 @@ ENV_KEYS = {
         r"dependencyManager|getEditingElements?|weContext|selectableContext|imgGroup|"
         r"ignoreBuilderItem|onSelectItem|colorPresetToShow)\b"
     ),
+    "owl_env_addon_contexts": re.compile(
+        r"\bthis\.env\.(?:overlayState|localOverlayContainerKey|controller|component|"
+        r"template|modelStore|calendarState|timeOffBus|searchState)\b"
+    ),
     "owl_env_bus": re.compile(r"\bthis\.env\.bus\b"),
     "owl_env_debug": re.compile(r"\bthis\.env\.debug\b"),
     "owl_env_config": re.compile(r"\bthis\.env\.config\b"),
@@ -186,6 +190,17 @@ class TestOwl3Api(lint_case.LintCase):
             "from setup, and a builder scope provides its keys with "
             "provideBuilderContext (@html_builder/core/builder_context); OWL 3 "
             "components have no env",
+        )
+
+    def test_no_env_addon_contexts(self):
+        self.assert_ratchet(
+            _env_findings("owl_env_addon_contexts"),
+            "owl_env_addon_contexts",
+            "this.env reads of an addon-scoped context key in static/src (JS and templates)",
+            "A component reads the context its addon scopes through that addon's "
+            "grouped accessor (useEditorOverlayContext, useAccountReportContext, "
+            "useDocModelStore, useAppointmentCalendarContext, useTimeOffContext, "
+            "useSettingsSearchContext); OWL 3 components have no env",
         )
 
     def test_no_env_bus(self):

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useEditorOverlayContext } from "@html_editor/core/editor_overlay_context";
 import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { Component, useState } from "@odoo/owl";
@@ -40,6 +41,7 @@ export class ColorSelector extends Component {
     };
 
     setup() {
+        this.overlayContext = useEditorOverlayContext();
         this.state = useState({});
         this.colorSelectorState = useState({ isOpen: false });
         const htmlStyle = getHtmlStyle(document);
@@ -92,7 +94,7 @@ export class ColorSelector extends Component {
                 ref: colorPickerRef,
             },
         );
-        useDropdownAutoVisibility(this.env.overlayState, colorPickerRef);
+        useDropdownAutoVisibility(this.overlayContext.overlayState, colorPickerRef);
     }
 
     getCorrespondingColorTab(color) {

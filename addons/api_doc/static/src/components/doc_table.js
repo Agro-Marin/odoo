@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 
 export const TABLE_TYPES = {
@@ -16,6 +17,7 @@ export class DocTable extends Component {
     };
 
     setup() {
+        this.docContext = useDocModelStore();
         this.subTableRef = useRef("subTableRef");
         this.tooltipRef = useRef("tooltipRef");
         this.state = useState({
@@ -178,6 +180,6 @@ export class DocTable extends Component {
     }
 
     goToModel(model) {
-        this.env.modelStore.setActiveModel({ model });
+        this.docContext.modelStore.setActiveModel({ model });
     }
 }

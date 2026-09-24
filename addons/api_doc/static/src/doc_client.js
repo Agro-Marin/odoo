@@ -5,14 +5,12 @@ import { SearchModal } from "@api_doc/components/doc_modal_search";
 import { DocModel } from "@api_doc/components/doc_model";
 import { DocSidebar } from "@api_doc/components/doc_sidebar";
 import { ModelStore } from "@api_doc/doc_model_store";
-import { useDocUI } from "@api_doc/utils/doc_ui_store";
 import {
-    Component,
-    onMounted,
-    useExternalListener,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
+    provideDocModelStore,
+    useDocModelStore,
+} from "@api_doc/doc_model_store_context";
+import { useDocUI } from "@api_doc/utils/doc_ui_store";
+import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
 
 export class DocClient extends Component {
     static template = "api_doc.DocClient";
@@ -31,7 +29,8 @@ export class DocClient extends Component {
 
         this.ui = useDocUI();
         this.modelStore = useState(new ModelStore());
-        useSubEnv({ modelStore: this.modelStore });
+        provideDocModelStore({ modelStore: this.modelStore });
+        this.docContext = useDocModelStore();
 
         this.state = useState({ showSearchModal: false });
 

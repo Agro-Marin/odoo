@@ -11,6 +11,7 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 
 import { DateTime } from "luxon";
+import { useAccountReportContext } from "@report_formula/components/account_report/account_report_context";
 function findNearestDropdownItem(navigator) {
     for (let i = navigator.activeItemIndex; i >= 0; i--) {
         if (navigator.items[i].target.classList.contains("o-dropdown-item")) {
@@ -32,12 +33,13 @@ export class AccountReportFilters extends Component {
     };
 
     setup() {
+        this.reportContext = useAccountReportContext();
         useLifecycleLog(log);
         this.dialog = useService("dialog");
         this.orm = useService("orm");
         this.notification = useService("notification");
-        this.controller = useState(this.env.controller);
-        if (this.env.controller.cachedFilterOptions.date) {
+        this.controller = useState(this.reportContext.controller);
+        if (this.reportContext.controller.cachedFilterOptions.date) {
             this.dateFilter = useState(this.initDateFilters());
         }
         this.timeout = null;

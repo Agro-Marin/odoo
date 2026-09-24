@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useEditorOverlayContext } from "@html_editor/core/editor_overlay_context";
 import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { Component, onWillStart, useState } from "@odoo/owl";
@@ -17,12 +18,13 @@ export class LanguageSelector extends Component {
     static components = { Dropdown, DropdownItem };
 
     setup() {
+        this.overlayContext = useEditorOverlayContext();
         this.orm = useService("orm");
         this.state = useState({
             languages: [],
         });
         this.menuRef = useChildRef();
-        useDropdownAutoVisibility(this.env.overlayState, this.menuRef);
+        useDropdownAutoVisibility(this.overlayContext.overlayState, this.menuRef);
         onWillStart(() => {
             if (user.userId) {
                 const userLang = jsToPyLocale(user.lang);

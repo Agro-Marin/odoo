@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useEditorOverlayContext } from "@html_editor/core/editor_overlay_context";
 import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { Component, useState } from "@odoo/owl";
@@ -16,10 +17,11 @@ export class TableAlignSelector extends Component {
     static components = { Dropdown };
 
     setup() {
+        this.overlayContext = useEditorOverlayContext();
         this.items = this.props.getItems();
         this.state = useState(this.props.getDisplay());
         this.menuRef = useChildRef();
-        useDropdownAutoVisibility(this.env.overlayState, this.menuRef);
+        useDropdownAutoVisibility(this.overlayContext.overlayState, this.menuRef);
     }
 
     onSelected(item) {

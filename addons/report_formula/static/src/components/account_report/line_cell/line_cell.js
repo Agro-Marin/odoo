@@ -3,6 +3,7 @@ import { AccountReportEditPopover } from "@report_formula/components/account_rep
 import { Component, markup, useState } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
 import { useService } from "@web/core/utils/hooks";
+import { useAccountReportContext } from "@report_formula/components/account_report/account_report_context";
 
 export class AccountReportLineCell extends Component {
     static template = "report_formula.AccountReportLineCell";
@@ -16,10 +17,11 @@ export class AccountReportLineCell extends Component {
     };
 
     setup() {
+        this.reportContext = useAccountReportContext();
         this.action = useService("action");
         this.orm = useService("orm");
         this.popover = useService("popover");
-        this.controller = useState(this.env.controller);
+        this.controller = useState(this.reportContext.controller);
     }
 
     // -----------------------------------------------------------------------------------------------------------------

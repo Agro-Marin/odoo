@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { Component, useExternalListener, useRef } from "@odoo/owl";
 
 export class ApiKeyModal extends Component {
@@ -8,6 +9,7 @@ export class ApiKeyModal extends Component {
     static props = {};
 
     setup() {
+        this.docContext = useDocModelStore();
         this.modalRef = useRef("modalRef");
 
         useExternalListener(window, "keydown", (event) => {
@@ -24,14 +26,14 @@ export class ApiKeyModal extends Component {
     }
 
     save() {
-        this.env.modelStore.setAPIKey(
+        this.docContext.modelStore.setAPIKey(
             this.modalRef.el.querySelector(":scope input").value.trim(),
         );
-        this.env.modelStore.showApiKeyModal = false;
+        this.docContext.modelStore.showApiKeyModal = false;
     }
 
     cancel() {
-        this.env.modelStore.showApiKeyModal = false;
+        this.docContext.modelStore.showApiKeyModal = false;
     }
 
     async openAPIKeyForm() {

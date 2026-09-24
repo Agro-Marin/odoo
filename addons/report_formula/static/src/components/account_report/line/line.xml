@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <templates>
     <t t-name="report_formula.AccountReportLine">
-        <t t-call="{{ this.env.template('AccountReportLine') }}"/>
+        <t t-call="{{ this.reportContext.template('AccountReportLine') }}"/>
     </t>
 
     <t t-name="report_formula.AccountReportLineCustomizable">
@@ -26,7 +26,7 @@
             t-att-class="this.lineClasses"
         >
             <!-- Name column -->
-            <t t-component="this.env.component('AccountReportLineName')" t-props="{ lineIndex: this.props.lineIndex, line: this.props.line }"/>
+            <t t-component="this.reportContext.component('AccountReportLineName')" t-props="{ lineIndex: this.props.lineIndex, line: this.props.line }"/>
 
             <!-- Value columns -->
             <t data-id="line_column" t-foreach="this.props.line.columns" t-as="cell" t-key="cell_index">
@@ -35,7 +35,7 @@
                     <AccountReportLineCellEditable t-props="{ line: this.props.line, cell: cell, cellIndex: cell_index }"/>
                 </t>
                 <t t-else="">
-                    <t t-component="this.env.component('AccountReportLineCell')" t-props="{ line: this.props.line, cell: cell, cellIndex: cell_index }"/>
+                    <t t-component="this.reportContext.component('AccountReportLineCell')" t-props="{ line: this.props.line, cell: cell, cellIndex: cell_index }"/>
                 </t>
             </t>
 

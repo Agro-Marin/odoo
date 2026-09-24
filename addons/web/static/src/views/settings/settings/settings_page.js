@@ -6,6 +6,7 @@ import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { useSettingsSearchContext } from "@web/views/settings/settings_search_context";
 export class SettingsPage extends Component {
     static template = "web.SettingsPage";
     static components = { ActionSwiper };
@@ -25,10 +26,11 @@ export class SettingsPage extends Component {
     tabChangeProm;
 
     setup() {
+        this.settingsContext = useSettingsSearchContext();
         this.ui = useService("ui");
         this.state = useState({
             selectedTab: "",
-            search: this.env.searchState,
+            search: this.settingsContext.searchState,
         });
 
         if (this.props.modules.length) {
@@ -121,6 +123,6 @@ export class SettingsPage extends Component {
             this.scrollMap[this.state.selectedTab] = { scrollTop };
         }
         this.state.selectedTab = key;
-        this.env.searchState.value = "";
+        this.settingsContext.searchState.value = "";
     }
 }

@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { search } from "@api_doc/utils/doc_model_search";
 import { Component, onMounted, useExternalListener, useRef, useState } from "@odoo/owl";
 import { useDebounced } from "@web/core/utils/timing";
@@ -12,6 +13,7 @@ export class SearchModal extends Component {
     };
 
     setup() {
+        this.docContext = useDocModelStore();
         this.seachRef = useRef("seachRef");
         this.modalRef = useRef("modalRef");
         this.scrollRef = useRef("scrollRef");
@@ -32,7 +34,7 @@ export class SearchModal extends Component {
 
         this.search = useDebounced((query) => {
             this.results = search(
-                this.env.modelStore.models,
+                this.docContext.modelStore.models,
                 query,
                 this.state.activeFilters,
             );
@@ -65,7 +67,7 @@ export class SearchModal extends Component {
     }
 
     onSelect(result) {
-        this.env.modelStore.setActiveModel(result);
+        this.docContext.modelStore.setActiveModel(result);
         this.props.close();
     }
 

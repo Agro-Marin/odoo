@@ -2,6 +2,7 @@
 import { Component, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
+import { useAccountReportContext } from "@report_formula/components/account_report/account_report_context";
 
 export class AccountReportHeader extends Component {
     static template = "report_formula.AccountReportHeader";
@@ -12,8 +13,9 @@ export class AccountReportHeader extends Component {
     };
 
     setup() {
+        this.reportContext = useAccountReportContext();
         this.orm = useService("orm");
-        this.controller = useState(this.env.controller);
+        this.controller = useState(this.reportContext.controller);
     }
     // -----------------------------------------------------------------------------------------------------------------
     // Headers
