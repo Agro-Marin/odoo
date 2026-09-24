@@ -81,3 +81,11 @@ class IrHttp(models.AbstractModel):
             event_id=resolution.event_id,
         )
         request.admission.extra = extra
+        if service_user := gate._inbound_service_user():
+            # the handler runs as the gate's service principal, so what it
+            # writes is attributed to it rather than to the public user
+            request.update_env(user=service_user.id)
+            admission = request.admission
+            if admission.subject:
+                admission.subject = admission.subject.with_env(request.env(su=True))
+            admission.annotate(user_id=service_user.id)

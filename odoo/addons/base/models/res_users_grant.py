@@ -1,5 +1,6 @@
 import contextlib
 import contextvars
+import weakref
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from datetime import datetime
@@ -26,6 +27,13 @@ _LIFECYCLE: contextvars.ContextVar[bool] = contextvars.ContextVar(
 # the users a create is making: no cache holds anything about them yet
 _FRESH_USERS: contextvars.ContextVar[frozenset[int]] = contextvars.ContextVar(
     "res_users_grant_fresh_users", default=frozenset()
+)
+# the registries whose database has the grant table
+_GRANTS_AVAILABLE: weakref.WeakValueDictionary[int, Any] = weakref.WeakValueDictionary()
+# set while grants follow a membership write, whose writer clears the access
+# caches once it is done
+_FOLLOWING: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "res_users_grant_following", default=False
 )
 
 GRANT_CAUSES = [
@@ -88,6 +96,7 @@ class ResUsersGrant(models.Model):
     )
     scoped = fields.Boolean(
         compute="_compute_scoped",
+        precompute=True,
         store=True,
         help="Whether the grant is limited to some companies.",
     )
@@ -490,7 +499,8 @@ class ResUsersGrant(models.Model):
         # granted unscoped, a removed one loses every live grant of it
         token = _FRESH_USERS.set(frozenset(fresh_user_ids))
         try:
-            self._follow_membership_pairs(added, removed)
+            with _marked(_FOLLOWING):
+                self._follow_membership_pairs(added, removed)
         finally:
             _FRESH_USERS.reset(token)
 
@@ -594,6 +604,9 @@ class ResUsersGrant(models.Model):
         # its scope; only the pairs these grants name are touched, so a
         # membership no grant covers yet (a database before its migration) is
         # left as it is
+        if _FOLLOWING.get():
+            # the membership write these grants follow has moved the pairs
+            return
         pairs = self._pairs() if pairs is None else pairs
         if not pairs:
             return
@@ -634,9 +647,16 @@ class ResUsersGrant(models.Model):
     def _grants_available(self) -> bool:
         # false only while an upgrade from before the model has not created
         # its table yet: the reflection that records the model runs with the
-        # table's creation, and reads the same in memory as in PostgreSQL
-        return bool(
+        # table's creation, and reads the same in memory as in PostgreSQL.
+        # Once true it stays true for the registry, which is asked on every
+        # cold group state
+        if _GRANTS_AVAILABLE.get(id(self.pool)) is self.pool:
+            return True
+        available = bool(
             self.env["ir.model"]
             .sudo()
             .search_count([("model", "=", self._name)], limit=1)
         )
+        if available:
+            _GRANTS_AVAILABLE[id(self.pool)] = self.pool
+        return available

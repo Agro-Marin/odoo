@@ -614,6 +614,15 @@ class ResUsers(models.Model):
         inverse="_inverse_role",
         readonly=False,
     )
+    principal_type = fields.Selection(
+        selection=[("person", "Person"), ("service", "Service")],
+        default="person",
+        required=True,
+        help="A service principal is a program acting for the company -- a "
+        "receiver, a job, an integration -- with its own grants: it never logs "
+        "in interactively, and reaches the programmatic doors with API keys "
+        "only.",
+    )
 
     def init(self) -> None:
         cr = self.env.cr
@@ -782,7 +791,7 @@ class ResUsers(models.Model):
         self.env.registry.clear_cache()
 
     def _is_rpc_api_key_only(self) -> bool:
-        return False
+        return self.principal_type == "service"
 
     def _check_credentials(
         self, credential: dict[str, Any], env: dict[str, Any]
@@ -1370,6 +1379,13 @@ class ResUsers(models.Model):
                     )
                     raise AccessDenied
                 user = user.with_user(user).sudo()
+                if user.principal_type == "service" and (user_agent_env or {}).get(
+                    "interactive", True
+                ):
+                    # before any auth method's own check (password, LDAP,
+                    # OAuth): a service principal never holds a session
+                    _debug.logic("login_refused", uid=user.id, reason="service")
+                    raise AccessDenied
                 _debug.pipeline("login_credentials_check", uid=user.id, ip=ip)
                 auth_info = user._check_credentials(credential, user_agent_env)
                 tz = request.cookies.get("tz") if request else None

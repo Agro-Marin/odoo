@@ -433,3 +433,9 @@ class TestPayloadHashOverride(APITransportTestCase):
         self.assertEqual(
             event.request_payload_hash, compute_payload_hash("not json at all")
         )
+
+
+class TestInboundServiceUser(TransactionCase):
+    def test_a_gate_without_a_service_user_runs_as_before(self):
+        receiver = self.env["integration.receiver"].new({"name": "probe"})
+        self.assertFalse(receiver._inbound_service_user())

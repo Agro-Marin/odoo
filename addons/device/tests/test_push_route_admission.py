@@ -163,3 +163,29 @@ class TestPushRouteAdmission(DeviceHttpCase):
         self.assertEqual(response.json()["device_name"], "Twin")
         self.assertEqual(len(self._rows(twin)), 1)
         self.assertFalse(self._rows())
+
+    def test_a_push_runs_as_the_device_receiver_and_is_its_own(self):
+        receiver = self.env.ref("device.user_device_receiver")
+        self.assertEqual(receiver.principal_type, "service")
+
+        self.assertEqual(self._push().status_code, 200)
+
+        self.assertEqual(self._rows().user_id, receiver)
+        point = self.env["device.data.log"].search(
+            [("device_id", "=", self.device.id)], order="id desc", limit=1
+        )
+        self.assertEqual(point.create_uid, receiver)
+
+    def test_a_gate_s_own_service_principal_comes_first(self):
+        own = self.env["res.users"].create(
+            {
+                "name": "Admission Receiver",
+                "login": "admission_receiver",
+                "principal_type": "service",
+            }
+        )
+        self.device.service_user_id = own
+
+        self.assertEqual(self._push().status_code, 200)
+
+        self.assertEqual(self._rows().user_id, own)

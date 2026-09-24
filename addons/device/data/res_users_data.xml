@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="user_device_receiver" model="res.users">
+        <field name="name">Device Receiver</field>
+        <field name="login">__device_receiver__</field>
+        <field name="group_ids" eval="[Command.set([ref('group_device_user')])]" />
+        <field name="active" eval="False" />
+        <field name="principal_type">service</field>
+    </record>
+
+</odoo>

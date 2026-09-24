@@ -47,6 +47,15 @@ class MixinInboundGate(models.AbstractModel):
     _inherit = ["mixin.credential.auth"]
     _description = "Inbound Request Gate Mixin"
 
+    service_user_id = fields.Many2one(
+        comodel_name="res.users",
+        string="Runs As",
+        domain=[("principal_type", "=", "service")],
+        ondelete="restrict",
+        help="The service principal an admitted call runs as, instead of the "
+        "public user: what it writes is its own, and its grants are what it "
+        "may do.",
+    )
     signature_header = fields.Char(
         default="X-Hub-Signature-256",
         help="HTTP header containing the HMAC signature",
@@ -854,3 +863,9 @@ class MixinInboundGate(models.AbstractModel):
     def is_ip_allowed(self, source_ip: str) -> bool:
         self.check_singleton()
         return is_ip_in_allowlist(source_ip, self.ip_whitelist)
+
+    def _inbound_service_user(self):
+        # the service principal an admitted call runs as; a module whose gates
+        # all run as one principal overrides it with that principal
+        self.check_singleton()
+        return self.service_user_id

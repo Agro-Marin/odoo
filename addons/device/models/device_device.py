@@ -975,6 +975,13 @@ class DeviceDevice(models.Model):
     def _inbound_event_logged(self, event_type):
         return event_type not in self._INBOUND_UNLOGGED_EVENTS
 
+    def _inbound_service_user(self):
+        return (
+            self.service_user_id
+            or self.env.ref("device.user_device_receiver", raise_if_not_found=False)
+            or self.env["res.users"]
+        )
+
     @api.model
     def _receiver_for_identifier(self, identifier, domain=None, **_path_args):
         """The device a machine route addresses by identifier. Identifiers are

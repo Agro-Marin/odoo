@@ -268,6 +268,11 @@
                                     options="{'horizontal': true}"
                                     invisible="share" />
                                 <field
+                                    name="principal_type"
+                                    widget="radio"
+                                    options="{'horizontal': true}"
+                                    groups="base.group_no_one" />
+                                <field
                                     name="company_ids"
                                     string="Companies"
                                     widget="many2many_tags"

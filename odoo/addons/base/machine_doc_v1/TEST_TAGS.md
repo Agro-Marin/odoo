@@ -5,7 +5,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 ## Quick Reference
 
 ```bash
-# All base tests (4208 methods, 847 classes, 149 files)
+# All base tests (4210 methods, 848 classes, 150 files)
 --test-tags '/base' -u base
 
 # Only post_install tests
@@ -102,7 +102,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 
 ## Test File Reference
 
-### Tagged Files (88 files, 505 classes)
+### Tagged Files (89 files, 506 classes)
 
 | File | Tags | Classes | Tests | Base Class |
 |------|------|---------|-------|------------|
@@ -185,6 +185,7 @@ Test organization, tagging strategy, and execution reference for `odoo/addons/ba
 | `test_res_users_log.py` | `post_install`, `-at_install` | 2 | 5 | TransactionCase |
 | `test_res_users_settings.py` | `post_install`, `-at_install` | 4 | 16 | TransactionCase |
 | `test_seeded_users.py` | `-at_install`, `post_install` | 1 | 3 | HttpCaseWithUserDemo, HttpCaseWithUserPortal |
+| `test_service_principal.py` | `post_install`, `-at_install` | 1 | 2 | TransactionCase |
 | `test_table_object_conversion.py` | `post_install`, `-at_install` | 2 | 8 | TransactionCase |
 | `test_test_retry.py` | `test_retry`, `test_retry_success`, `-standard`, `test_retry_failures`, `test_retry_disable` | 12 | 19 | TestRetryCommon, TransactionCase |
 | `test_tests_tags.py` | `nodatabase` | 4 | 14 | TransactionCase, BaseCase |
@@ -265,12 +266,12 @@ These run in **both** at_install and post_install phases by default.
 
 | Metric | Value |
 |--------|-------|
-| Total test files | 149 |
-| Total test classes | 847 |
-| Total test methods | 4208 |
-| Files with @tagged | 88 (59%) |
+| Total test files | 150 |
+| Total test classes | 848 |
+| Total test methods | 4210 |
+| Files with @tagged | 89 (59%) |
 | Files without @tagged | 61 (41%) |
-| Classes using post_install | 295 |
+| Classes using post_install | 296 |
 | Unique tags | 29 |
 | Largest test file | test_db_cursor.py (118 classes, 390 tests) |
 

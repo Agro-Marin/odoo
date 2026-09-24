@@ -320,6 +320,9 @@
                                 <group>
                                     <field name="credential_id" />
                                     <field name="auth_type" />
+                                    <field
+                                        name="service_user_id"
+                                        placeholder="Device Receiver" />
                                 </group>
                             </group>
 

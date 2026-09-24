@@ -41,6 +41,7 @@
                             <field
                                 name="company_id"
                                 groups="base.group_multi_company" />
+                            <field name="service_user_id" />
                         </group>
                         <group>
                             <field name="ip_whitelist" />
