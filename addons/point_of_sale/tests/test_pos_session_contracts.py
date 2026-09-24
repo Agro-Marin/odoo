@@ -1,8 +1,9 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 import odoo
 from odoo import fields
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 
 from odoo.addons.point_of_sale.tests.common import TestPoSCommon
 
@@ -242,6 +243,19 @@ class TestPosSessionLoadContract(TestPoSCommon):
             "the client pairs many2many inverses by relation_table, so a related"
             " many2many has to report the table of the field it follows",
         )
+
+    def test_a_config_the_user_cannot_read_fails_the_load_instead_of_emptying_it(self):
+        session = self._start_pos_session(self.cash_pm1, 0)
+        PosConfig = type(self.env["pos.config"])
+
+        def refuse(*args, **kwargs):
+            raise AccessError("no")
+
+        with (
+            patch.object(PosConfig, "_load_pos_data_search_read", refuse),
+            self.assertRaises(AccessError),
+        ):
+            session.load_data([])
 
     def test_every_key_of_a_loaded_row_is_a_field_the_client_is_told_of(self):
         session = self._start_pos_session(self.cash_pm1, 0)

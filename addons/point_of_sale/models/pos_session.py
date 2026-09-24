@@ -359,8 +359,10 @@ class PosSession(models.Model):
                     len(response[model]),
                 )
             except AccessError as e:
+                if model == "pos.config":
+                    raise
                 response[model] = []
-                _logger.info("Could not load model %s due to AccessError: %s", model, e)
+                _logger.warning("PoS session %s loads no %s: %s", self.name, model, e)
 
         return response
 
