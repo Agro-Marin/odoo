@@ -39,7 +39,7 @@ from odoo.tools import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
 from .res_users_auth import _DUMMY_PASSWORD_HASH, PasswordStore, session_token
-from .res_users_grant import projecting
+from .res_users_grant import GROUP_STATE_COMPUTED, projecting
 from .res_users_login_cooldown import LoginCooldown
 
 _logger = logging.getLogger(__name__)
@@ -325,7 +325,10 @@ class ResUsers(models.Model):
 
     def _compute_group_state(self, key: tuple) -> GroupState:
         # the groups of the user's live grants, each with the companies it is
-        # limited to, and when that answer next changes
+        # limited to, and when that answer next changes. The transaction
+        # remembers whose state it computed: a user's create may ask before
+        # all of its grants exist, and those grants then clear what was cached
+        self.env.cr.cache.setdefault(GROUP_STATE_COMPUTED, set()).add(self.id)
         grant_model = self.env["res.users.grant"].sudo()
         valid_until = None
         scopes: dict[int, frozenset[int] | None] = {}

@@ -28,6 +28,9 @@ _LIFECYCLE: contextvars.ContextVar[bool] = contextvars.ContextVar(
 _FRESH_USERS: contextvars.ContextVar[frozenset[int]] = contextvars.ContextVar(
     "res_users_grant_fresh_users", default=frozenset()
 )
+# the transaction's cr.cache entry naming the users whose group state it
+# computed
+GROUP_STATE_COMPUTED = "res_users_group_state_computed"
 # the registries whose database has the grant table
 _GRANTS_AVAILABLE: weakref.WeakValueDictionary[int, Any] = weakref.WeakValueDictionary()
 # set while grants follow a membership write, whose writer clears the access
@@ -503,6 +506,11 @@ class ResUsersGrant(models.Model):
                 self._follow_membership_pairs(added, removed)
         finally:
             _FRESH_USERS.reset(token)
+        # a writer clears the caches after its write; a create does not, and
+        # only needs to when something asked a new user's groups before all of
+        # its grants existed (an inverse granting one group of several)
+        if set(fresh_user_ids) & self.env.cr.cache.get(GROUP_STATE_COMPUTED, set()):
+            self.env["ir.access"]._clear_access_caches()
 
     def _follow_membership_pairs(
         self,

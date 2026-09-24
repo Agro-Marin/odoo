@@ -31,6 +31,19 @@ class TestNotificationTypeOnCreate(TransactionCase):
         self.assertEqual(user.notification_type, "inbox")
         self.assertIn(self.inbox, user.group_ids)
 
+    def test_an_inbox_user_holds_every_group_it_is_created_with(self):
+        user = self.env["res.users"].create(
+            {
+                "name": "inbox_holds",
+                "login": "inbox_holds",
+                "notification_type": "inbox",
+                "group_ids": [Command.link(self.group_user.id)],
+            }
+        )
+
+        self.assertTrue(user.with_user(user).has_group("base.group_user"))
+        self.assertTrue(user.has_group("mail.group_mail_notification_type_inbox"))
+
     def test_without_the_inbox_group_a_new_user_is_notified_by_email(self):
         user = self._create_user("email_only", [Command.link(self.group_user.id)])
 
