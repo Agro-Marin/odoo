@@ -34,6 +34,17 @@ from ._commands import CommandDelta
 
 _debug = DebugLog(__name__)
 
+
+def _split_scope(scope: typing.Any) -> tuple[int, typing.Any, frozenset[int]]:
+    # an access scope is (uid, companies), or ((uid, companies), privileges)
+    # for an environment elevated to named privileges
+    if isinstance(scope[0], tuple):
+        (uid, company_ids), privileges = scope
+        return uid, company_ids, frozenset(privileges)
+    uid, company_ids = scope
+    return uid, company_ids, frozenset()
+
+
 _COMODEL_WRITING_COMMANDS = frozenset({Command.CREATE, Command.UPDATE, Command.DELETE})
 
 
@@ -601,13 +612,13 @@ class _RelationalMulti(_Relational):
 
     def _scope_env(self, env: Environment, key: tuple) -> Environment:
         index = env._field_depends_context[self].index("access")
-        uid, company_ids = key[index]
+        uid, company_ids, privileges = _split_scope(key[index])
         context = dict(env.context)
         if company_ids:
             context["allowed_company_ids"] = list(company_ids)
         else:
             context.pop("allowed_company_ids", None)
-        return env(user=uid, context=context, su=False)
+        return env(user=uid, context=context, su=False, privileges=privileges)
 
     def _scope_reads_through(
         self,
@@ -650,7 +661,9 @@ class _RelationalMulti(_Relational):
                 "field.x2many.scope_unreadable_evicted",
                 model=self.model_name,
                 field=self.name,
-                uid=key[env._field_depends_context[self].index("access")][0],
+                uid=_split_scope(key[env._field_depends_context[self].index("access")])[
+                    0
+                ],
             )
             return True
         return facts is None or any((model_name, fname) in facts for fname in fnames)

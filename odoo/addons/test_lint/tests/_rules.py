@@ -10,6 +10,7 @@ from . import (
     _checker_config_patch,
     _checker_credential_storage,
     _checker_egress,
+    _checker_ensure_one,
     _checker_field_declaration,
     _checker_gettext,
     _checker_http_json,
@@ -270,6 +271,13 @@ RULES: tuple[Rule, ...] = (
         "probe that must stay open takes `# noqa: E8528  <why>`",
     ),
     Rule(
+        "ensure-one-call",
+        "E8535",
+        "this fork's singleton check is `check_singleton()`; `ensure_one()` is not "
+        "a method of its recordsets, so the call raises AttributeError the first "
+        "time the line runs, which a path no test takes hides until production",
+    ),
+    Rule(
         "sql-bound-placeholder",
         "E8534",
         "a bound parameter cannot stand where PostgreSQL parses syntax: psycopg "
@@ -382,7 +390,7 @@ ALIASES: dict[str, frozenset[str]] = {
     rule.name: frozenset(alias.lower() for alias in rule.aliases) for rule in RULES
 }
 
-UNSUPPRESSABLE = frozenset({"noqa-rationale", "unreadable-source"})
+UNSUPPRESSABLE = frozenset({"ensure-one-call", "noqa-rationale", "unreadable-source"})
 
 
 def _sql(unit: Unit) -> Iterator[object]:
@@ -431,6 +439,10 @@ def _tax_company(unit: Unit) -> Iterable[object]:
 
 def _sql_bound_placeholder(unit: Unit) -> Iterable[object]:
     return _checker_sql_placeholder.check(unit.tree)
+
+
+def _ensure_one(unit: Unit) -> Iterable[object]:
+    return _checker_ensure_one.check(unit.tree)
 
 
 def _band_range(unit: Unit) -> Iterable[object]:
@@ -555,6 +567,7 @@ CHECKERS: tuple[Checker, ...] = (
         _anywhere,
         frozenset({"sql-bound-placeholder"}),
     ),
+    Checker(_ensure_one, _anywhere, frozenset({"ensure-one-call"})),
     Checker(
         _route_untyped,
         _in_an_addon_outside_tests,

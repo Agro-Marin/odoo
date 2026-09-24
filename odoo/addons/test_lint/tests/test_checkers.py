@@ -12,6 +12,7 @@ from . import (
     _checker_config_patch,
     _checker_credential_storage,
     _checker_egress,
+    _checker_ensure_one,
     _checker_field_declaration,
     _checker_gettext,
     _checker_http_json,
@@ -2476,6 +2477,15 @@ class TestHandRolledRangeLint(BaseCase):
             """),
             [],
         )
+
+
+@no_retry
+class TestEnsureOneLint(BaseCase):
+    def test_a_call_is_flagged_and_the_fork_s_check_is_not(self):
+        tree = ast.parse(
+            "rec.ensure_one()\nrec.check_singleton()\nx = rec.ensure_one\n"
+        )
+        self.assertEqual([v.lineno for v in _checker_ensure_one.check(tree)], [1])
 
 
 @no_retry

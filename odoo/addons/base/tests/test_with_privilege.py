@@ -122,6 +122,16 @@ class TestWithPrivilege(TransactionCase):
         self.assertEqual(log.reason, "probe audit")
         self.assertEqual(log.actor_id, self.user)
 
+    def test_a_write_that_evicts_x2many_scopes_rebuilds_a_privileged_one(self):
+        parent = self.env["res.partner"].create({"name": "Probe parent"})
+        child = self.env["res.partner"].create(
+            {"name": "Probe child", "parent_id": parent.id}
+        )
+        privileged = parent.with_user(self.user).with_privilege(self.name)
+        self.assertEqual(privileged.child_ids, child)
+        child.write({"company_id": self.env.company.id})
+        self.assertEqual(privileged.child_ids, child)
+
     def test_the_access_error_names_no_privilege(self):
         names = self.env["ir.access"]._group_names_with_access(
             "res.partner.industry", "create"

@@ -66,6 +66,7 @@ database, and `test_checkers.py` does exactly that.
 |---|---|
 | `_checker_sql.py` | `sql-injection` |
 | `_checker_sql_placeholder.py` | `sql-bound-placeholder` |
+| `_checker_ensure_one.py` | `ensure-one-call` |
 | `_checker_gettext.py` | `gettext-variable`, `gettext-placeholders`, `gettext-repr`, `missing-gettext`, `gettext-developer-error` |
 | `_checker_batch.py` | `n-plus-one-query` |
 | `_checker_unlink.py` | `raise-unlink-override` |
@@ -142,6 +143,7 @@ one, website's `public`, is not a new scheme). An identity is a scheme on a rece
 row or a resolver's verifier, never a fourth method -- `mail_plugin`'s `outlook` and
 `calendar`'s attendee token were the two that went that way before the rule.
 `hand-rolled-range` (E8532) counts models that declare a numeric `<x>_min`/`<x>_max` (or `min_<x>`/`max_<x>`) pair without `mixin.band` or a `mixin.score.*` scale. A range that classifies a value belongs on the mixin -- half-open, overlap-checked, scoped -- because a pair rolled by hand is inclusive in one model and half-open in the next, and `credit.grade`'s integer pair over a float score proposed no grade between 79 and 80. Ratcheted: a tolerance, a slider or a filter bound is a pair and not a scale, so the floor names the debt and moving a scale onto the mixin lowers it.
+`ensure-one-call` (E8535) counts every call of `ensure_one()`, in production code and tests alike, and cannot be suppressed: the fork's singleton check is `check_singleton()`, so the call raises AttributeError the first time its line runs. S7's gate hook shipped one and refused every receiver route but the device's with a 403 until a calendar suite ran it.
 `sql-bound-placeholder` (E8534) counts a bound parameter where PostgreSQL parses syntax -- `IN %s`, `INTERVAL %s` -- in a raw `cr.execute`: psycopg 3 binds server-side, so the statement reaches the server as `IN $1` and never parses. `SQL()` expands a tuple and `SQL.literal` inlines; a `timedelta` is adapted as an interval.
 `route-untyped` (E8533) counts a route a program calls -- `type="json2"`, or
 `auth in {"bearer", "receiver"}` -- that does not declare its parameters: no
@@ -253,7 +255,7 @@ negative for every rule, so no rule can go vacuous unnoticed.
 
 Static OWL templates are not data files: `test_owl_templates.py` scans every XML file under an addon's static tree and every tagged `xml` template in addon JS (the vendored lib tree and o_spreadsheet excluded) for `t-esc` -- the attribute, an `<attribute name="t-esc">` operation or an `@t-esc` XPath -- as the hard-zero gate `owl_t_esc`, ahead of OWL 3 removing the directive.
 
-`test_owl3_api.py` counts, in every addon's `static/src` outside the vendored trees and with JS comments stripped, the bare calls of the four OWL 2 APIs that OWL 3 removes: `owl_on_rendered` (`onRendered(`), `owl_on_will_render` (`onWillRender(`), `owl_this_render` (`this.render(`) and `owl_use_component` (`useComponent(`). A method that only shares the name, such as `props.comp.onRendered`, is not counted. Each is an exact ratchet whose floor is in `floors.json`, lowered as the OWL 3 migration removes the sites.
+`test_owl3_api.py` counts, in every addon's `static/src` outside the vendored trees and with JS comments stripped, the bare calls of the five OWL 2 APIs that OWL 3 removes: `owl_on_rendered` (`onRendered(`), `owl_on_will_render` (`onWillRender(`), `owl_this_render` (`this.render(`), `owl_use_component` (`useComponent(`) and `owl_env_services` (`this.env.services`, which a component takes in setup through `useService` instead). A method that only shares the name, such as `props.comp.onRendered`, is not counted. Each is an exact ratchet whose floor is in `floors.json`, lowered as the OWL 3 migration removes the sites.
 
 | rule | what it catches |
 |---|---|
