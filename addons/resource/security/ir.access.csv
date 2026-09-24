@@ -17,7 +17,7 @@ access_resource_assignment_user,resource.assignment.user,model_resource_assignme
 access_resource_assignment_system_cud,resource.assignment.system,model_resource_assignment,base.group_system,permission,cud,
 access_resource_time_type_user,resource.time.type.user,model_resource_time_type,base.group_user,permission,r,
 access_resource_time_type_system,resource.time.type.system,model_resource_time_type,base.group_system,permission,cud,
-access_resource_config_user,resource.config user,model_resource_config,base.group_user,permission,r,
+access_resource_config_user,resource.config: the reader's companies,model_resource_config,base.group_user,permission,r,"[('company_id', 'in', company_ids)]"
 access_resource_config_manager,resource.config manager,model_resource_config,base.group_system,permission,cud,
 resource_resource_multi_company,resource.resource multi-company,model_resource_resource,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
 resource_schedule_exception_rule_multi_company,resource.schedule.exception: multi-company rule,model_resource_schedule_exception,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
