@@ -28,8 +28,8 @@ SIGNALING_TABLES = tuple(
     get_signaling_table_name(cache_name) for cache_name in ["registry", *CACHES_BY_KEY]
 )
 
-# every request reads the eleven watermarks; the serial's last value answers in
-# one sequence read each, where max(id) planned eleven subselects per call
+# every request reads each table's watermark; the serial's last value answers in
+# one sequence read each, where max(id) planned one subselect per table per call
 _SEQUENCES_QUERY = SQL(
     "SELECT %s",
     SQL(", ").join(

@@ -319,7 +319,7 @@ class ResUsers(models.Model):
         privileges = self.env.privileges if self.id == self.env.uid else ()
         return (companies, tuple(sorted(privileges)))
 
-    @tools.ormcache("self.id", "key")
+    @tools.ormcache("self.id", "key", cache="memberships")
     def _get_cached_group_state(self, key: tuple) -> GroupState:
         return self._compute_group_state(key)
 
@@ -1244,7 +1244,7 @@ class ResUsers(models.Model):
 
         if "group_ids" in vals and self.ids:
             _debug.logic("write_cache_cleared", reason="group_ids")
-            self.env["ir.access"]._clear_access_caches()
+            self.env["res.users.grant"]._clear_membership_caches()
         elif self._get_fields_invalidation() & vals.keys():
             _debug.logic("write_cache_cleared", reason="invalidating_fields")
             self.env.registry.clear_cache()

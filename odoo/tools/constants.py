@@ -25,6 +25,7 @@ REGISTRY_CACHES = {
     "routing.rewrites": 8192,
     "templates.cached_values": 2048,
     "groups": 64,
+    "memberships": 2048,
     "product_variants": 8192,
     "actions": 256,
     "xmlid": 8192,
@@ -52,6 +53,7 @@ CACHES_BY_KEY = {
     "routing": ("routing", "routing.rewrites", "templates.cached_values"),
     "groups": (
         "groups",
+        "memberships",
         "templates",
         "templates.mail",
         "templates.cached_values",
@@ -60,4 +62,5 @@ CACHES_BY_KEY = {
     "actions": ("actions",),
     "xmlid": ("xmlid",),
     "mail": ("mail",),
+    "memberships": ("memberships",),
 }

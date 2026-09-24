@@ -365,32 +365,28 @@ class TestHasGroup(TransactionCase):
             user_b.write({"group_ids": [Command.link(group_C.id)]})
 
     def test_has_group_cleared_cache_on_write(self):
-        self.env.registry.clear_cache()
-        self.assertFalse(
-            self.registry.ormcache_lrus["default"],
-            "Ensure ormcache is empty",
-        )
+        memberships = self.registry.ormcache_lrus["memberships"]
+        self.env.registry.clear_cache("memberships")
+        self.assertFalse(memberships, "Ensure the group state cache is empty")
 
         def populate_cache():
             self.test_user.has_group("test_user_has_group.group0")
-            self.assertTrue(
-                self.registry.ormcache_lrus["default"],
-                "user._has_group cache must be populated",
-            )
+            self.assertTrue(memberships, "the user's group state must be cached")
 
         populate_cache()
+        self.env.registry.clear_cache()
+        self.assertTrue(memberships, "a bare clear_cache() keeps the group state")
 
         self.env.ref(self.group0).write({"share": True})
         self.assertFalse(
-            self.registry.ormcache_lrus["default"],
-            "Writing on group must invalidate user._has_group cache",
+            memberships, "Writing on group must invalidate the users' group state"
         )
 
         populate_cache()
-        self.env["ir.access"]._clear_access_caches()
+        self.env["res.users.grant"]._clear_membership_caches()
         self.assertFalse(
-            self.registry.ormcache_lrus["default"],
-            "_clear_access_caches() must invalidate user._has_group cache",
+            memberships,
+            "_clear_membership_caches() must invalidate the users' group state",
         )
 
     def test_has_group_with_new_id(self):

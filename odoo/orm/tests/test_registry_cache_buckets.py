@@ -35,7 +35,7 @@ BUCKET_OWNERS: dict[str, str] = {
     "templates.cached_values": "base — values cached against a template render",
     "routing": "base/web — the HTTP routing map",
     "routing.rewrites": "base/web — URL rewrite rules",
-    "groups": "base — group membership",
+    "groups": "base — the group hierarchy, definitions and user-type groups",
     "product_variants": (
         "the `product` addon — product.template._get_variant_id_for_combination "
         "and _get_first_possible_variant_id. Its own bucket because product "
@@ -55,6 +55,16 @@ BUCKET_OWNERS: dict[str, str] = {
         "re-ran its SELECT forever when only hits were kept), so a fresh insert "
         "has to invalidate it, and from `default` that would have evicted menus "
         "and every other unnamed ormcache in every worker on each new xmlid"
+    ),
+    "memberships": (
+        "base — res.users._get_cached_group_state, a user's groups in the "
+        "companies in use, computed from their live grants. Its own bucket "
+        "because every bare clear_cache() (a menu, a company, an ir.default "
+        "write) evicted it from `default`, and each eviction cost the grant "
+        "SELECT again: resequencing ten menus recomputed it ten times (web "
+        "resequence 3 -> 42 statements). A grant or membership change clears "
+        "it (res.users.grant._clear_membership_caches), and so does a change "
+        "to the group hierarchy, which `groups` lists it under"
     ),
     "mail": (
         "the `mail` addon — its small configuration snapshots: "

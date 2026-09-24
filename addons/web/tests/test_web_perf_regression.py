@@ -262,7 +262,7 @@ class TestWebPerfRegression(TransactionCase):
     def test_web_resequence_write_override(self):
         menus = self.test_menus.with_user(self.env.ref("base.user_admin"))
         self.env.invalidate_all()
-        with self.assertQueryCount(25):
+        with self.assertQueryCount(2):
             menus.web_resequence(
                 specification={"name": {}, "sequence": {}},
                 field_name="sequence",

@@ -155,6 +155,77 @@ class TestGrantProjection(GrantCase):
 
 
 @tagged("post_install", "-at_install")
+class TestGroupStateCache(GrantCase):
+    # a user's group state has a cache of its own: a clear of anything else
+    # keeps it, and every change to what it is computed from clears it
+
+    def assertWarm(self, user):
+        user._get_group_ids()
+        with self.assertQueryCount(0):
+            user._get_group_ids()
+
+    def test_a_bare_cache_clear_keeps_the_group_state(self):
+        self.assertWarm(self.user)
+        self.env.registry.clear_cache()
+        with self.assertQueryCount(0):
+            self.user._get_group_ids()
+
+    def test_a_grant_and_its_revocation_count_over_a_warm_state(self):
+        self.assertWarm(self.user)
+        grant = self.Grant.create(
+            {"user_id": self.user.id, "group_id": self.group_partner_manager.id}
+        )
+        self.assertIn(self.group_partner_manager.id, self.user._get_group_ids())
+        self.assertWarm(self.user)
+        grant.action_revoke()
+        self.assertNotIn(self.group_partner_manager.id, self.user._get_group_ids())
+
+    def test_a_grant_reaches_has_group_menus_and_records_at_once(self):
+        env = self.env(user=self.user)
+        settings = self.env.ref("base.menu_administration")
+        parameter = self.env["ir.config_parameter"].search([], limit=1)
+
+        def reach():
+            return (
+                env.user.has_group("base.group_system"),
+                settings.id in env["ir.ui.menu"].load_menus(False),
+                parameter.with_env(env).has_access("read"),
+            )
+
+        self.assertEqual(reach(), (False, False, False))
+        grant = self.Grant.create(
+            {"user_id": self.user.id, "group_id": self.group_system.id}
+        )
+        self.assertEqual(reach(), (True, True, True))
+        grant.action_revoke()
+        self.assertEqual(reach(), (False, False, False))
+
+    def test_a_membership_write_counts_over_a_warm_state(self):
+        self.assertWarm(self.user)
+        self.group_partner_manager.user_ids = [Command.link(self.user.id)]
+        self.assertIn(self.group_partner_manager.id, self.user._get_group_ids())
+
+    def test_a_grant_scope_change_counts_over_a_warm_state(self):
+        company_b = self.env["res.company"].create({"name": "Warm scope B"})
+        self.user.company_ids = [Command.link(company_b.id)]
+        grant = self.Grant.create(
+            {"user_id": self.user.id, "group_id": self.group_partner_manager.id}
+        )
+        in_b = self.user.with_context(allowed_company_ids=[company_b.id])
+        self.assertIn(self.group_partner_manager.id, in_b._get_group_ids())
+        self.assertWarm(in_b)
+        grant.company_ids = [Command.set(self.env.company.ids)]
+        self.assertNotIn(self.group_partner_manager.id, in_b._get_group_ids())
+
+    def test_a_hierarchy_change_counts_over_a_warm_state(self):
+        implying = self.env["res.groups"].create({"name": "Implies later"})
+        self.user.group_ids = [Command.link(implying.id)]
+        self.assertWarm(self.user)
+        implying.implied_ids = [Command.link(self.group_partner_manager.id)]
+        self.assertIn(self.group_partner_manager.id, self.user._get_group_ids())
+
+
+@tagged("post_install", "-at_install")
 class TestGrantWindow(GrantCase):
     def test_an_ended_grant_stops_counting_at_the_second(self):
         now = self.env.cr.now()

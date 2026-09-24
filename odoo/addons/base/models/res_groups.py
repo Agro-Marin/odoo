@@ -486,7 +486,12 @@ class ResGroups(models.Model):
         return [("id", operator, ids)]
 
     def _get_user_type_groups(self) -> Self:
-        group_ids = [
+        return self.sudo().browse(self._get_user_type_group_ids())
+
+    @api.model
+    @tools.ormcache(cache="groups")
+    def _get_user_type_group_ids(self) -> tuple[int, ...]:
+        return tuple(
             gid
             for xid in (
                 "base.group_user",
@@ -498,8 +503,7 @@ class ResGroups(models.Model):
                     xid, raise_if_not_found=False
                 )
             )
-        ]
-        return self.sudo().browse(group_ids)
+        )
 
     def _compute_disjoint_ids(self) -> None:
         user_type_groups = self._get_user_type_groups()

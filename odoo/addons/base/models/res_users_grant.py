@@ -247,7 +247,7 @@ class ResUsersGrant(models.Model):
             self._check_scope()
             self._check_delegation("write")
             self._log("grant_changed")
-            self.env["ir.access"]._clear_access_caches()
+            self._clear_membership_caches()
             self._on_grant_changed("grant_changed")
         if not _LIFECYCLE.get() and {"date_from", "date_to"} & vals.keys():
             now = self.env.cr.now()
@@ -510,7 +510,7 @@ class ResUsersGrant(models.Model):
         # only needs to when something asked a new user's groups before all of
         # its grants existed (an inverse granting one group of several)
         if set(fresh_user_ids) & self.env.cr.cache.get(GROUP_STATE_COMPUTED, set()):
-            self.env["ir.access"]._clear_access_caches()
+            self._clear_membership_caches()
 
     def _follow_membership_pairs(
         self,
@@ -648,7 +648,17 @@ class ResUsersGrant(models.Model):
         # is creating has nothing cached yet
         if changed or not user_ids - _FRESH_USERS.get():
             return
-        self.env["ir.access"]._clear_access_caches()
+        self._clear_membership_caches()
+
+    @api.model
+    def _clear_membership_caches(self) -> None:
+        # what a user's groups decide: their group state, the views that bake
+        # groups into their arch, and the unnamed caches keyed on the user
+        # (their menus, among others). Not `stable`: ir.access rows and the
+        # group hierarchy do not change with who holds a group
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.env.registry.clear_cache("memberships", "default", "templates")
 
     @api.model
     @tools.ormcache(cache="stable")
