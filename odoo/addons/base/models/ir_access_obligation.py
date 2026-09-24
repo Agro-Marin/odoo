@@ -7,7 +7,8 @@ class IrAccessObligation(models.AbstractModel):
     """What a verb obliges beyond the capability to perform it.
 
     The kernel asks this model at every door, checkpoint and transition of a
-    declared verb; the default obliges nothing. A module that attaches an
+    declared verb, and tells it once a transition has landed; the default
+    obliges nothing. A module that attaches an
     obligation to verbs (approval) extends it.
     """
 
@@ -19,4 +20,7 @@ class IrAccessObligation(models.AbstractModel):
             return call(records)
 
     def _at_checkpoint(self, records: models.BaseModel, verb: str) -> None:
+        return
+
+    def _after_move(self, records: models.BaseModel, verb: str) -> None:
         return

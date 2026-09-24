@@ -108,11 +108,15 @@ class TestIrAccessDocument(models.Model):
             checkpoints=("_check_postable", "_post_entries"),
             transition=("state", "*", "posted"),
         ),
+        "retire": models.Verb(
+            transition=("state", "*", "retired"),
+            at_create=False,
+        ),
     }
 
     name = fields.Char()
     state = fields.Selection(
-        selection=[("draft", "Draft"), ("posted", "Posted")],
+        selection=[("draft", "Draft"), ("posted", "Posted"), ("retired", "Retired")],
         default="draft",
     )
     audit = fields.Char()
@@ -145,3 +149,10 @@ class IrAccessObligation(models.AbstractModel):
                 ("checkpoint", verb, records.ids)
             )
         return super()._at_checkpoint(records, verb)
+
+    def _after_move(self, records, verb):
+        if records._name == "test_ir_access.document":
+            records.env.context.get("verb_landings", []).append(
+                (verb, records.ids, records.mapped("state"))
+            )
+        return super()._after_move(records, verb)

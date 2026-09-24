@@ -177,8 +177,9 @@ class WriteMixin(_ModelStubs):
             )
 
         self._write_check_field_access(vals)
+        moves = None
         if transitions := self.env.registry.verb_transitions.get(self._name):
-            self._check_verb_transitions(vals, transitions)
+            moves = self._check_verb_transitions(vals, transitions)
         prof.mark("acl")
         env = self.env
 
@@ -268,6 +269,9 @@ class WriteMixin(_ModelStubs):
                 fields=len(vals),
             )
             self._check_company(list(vals))
+
+        if moves:
+            self._land_verb_transitions(moves)
 
         prof.stop("inverse")
         if prof.debug:

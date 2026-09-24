@@ -353,13 +353,16 @@ the model: `has_access`, `check_access`, `_filtered_access`, `_access_domain`.
 What a declared verb (`_access_verbs`, `models.Verb`) obliges beyond the
 capability to perform it. The kernel asks it through the access-policy port at
 every door and checkpoint of a verb, and at the write, create or import that
-moves the verb's transition field; the default obliges nothing and runs a
-door's call admitted for its records (`Transaction.admitting`). A module that
-attaches an obligation to verbs extends it.
+moves the verb's transition field (a create or import only for a verb with
+`at_create` on), and tells it once such a write has landed; the default
+obliges nothing and runs a door's call admitted for its records
+(`Transaction.admitting`). A module that attaches an obligation to verbs
+extends it.
 
 **Key Methods:**
 - `_at_door(records, verb, call)` — run `call(records)` for what the obligation admits
 - `_at_checkpoint(records, verb)` — refuse, or let through, what no door admitted
+- `_after_move(records, verb)` — act on the records a write moved into the verb's target, in their new state
 
 ### models/ir_access_log.py
 

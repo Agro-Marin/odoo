@@ -20,7 +20,9 @@ class Verb:
     the verb's rows within those of that operation, so a verb never outruns it.
     `methods` are the doors that perform it; `checkpoints` the funnels every door
     passes, checked unless a door already admitted the call; `transition` the
-    `(field, from, to)` move a write, create or import makes it by.
+    `(field, from, to)` move a write, create or import makes it by. A verb with
+    `at_create` off is a move of an existing record only: a create or import
+    that lands in its target is not the verb.
     """
 
     requires: str = "write"
@@ -28,6 +30,7 @@ class Verb:
     checkpoints: tuple[str, ...] = ()
     transition: tuple[str, str | tuple[str, ...], str] | None = None
     amount: str | None = None
+    at_create: bool = True
 
     def moves(self, before: typing.Any, after: typing.Any) -> bool:
         if self.transition is None or before == after:

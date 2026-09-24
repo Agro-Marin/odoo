@@ -396,7 +396,8 @@ class AccessMixin(_ModelStubs):
 
     def _check_verb_transitions(
         self, vals: dict[str, typing.Any], transitions: dict
-    ) -> None:
+    ) -> list[tuple[str, tuple[int, ...]]]:
+        moves: list[tuple[str, tuple[int, ...]]] = []
         for fname, verbs in transitions.items():
             if fname not in vals:
                 continue
@@ -407,11 +408,20 @@ class AccessMixin(_ModelStubs):
                 for record in self
             }
             for name, verb in verbs:
-                moved = [
+                moved = tuple(
                     id_ for id_, value in before.items() if verb.moves(value, target)
-                ]
+                )
                 if moved:
                     self.browse(moved)._verb_checkpoint(name)
+                    moves.append((name, moved))
+        return moves
+
+    def _land_verb_transitions(self, moves: list[tuple[str, tuple[int, ...]]]) -> None:
+        # what each obligation does once the move it checked has landed, for
+        # every record that moved, admitted or not
+        env = self.env
+        for name, ids in moves:
+            env.registry.access_policy.verb_landed(env, self.browse(ids), name)
 
     def _check_verb_creations(self, transitions: dict) -> None:
         for fname, verbs in transitions.items():
@@ -426,6 +436,8 @@ class AccessMixin(_ModelStubs):
                 for record in self
             }
             for name, verb in verbs:
+                if not verb.at_create:
+                    continue
                 created = [
                     id_ for id_, value in after.items() if verb.moves(initial, value)
                 ]

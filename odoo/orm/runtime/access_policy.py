@@ -71,6 +71,10 @@ class AccessPolicy:
         if "ir.access.obligation" in env.registry:
             env["ir.access.obligation"]._at_checkpoint(records, verb)
 
+    def verb_landed(self, env: Environment, records: ModelLike, verb: str) -> None:
+        if "ir.access.obligation" in env.registry:
+            env["ir.access.obligation"]._after_move(records, verb)
+
     def bound_access_rows(
         self, env: Environment, model_name: str, operation: str
     ) -> tuple[list[Domain], list[Domain]]:

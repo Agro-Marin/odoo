@@ -73,4 +73,12 @@
         <field name="verbs">post</field>
     </record>
 
+    <record id="access_document_retire" model="ir.access">
+        <field name="name">document: administrators retire</field>
+        <field name="model_id" ref="model_test_ir_access_document" />
+        <field name="group_id" ref="base.group_system" />
+        <field name="kind">permission</field>
+        <field name="verbs">retire</field>
+    </record>
+
 </odoo>

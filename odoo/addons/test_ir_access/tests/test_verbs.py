@@ -67,6 +67,44 @@ class TestVerbs(TransactionCase):
         )
         self.assertEqual(born.state, "posted")
 
+    def test_a_move_only_verb_is_not_asked_at_create(self):
+        born = self.Document.with_user(self.clerk).create(
+            {"name": "Born retired", "state": "retired"}
+        )
+        self.assertEqual(born.state, "retired")
+        document = self._document()
+        with (
+            mute_logger("odoo.addons.base.models.ir_access"),
+            self.assertRaises(AccessError),
+        ):
+            document.with_user(self.clerk).write({"state": "retired"})
+        document.with_user(self.admin).write({"state": "retired"})
+        self.assertEqual(document.state, "retired")
+
+    def test_the_obligation_is_told_once_the_move_has_landed(self):
+        landings = []
+        document, other = (
+            self._document() | self._document(state="posted")
+        ).with_context(verb_landings=landings)
+        (document | other).with_user(self.admin).write({"state": "posted"})
+        self.assertEqual(
+            landings,
+            [("post", document.ids, ["posted"])],
+            "only the record that moved lands, and it lands in its new state",
+        )
+        landings.clear()
+        other.with_user(self.admin).action_post()
+        self.assertEqual(landings, [], "a write that moves nothing lands nothing")
+        document.with_user(self.admin).write({"audit": "no move"})
+        self.assertEqual(landings, [])
+        fresh = self._document().with_context(verb_landings=landings)
+        fresh.with_user(self.admin).action_post()
+        self.assertEqual(
+            landings,
+            [("post", fresh.ids, ["posted"])],
+            "a move a door admitted lands too",
+        )
+
     def test_a_verb_never_outruns_the_operation_it_requires(self):
         guard = self.env["ir.access"].create(
             {
