@@ -123,7 +123,6 @@ export class TimeOffCard extends Component {
         this.actionService = useService("action");
         this.lang = user.lang;
         this.formatNumber = formatNumber;
-        this.updateWarning();
     }
 
     get warning() {
