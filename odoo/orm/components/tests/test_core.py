@@ -28,6 +28,7 @@ _DELEGATIONS = [
     ("add_patch", "cache", "add_patch", 3, False),
     ("get_patches", "cache", "get_patches", 1, True),
     ("iter_field_items", "cache", "iter_field_items", 0, True),
+    ("protection_depth", "engine", "protection_depth", 0, True),
     ("iter_context_caches", "cache", "iter_context_caches", 1, True),
     ("get_context_data", "cache", "get_context_data", 2, True),
     ("get_context_data_or_none", "cache", "get_context_data_or_none", 2, True),
@@ -56,6 +57,12 @@ _DELEGATIONS = [
 _NON_PASSTHROUGH = {
     "new_scheduler",
     "get_pending_write",
+    "has_deferred",
+    "defer_until_unprotected",
+    "run_deferred",
+    "discard_deferred",
+    "note_deleted",
+    "deleted_ids",
 }
 
 _KWARG_DELEGATIONS = [
@@ -372,6 +379,57 @@ class TestOrmCoreDelegationConsistency(unittest.TestCase):
             self.core.get_protected_ids(self.f1),
             self.engine.get_protected_ids(self.f1),
         )
+
+
+class TestOrmCoreDeferredChecks(unittest.TestCase):
+    def setUp(self) -> None:
+        self.core = OrmCore()
+        self.ran: list[str] = []
+
+    def test_deferred_checks_run_in_order_and_forget_deletions(self) -> None:
+        self.core.defer_until_unprotected(lambda: self.ran.append("a"))
+        self.core.defer_until_unprotected(lambda: self.ran.append("b"))
+        self.core.note_deleted("res.partner", [7])
+        self.core.run_deferred()
+        self.assertEqual(self.ran, ["a", "b"])
+        self.assertFalse(self.core.has_deferred())
+        self.assertEqual(self.core.deleted_ids("res.partner"), set())
+
+    def test_a_check_queued_while_draining_runs_in_the_same_drain(self) -> None:
+        def first() -> None:
+            self.ran.append("first")
+            self.core.defer_until_unprotected(lambda: self.ran.append("second"))
+            self.core.run_deferred()
+
+        self.core.defer_until_unprotected(first)
+        self.core.run_deferred()
+        self.assertEqual(self.ran, ["first", "second"])
+
+    def test_a_failing_check_drops_the_rest(self) -> None:
+        def boom() -> None:
+            raise ValueError("boom")
+
+        self.core.defer_until_unprotected(boom)
+        self.core.defer_until_unprotected(lambda: self.ran.append("never"))
+        with self.assertRaises(ValueError):
+            self.core.run_deferred()
+        self.assertEqual(self.ran, [])
+        self.assertFalse(self.core.has_deferred())
+
+    def test_discard_forgets_checks_and_deletions(self) -> None:
+        self.core.defer_until_unprotected(lambda: self.ran.append("x"))
+        self.core.note_deleted("res.partner", None)
+        self.core.discard_deferred()
+        self.core.run_deferred()
+        self.assertEqual(self.ran, [])
+        self.assertEqual(self.core.deleted_ids("res.partner"), set())
+
+    def test_a_cascade_deletion_marks_the_model_unknown(self) -> None:
+        self.core.defer_until_unprotected(lambda: None)
+        self.core.note_deleted("res.partner", [1])
+        self.core.note_deleted("res.partner", None)
+        self.core.note_deleted("res.partner", [2])
+        self.assertIsNone(self.core.deleted_ids("res.partner"))
 
 
 class TestOrmCoreDelegationDrift(unittest.TestCase):
