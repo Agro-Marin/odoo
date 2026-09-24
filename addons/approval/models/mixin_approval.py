@@ -7,6 +7,7 @@ from markupsafe import Markup, escape
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
+from odoo.tools import SQL
 
 from . import approval_trace as trace
 
@@ -76,6 +77,13 @@ class MixinApproval(models.AbstractModel):
         compute="_compute_can_request_approval",
         help="Whether approval can be requested (all required fields filled)",
     )
+    approval_pending_user_ids = fields.Many2many(
+        comodel_name="res.users",
+        string="Deciding Now",
+        compute="_compute_approval_pending_user_ids",
+        search="_search_approval_pending_user_ids",
+        help="Who is deciding this document's approval request right now.",
+    )
 
     @api.depends_context("uid", "company")
     def _compute_approval_required(self) -> None:
@@ -102,6 +110,29 @@ class MixinApproval(models.AbstractModel):
             searches=len(candidates),
             hits=hits,
             required=required,
+        )
+
+    @api.depends("approval_request_id.pending_user_ids")
+    def _compute_approval_pending_user_ids(self) -> None:
+        for record in self:
+            record.approval_pending_user_ids = (
+                record.approval_request_id.sudo().pending_user_ids
+            )
+
+    def _search_approval_pending_user_ids(self, operator: str, value: Any) -> Domain:
+        # through the relation's user index, not a join on the request: a
+        # read rule ORs this into every search of the document
+        if operator != "in":
+            return NotImplemented
+        self.env["approval.request"].flush_model(["pending_user_ids"])
+        return Domain(
+            "approval_request_id",
+            "any",
+            SQL(
+                "SELECT request_id FROM approval_request_pending_user_rel "
+                "WHERE user_id = ANY(%s)",
+                [id_ for id_ in value if id_],
+            ),
         )
 
     @api.depends("approval_request_id", "approval_required")

@@ -21,6 +21,7 @@ from . import (
     approval_request_escalation,
     approval_request_lifecycle,
     approval_request_prediction,
+    approval_request_reach,
     approval_request_routing,
     approval_decision_log,  # isort: skip -- extends approval.request
     approval_gate,

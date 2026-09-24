@@ -4,6 +4,7 @@ from . import (
     test_activity_target,
     test_approvals,
     test_approver_computation,
+    test_approver_reach,
     test_attachment_lock,
     test_auto_action_rules,
     test_auto_expire,

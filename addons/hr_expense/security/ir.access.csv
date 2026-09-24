@@ -26,3 +26,4 @@ hr_expense_config_rule_company_group_user,hr_expense.config: the reader's compan
 hr_expense_config_rule_erp_manager,hr_expense.config: every company for an access-rights manager,model_hr_expense_config,base.group_erp_manager,permission,r,
 hr_expense_config_rule_erp_manager_group_system,hr_expense.config: every company for an access-rights manager,model_hr_expense_config,base.group_system,permission,cud,
 hr_expense_comp_rule,Expense multi company rule,model_hr_expense,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids)]"
+access_hr_expense_approver_reach,"Expense: an approver reads what they are asked to decide, while they decide",model_hr_expense,approval.group_approval_decider,permission,r,"[('approval_pending_user_ids', 'in', [user.id])]"

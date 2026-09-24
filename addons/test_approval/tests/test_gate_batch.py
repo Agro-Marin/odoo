@@ -45,6 +45,9 @@ class TestGateBatchSurvivesAnUnstaffedStep(ApprovalCommon):
                 "user_ids": [(6, 0, self.approver_elsewhere.ids)],
             }
         )
+        # the configuration is saved before anyone works on documents, and
+        # saving it grants its approvers the Decider group
+        self.env.cr.flush()
 
     def _document(self, name, category):
         return self.env["approval.test.gated"].create(

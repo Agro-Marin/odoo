@@ -14,3 +14,4 @@ access_maintenance_profile_user,maintenance.profile.user,model_maintenance_profi
 access_maintenance_profile_manager,maintenance.profile.manager,model_maintenance_profile,group_equipment_manager,permission,cud,
 maintenance_order_comp_rule,Maintenance Order Multi-company rule,model_maintenance_order,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
 maintenance_plan_comp_rule,Maintenance Plan Multi-company rule,model_maintenance_plan,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids)]"
+access_maintenance_order_approver_reach,"Maintenance Order: an approver reads what they are asked to decide, while they decide",model_maintenance_order,approval.group_approval_decider,permission,r,"[('approval_pending_user_ids', 'in', [user.id])]"

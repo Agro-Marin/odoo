@@ -52,3 +52,5 @@ hr_leave_accrual_plan_rule_multi_company,Accrual plan multi company rule,model_h
 hr_leave_mandatory_day_rule_multi_company,Mandatory Day: multi company rule,model_hr_leave_mandatory_day,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
 hr_leave_report_calendar_rule_multi_company,Time Off Report Calendar: multi company global rule,model_hr_leave_report_calendar,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
 hr_leave_report_rule_multi_company,Time Off Report: multi company global rule,model_hr_leave_report,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
+access_hr_leave_approver_reach,"Time Off: an approver reads what they are asked to decide, while they decide",model_hr_leave,approval.group_approval_decider,permission,r,"[('approval_pending_user_ids', 'in', [user.id])]"
+access_hr_leave_allocation_approver_reach,"Allocation: an approver reads what they are asked to decide, while they decide",model_hr_leave_allocation,approval.group_approval_decider,permission,r,"[('approval_pending_user_ids', 'in', [user.id])]"
