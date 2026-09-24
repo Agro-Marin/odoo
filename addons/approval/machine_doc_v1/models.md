@@ -1235,6 +1235,31 @@ closure with it. Read their fields in those modules.
 | File | `models/models.py` |
 | Method | `get_views()` sets `has_approval_bindings` on each related model with an active Block or Request binding, read from `approval.binding._get_names_of_gated_models` (ormcache, cleared with every binding write) |
 
+### ir.access.sod.function (extended)
+
+| Key | Value |
+|-----|-------|
+| Model | `ir.access.sod.function` (base) |
+| File | `models/ir_access_sod.py` |
+
+Separation of duties (base, P3 slice J) holds a duty through groups and verbs;
+approval adds being in the pool of an active step: the step's members and its
+group's users. `_get_duty_spec` (ormcached per duty, cleared when a duty, a step,
+a member or a category's `active`/`approval_type` changes) adds the pools'
+member ids and group ids, read once through `_get_approval_steps`, and `_holds`
+tests a user against them, so a grant's check reads no step. A step's create, a
+change of its `group_id`, `active` or `category_id`, and a member's create or
+`user_id` change call `ir.access.sod.rule._check_users` for the users concerned,
+as a grant does, so a blocking rule refuses the change that would make someone
+hold both duties. `data/ir_access_sod_data.xml` ships "manage access and approve"
+(base.group_erp_manager against any step pool), as a warning.
+
+| Field | Type | Stored | Required | Key Attributes |
+|-------|------|--------|----------|----------------|
+| `approval_category_ids` | Many2many(`approval.category`) | Yes | No | string="Approves In" |
+| `approval_types` | Char | Yes | No | comma-separated `approval_type` values (accounting,payment) |
+| `approves_anything` | Boolean | Yes | No | any active step's pool |
+
 ### mail.activity (extended)
 
 | File | `models/mail_activity.py` |

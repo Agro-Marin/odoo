@@ -98,4 +98,66 @@
         <field name="context">{'search_default_active_exceptions': 1}</field>
     </record>
 
+    <record id="ir_access_sod_rule_view_list" model="ir.ui.view">
+        <field name="name">ir.access.sod.rule.list</field>
+        <field name="model">ir.access.sod.rule</field>
+        <field name="arch" type="xml">
+            <list string="Separation of Duties" editable="bottom">
+                <field name="name" />
+                <field name="function_a_id" />
+                <field name="function_b_id" />
+                <field name="action" />
+                <field name="active" widget="boolean_toggle" />
+            </list>
+        </field>
+    </record>
+
+    <record id="ir_access_sod_function_view_form" model="ir.ui.view">
+        <field name="name">ir.access.sod.function.form</field>
+        <field name="model">ir.access.sod.function</field>
+        <field name="arch" type="xml">
+            <form string="Business Duty">
+                <sheet>
+                    <group>
+                        <field name="name" />
+                        <field name="group_ids" widget="many2many_tags" />
+                        <field name="excluded_group_ids" widget="many2many_tags" />
+                    </group>
+                    <field name="verb_ids">
+                        <list editable="bottom">
+                            <field name="model_id" options="{'no_create': True}" />
+                            <field name="verb" />
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="ir_access_sod_conflict_view_list" model="ir.ui.view">
+        <field name="name">ir.access.sod.conflict.list</field>
+        <field name="model">ir.access.sod.conflict</field>
+        <field name="arch" type="xml">
+            <list string="Duties in Conflict" create="false" delete="false">
+                <field name="rule_id" />
+                <field name="user_id" />
+                <field name="exception_id" />
+            </list>
+        </field>
+    </record>
+
+    <record id="action_ir_access_sod_rule" model="ir.actions.act_window">
+        <field name="name">Separation of Duties</field>
+        <field name="res_model">ir.access.sod.rule</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'active_test': False}</field>
+    </record>
+
+    <record id="action_ir_access_sod_conflicts" model="ir.actions.server">
+        <field name="name">Duties in Conflict</field>
+        <field name="model_id" ref="model_ir_access_sod_rule" />
+        <field name="state">code</field>
+        <field name="code">action = model.action_view_conflicts()</field>
+    </record>
+
 </odoo>

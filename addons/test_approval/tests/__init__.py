@@ -21,6 +21,7 @@ from . import (
 )
 from . import test_gate
 from . import test_authority_walk
+from . import test_separation_of_duties
 from . import test_obligation_in_data
 from . import test_gate_batch
 from . import test_lifecycle_gate

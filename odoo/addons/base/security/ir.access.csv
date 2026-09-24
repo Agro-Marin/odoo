@@ -186,3 +186,13 @@ res_users_identity_check,users can only access their own id check,model_res_user
 res_users_rule,user rule,model_res_users,group_everyone,guard,crud,"['|', ('share', '=', False), ('company_ids', 'in', company_ids)]"
 change_password_own_rule,change own password,model_change_password_own,group_everyone,guard,crud,"[('create_uid', '=', user.id)]"
 res_partner_private_address_rule,res.partner: a private address is its subject's,model_res_partner,group_everyone,guard,rd,"['|', ('type', '!=', 'private'), ('parent_id', '=', user.partner_id.id)]"
+access_ir_access_sod_rule_erp_manager,ir.access.sod.rule: the access administrators keep duties apart,model_ir_access_sod_rule,group_erp_manager,permission,crud,
+access_ir_access_sod_rule_user,ir.access.sod.rule: every change of duties is checked against the rules,model_ir_access_sod_rule,group_user,permission,r,
+access_ir_access_sod_function_erp_manager,ir.access.sod.function: the access administrators name the duties,model_ir_access_sod_function,group_erp_manager,permission,crud,
+access_ir_access_sod_function_user,ir.access.sod.function: every change of duties reads them,model_ir_access_sod_function,group_user,permission,r,
+access_ir_access_sod_function_verb_erp_manager,ir.access.sod.function.verb: the access administrators name the duties,model_ir_access_sod_function_verb,group_erp_manager,permission,crud,
+access_ir_access_sod_function_verb_user,ir.access.sod.function.verb: every change of duties reads them,model_ir_access_sod_function_verb,group_user,permission,r,
+access_ir_access_sod_conflict_erp_manager,ir.access.sod.conflict: the access administrators list conflicts,model_ir_access_sod_conflict,group_erp_manager,permission,crud,
+access_ir_access_sod_rule_check,ir.access.sod.rule: every grant is checked against the rules,model_ir_access_sod_rule,privilege_check_duties,permission,r,
+access_ir_access_sod_function_check,ir.access.sod.function: every grant reads the duties,model_ir_access_sod_function,privilege_check_duties,permission,r,
+access_ir_access_sod_function_verb_check,ir.access.sod.function.verb: every grant reads the duties,model_ir_access_sod_function_verb,privilege_check_duties,permission,r,

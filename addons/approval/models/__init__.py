@@ -33,6 +33,7 @@ from . import (
     ir_access_exception,
     ir_access_obligation,
     approval_authority_limit,
+    ir_access_sod,
     ir_attachment,
     mail_activity,
     mail_activity_type,

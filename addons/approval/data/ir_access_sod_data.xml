@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="sod_function_manage_access" model="ir.access.sod.function">
+        <field name="name">manage who may do what</field>
+        <field name="group_ids" eval="[Command.link(ref('base.group_erp_manager'))]" />
+    </record>
+
+    <record id="sod_function_approve_anything" model="ir.access.sod.function">
+        <field name="name">approve requests</field>
+        <field name="approves_anything" eval="True" />
+    </record>
+
+    <record id="sod_rule_manage_access_and_approve" model="ir.access.sod.rule">
+        <field name="name">manage access and approve</field>
+        <field name="function_a_id" ref="sod_function_manage_access" />
+        <field name="function_b_id" ref="sod_function_approve_anything" />
+        <field name="action">warn</field>
+    </record>
+
+</odoo>

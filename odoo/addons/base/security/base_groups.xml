@@ -104,6 +104,13 @@
         </record>
     </data>
 
+    <record id="privilege_check_duties" model="res.groups">
+        <field name="name">Check Duties</field>
+        <field
+            name="comment">Every grant, whoever makes it, is checked against the separation of duties: the check reads the rules and the duties they name.</field>
+        <field name="is_privilege" eval="True" />
+    </record>
+
     <record id="privilege_read_access_exceptions" model="res.groups">
         <field name="name">Read Access Exceptions</field>
         <field

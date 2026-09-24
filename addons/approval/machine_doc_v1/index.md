@@ -59,6 +59,7 @@ dashboards.
 | `mixin_approval_domain.py` | `mixin.approval.domain` (Abstract) | Base of `approval.rule` and `approval.binding`: parses a subject domain and walks every dotted path in it against the registry at save time, because a condition that never matches reads as "approval was not required" |
 | `approval_category_step.py` | `approval.category.step`, `approval.category.step.member` | Steps: a category that needs several pools, each with its own quorum, declares them. A pool is its members (each with an optional end date, so a delegation is a membership that expires) together with a group. Every request routes by the steps that apply to it |
 | `approval_binding.py` | `approval.binding` | Gates a model's method on an approval by wrapping it at registry load: Observe, Block or Request, with a `sudo_policy` that tells the real superuser apart from an ordinary user elevated by `sudo()` |
+| `ir_access_sod.py` | extends `ir.access.sod.function`, `approval.category.step` and its members | Being in an active step's pool is a duty separation of duties can name (`approval_category_ids`, `approval_types`, `approves_anything`); a step's or a member's change is checked against the rules like a grant. Ships the rule "manage access and approve" |
 | `ir_access_obligation.py` | extends `ir.access.obligation` | What the kernel asks at a verb's door and checkpoint: the verb's `approval.binding` rows. A document's own obligation (no category) asks the document's approval; a configured one gates like a method binding |
 | `approval_authority_limit.py` | `approval.authority.limit` | Up to which amount a grant's holder approves a verb of a document: qualifies a P2 `res.users.grant`, holds while it does and where it is scoped. A walking step reads them |
 | `approval_observation.py` | `approval.observation` | Append-only record of each gated call with the caller's elevation and whether Block would have refused it — how a binding is sized before it is switched on |
@@ -208,6 +209,7 @@ approval/
 |   +-- approval_request_reach.py     # Approver reach and the Decider group
 |   +-- ir_access_exception.py        # Approval kinds of access exceptions
 |   +-- ir_access_obligation.py       # A verb's doors and checkpoints ask the bindings
+|   +-- ir_access_sod.py              # Step pools as duties for separation of duties
 |   +-- approval_request_escalation.py # Escalation + reminders (split file)
 |   +-- approval_approver.py          # Approver records
 |   +-- mixin_approval_source.py      # Hooks every approval source answers

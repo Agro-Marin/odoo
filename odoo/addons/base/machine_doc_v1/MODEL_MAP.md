@@ -401,6 +401,49 @@ reviewers' reminder seven days before `date_to`.
 - `_find(user, kind, scope)` — the live exception letting `user` past `kind` on `scope`, or none
 - `_record_use(reason)`, `action_revoke(reason)`, `_grant_for_upgrade(...)`
 
+### models/ir_access_sod.py
+
+#### IrAccessSodFunction — `ir.access.sod.function` (`_name`)
+
+A business duty, held by whoever holds one of its groups or one of its verbs
+(a permission row for the verb, `ir.access._group_ids_with_access`); approval
+adds step pools. `_get_holder_ids(users)`.
+
+**Fields:**
+- `name` (Char, translate), `group_ids` (Many2many → res.groups), `excluded_group_ids` (Many2many → res.groups: holding one of them is not holding the duty), `verb_ids` (One2many → ir.access.sod.function.verb)
+
+#### IrAccessSodFunctionVerb — `ir.access.sod.function.verb` (`_name`)
+
+A (model, verb) line of a duty; the verb must be one the model declares.
+
+**Fields:**
+- `function_id` (Many2one, cascade), `model_id` (Many2one → ir.model), `verb` (Char)
+
+#### IrAccessSodRule — `ir.access.sod.rule` (`_name`)
+
+Two duties one person must not hold together. `_check_users(users, cause)`
+runs on every grant created or re-scoped (`res.users.grant._on_grant_changed`)
+and wherever a module says a duty's holders changed: a conflict is an
+`ir.access.log` row (`sod_conflict`); a blocking rule refuses the change
+(`AccessError`, and a server-log line, since the refusal rolls its own row back)
+unless the person holds a live `ir.access.exception` of kind `sod` on the rule,
+whose use is logged. While the registry loads, a blocking rule only logs, so a
+module's data cannot fail on a conflict its upgrade is about to except.
+
+**Fields:**
+- `name` (Char), `active` (Boolean), `function_a_id`, `function_b_id` (Many2one → ir.access.sod.function), `action` (Selection warn/block)
+
+**Key Methods:**
+- `_get_conflicts()` — every (rule, user) holding both duties today
+- `_arm_upgrade_exceptions(reason)` — a module's post-migrate leaves its rules' upgrade-day exceptions pending (`base.sod_pending_upgrade_exceptions`) and arms the one-shot cron `ir_cron_sod_upgrade_exceptions`
+- `_grant_upgrade_exceptions(reason, days=90)` — the end-migrate lets today's holders keep both, by name and dated, and disarms; `_cron_grant_pending_upgrade_exceptions()` does it when the end stage never ran
+- `_get_active_rule_ids()` (ormcached, read through SQL) and `ir.access.sod.function._get_duty_spec()` (ormcached per duty) — a grant's check reads no rule or duty once warm
+- `action_view_conflicts()` — the Duties in Conflict report
+
+#### IrAccessSodConflict — `ir.access.sod.conflict` (TransientModel)
+
+A row of the report: `rule_id`, `user_id`, `exception_id` (the live exception, if any).
+
 ### models/res_users_grant.py
 
 #### ResUsersGrant — `res.users.grant` (`_name`)

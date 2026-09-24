@@ -304,6 +304,20 @@
         groups="base.group_erp_manager" />
 
     <menuitem
+        id="menu_action_ir_access_sod_rule"
+        parent="menu_users"
+        action="action_ir_access_sod_rule"
+        sequence="8"
+        groups="base.group_erp_manager" />
+
+    <menuitem
+        id="menu_action_ir_access_sod_conflicts"
+        parent="menu_users"
+        action="action_ir_access_sod_conflicts"
+        sequence="9"
+        groups="base.group_erp_manager" />
+
+    <menuitem
         id="menu_action_ir_access"
         parent="menu_security"
         action="action_ir_access"

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="ir_access_sod_function_view_form_approval" model="ir.ui.view">
+        <field name="name">ir.access.sod.function.form.approval</field>
+        <field name="model">ir.access.sod.function</field>
+        <field name="inherit_id" ref="base.ir_access_sod_function_view_form" />
+        <field name="arch" type="xml">
+            <field name="group_ids" position="after">
+                <field name="approves_anything" />
+                <field
+                    name="approval_category_ids"
+                    widget="many2many_tags"
+                    invisible="approves_anything" />
+                <field name="approval_types" invisible="approves_anything" />
+            </field>
+        </field>
+    </record>
+
+</odoo>
