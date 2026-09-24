@@ -23,7 +23,7 @@ def _module_sources() -> tuple[tuple[str, str, Path], ...]:
         root = Path(manifest.path)
         if manifest.name.startswith("test_"):
             continue
-        repo = "odoo" if lint_case.is_core_path(str(root)) else root.parent.name
+        repo = lint_case.repo_of(str(root))
         for path in sorted(root.rglob("*.py")):
             if _SKIPPED_PARTS.intersection(path.relative_to(root).parts):
                 continue

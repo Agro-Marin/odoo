@@ -13,7 +13,9 @@ _OWN_RENDER = re.compile(r"^\s+render\s*\([^)]*\)\s*\{", re.MULTILINE)
 _XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 ENV_KEYS = {
     "owl_env_reads": re.compile(r"\bthis\.env\b"),
-    "owl_env_dialog_context": re.compile(r"\bthis\.env\.(?:inDialog|dialogId|dialogData)\b"),
+    "owl_env_dialog_context": re.compile(
+        r"\bthis\.env\.(?:inDialog|dialogId|dialogData)\b"
+    ),
     "owl_env_is_small": re.compile(r"\bthis\.env\.isSmall\b"),
     "owl_env_model": re.compile(r"\bthis\.env\.model\b"),
     "owl_env_mail_context": re.compile(
@@ -73,52 +75,62 @@ def calls(pattern: re.Pattern, source: str) -> list[int]:
     return [code.count("\n", 0, m.start()) + 1 for m in pattern.finditer(code)]
 
 
-@functools.cache
-def _findings(gate: str) -> tuple[str, ...]:
-    pattern = REMOVED_IN_OWL3[gate]
-    return tuple(
-        f"{path}:{line}"
-        for _addon, path, source in _js_sources.addon_js_outside_lib()
-        if "/static/src/" in path.as_posix()
-        and not any(part in path.as_posix() for part in _VENDORED)
-        for line in calls(pattern, source)
-    )
-
-
 def template_calls(pattern: re.Pattern, source: str) -> list[int]:
     code = _XML_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), source)
     return [code.count("\n", 0, m.start()) + 1 for m in pattern.finditer(code)]
 
 
 @functools.cache
-def _env_findings(gate: str) -> tuple[str, ...]:
-    pattern = ENV_KEYS[gate]
-    findings = [
-        f"{path}:{line}"
-        for _addon, path, source in _js_sources.addon_js_outside_lib()
-        if "/static/src/" in path.as_posix()
-        and not any(part in path.as_posix() for part in _VENDORED)
-        for line in calls(pattern, source)
-    ]
-    for manifest in Manifest.get_all_addon_manifests():
-        src = Path(manifest.path) / "static" / "src"
-        if not src.is_dir():
-            continue
-        for path in sorted(src.rglob("*.xml")):
-            if any(part in path.as_posix() for part in _VENDORED):
-                continue
-            findings += [
-                f"{path}:{line}"
-                for line in template_calls(pattern, path.read_text(errors="replace"))
+def _repo_by_addon() -> dict[str, str]:
+    return {
+        manifest.name: lint_case.repo_of(manifest.path)
+        for manifest in Manifest.get_all_addon_manifests()
+    }
+
+
+def _outside_vendored(path: Path) -> bool:
+    return not any(part in path.as_posix() for part in _VENDORED)
+
+
+@functools.cache
+def _findings(gate: str) -> dict[str, tuple[str, ...]]:
+    pattern = REMOVED_IN_OWL3.get(gate) or ENV_KEYS[gate]
+    repo_by_addon = _repo_by_addon()
+    found: dict[str, list[str]] = {repo: [] for repo in repo_by_addon.values()}
+    for addon, path, source in _js_sources.addon_js_outside_lib():
+        if "/static/src/" in path.as_posix() and _outside_vendored(path):
+            found[repo_by_addon[addon]] += [
+                f"{path}:{line}" for line in calls(pattern, source)
             ]
-    return tuple(findings)
+    if gate in ENV_KEYS:
+        for manifest in Manifest.get_all_addon_manifests():
+            src = Path(manifest.path) / "static" / "src"
+            if not src.is_dir():
+                continue
+            for path in sorted(src.rglob("*.xml")):
+                if _outside_vendored(path):
+                    found[repo_by_addon[manifest.name]] += [
+                        f"{path}:{line}"
+                        for line in template_calls(
+                            pattern, path.read_text(errors="replace")
+                        )
+                    ]
+    return {repo: tuple(items) for repo, items in sorted(found.items())}
 
 
 class TestOwl3Api(lint_case.LintCase):
+    def _assert_gate(self, gate: str, what: str, fix: str) -> None:
+        for repo, findings in _findings(gate).items():
+            with self.subTest(repo=repo):
+                self.assert_ratchet(
+                    findings,
+                    f"{gate}_{repo.replace('-', '_')}",
+                    f"{what} in {repo}",
+                    fix,
+                )
+
     def _assert_removed(self, gate: str, api: str, fix: str) -> None:
-        self.assert_ratchet(
-            _findings(gate), gate, f"{api} calls (removed in OWL 3)", fix
-        )
+        self._assert_gate(gate, f"{api} calls (removed in OWL 3)", fix)
 
     def test_no_on_rendered(self):
         self._assert_removed(
@@ -154,8 +166,7 @@ class TestOwl3Api(lint_case.LintCase):
         )
 
     def test_no_env_dialog_context(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_dialog_context"),
+        self._assert_gate(
             "owl_env_dialog_context",
             "this.env.inDialog / dialogId / dialogData reads in static/src (JS and templates)",
             "A component inside a dialog reads this.dialogContext = "
@@ -164,17 +175,15 @@ class TestOwl3Api(lint_case.LintCase):
         )
 
     def test_no_env_is_small(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_is_small"),
+        self._assert_gate(
             "owl_env_is_small",
             "this.env.isSmall reads in static/src (JS and templates)",
-            "A component reads this.ui.isSmall from this.ui = useService(\"ui\") "
+            'A component reads this.ui.isSmall from this.ui = useService("ui") '
             "in setup; OWL 3 components have no env",
         )
 
     def test_no_env_mail_context(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_mail_context"),
+        self._assert_gate(
             "owl_env_mail_context",
             "this.env.<mail context key> reads in static/src (JS and templates)",
             "A mail component reads this.mailContext = useMailContext() from "
@@ -184,8 +193,7 @@ class TestOwl3Api(lint_case.LintCase):
         )
 
     def test_no_env_model(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_model"),
+        self._assert_gate(
             "owl_env_model",
             "this.env.model reads in static/src (JS and templates)",
             "A component under a view reads this.model = useViewModel() from "
@@ -194,8 +202,7 @@ class TestOwl3Api(lint_case.LintCase):
         )
 
     def test_no_env_builder_context(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_builder_context"),
+        self._assert_gate(
             "owl_env_builder_context",
             "this.env.<builder context key> reads in static/src (JS and templates)",
             "A builder component reads this.builderContext = useBuilderContext() "
@@ -205,8 +212,7 @@ class TestOwl3Api(lint_case.LintCase):
         )
 
     def test_no_env_addon_contexts(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_addon_contexts"),
+        self._assert_gate(
             "owl_env_addon_contexts",
             "this.env reads of an addon-scoped context key in static/src (JS and templates)",
             "A component reads the context its addon scopes through that addon's "
@@ -217,8 +223,7 @@ class TestOwl3Api(lint_case.LintCase):
         )
 
     def test_no_env_bus(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_bus"),
+        self._assert_gate(
             "owl_env_bus",
             "this.env.bus reads in static/src (JS and templates)",
             "A component reads this.bus = useEventBus() from setup, and a "
@@ -228,8 +233,7 @@ class TestOwl3Api(lint_case.LintCase):
         )
 
     def test_no_env_debug(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_debug"),
+        self._assert_gate(
             "owl_env_debug",
             "this.env.debug reads in static/src (JS and templates)",
             "A component reads this.debug = useDebugMode() "
@@ -238,8 +242,7 @@ class TestOwl3Api(lint_case.LintCase):
         )
 
     def test_no_env_config(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_config"),
+        self._assert_gate(
             "owl_env_config",
             "this.env.config reads in static/src (JS and templates)",
             "A component reads this.config = useViewConfig() from setup, and a "
@@ -248,8 +251,7 @@ class TestOwl3Api(lint_case.LintCase):
         )
 
     def test_no_env_search_model(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_search_model"),
+        self._assert_gate(
             "owl_env_search_model",
             "this.env.searchModel reads in static/src (JS and templates)",
             "A component under WithSearch reads this.searchModel = "
@@ -258,18 +260,16 @@ class TestOwl3Api(lint_case.LintCase):
         )
 
     def test_no_env_utils(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_utils"),
+        self._assert_gate(
             "owl_env_utils",
             "this.env.utils reads in static/src (JS and templates)",
             "A point_of_sale component reads this.utils = "
-            "useService(\"contextual_utils_service\") from setup; OWL 3 "
+            'useService("contextual_utils_service") from setup; OWL 3 '
             "components have no env",
         )
 
     def test_no_env_reads(self):
-        self.assert_ratchet(
-            _env_findings("owl_env_reads"),
+        self._assert_gate(
             "owl_env_reads",
             "this.env reads in static/src, components or not (JS and templates)",
             "A component reads what its env carried through the accessor of the "

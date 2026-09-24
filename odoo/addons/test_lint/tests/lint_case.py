@@ -30,6 +30,10 @@ def is_core_path(path: str) -> bool:
     return path == root or path.startswith(root + os.sep)
 
 
+def repo_of(module_root: str) -> str:
+    return "odoo" if is_core_path(module_root) else Path(module_root).parent.name
+
+
 @functools.cache
 def framework_paths() -> tuple[str, ...]:
     root = Path(tools.config.root_path)

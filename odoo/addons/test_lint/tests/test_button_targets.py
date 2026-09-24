@@ -36,8 +36,6 @@ DEFINED_OUT_OF_SCOPE = frozenset(
 KNOWN_DANGLING = frozenset(
     {
         "action_trigger_technical_analysis",
-        "action_set_overtimes",
-        "action_payslips_done",
         "action_invalidate_check",
         "action_set_quantities_to_reservation",
     }
