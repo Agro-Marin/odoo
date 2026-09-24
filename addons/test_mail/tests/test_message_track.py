@@ -2099,3 +2099,32 @@ class TestTrackingBatchCost(MailCommon):
             self.assertEqual(len(template_messages), 1)
             self.assertEqual(template_messages.message_type, "auto_comment")
             self.assertEqual(template_messages.body, f"<p>Hello {record.name}</p>")
+
+
+@tagged("mail_track")
+class TestTrackingCompanyDependent(MailCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.company_other = cls.env["res.company"].create({"name": "Tracking B"})
+        cls.record_a, cls.record_b = (
+            cls.env["mail.test.track"]
+            .with_context(mail_notrack=False)
+            .create([{"name": "In A"}, {"name": "In B"}])
+        )
+        cls.record_b.with_company(cls.company_other).company_amount = 5.0
+        cls.env.flush_all()
+        cls.cr.flush()
+
+    def test_each_record_is_compared_in_the_company_it_was_written_in(self):
+        messages_b = self.record_b.message_ids
+        # the first write registers the tracking in the main company; the
+        # second rewrites B's value unchanged in its own company, which the
+        # finalization used to read in the main company (5.0 -> 0.0)
+        self.record_a.with_company(self.env.company).company_amount = 1.0
+        self.record_b.with_company(self.company_other).company_amount = 5.0
+        self.flush_tracking()
+        self.assertEqual(self.record_b.message_ids, messages_b)
+        tracked = self.record_a.message_ids[0].sudo().tracking_value_ids
+        self.assertEqual(tracked.field_id.name, "company_amount")
+        self.assertEqual(tracked.new_value_float, 1.0)

@@ -795,10 +795,19 @@ class MixinMailThread(models.AbstractModel):
         writer_uids = self.env.cr.precommit.data.setdefault(
             f"mail.tracking.uid.{self._name}", {}
         )
+        # a company-dependent field's value is the one of the company it was
+        # written in: the new value is read there too, not in the company of
+        # whichever write registered the finalization first
+        writer_companies = self.env.cr.precommit.data.setdefault(
+            f"mail.tracking.company.{self._name}", {}
+        )
+        company_ids = self.env.context.get("allowed_company_ids")
+        company_id = company_ids[0] if company_ids else None
         for record in self:
             if not record.id:
                 continue
             writer_uids.setdefault(record.id, self.env.uid)
+            writer_companies.setdefault(record.id, company_id)
             values = initial_values.setdefault(record.id, {})
             if values is None:
                 continue
@@ -813,6 +822,7 @@ class MixinMailThread(models.AbstractModel):
             except MissingError:
                 initial_values.pop(record.id, None)
                 writer_uids.pop(record.id, None)
+                writer_companies.pop(record.id, None)
 
     def _track_discard(self) -> None:
         if not self._track_get_fields():
@@ -837,14 +847,21 @@ class MixinMailThread(models.AbstractModel):
         writer_uids = self.env.cr.precommit.data.pop(
             f"mail.tracking.uid.{self._name}", {}
         )
+        writer_companies = self.env.cr.precommit.data.pop(
+            f"mail.tracking.company.{self._name}", {}
+        )
         ids = [id_ for id_, vals in initial_values.items() if vals]
         if not ids:
             return
         fnames = self._track_get_fields()
         context = clean_context(self.env.context)
+        default_company = (context.get("allowed_company_ids") or [None])[0]
         ids_per_uid = defaultdict(list)
         for id_ in ids:
-            ids_per_uid[writer_uids.get(id_, self.env.uid)].append(id_)
+            ids_per_uid[
+                writer_uids.get(id_, self.env.uid),
+                writer_companies.get(id_) or default_company,
+            ].append(id_)
         _debug.pipeline(
             "track_finalize",
             model=self._name,
@@ -860,15 +877,16 @@ class MixinMailThread(models.AbstractModel):
             )
             if key in self.env.cr.precommit.data
         }
-        for uid, uid_ids in ids_per_uid.items():
+        for (uid, company_id), uid_ids in ids_per_uid.items():
             self.env.cr.precommit.data.update(overrides)
             records = self.browse(uid_ids).with_user(uid).sudo()
             uid_context = context
             if uid != self.env.uid:
                 uid_context = {k: v for k, v in context.items() if k != "lang"}
-            tracking = records.with_context(uid_context)._message_track(
-                fnames, initial_values
-            )
+            tracked = records.with_context(uid_context)
+            if company_id and company_id != default_company:
+                tracked = tracked.with_company(company_id)
+            tracking = tracked._message_track(fnames, initial_values)
             ids_per_changes = defaultdict(list)
             for record in records:
                 changes, _tracking_value_ids = tracking.get(record.id, (None, None))
