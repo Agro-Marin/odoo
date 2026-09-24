@@ -348,7 +348,9 @@ class Registry(
         self, model_names: Iterable[str], models_field_depends_done: set
     ) -> None:
         model_names_to_setup = self.get_descendants(
-            model_names, "_inherit", "_inherits"
+            [*model_names, *self._models_relating_to_custom_models()],
+            "_inherit",
+            "_inherits",
         )
         for fields in self.many2many_relations.values():
             for pair in list(fields):
@@ -402,6 +404,24 @@ class Registry(
             fields_reset=len(done),
             models_kept=len(models_field_depends_done),
         )
+
+    def _models_relating_to_custom_models(self) -> list[str]:
+        # _add_manual_models replaces every custom model on each setup and drops
+        # those whose rows are gone: a field into one is set up again with them
+        return [
+            model_cls._name
+            for model_cls in self.models.values()
+            if not model_cls._custom
+            and any(
+                field.manual
+                and field.relational
+                and (
+                    field.comodel_name not in self.models
+                    or self.models[field.comodel_name]._custom
+                )
+                for field in model_cls._fields.values()
+            )
+        ]
 
     def _setup_field_depends(
         self, env: typing.Any, models_field_depends_done: set
