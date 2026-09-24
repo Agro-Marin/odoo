@@ -1057,7 +1057,7 @@ class TestAccountPaymentTerms(AccountTestInvoicingCommon):
         self.assertFalse(self.pay_term_60_days.is_immediate)
 
     def test_is_immediate_existing_data(self):
-        immediate = self.env.ref("account.account_payment_term_immediate")
+        immediate = self.env.ref("payment_term.account_payment_term_immediate")
         self.assertTrue(immediate.is_immediate)
 
     def test_days_next_month_out_of_range_raises_validation(self):

@@ -9,7 +9,7 @@ class TestInvoiceLineMatch(TransactionCase):
         super().setUpClass()
         cls.customer = cls.env["res.partner"].create({"name": "Match customer"})
         cls.immediate_payment_term = cls.env.ref(
-            "account.account_payment_term_immediate"
+            "payment_term.account_payment_term_immediate"
         )
         cls.product = cls.env["product.product"].create(
             {

@@ -1,0 +1,499 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * account
+#
+# Translators:
+# Pak Wai Ho, 2025
+# Wil Odoo, 2025
+# Tony Ng, 2025
+#
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Tony Ng (ngto)" <ngto@odoo.com>, 2025, 2026.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server saas~18.3\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2026-02-13 09:18+0000\n"
+"Last-Translator: \"Tony Ng (ngto)\" <ngto@odoo.com>\n"
+"Language-Team: Chinese (Traditional Han script) <https://translate.odoo.com/projects/odoo-19/account/zh_Hant/>\n"
+"Language: zh_TW\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid "%s (copy)"
+msgstr "%s (副本)"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_30_days_end_month_the_10
+msgid "10 Days after End of Next Month"
+msgstr "下月底後 10 天"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_15days
+msgid "15 Days"
+msgstr "15 天"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_30days_early_discount
+msgid "2/7 Net 30"
+msgstr "30 天；7 天內付清享 2% 折扣"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_21days
+msgid "21 Days"
+msgstr "21 天"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_30days
+msgid "30 Days"
+msgstr "30天"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_advance_60days
+msgid "30% Now, Balance 60 Days"
+msgstr "即時繳付 30%，餘額 60 天內"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_45days
+msgid "45 Days"
+msgstr "45 天"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_90days_on_the_10th
+msgid "90 days, on the 10th"
+msgstr "90 天，在 10 日"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid ""
+"<b>%(count)s#</b> Installment of <b>%(amount)s</b> due on <b style='color: "
+"#704A66;'>%(date)s</b>"
+msgstr ""
+"<b>%(count)s#</b> 分期付款 <b>%(amount)s</b> 到期日 <b style='color: "
+"#704A66;'>%(date)s</b>"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "<span invisible=\"not early_discount\"> % if paid within </span>"
+msgstr "<span invisible=\"not early_discount\"> % 若在期限內付款：</span>"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "<span invisible=\"not early_discount\"> days</span>"
+msgstr "<span invisible=\"not early_discount\"> 天</span>"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__active
+msgid "Active"
+msgstr "啟用"
+
+#. module: payment_term
+#. odoo-javascript
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "After"
+msgstr "之後"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term__early_pay_discount_computation__mixed
+msgid "Always (upon invoice)"
+msgstr "永遠（根據發票）"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_search
+msgid "Archived"
+msgstr "已封存"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__early_pay_discount_computation
+msgid "Cash Discount Tax Reduction"
+msgstr "現金折扣減稅"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__company_id
+msgid "Company"
+msgstr "公司"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__create_uid
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__create_uid
+msgid "Created by"
+msgstr "建立人員"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__create_date
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__create_date
+msgid "Created on"
+msgstr "建立於"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__currency_id
+msgid "Currency"
+msgstr "貨幣"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_res_partner__property_payment_term_id
+#: model:ir.model.fields,field_description:payment_term.field_res_users__property_payment_term_id
+msgid "Customer Payment Terms"
+msgstr "客戶支付條款"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_date
+msgid "Date example"
+msgstr "日期範例"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__nb_days
+msgid "Days"
+msgstr "天"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_after_end_of_month
+msgid "Days after end of month"
+msgstr "天(月底後)"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_after_end_of_next_month
+msgid "Days after end of next month"
+msgstr "天(下月底後)"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_after
+msgid "Days after invoice date"
+msgstr "天(發票日期後)"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_end_of_month_on_the
+msgid "Days end of month on the"
+msgstr "截數日月底起計天數"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__days_next_month
+msgid "Days on the next month"
+msgstr "天，在下月"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__delay_type
+msgid "Delay Type"
+msgstr "延遲類型"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid ""
+"Description on invoice (e.g. Payment terms: 30 days after invoice date)"
+msgstr "發票上描述（例如：付款條件：發票日期後 30 天）"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__note
+msgid "Description on the Invoice"
+msgstr "應收憑單描述"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__discount_percentage
+msgid "Discount %"
+msgstr "折扣百分比"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__discount_days
+msgid "Discount Days"
+msgstr "折扣日"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__display_days_next_month
+msgid "Display Days Next Month"
+msgstr "顯示下月天數"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__display_name
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__display_name
+msgid "Display Name"
+msgstr "顯示名稱"
+
+#. module: payment_term
+#. odoo-python
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__value_amount
+msgid "Due"
+msgstr "到期"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "Due Terms"
+msgstr "到期期限"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__early_discount
+msgid "Early Discount"
+msgstr "提早付款折扣"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term__discount_percentage
+msgid "Early Payment Discount granted for this payment term"
+msgstr "用於此付款期限的提早付款折扣"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid ""
+"Early Payment Discount: <b>%(amount)s</b> if paid before <b>%(date)s</b>"
+msgstr "提早付款折扣： <b>%(amount)s</b> 若在 <b>%(date)s</b> 前付清"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_end_following_month
+msgid "End of Following Month"
+msgstr "翌月底"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_amount
+msgid "Example Amount"
+msgstr "範例總計"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_invalid
+msgid "Example Invalid"
+msgstr "範例無效的"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_preview
+msgid "Example Preview"
+msgstr "範例預覽"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_preview_discount
+msgid "Example Preview Discount"
+msgstr "預覽折扣範例"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "Example:"
+msgstr "例子："
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__value__fixed
+msgid "Fixed"
+msgstr "固定"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term_line__value_amount
+msgid "For percent enter a ratio between 0-100."
+msgstr "輸入一個從0-100的百分比."
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__id
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__id
+msgid "ID"
+msgstr "識別號"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term__active
+msgid ""
+"If the active field is set to False, it will allow you to hide the payment "
+"terms without removing it."
+msgstr "如果有效欄位設定為False，可以隱藏支付條款而不用刪除它."
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_immediate
+msgid "Immediate Payment"
+msgstr "立即付款"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__write_uid
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__write_uid
+msgid "Last Updated by"
+msgstr "最後更新者"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__write_date
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__write_date
+msgid "Last Updated on"
+msgstr "最後更新於"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term__early_pay_discount_computation__excluded
+msgid "Never"
+msgstr "從不"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term__discount_days
+msgid "Number of days before the early payment proposition expires"
+msgstr "預付款提議到期前的天數"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term__early_pay_discount_computation__included
+msgid "On early payment"
+msgstr "於預付款"
+
+#. module: payment_term
+#: model:ir.actions.act_window,name:payment_term.action_payment_term_form
+#: model:ir.model,name:payment_term.model_account_payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__name
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__payment_id
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_search
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_tree
+msgid "Payment Terms"
+msgstr "付款條件"
+
+#. module: payment_term
+#: model:ir.model,name:payment_term.model_account_payment_term_line
+msgid "Payment Terms Line"
+msgstr "付款條款資料行"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_30_days_end_month_the_10
+msgid "Payment terms: 10 Days after End of Next Month"
+msgstr "付款期限：下月底後 10 天"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_15days
+msgid "Payment terms: 15 Days"
+msgstr "付款條款：15 天"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_21days
+msgid "Payment terms: 21 Days"
+msgstr "付款條款：21 天"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_30days
+msgid "Payment terms: 30 Days"
+msgstr "付款條款：30 天"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_30days_early_discount
+msgid "Payment terms: 30 Days, 2% Early Payment Discount under 7 days"
+msgstr "付款條款：30 天；7 天內付清享 2% 折扣"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_advance_60days
+msgid "Payment terms: 30% Now, Balance 60 Days"
+msgstr "付款條款：即付 30%，餘款 60 天"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_45days
+msgid "Payment terms: 45 Days"
+msgstr "付款條款：45 天"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_90days_on_the_10th
+msgid "Payment terms: 90 days, on the 10th"
+msgstr "付款條款：90 天，在 10 日"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_end_following_month
+msgid "Payment terms: End of Following Month"
+msgstr "付款條款：翌月底"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_immediate
+msgid "Payment terms: Immediate Payment"
+msgstr "付款條款：立即付款"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__value__percent
+msgid "Percent"
+msgstr "百分比"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid "Percentages on the Payment Terms lines must be between 0 and 100."
+msgstr "付款條款資料行的百分比，須在 0 至 100 之間。"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "Preview"
+msgstr "預覽"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "Reduced tax:"
+msgstr "已減稅款："
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term_line__value
+msgid "Select here the kind of valuation related to this payment terms line."
+msgstr "請在此處選擇與此付款條件資料行相關的估值類型。"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__sequence
+msgid "Sequence"
+msgstr "序列號"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__display_on_invoice
+msgid "Show installment dates"
+msgstr "顯示分期付款日期"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__line_ids
+msgid "Terms"
+msgstr "付款條款"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid "The Early Payment Discount days must be strictly positive."
+msgstr "提前付款折扣天數必須嚴格為正數。"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid ""
+"The Early Payment Discount functionality can only be used with payment terms"
+" using a single 100% line. "
+msgstr "提前付款折扣功能只限使用單一 100% 資料行的付款期限可用。 "
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid "The Early Payment Discount must be strictly positive."
+msgstr "提前付款折扣必須嚴格為正數。"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid ""
+"The Payment Term must have at least one percent line and the sum of the "
+"percent must be 100%."
+msgstr "付款期限必須至少有一行計算百分比的資料行，而所有百分比的總和必須為 100%。"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid "The days added must be between 0 and 31."
+msgstr "加入的天數必須介乎 0 至 31 之間。"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__value
+msgid "Value"
+msgstr "值"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_res_partner__property_supplier_payment_term_id
+#: model:ir.model.fields,field_description:payment_term.field_res_users__property_supplier_payment_term_id
+msgid "Vendor Payment Terms"
+msgstr "供應商支付條款"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "Visible to all"
+msgstr "向全部人顯示"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "e.g. 30 days"
+msgstr "例：30 天"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "on"
+msgstr "於"

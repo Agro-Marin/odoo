@@ -240,7 +240,6 @@ msgstr "%d bút toán"
 #. odoo-python
 #: code:addons/account/models/account_account.py:0
 #: code:addons/account/models/account_journal.py:0
-#: code:addons/account/models/account_payment_term.py:0
 #: code:addons/account/models/account_reconcile_model.py:0
 #: code:addons/account/models/account_tax.py:0
 #: code:addons/account_reports/models/account_return.py:0
@@ -438,11 +437,6 @@ msgid "1.05"
 msgstr "1.05"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_30_days_end_month_the_10
-msgid "10 Days after End of Next Month"
-msgstr "10 ngày sau ngày cuối tháng kế tiếp"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_statement
 msgid "100.0"
 msgstr "100,0"
@@ -468,11 +462,6 @@ msgid "12345"
 msgstr "12345"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_15days
-msgid "15 Days"
-msgstr "15 ngày"
-
-#. module: account
 #: model:account.tax,name:account.1_purchase_tax_template
 #: model:account.tax,name:account.1_sale_tax_template
 msgid "15%"
@@ -490,11 +479,6 @@ msgstr "1500,0"
 #: model:account.tax,name:account.2_account_tax_us_sale_2_9
 msgid "2.9%"
 msgstr "2.9%"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_30days_early_discount
-msgid "2/7 Net 30"
-msgstr "Trong 30 ngày, giảm 2% trong 7 ngày"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -552,11 +536,6 @@ msgid "2024-01-01"
 msgstr "2024-01-01"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_21days
-msgid "21 Days"
-msgstr "21 ngày"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_payment_receipt_document
 msgid "25.0 USD"
 msgstr "25,0 USD"
@@ -579,19 +558,9 @@ msgid "3.00"
 msgstr "3.00"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_30days
-msgid "30 Days"
-msgstr "30 ngày"
-
-#. module: account
 #: model:account.payment.term,name:account.account_payment_term_advance
 msgid "30% Advance End of Following Month"
 msgstr "30% trả trước cuối tháng kế tiếp"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_advance_60days
-msgid "30% Now, Balance 60 Days"
-msgstr "30% trả ngay, còn lại trả trong 60 ngày"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -650,11 +619,6 @@ msgstr "4.75%"
 #: model:account.tax,name:account.2_account_tax_us_sale_4_875
 msgid "4.875%"
 msgstr "4.875%"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_45days
-msgid "45 Days"
-msgstr "45 ngày"
 
 #. module: account
 #: model:account.tax,invoice_label:account.2_account_tax_us_purchase_5_3
@@ -771,21 +735,6 @@ msgstr "7.25%"
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
 msgid "9.00"
 msgstr "9.00"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_90days_on_the_10th
-msgid "90 days, on the 10th"
-msgstr "90 ngày, vào ngày 10"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"<b>%(count)s#</b> Installment of <b>%(amount)s</b> due on <b style='color: "
-"#704A66;'>%(date)s</b>"
-msgstr ""
-"<b>%(count)s#</b> Khoản trả trước <b>%(amount)s</b> đến hạn thanh toán vào "
-"<b style='color: #704A66;'>%(date)s</b>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -1508,17 +1457,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:account.autopost_bills_wizard
 msgid "<span invisible=\"nb_unmodified_bills &lt; 10\">10+</span>"
 msgstr "<span invisible=\"nb_unmodified_bills &lt; 10\">10+</span>"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "<span invisible=\"not early_discount\"> % if paid within </span>"
-msgstr ""
-"<span invisible=\"not early_discount\"> % nếu thanh toán trong vòng </span>"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "<span invisible=\"not early_discount\"> days</span>"
-msgstr "<span invisible=\"not early_discount\"> ngày</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_form
@@ -3091,7 +3029,6 @@ msgstr "Kích hoạt để tạo biên lai bán hàng"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
-#: model:ir.model.fields,field_description:account.field_account_payment_term__active
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__active
 #: model:ir.model.fields,field_description:account.field_account_report__active
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__active
@@ -3372,7 +3309,6 @@ msgstr "Ảnh hưởng cơ sở tính thuế kế tiếp"
 #. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/account_resequence/account_resequence.xml:0
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
 msgid "After"
 msgstr "Sau"
 
@@ -3579,11 +3515,6 @@ msgstr "Đã hủy đăng ký"
 #: model:ir.model.fields.selection,name:account.selection__res_partner__autopost_bills__always
 msgid "Always"
 msgstr "Luôn luôn"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term__early_pay_discount_computation__mixed
-msgid "Always (upon invoice)"
-msgstr "Luôn luôn (khi xuất hóa đơn)"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__always_tax_exigible
@@ -4014,8 +3945,6 @@ msgstr "Tháng 4"
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_filter
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_model_search
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_search
 #: model_terms:ir.ui.view,arch_db:account_reports.account_audit_search_view
 #: model_terms:ir.ui.view,arch_db:account_reports.account_return_kanban_view
 #: model_terms:ir.ui.view,arch_db:account_reports.account_return_search_view
@@ -5239,11 +5168,6 @@ msgid "Cash Discount Loss"
 msgstr "Giảm giá tiền mặt lỗ"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__early_pay_discount_computation
-msgid "Cash Discount Tax Reduction"
-msgstr "Chiết khấu tiền hàng Giảm thuế"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_res_company__account_journal_early_pay_discount_gain_account_id
 msgid "Cash Discount Write-Off Gain Account"
 msgstr "Tài khoản lãi Xoá bỏ chiết khấu tiền hàng"
@@ -5673,7 +5597,6 @@ msgstr "Công ty là đối tác"
 #: model:ir.model.fields,field_description:account.field_account_payment__company_id
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__company_id
 #: model:ir.model.fields,field_description:account.field_account_payment_register__company_id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__company_id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__company_id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__company_id
 #: model:ir.model.fields,field_description:account.field_account_report_external_value__company_id
@@ -6336,8 +6259,6 @@ msgstr "Được tạo vào"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__create_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_register__create_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term__create_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__create_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_report__create_uid
@@ -6404,8 +6325,6 @@ msgstr "Được tạo bởi"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__create_date
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_payment_register__create_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term__create_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__create_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_report__create_date
@@ -6590,7 +6509,6 @@ msgstr "Tiền tệ"
 #: model:ir.model.fields,field_description:account.field_account_move_reversal__currency_id
 #: model:ir.model.fields,field_description:account.field_account_payment__currency_id
 #: model:ir.model.fields,field_description:account.field_account_payment_register__currency_id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__currency_id
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__currency_id
 #: model:ir.model.fields,field_description:account.field_res_config_settings__currency_id
 #: model:ir.model.fields,field_description:account.field_res_partner__currency_id
@@ -6777,12 +6695,6 @@ msgid "Customer Payment"
 msgstr "Thanh toán bán hàng"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_res_partner__property_payment_term_id
-#: model:ir.model.fields,field_description:account.field_res_users__property_payment_term_id
-msgid "Customer Payment Terms"
-msgstr "Điều khoản thanh toán bán hàng"
-
-#. module: account
 #: model:ir.actions.act_window,name:account.action_account_payments
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_search
@@ -6938,11 +6850,6 @@ msgid "Date Scope"
 msgstr "Phạm vi ngày"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_date
-msgid "Date example"
-msgstr "Ví dụ ngày"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_financial_year_op__opening_date
 msgid ""
 "Date from which the accounting is managed in Odoo. It is the date of the "
@@ -6970,7 +6877,6 @@ msgid "Datetime"
 msgstr "Ngày giờ"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__nb_days
 #: code:addons/account_reports/static/src/components/aged_partner_balance/filter_aging.xml:0
 msgid "Days"
 msgstr "Ngày"
@@ -6980,31 +6886,6 @@ msgstr "Ngày"
 #: model:ir.model.fields,field_description:account.field_res_users__days_sales_outstanding
 msgid "Days Sales Outstanding (DSO)"
 msgstr "Thời gian thu hồi tiền hàng tồn đọng (DSO)"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_after_end_of_month
-msgid "Days after end of month"
-msgstr "Ngày sau ngày cuối tháng"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_after_end_of_next_month
-msgid "Days after end of next month"
-msgstr "Ngày sau ngày cuối tháng kế tiếp"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_after
-msgid "Days after invoice date"
-msgstr "Ngày sau ngày lập hoá đơn"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_end_of_month_on_the
-msgid "Days end of month on the"
-msgstr "Ngày sau ngày cuối tháng vào ngày"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__days_next_month
-msgid "Days on the next month"
-msgstr "Ngày vào tháng tiếp theo"
 
 #. module: account
 #. odoo-python
@@ -7280,11 +7161,6 @@ msgid "Degree of trust you have in this debtor"
 msgstr "Mức độ tin tưởng của bạn đối với khoản nợ này"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__delay_type
-msgid "Delay Type"
-msgstr "Loại chậm trễ"
-
-#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/section_and_note_fields_backend/section_and_note_fields_backend.xml:0
 #: model_terms:ir.ui.view,arch_db:account_reports.account_audit_kanban_view
@@ -7353,19 +7229,6 @@ msgstr "Khấu hao"
 #: model_terms:ir.ui.view,arch_db:account_reports.account_return_check_template_form_view
 msgid "Description"
 msgstr "Diễn giải"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid ""
-"Description on invoice (e.g. Payment terms: 30 days after invoice date)"
-msgstr ""
-"Mô tả trên hoá đơn (VD: Thời hạn thanh toán: 30 ngày kể từ ngày xuất hóa "
-"đơn)"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__note
-msgid "Description on the Invoice"
-msgstr "Diễn giải trên hóa đơn"
 
 #. module: account
 #. odoo-python
@@ -7469,11 +7332,6 @@ msgid "Discount"
 msgstr "Chiết khấu"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__discount_percentage
-msgid "Discount %"
-msgstr "% chiết khấu"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_line__discount
 msgid "Discount (%)"
 msgstr "Chiết khấu (%)"
@@ -7512,11 +7370,6 @@ msgstr "Số dư chiết khấu"
 #: model_terms:ir.ui.view,arch_db:account.view_move_line_payment_tree
 #: model_terms:ir.ui.view,arch_db:account.view_move_line_tree
 msgid "Discount Date"
-msgstr "Ngày chiết khấu"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__discount_days
-msgid "Discount Days"
 msgstr "Ngày chiết khấu"
 
 #. module: account
@@ -7566,11 +7419,6 @@ msgstr "Hiển thị số tiền"
 #: model:ir.model.fields,field_description:account.field_account_move_send_wizard__display_attachments_widget
 msgid "Display Attachments Widget"
 msgstr "Hiển thị widget tệp đính kèm"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__display_days_next_month
-msgid "Display Days Next Month"
-msgstr "Hiển thị ngày vào tháng tiếp theo"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_validate_account_move__display_force_hash
@@ -7652,8 +7500,6 @@ msgstr "Hiển thị tab mapping"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__display_name
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__display_name
 #: model:ir.model.fields,field_description:account.field_account_payment_register__display_name
-#: model:ir.model.fields,field_description:account.field_account_payment_term__display_name
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__display_name
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__display_name
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__display_name
 #: model:ir.model.fields,field_description:account.field_account_report__display_name
@@ -8072,7 +7918,6 @@ msgstr "Thả để nhập hoá đơn của bạn."
 #. module: account
 #. odoo-python
 #: code:addons/account/models/account_journal_dashboard.py:0
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__value_amount
 #: code:addons/account_reports/models/account_followup_report.py:0
 #: code:addons/account_reports/models/account_journal_report.py:0
 #: code:addons/account_reports/static/src/components/journal_report/line/line.xml:0
@@ -8103,11 +7948,6 @@ msgstr "Số tiền phải trả cho"
 #: model:account.report.column,name:account_reports.partner_ledger_report_date_maturity
 msgid "Due Date"
 msgstr "Ngày đến hạn"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "Due Terms"
-msgstr "Điều khoản đến hạn"
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_subscriptions
@@ -8187,7 +8027,6 @@ msgid "EXCH"
 msgstr "EXCH"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__early_discount
 #: model_terms:ir.ui.view,arch_db:account.view_account_move_line_payment_filter
 msgid "Early Discount"
 msgstr "Chiết khấu sớm"
@@ -8228,23 +8067,9 @@ msgid "Early Payment Discount Mode"
 msgstr "Chế độ chiết khấu thanh toán sớm"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term__discount_percentage
-msgid "Early Payment Discount granted for this payment term"
-msgstr "Chiết khấu thanh toán sớm áp dụng cho điều khoản thanh toán này"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
 msgid "Early Payment Discount of"
 msgstr "Chiết khấu thanh toán sớm của"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"Early Payment Discount: <b>%(amount)s</b> if paid before <b>%(date)s</b>"
-msgstr ""
-"Chiết khấu thanh toán sớm: <b>%(amount)s</b> nếu thanh toán trước "
-"<b>%(date)s</b>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -8399,11 +8224,6 @@ msgstr "Được bật theo mặc định"
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__end_date
 msgid "End Date"
 msgstr "Ngày kết thúc"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_end_following_month
-msgid "End of Following Month"
-msgstr "Cuối tháng kế tiếp"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement__balance_end_real
@@ -8565,31 +8385,6 @@ msgstr "Thuế GTGT của Liên minh Châu Âu"
 #: code:addons/account/models/account_move.py:0
 msgid "Even magicians can't post nothing!"
 msgstr "Không ai có thể ghi sổ khi không có dữ liệu!"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_amount
-msgid "Example Amount"
-msgstr "Ví dụ Số tiền"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_invalid
-msgid "Example Invalid"
-msgstr "Ví dụ Không hợp lệ"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_preview
-msgid "Example Preview"
-msgstr "Ví dụ Xem trước"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_preview_discount
-msgid "Example Preview Discount"
-msgstr "Ví dụ xem trước chiết khấu"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "Example:"
-msgstr "Ví dụ:"
 
 #. module: account
 #. odoo-python
@@ -9017,7 +8812,6 @@ msgid "Fiscalyear Last Month"
 msgstr "Tháng kết thúc năm tài chính"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__value__fixed
 #: model:ir.model.fields.selection,name:account.selection__account_reconcile_model_line__amount_type__fixed
 #: model:ir.model.fields.selection,name:account.selection__account_tax__amount_type__fixed
 msgid "Fixed"
@@ -9134,11 +8928,6 @@ msgid ""
 "For new invoices, please ensure a PDF or electronic invoice file is attached"
 msgstr ""
 "Đối với hóa đơn mới, vui lòng đảm bảo đính kèm tệp hóa đơn PDF hoặc điện tử"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term_line__value_amount
-msgid "For percent enter a ratio between 0-100."
-msgstr "Dành cho phần trăm với tỷ lệ từ 0-100."
 
 #. module: account
 #. odoo-python
@@ -9814,8 +9603,6 @@ msgstr "ICE:"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__id
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__id
 #: model:ir.model.fields,field_description:account.field_account_payment_register__id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__id
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__id
 #: model:ir.model.fields,field_description:account.field_account_report__id
@@ -10127,15 +9914,6 @@ msgstr ""
 "tiền trước thuế'."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term__active
-msgid ""
-"If the active field is set to False, it will allow you to hide the payment "
-"terms without removing it."
-msgstr ""
-"Nếu bỏ kích hoạt trường này, bạn sẽ được phép ẩn điều khoản thanh toán mà "
-"không cần xóa nó."
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__restrict_mode_hash_table
 #: model:ir.model.fields,help:account.field_account_journal__restrict_mode_hash_table
 #: model:ir.model.fields,help:account.field_account_move__restrict_mode_hash_table
@@ -10223,11 +10001,6 @@ msgstr "Bỏ qua ngày lập hoá đơn bất thường"
 #: model_terms:ir.ui.view,arch_db:account.validate_account_move_view
 msgid "Ignore future alerts"
 msgstr "Bỏ qua các cảnh báo sau này"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_immediate
-msgid "Immediate Payment"
-msgstr "Thanh toán ngay"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_res_config_settings__module_account_bank_statement_import_qif
@@ -11706,8 +11479,6 @@ msgstr "Báo cáo cuối cùng"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__write_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_register__write_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term__write_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__write_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_report__write_uid
@@ -11774,8 +11545,6 @@ msgstr "Cập nhật lần cuối bởi"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__write_date
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_payment_register__write_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term__write_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__write_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_report__write_date
@@ -12800,7 +12569,6 @@ msgid "Net"
 msgstr "Số tiền thực"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term__early_pay_discount_computation__excluded
 #: model:ir.model.fields.selection,name:account.selection__account_report__filter_hide_0_lines__never
 #: model:ir.model.fields.selection,name:account.selection__account_report__filter_hierarchy__never
 #: model:ir.model.fields.selection,name:account.selection__res_partner__autopost_bills__never
@@ -13212,11 +12980,6 @@ msgid "Number of bills previously unmodified from this partner"
 msgstr "Số lượng hóa đơn trước đó chưa được sửa đổi từ đối tác này"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term__discount_days
-msgid "Number of days before the early payment proposition expires"
-msgstr "Số ngày trước khi đề xuất thanh toán sớm hết hạn"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__message_has_error_counter
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__message_has_error_counter
 #: model:ir.model.fields,field_description:account.field_account_journal__message_has_error_counter
@@ -13356,11 +13119,6 @@ msgstr "Cung cấp văn phòng phẩm"
 #: model:account.account,description:account.2_account_account_us_furniture
 msgid "Office desks, chairs, shelving, etc"
 msgstr "Bàn làm việc, ghế, kệ, v.v."
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term__early_pay_discount_computation__included
-msgid "On early payment"
-msgstr "Khi thanh toán sớm"
 
 #. module: account
 #: model:onboarding.onboarding.step,step_image_alt:account.onboarding_onboarding_step_fiscal_year
@@ -14271,25 +14029,13 @@ msgid "Payment Term Details"
 msgstr "Chi tiết điều khoản thanh toán"
 
 #. module: account
-#: model:ir.actions.act_window,name:account.action_payment_term_form
-#: model:ir.model,name:account.model_account_payment_term
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__invoice_payment_term_id
 #: model:ir.model.fields,field_description:account.field_account_move__invoice_payment_term_id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__name
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__payment_id
 #: model:ir.ui.menu,name:account.menu_action_payment_term_form
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_search
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_tree
 msgid "Payment Terms"
 msgstr "Điều khoản thanh toán"
-
-#. module: account
-#: model:ir.model,name:account.model_account_payment_term_line
-msgid "Payment Terms Line"
-msgstr "Chi tiết điều khoản thanh toán"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_payment__payment_type
@@ -14305,62 +14051,14 @@ msgid "Payment terms"
 msgstr "Điều khoản thanh toán"
 
 #. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_30_days_end_month_the_10
-msgid "Payment terms: 10 Days after End of Next Month"
-msgstr "Điều khoản thanh toán: 10 ngày sau ngày cuối tháng kế tiếp"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_15days
-msgid "Payment terms: 15 Days"
-msgstr "Điều khoản thanh toán: 15 ngày"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_21days
-msgid "Payment terms: 21 Days"
-msgstr "Điều khoản thanh toán: 21 ngày"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_30days
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
 msgid "Payment terms: 30 Days"
 msgstr "Điều khoản thanh toán: 30 ngày"
 
 #. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_30days_early_discount
-msgid "Payment terms: 30 Days, 2% Early Payment Discount under 7 days"
-msgstr ""
-"Điều khoản thanh toán: 30 ngày, chiết khấu thanh toán sớm 2% nếu thanh toán "
-"trong vòng 7 ngày"
-
-#. module: account
 #: model_terms:account.payment.term,note:account.account_payment_term_advance
 msgid "Payment terms: 30% Advance End of Following Month"
 msgstr "Điều khoản thanh toán: 30% trả trước cuối tháng kế tiếp"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_advance_60days
-msgid "Payment terms: 30% Now, Balance 60 Days"
-msgstr "Điều khoản thanh toán: 30% trả ngay, còn lại trả trong 60 ngày"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_45days
-msgid "Payment terms: 45 Days"
-msgstr "Điều khoản thanh toán: 45 ngày"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_90days_on_the_10th
-msgid "Payment terms: 90 days, on the 10th"
-msgstr "Thời hạn thanh toán: 90 ngày, vào ngày 10"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_end_following_month
-msgid "Payment terms: End of Following Month"
-msgstr "Điều khoản thanh toán: Ngày cuối tháng kế tiếp"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_immediate
-msgid "Payment terms: Immediate Payment"
-msgstr "Điều khoản thanh toán: Thanh toán ngay"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -14429,11 +14127,6 @@ msgid "Pension"
 msgstr "Hưu trí"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__value__percent
-msgid "Percent"
-msgstr "Phần trăm"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_automatic_entry_wizard__percentage
 #: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__percentage
 #: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__percentage
@@ -14466,14 +14159,6 @@ msgstr "Phần trăm của mỗi dòng để thực hiện tác vụ."
 #: model:ir.model.fields.selection,name:account.selection__account_reconcile_model_line__amount_type__percentage_st_line
 msgid "Percentage of statement line"
 msgstr "Phần trăm của dòng sao kê"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "Percentages on the Payment Terms lines must be between 0 and 100."
-msgstr ""
-"Phần trăm của các dòng điều khoản thanh toán phải nằm trong khoảng từ 0 đến "
-"100."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_invoice_filter
@@ -14708,7 +14393,6 @@ msgstr ""
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
 msgid "Preview"
 msgstr "Xem trước"
 
@@ -15294,11 +14978,6 @@ msgstr "Bản ghi"
 #: code:addons/account/models/account_tax.py:0
 msgid "Recursion found for tax “%s”."
 msgstr "Tìm thấy đệ quy cho thuế “%s”."
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "Reduced tax:"
-msgstr "Thuế đã giảm trừ:"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_analytic_line__ref
@@ -16246,12 +15925,6 @@ msgid "Select first partner"
 msgstr "Chọn đối tác đầu tiên"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term_line__value
-msgid "Select here the kind of valuation related to this payment terms line."
-msgstr ""
-"Ở đây, hãy chọn loại định giá liên quan đến dòng điều khoản thanh toán này."
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Select specific invoice and delivery addresses"
 msgstr "Chọn địa chỉ giao hàng và hóa đơn cụ thể"
@@ -16485,7 +16158,6 @@ msgstr "Tháng 9"
 #: model:ir.model.fields,field_description:account.field_account_merge_wizard_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_move_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__sequence
-#: model:ir.model.fields,field_description:account.field_account_payment_term__sequence
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__sequence
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_report__sequence
@@ -16804,11 +16476,6 @@ msgstr "Hiển thị bút toán nháp"
 #: model_terms:ir.ui.view,arch_db:account.view_account_tax_search
 msgid "Show inactive taxes"
 msgstr "Hiển thị các loại thuế không hoạt động"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__display_on_invoice
-msgid "Show installment dates"
-msgstr "Hiển thị ngày trả góp"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_journal__show_on_dashboard
@@ -17846,11 +17513,6 @@ msgid "Term Key"
 msgstr "Khóa kỳ hạn"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__line_ids
-msgid "Terms"
-msgstr "Điều khoản"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_res_config_settings__invoice_terms
 msgid "Terms & Conditions"
 msgstr "Điều khoản & điều kiện"
@@ -17950,28 +17612,6 @@ msgstr "Ngày lập hóa đơn / hoàn tiền là bắt buộc để xác thực
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "The Early Payment Discount days must be strictly positive."
-msgstr "Số ngày chiết khấu thanh toán sớm bắt buộc là số dương."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"The Early Payment Discount functionality can only be used with payment terms"
-" using a single 100% line. "
-msgstr ""
-"Chức năng Chiết khấu thanh toán sớm chỉ có thể được sử dụng với các điều "
-"khoản thanh toán sử dụng một chi tiết 100% dòng. "
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "The Early Payment Discount must be strictly positive."
-msgstr "Chiết khấu thanh toán sớm bắt buộc là số dương."
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/company.py:0
 msgid "The Hard Lock Date cannot be removed."
 msgstr "Không thể gỡ bỏ Ngày khoá sổ kế toán."
@@ -18005,16 +17645,6 @@ msgid ""
 msgstr ""
 "Số thứ tự bút toán không phù hợp với định dạng hiện tại. Chỉ Kế toán viên "
 "mới có thể thay đổi nó."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"The Payment Term must have at least one percent line and the sum of the "
-"percent must be 100%."
-msgstr ""
-"Điều khoản thanh toán phải có ít nhất một dòng phần trăm và tổng phần trăm "
-"phải bằng 100%."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_base_document_layout__vat
@@ -18318,12 +17948,6 @@ msgstr ""
 #: code:addons/account/models/account_payment_term.py:0
 msgid "The days added must be a number and has to be between 0 and 31."
 msgstr "Ngày được thêm phải là số và phải nằm trong khoảng từ 0 đến 31."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "The days added must be between 0 and 31."
-msgstr "Những ngày được thêm phải nằm trong khoảng từ 0 đến 31."
 
 #. module: account
 #. odoo-python
@@ -20363,7 +19987,6 @@ msgstr ""
 "Các bút toán đã được xác nhận chỉ có thể được chỉnh sửa bởi kế toán của bạn."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__value
 #: code:addons/account_reports/static/src/components/account_report/line/popover/debug_popover.xml:0
 msgid "Value"
 msgstr "Giá trị"
@@ -20486,12 +20109,6 @@ msgid "Vendor Payment"
 msgstr "Thanh toán mua hàng"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_res_partner__property_supplier_payment_term_id
-#: model:ir.model.fields,field_description:account.field_res_users__property_supplier_payment_term_id
-msgid "Vendor Payment Terms"
-msgstr "Điều khoản thanh toán mua hàng"
-
-#. module: account
 #: model:ir.actions.act_window,name:account.action_account_payments_payable
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_search
@@ -20548,7 +20165,6 @@ msgstr "Xem (các) đối tác"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_group_tree
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
 msgid "Visible to all"
 msgstr "Hiển thị với tất cả"
 
@@ -21807,11 +21423,6 @@ msgid "e.g. 101000"
 msgstr "ví dụ. 101000"
 
 #. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "e.g. 30 days"
-msgstr "ví dụ. 30 ngày"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_model_form
 msgid "e.g. Bank Fees"
 msgstr "vd: Phí ngân hàng"
@@ -22011,11 +21622,6 @@ msgstr "không áp dụng"
 #: model:ir.model.fields.selection,name:account.selection__account_tax_repartition_line__repartition_type__tax
 msgid "of tax"
 msgstr "thuế"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "on"
-msgstr "trên"
 
 #. module: account
 #. odoo-javascript

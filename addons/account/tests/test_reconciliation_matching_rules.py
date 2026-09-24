@@ -1727,7 +1727,7 @@ class TestReconciliationMatchingRules(AccountTestInvoicingCommon):
             amounts=[100],
         )
         invoice.invoice_payment_term_id = self.env.ref(
-            "account.account_payment_term_30days_early_discount"
+            "payment_term.account_payment_term_30days_early_discount"
         )
         invoice.action_post()
         st_line = self._create_st_line(amount=50, payment_ref=invoice.name)

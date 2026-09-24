@@ -244,7 +244,6 @@ msgstr "%d movimenti"
 #. odoo-python
 #: code:addons/account/models/account_account.py:0
 #: code:addons/account/models/account_journal.py:0
-#: code:addons/account/models/account_payment_term.py:0
 #: code:addons/account/models/account_reconcile_model.py:0
 #: code:addons/account/models/account_tax.py:0
 #: code:addons/account_reports/models/account_return.py:0
@@ -443,11 +442,6 @@ msgid "1.05"
 msgstr "1.05"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_30_days_end_month_the_10
-msgid "10 Days after End of Next Month"
-msgstr "10 giorni dopo la fine del prossimo mese"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_statement
 msgid "100.0"
 msgstr "100.0"
@@ -473,11 +467,6 @@ msgid "12345"
 msgstr "12345"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_15days
-msgid "15 Days"
-msgstr "15 giorni"
-
-#. module: account
 #: model:account.tax,name:account.1_purchase_tax_template
 #: model:account.tax,name:account.1_sale_tax_template
 msgid "15%"
@@ -495,11 +484,6 @@ msgstr "1500.0"
 #: model:account.tax,name:account.2_account_tax_us_sale_2_9
 msgid "2.9%"
 msgstr "2,9%"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_30days_early_discount
-msgid "2/7 Net 30"
-msgstr "2/7 Netto 30"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -557,11 +541,6 @@ msgid "2024-01-01"
 msgstr "01-01-2024"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_21days
-msgid "21 Days"
-msgstr "21 giorni"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_payment_receipt_document
 msgid "25.0 USD"
 msgstr "25.0 USD"
@@ -584,19 +563,9 @@ msgid "3.00"
 msgstr "3.00"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_30days
-msgid "30 Days"
-msgstr "30 giorni"
-
-#. module: account
 #: model:account.payment.term,name:account.account_payment_term_advance
 msgid "30% Advance End of Following Month"
 msgstr "anticipo 30% data fattura fine mese successivo"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_advance_60days
-msgid "30% Now, Balance 60 Days"
-msgstr "30% ora, saldo tra 60 giorni"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -655,11 +624,6 @@ msgstr "4,75%"
 #: model:account.tax,name:account.2_account_tax_us_sale_4_875
 msgid "4.875%"
 msgstr "4,875%"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_45days
-msgid "45 Days"
-msgstr "45 giorni"
 
 #. module: account
 #: model:account.tax,invoice_label:account.2_account_tax_us_purchase_5_3
@@ -776,21 +740,6 @@ msgstr "7,25%"
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
 msgid "9.00"
 msgstr "9.00"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_90days_on_the_10th
-msgid "90 days, on the 10th"
-msgstr "90 giorni, il 10 del mese"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"<b>%(count)s#</b> Installment of <b>%(amount)s</b> due on <b style='color: "
-"#704A66;'>%(date)s</b>"
-msgstr ""
-"<b>%(count)s#</b> Versamento di <b>%(amount)s</b> in scadenza il <b "
-"style='color: #704A66;'>%(date)s</b>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -1517,16 +1466,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:account.autopost_bills_wizard
 msgid "<span invisible=\"nb_unmodified_bills &lt; 10\">10+</span>"
 msgstr "<span invisible=\"nb_unmodified_bills &lt; 10\">+ di 10</span>"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "<span invisible=\"not early_discount\"> % if paid within </span>"
-msgstr "<span invisible=\"not early_discount\"> % se pagato entro il </span>"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "<span invisible=\"not early_discount\"> days</span>"
-msgstr "<span invisible=\"not early_discount\"> giorni</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_form
@@ -3246,7 +3185,6 @@ msgstr "Attiva per creare la ricevuta"
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
-#: model:ir.model.fields,field_description:account.field_account_payment_term__active
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__active
 #: model:ir.model.fields,field_description:account.field_account_report__active
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__active
@@ -3526,7 +3464,6 @@ msgstr "Determinare imponibile imposte successive"
 #. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/account_resequence/account_resequence.xml:0
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
 msgid "After"
 msgstr "Dopo"
 
@@ -3736,11 +3673,6 @@ msgstr "Già cancellato"
 #: model:ir.model.fields.selection,name:account.selection__res_partner__autopost_bills__always
 msgid "Always"
 msgstr "Sempre"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term__early_pay_discount_computation__mixed
-msgid "Always (upon invoice)"
-msgstr "Sempre (su fattura)"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__always_tax_exigible
@@ -4173,8 +4105,6 @@ msgstr "Aprile"
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_filter
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_model_search
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_search
 #: model_terms:ir.ui.view,arch_db:account_reports.account_audit_search_view
 #: model_terms:ir.ui.view,arch_db:account_reports.account_return_kanban_view
 #: model_terms:ir.ui.view,arch_db:account_reports.account_return_search_view
@@ -5401,11 +5331,6 @@ msgid "Cash Discount Loss"
 msgstr "Perdita sconto di cassa"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__early_pay_discount_computation
-msgid "Cash Discount Tax Reduction"
-msgstr "Riduzione fiscale su sconto per pagamento in contanti"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_res_company__account_journal_early_pay_discount_gain_account_id
 msgid "Cash Discount Write-Off Gain Account"
 msgstr "Conto guadagni da cancellazione degli sconti"
@@ -5834,7 +5759,6 @@ msgstr "Aziende collegate al partner"
 #: model:ir.model.fields,field_description:account.field_account_payment__company_id
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__company_id
 #: model:ir.model.fields,field_description:account.field_account_payment_register__company_id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__company_id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__company_id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__company_id
 #: model:ir.model.fields,field_description:account.field_account_report_external_value__company_id
@@ -6500,8 +6424,6 @@ msgstr "Data creazione"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__create_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_register__create_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term__create_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__create_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_report__create_uid
@@ -6568,8 +6490,6 @@ msgstr "Creato da"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__create_date
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_payment_register__create_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term__create_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__create_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_report__create_date
@@ -6753,7 +6673,6 @@ msgstr "Valute"
 #: model:ir.model.fields,field_description:account.field_account_move_reversal__currency_id
 #: model:ir.model.fields,field_description:account.field_account_payment__currency_id
 #: model:ir.model.fields,field_description:account.field_account_payment_register__currency_id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__currency_id
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__currency_id
 #: model:ir.model.fields,field_description:account.field_res_config_settings__currency_id
 #: model:ir.model.fields,field_description:account.field_res_partner__currency_id
@@ -6938,12 +6857,6 @@ msgid "Customer Payment"
 msgstr "Pagamento cliente"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_res_partner__property_payment_term_id
-#: model:ir.model.fields,field_description:account.field_res_users__property_payment_term_id
-msgid "Customer Payment Terms"
-msgstr "Termini di pagamento cliente"
-
-#. module: account
 #: model:ir.actions.act_window,name:account.action_account_payments
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_search
@@ -7104,11 +7017,6 @@ msgid "Date Scope"
 msgstr "Portata dati"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_date
-msgid "Date example"
-msgstr "Esempio data"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_financial_year_op__opening_date
 msgid ""
 "Date from which the accounting is managed in Odoo. It is the date of the "
@@ -7136,7 +7044,6 @@ msgid "Datetime"
 msgstr "Data e ora"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__nb_days
 #: code:addons/account_reports/static/src/components/aged_partner_balance/filter_aging.xml:0
 msgid "Days"
 msgstr "Giorni"
@@ -7146,31 +7053,6 @@ msgstr "Giorni"
 #: model:ir.model.fields,field_description:account.field_res_users__days_sales_outstanding
 msgid "Days Sales Outstanding (DSO)"
 msgstr "DSO (Days Sales Outstanding)"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_after_end_of_month
-msgid "Days after end of month"
-msgstr "Giorni dopo la fine del mese"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_after_end_of_next_month
-msgid "Days after end of next month"
-msgstr "Giorni che seguono la fine del prossimo mese"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_after
-msgid "Days after invoice date"
-msgstr "Giorni che seguono la data di fatturazione"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_end_of_month_on_the
-msgid "Days end of month on the"
-msgstr "Giorni fine mese il"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__days_next_month
-msgid "Days on the next month"
-msgstr "Giorni nel prossimo mese"
 
 #. module: account
 #. odoo-python
@@ -7444,11 +7326,6 @@ msgid "Degree of trust you have in this debtor"
 msgstr "Grado di fiducia riposto nel debitore"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__delay_type
-msgid "Delay Type"
-msgstr "Tipo ritardo"
-
-#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/section_and_note_fields_backend/section_and_note_fields_backend.xml:0
 #: model_terms:ir.ui.view,arch_db:account_reports.account_audit_kanban_view
@@ -7517,19 +7394,6 @@ msgstr "Ammortamento"
 #: model_terms:ir.ui.view,arch_db:account_reports.account_return_check_template_form_view
 msgid "Description"
 msgstr "Descrizione"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid ""
-"Description on invoice (e.g. Payment terms: 30 days after invoice date)"
-msgstr ""
-"Descrizione sulla fattura (ad es. Termini di pagamento: 30 giorni dopo la "
-"data di fatturazione)"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__note
-msgid "Description on the Invoice"
-msgstr "Descrizione in fattura"
 
 #. module: account
 #. odoo-python
@@ -7634,11 +7498,6 @@ msgid "Discount"
 msgstr "Sconto"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__discount_percentage
-msgid "Discount %"
-msgstr "Sconto %"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_line__discount
 msgid "Discount (%)"
 msgstr "Sconto (%)"
@@ -7678,11 +7537,6 @@ msgstr "Saldo sconto"
 #: model_terms:ir.ui.view,arch_db:account.view_move_line_tree
 msgid "Discount Date"
 msgstr "Data sconto"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__discount_days
-msgid "Discount Days"
-msgstr "Giorni sconto"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_line__discount_amount_currency
@@ -7731,11 +7585,6 @@ msgstr "Visualizza importo"
 #: model:ir.model.fields,field_description:account.field_account_move_send_wizard__display_attachments_widget
 msgid "Display Attachments Widget"
 msgstr "Mostra widget allegati"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__display_days_next_month
-msgid "Display Days Next Month"
-msgstr "Visualizza giorni prossimo mese"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_validate_account_move__display_force_hash
@@ -7817,8 +7666,6 @@ msgstr "Mostra scheda mappatura"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__display_name
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__display_name
 #: model:ir.model.fields,field_description:account.field_account_payment_register__display_name
-#: model:ir.model.fields,field_description:account.field_account_payment_term__display_name
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__display_name
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__display_name
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__display_name
 #: model:ir.model.fields,field_description:account.field_account_report__display_name
@@ -8237,7 +8084,6 @@ msgstr "Rilascia per importare le fatture."
 #. module: account
 #. odoo-python
 #: code:addons/account/models/account_journal_dashboard.py:0
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__value_amount
 #: code:addons/account_reports/models/account_followup_report.py:0
 #: code:addons/account_reports/models/account_journal_report.py:0
 #: code:addons/account_reports/static/src/components/journal_report/line/line.xml:0
@@ -8268,11 +8114,6 @@ msgstr "Importo da pagare per"
 #: model:account.report.column,name:account_reports.partner_ledger_report_date_maturity
 msgid "Due Date"
 msgstr "Scadenza"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "Due Terms"
-msgstr "Termini di scadenza"
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_subscriptions
@@ -8354,7 +8195,6 @@ msgid "EXCH"
 msgstr "CAMBIO"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__early_discount
 #: model_terms:ir.ui.view,arch_db:account.view_account_move_line_payment_filter
 msgid "Early Discount"
 msgstr "Sconto anticipato"
@@ -8395,23 +8235,9 @@ msgid "Early Payment Discount Mode"
 msgstr "Modalità sconto pagamento anticipato"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term__discount_percentage
-msgid "Early Payment Discount granted for this payment term"
-msgstr "Sconto pagamento anticipato concesso per questo termine di pagamento"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
 msgid "Early Payment Discount of"
 msgstr "Sconto pagamento anticipato di"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"Early Payment Discount: <b>%(amount)s</b> if paid before <b>%(date)s</b>"
-msgstr ""
-"Sconto pagamento anticipato: <b>%(amount)s</b> se pagato prima del "
-"<b>%(date)s</b>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -8566,11 +8392,6 @@ msgstr "Abilitato per default"
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__end_date
 msgid "End Date"
 msgstr "Data fine"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_end_following_month
-msgid "End of Following Month"
-msgstr "Data fattura fine mese successivo"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement__balance_end_real
@@ -8734,31 +8555,6 @@ msgstr "IVA Unione Europea"
 #: code:addons/account/models/account_move.py:0
 msgid "Even magicians can't post nothing!"
 msgstr "Nemmeno con la magia si può pubblicare il vuoto!"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_amount
-msgid "Example Amount"
-msgstr "Importo di esempio"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_invalid
-msgid "Example Invalid"
-msgstr "Esempio non valido"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_preview
-msgid "Example Preview"
-msgstr "Anteprima esempio"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_preview_discount
-msgid "Example Preview Discount"
-msgstr "Anteprima esempio sconto"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "Example:"
-msgstr "Esempio:"
 
 #. module: account
 #. odoo-python
@@ -9188,7 +8984,6 @@ msgid "Fiscalyear Last Month"
 msgstr "Ultimo mese anno fiscale"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__value__fixed
 #: model:ir.model.fields.selection,name:account.selection__account_reconcile_model_line__amount_type__fixed
 #: model:ir.model.fields.selection,name:account.selection__account_tax__amount_type__fixed
 msgid "Fixed"
@@ -9305,11 +9100,6 @@ msgid ""
 "For new invoices, please ensure a PDF or electronic invoice file is attached"
 msgstr ""
 "Per le nuove fatture assicurati di allegare un PDF della fattura elettronica"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term_line__value_amount
-msgid "For percent enter a ratio between 0-100."
-msgstr "Come percentuale indicare un rapporto fra 0 e 100"
 
 #. module: account
 #. odoo-python
@@ -9991,8 +9781,6 @@ msgstr "ICE:"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__id
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__id
 #: model:ir.model.fields,field_description:account.field_account_payment_register__id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__id
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__id
 #: model:ir.model.fields,field_description:account.field_account_report__id
@@ -10307,15 +10095,6 @@ msgstr ""
 " dopo il totale parziale \"Importo imponibile\"."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term__active
-msgid ""
-"If the active field is set to False, it will allow you to hide the payment "
-"terms without removing it."
-msgstr ""
-"Se il campo Attivo è impostato a falso, consente di nascondere i termini di "
-"pagamento senza rimuoverli."
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__restrict_mode_hash_table
 #: model:ir.model.fields,help:account.field_account_journal__restrict_mode_hash_table
 #: model:ir.model.fields,help:account.field_account_move__restrict_mode_hash_table
@@ -10404,11 +10183,6 @@ msgstr "Ignora data fattura anomala"
 #: model_terms:ir.ui.view,arch_db:account.validate_account_move_view
 msgid "Ignore future alerts"
 msgstr "Ignora avvisi futuri"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_immediate
-msgid "Immediate Payment"
-msgstr "Pagamento immediato"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_res_config_settings__module_account_bank_statement_import_qif
@@ -11909,8 +11683,6 @@ msgstr "Ultimo estratto conto"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__write_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_register__write_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term__write_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__write_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_report__write_uid
@@ -11977,8 +11749,6 @@ msgstr "Ultimo aggiornamento di"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__write_date
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_payment_register__write_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term__write_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__write_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_report__write_date
@@ -13012,7 +12782,6 @@ msgid "Net"
 msgstr "Netto"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term__early_pay_discount_computation__excluded
 #: model:ir.model.fields.selection,name:account.selection__account_report__filter_hide_0_lines__never
 #: model:ir.model.fields.selection,name:account.selection__account_report__filter_hierarchy__never
 #: model:ir.model.fields.selection,name:account.selection__res_partner__autopost_bills__never
@@ -13427,13 +13196,6 @@ msgid "Number of bills previously unmodified from this partner"
 msgstr "Numero di fatture non modificate in precedenza dal partner"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term__discount_days
-msgid "Number of days before the early payment proposition expires"
-msgstr ""
-"Numero di giorni che precedono la scadenza della proposta di pagamento "
-"anticipato"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__message_has_error_counter
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__message_has_error_counter
 #: model:ir.model.fields,field_description:account.field_account_journal__message_has_error_counter
@@ -13574,11 +13336,6 @@ msgstr "Forniture per ufficio"
 #: model:account.account,description:account.2_account_account_us_furniture
 msgid "Office desks, chairs, shelving, etc"
 msgstr "Scrivanie da ufficio, sedie, scaffali, ecc"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term__early_pay_discount_computation__included
-msgid "On early payment"
-msgstr "Su pagamento anticipato"
 
 #. module: account
 #: model:onboarding.onboarding.step,step_image_alt:account.onboarding_onboarding_step_fiscal_year
@@ -14492,25 +14249,13 @@ msgid "Payment Term Details"
 msgstr "Dettagli termine di pagamento"
 
 #. module: account
-#: model:ir.actions.act_window,name:account.action_payment_term_form
-#: model:ir.model,name:account.model_account_payment_term
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__invoice_payment_term_id
 #: model:ir.model.fields,field_description:account.field_account_move__invoice_payment_term_id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__name
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__payment_id
 #: model:ir.ui.menu,name:account.menu_action_payment_term_form
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_search
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_tree
 msgid "Payment Terms"
 msgstr "Termini di pagamento"
-
-#. module: account
-#: model:ir.model,name:account.model_account_payment_term_line
-msgid "Payment Terms Line"
-msgstr "Riga termini di pagamento"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_payment__payment_type
@@ -14526,62 +14271,14 @@ msgid "Payment terms"
 msgstr "Termini di pagamento"
 
 #. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_30_days_end_month_the_10
-msgid "Payment terms: 10 Days after End of Next Month"
-msgstr "Termini di pagamento: 10 giorni dopo la fine del mese successivo"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_15days
-msgid "Payment terms: 15 Days"
-msgstr "Termini di pagamento: 15 gg"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_21days
-msgid "Payment terms: 21 Days"
-msgstr "Termini di pagamento: 21 gg"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_30days
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
 msgid "Payment terms: 30 Days"
 msgstr "Termini di pagamento: 30 gg"
 
 #. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_30days_early_discount
-msgid "Payment terms: 30 Days, 2% Early Payment Discount under 7 days"
-msgstr ""
-"Termini di pagamento: 30 giorni, 2% sconto pagamento anticipato entro 7 "
-"giorni"
-
-#. module: account
 #: model_terms:account.payment.term,note:account.account_payment_term_advance
 msgid "Payment terms: 30% Advance End of Following Month"
 msgstr "Termini di pagamento: anticipo 30% data fattura fine mese successivo"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_advance_60days
-msgid "Payment terms: 30% Now, Balance 60 Days"
-msgstr "Termini di pagamento: 30% adesso, saldo 60 gg"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_45days
-msgid "Payment terms: 45 Days"
-msgstr "Termini di pagamento: 45 gg"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_90days_on_the_10th
-msgid "Payment terms: 90 days, on the 10th"
-msgstr "Termini di pagamento: 90 giorni, il 10 del mese"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_end_following_month
-msgid "Payment terms: End of Following Month"
-msgstr "Termini di pagamento: DF FM"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_immediate
-msgid "Payment terms: Immediate Payment"
-msgstr "Termini di pagamento: pagamento immediato"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -14651,11 +14348,6 @@ msgid "Pension"
 msgstr "Pensione"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__value__percent
-msgid "Percent"
-msgstr "Percentuale"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_automatic_entry_wizard__percentage
 #: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__percentage
 #: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__percentage
@@ -14688,14 +14380,6 @@ msgstr "Percentuale di ciascuna riga sulla quale eseguire l'azione."
 #: model:ir.model.fields.selection,name:account.selection__account_reconcile_model_line__amount_type__percentage_st_line
 msgid "Percentage of statement line"
 msgstr "Percentuale riga estratto conto"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "Percentages on the Payment Terms lines must be between 0 and 100."
-msgstr ""
-"Le percentuali sulle righe dei termini di pagamento devono essere tra 0 e "
-"100."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_invoice_filter
@@ -14927,7 +14611,6 @@ msgstr ""
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
 msgid "Preview"
 msgstr "Anteprima"
 
@@ -15512,11 +15195,6 @@ msgstr "Record"
 #: code:addons/account/models/account_tax.py:0
 msgid "Recursion found for tax “%s”."
 msgstr "Trovata ricorsività per l'imposta \"%s\"."
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "Reduced tax:"
-msgstr "Imposta ridotta:"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_analytic_line__ref
@@ -16468,13 +16146,6 @@ msgid "Select first partner"
 msgstr "Seleziona il primo partner"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term_line__value
-msgid "Select here the kind of valuation related to this payment terms line."
-msgstr ""
-"Selezionare il tipo di valutazione relativo a questa riga di termine di "
-"pagamento."
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Select specific invoice and delivery addresses"
 msgstr "Selezione di specifici indirizzi di fatturazione e consegna"
@@ -16706,7 +16377,6 @@ msgstr "Settembre"
 #: model:ir.model.fields,field_description:account.field_account_merge_wizard_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_move_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__sequence
-#: model:ir.model.fields,field_description:account.field_account_payment_term__sequence
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__sequence
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_report__sequence
@@ -17034,11 +16704,6 @@ msgstr "Mostra registrazioni in bozza"
 #: model_terms:ir.ui.view,arch_db:account.view_account_tax_search
 msgid "Show inactive taxes"
 msgstr "Mostra le imposte non attive"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__display_on_invoice
-msgid "Show installment dates"
-msgstr "Mostra date versamento"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_journal__show_on_dashboard
@@ -18079,11 +17744,6 @@ msgid "Term Key"
 msgstr "Chiave termine"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__line_ids
-msgid "Terms"
-msgstr "Condizioni"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_res_config_settings__invoice_terms
 msgid "Terms & Conditions"
 msgstr "Termini e condizioni"
@@ -18185,30 +17845,6 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "The Early Payment Discount days must be strictly positive."
-msgstr ""
-"I giorni relativi allo sconto per pagamento anticipato devono essere "
-"positivi."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"The Early Payment Discount functionality can only be used with payment terms"
-" using a single 100% line. "
-msgstr ""
-"La funzionalità di sconto per pagamento anticipato può essere utilizzata "
-"solo con termini di pagamento che utilizzano una singola riga 100%. "
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "The Early Payment Discount must be strictly positive."
-msgstr "Lo sconto per pagamento anticipato deve essere strettamente positivo."
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/company.py:0
 msgid "The Hard Lock Date cannot be removed."
 msgstr "La data di chiusura permanente non può essere rimossa."
@@ -18242,16 +17878,6 @@ msgid ""
 msgstr ""
 "La sequenza della registrazione contabile non è conforme al formato "
 "corrente. Può essere cambiata solo da un contabile."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"The Payment Term must have at least one percent line and the sum of the "
-"percent must be 100%."
-msgstr ""
-"I termini di pagamento devono avere almeno una riga percentuale e la somma "
-"della percentuale deve essere 100%."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_base_document_layout__vat
@@ -18566,12 +18192,6 @@ msgstr ""
 #: code:addons/account/models/account_payment_term.py:0
 msgid "The days added must be a number and has to be between 0 and 31."
 msgstr "I giorni aggiunti devono essere un numero compreso tra 0 e 31."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "The days added must be between 0 and 31."
-msgstr "I giorni aggiunti devono essere tra 0 e 31."
 
 #. module: account
 #. odoo-python
@@ -20641,7 +20261,6 @@ msgstr ""
 "contabile."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__value
 #: code:addons/account_reports/static/src/components/account_report/line/popover/debug_popover.xml:0
 msgid "Value"
 msgstr "Valore"
@@ -20764,12 +20383,6 @@ msgid "Vendor Payment"
 msgstr "Pagamento fornitore"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_res_partner__property_supplier_payment_term_id
-#: model:ir.model.fields,field_description:account.field_res_users__property_supplier_payment_term_id
-msgid "Vendor Payment Terms"
-msgstr "Termini di pagamento fornitore"
-
-#. module: account
 #: model:ir.actions.act_window,name:account.action_account_payments_payable
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_search
@@ -20826,7 +20439,6 @@ msgstr "Mostra partner."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_group_tree
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
 msgid "Visible to all"
 msgstr "Visibile a tutti"
 
@@ -22103,11 +21715,6 @@ msgid "e.g. 101000"
 msgstr "es. 101000"
 
 #. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "e.g. 30 days"
-msgstr "ad es. 30 giorni"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_model_form
 msgid "e.g. Bank Fees"
 msgstr "es. Commissioni bancarie"
@@ -22307,11 +21914,6 @@ msgstr "non applicabile"
 #: model:ir.model.fields.selection,name:account.selection__account_tax_repartition_line__repartition_type__tax
 msgid "of tax"
 msgstr "dell'imposta"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "on"
-msgstr "su"
 
 #. module: account
 #. odoo-javascript

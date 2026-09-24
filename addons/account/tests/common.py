@@ -159,7 +159,7 @@ class AccountTestInvoicingCommon(ProductCommon):
             cls.tax_purchase_b.fiscal_position_ids = cls.fiscal_pos_a.ids
             cls.tax_purchase_b.original_tax_ids = cls.tax_purchase_a
 
-        cls.pay_terms_a = cls.env.ref("account.account_payment_term_immediate")
+        cls.pay_terms_a = cls.env.ref("payment_term.account_payment_term_immediate")
         cls.pay_terms_b = cls.env["account.payment.term"].create(
             {
                 "name": "30% Advance End of Following Month",

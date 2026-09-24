@@ -1,0 +1,504 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * account
+#
+# Translators:
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Anastasiia Koroleva (koan)" <koan@odoo.com>, 2025, 2026.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 17.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2026-02-11 17:41+0000\n"
+"Last-Translator: \"Anastasiia Koroleva (koan)\" <koan@odoo.com>\n"
+"Language-Team: Russian <https://translate.odoo.com/projects/odoo-19/account/ru/>\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=4; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<12 || n%100>14) ? 1 : n%10==0 || (n%10>=5 && n%10<=9) || (n%100>=11 && n%100<=14)? 2 : 3);\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid "%s (copy)"
+msgstr "%s (копия)"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_30_days_end_month_the_10
+msgid "10 Days after End of Next Month"
+msgstr "10 дней после окончания следующего месяца"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_15days
+msgid "15 Days"
+msgstr "15 дней"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_30days_early_discount
+msgid "2/7 Net 30"
+msgstr "2/7, оплата 30 дней"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_21days
+msgid "21 Days"
+msgstr "21 день"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_30days
+msgid "30 Days"
+msgstr "30 дней"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_advance_60days
+msgid "30% Now, Balance 60 Days"
+msgstr "30% сейчас, оставшаяся сумма через 60 дней"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_45days
+msgid "45 Days"
+msgstr "45 дней"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_90days_on_the_10th
+msgid "90 days, on the 10th"
+msgstr "90 дней, на 10-й"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid ""
+"<b>%(count)s#</b> Installment of <b>%(amount)s</b> due on <b style='color: "
+"#704A66;'>%(date)s</b>"
+msgstr ""
+"<b>%(count)s#</b> Взнос по рассрочке в размере <b>%(amount)s</b>, подлежащий"
+" оплате <b style='color: #704A66;'>%(date)s</b>"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "<span invisible=\"not early_discount\"> % if paid within </span>"
+msgstr "<span invisible=\"not early_discount\"> % при оплате в течение </span>"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "<span invisible=\"not early_discount\"> days</span>"
+msgstr "<span invisible=\"not early_discount\"> дней</span>"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__active
+msgid "Active"
+msgstr "Активный"
+
+#. module: payment_term
+#. odoo-javascript
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "After"
+msgstr "После"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term__early_pay_discount_computation__mixed
+msgid "Always (upon invoice)"
+msgstr "Всегда (при выставлении счета)"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_search
+msgid "Archived"
+msgstr "Архивировано"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__early_pay_discount_computation
+msgid "Cash Discount Tax Reduction"
+msgstr "Скидка наличными Снижение налога"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__company_id
+msgid "Company"
+msgstr "Компания"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__create_uid
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__create_uid
+msgid "Created by"
+msgstr "Создано:"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__create_date
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__create_date
+msgid "Created on"
+msgstr "Дата создания:"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__currency_id
+msgid "Currency"
+msgstr "Валюта"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_res_partner__property_payment_term_id
+#: model:ir.model.fields,field_description:payment_term.field_res_users__property_payment_term_id
+msgid "Customer Payment Terms"
+msgstr "Условия оплаты для клиентов"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_date
+msgid "Date example"
+msgstr "Пример даты"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__nb_days
+msgid "Days"
+msgstr "Дни"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_after_end_of_month
+msgid "Days after end of month"
+msgstr "Дни после окончания месяца"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_after_end_of_next_month
+msgid "Days after end of next month"
+msgstr "Дни после окончания следующего месяца"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_after
+msgid "Days after invoice date"
+msgstr "Дни после даты счёта-фактуры"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_end_of_month_on_the
+msgid "Days end of month on the"
+msgstr "Дни окончания месяца на"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__days_next_month
+msgid "Days on the next month"
+msgstr "Дни в следующем месяце"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__delay_type
+msgid "Delay Type"
+msgstr "Тип задержки"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid ""
+"Description on invoice (e.g. Payment terms: 30 days after invoice date)"
+msgstr ""
+"Описание в счёте-фактуре (например, условия оплаты: 30 дней после даты "
+"счёта)"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__note
+msgid "Description on the Invoice"
+msgstr "Описание в счёте-фактуре"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__discount_percentage
+msgid "Discount %"
+msgstr "Скидка %"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__discount_days
+msgid "Discount Days"
+msgstr "Дни скидки"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__display_days_next_month
+msgid "Display Days Next Month"
+msgstr "Отображать дни следующего месяца"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__display_name
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__display_name
+msgid "Display Name"
+msgstr "Отображаемое имя"
+
+#. module: payment_term
+#. odoo-python
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__value_amount
+msgid "Due"
+msgstr "К оплате"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "Due Terms"
+msgstr "Условия оплаты"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__early_discount
+msgid "Early Discount"
+msgstr "Скидка за раннюю оплату"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term__discount_percentage
+msgid "Early Payment Discount granted for this payment term"
+msgstr "Скидка за раннюю оплату для этого условия платежа"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid ""
+"Early Payment Discount: <b>%(amount)s</b> if paid before <b>%(date)s</b>"
+msgstr ""
+"Скидка за раннюю оплату: <b>%(amount)s</b> при оплате до <b>%(date)s</b>"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_end_following_month
+msgid "End of Following Month"
+msgstr "Конец следующего месяца"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_amount
+msgid "Example Amount"
+msgstr "Примерная сумма"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_invalid
+msgid "Example Invalid"
+msgstr "Некорректный пример"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_preview
+msgid "Example Preview"
+msgstr "Предварительный просмотр примера"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_preview_discount
+msgid "Example Preview Discount"
+msgstr "Просмотр примера скидки"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "Example:"
+msgstr "Пример:"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__value__fixed
+msgid "Fixed"
+msgstr "Фиксированный"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term_line__value_amount
+msgid "For percent enter a ratio between 0-100."
+msgstr "Для процентов введите значение в диапазоне от 0 до 100."
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__id
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__id
+msgid "ID"
+msgstr "ID"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term__active
+msgid ""
+"If the active field is set to False, it will allow you to hide the payment "
+"terms without removing it."
+msgstr ""
+"Если поле 'активно' установлено в 'Ложь', это позволит скрыть условия оплаты"
+" без их удаления."
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_immediate
+msgid "Immediate Payment"
+msgstr "Немедленный платёж"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__write_uid
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__write_uid
+msgid "Last Updated by"
+msgstr "Последнее обновление:"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__write_date
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__write_date
+msgid "Last Updated on"
+msgstr "Дата последнего обновления:"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term__early_pay_discount_computation__excluded
+msgid "Never"
+msgstr "Никогда"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term__discount_days
+msgid "Number of days before the early payment proposition expires"
+msgstr "Количество дней до истечения предложения о досрочном платеже"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term__early_pay_discount_computation__included
+msgid "On early payment"
+msgstr "При досрочной оплате"
+
+#. module: payment_term
+#: model:ir.actions.act_window,name:payment_term.action_payment_term_form
+#: model:ir.model,name:payment_term.model_account_payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__name
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__payment_id
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_search
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_tree
+msgid "Payment Terms"
+msgstr "Условия платежей"
+
+#. module: payment_term
+#: model:ir.model,name:payment_term.model_account_payment_term_line
+msgid "Payment Terms Line"
+msgstr "Строка условий платежей"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_30_days_end_month_the_10
+msgid "Payment terms: 10 Days after End of Next Month"
+msgstr "Условия платежа: 10 дней после окончания следующего месяца"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_15days
+msgid "Payment terms: 15 Days"
+msgstr "Условия платежа: 15 дней"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_21days
+msgid "Payment terms: 21 Days"
+msgstr "Условия платежа: 21 день"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_30days
+msgid "Payment terms: 30 Days"
+msgstr "Условия платежа: 30 дней"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_30days_early_discount
+msgid "Payment terms: 30 Days, 2% Early Payment Discount under 7 days"
+msgstr "Условия платежа: 30 дней, скидка 2% при оплате в течение 7 дней"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_advance_60days
+msgid "Payment terms: 30% Now, Balance 60 Days"
+msgstr "Условия платежа: 30% сейчас, остаток через 60 дней"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_45days
+msgid "Payment terms: 45 Days"
+msgstr "Условия платежа: 45 дней"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_90days_on_the_10th
+msgid "Payment terms: 90 days, on the 10th"
+msgstr "Условия платежа: 90 дней, 10-го числа"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_end_following_month
+msgid "Payment terms: End of Following Month"
+msgstr "Условия платежа: конец следующего месяца"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_immediate
+msgid "Payment terms: Immediate Payment"
+msgstr "Условия платежа: немедленная оплата"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__value__percent
+msgid "Percent"
+msgstr "Процент"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid "Percentages on the Payment Terms lines must be between 0 and 100."
+msgstr "Проценты в строках условий платежей должны быть от 0 до 100."
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "Preview"
+msgstr "Предпросмотр"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "Reduced tax:"
+msgstr "Сниженный налог:"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term_line__value
+msgid "Select here the kind of valuation related to this payment terms line."
+msgstr "Выберите здесь тип оценки, связанный с этой строкой условий платежа."
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__sequence
+msgid "Sequence"
+msgstr "Нумерация"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__display_on_invoice
+msgid "Show installment dates"
+msgstr "Показать даты рассрочки"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__line_ids
+msgid "Terms"
+msgstr "Условия"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid "The Early Payment Discount days must be strictly positive."
+msgstr "Дни скидки за раннюю оплату должны быть строго положительными."
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid ""
+"The Early Payment Discount functionality can only be used with payment terms"
+" using a single 100% line. "
+msgstr ""
+"Функциональность скидки за раннюю оплату может использоваться только с "
+"условиями оплаты, содержащими одну строку на 100%. "
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid "The Early Payment Discount must be strictly positive."
+msgstr "Скидка за раннюю оплату должна быть строго положительной."
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid ""
+"The Payment Term must have at least one percent line and the sum of the "
+"percent must be 100%."
+msgstr ""
+"Условие оплаты должно содержать хотя бы одну процентную строку, а сумма "
+"процентов должна равняться 100%."
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+msgid "The days added must be between 0 and 31."
+msgstr "Добавленные дни должны быть в диапазоне от 0 до 31."
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__value
+msgid "Value"
+msgstr "Значение"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_res_partner__property_supplier_payment_term_id
+#: model:ir.model.fields,field_description:payment_term.field_res_users__property_supplier_payment_term_id
+msgid "Vendor Payment Terms"
+msgstr "Условия оплаты поставщику"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "Visible to all"
+msgstr "Видно всем"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "e.g. 30 days"
+msgstr "например, 30 дней"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+msgid "on"
+msgstr "на"

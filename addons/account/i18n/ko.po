@@ -236,7 +236,6 @@ msgstr "%d 작업"
 #. odoo-python
 #: code:addons/account/models/account_account.py:0
 #: code:addons/account/models/account_journal.py:0
-#: code:addons/account/models/account_payment_term.py:0
 #: code:addons/account/models/account_reconcile_model.py:0
 #: code:addons/account/models/account_tax.py:0
 #: code:addons/account_reports/models/account_return.py:0
@@ -431,11 +430,6 @@ msgid "1.05"
 msgstr "1.05"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_30_days_end_month_the_10
-msgid "10 Days after End of Next Month"
-msgstr "익월 말일부터 10일 내"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_statement
 msgid "100.0"
 msgstr "100.0"
@@ -461,11 +455,6 @@ msgid "12345"
 msgstr "12345"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_15days
-msgid "15 Days"
-msgstr "15일"
-
-#. module: account
 #: model:account.tax,name:account.1_purchase_tax_template
 #: model:account.tax,name:account.1_sale_tax_template
 msgid "15%"
@@ -483,11 +472,6 @@ msgstr "1500.0"
 #: model:account.tax,name:account.2_account_tax_us_sale_2_9
 msgid "2.9%"
 msgstr "2.9%"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_30days_early_discount
-msgid "2/7 Net 30"
-msgstr "2/7, 30일"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -545,11 +529,6 @@ msgid "2024-01-01"
 msgstr "2024-01-01"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_21days
-msgid "21 Days"
-msgstr "21일"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_payment_receipt_document
 msgid "25.0 USD"
 msgstr "25.0 USD"
@@ -572,19 +551,9 @@ msgid "3.00"
 msgstr "3.00"
 
 #. module: account
-#: model:account.payment.term,name:account.account_payment_term_30days
-msgid "30 Days"
-msgstr "30일"
-
-#. module: account
 #: model:account.payment.term,name:account.account_payment_term_advance
 msgid "30% Advance End of Following Month"
 msgstr "익월 말 30% 선불"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_advance_60days
-msgid "30% Now, Balance 60 Days"
-msgstr "30% 선금, 60일 내 잔금 지급"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -643,11 +612,6 @@ msgstr "4.75%"
 #: model:account.tax,name:account.2_account_tax_us_sale_4_875
 msgid "4.875%"
 msgstr "4.875%"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_45days
-msgid "45 Days"
-msgstr "45일"
 
 #. module: account
 #: model:account.tax,invoice_label:account.2_account_tax_us_purchase_5_3
@@ -764,21 +728,6 @@ msgstr "7.25%"
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
 msgid "9.00"
 msgstr "9.00"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_90days_on_the_10th
-msgid "90 days, on the 10th"
-msgstr "90일 후, 10일"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"<b>%(count)s#</b> Installment of <b>%(amount)s</b> due on <b style='color: "
-"#704A66;'>%(date)s</b>"
-msgstr ""
-"<b>%(count)s</b>회 분할 납부 (<b>%(amount)s</b>), 납부 기한: <b style='color: "
-"#704A66;'>%(date)s</b>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -1495,16 +1444,6 @@ msgstr "<span invisible=\"name or name_placeholder or quick_edit_mode\">초안</
 #: model_terms:ir.ui.view,arch_db:account.autopost_bills_wizard
 msgid "<span invisible=\"nb_unmodified_bills &lt; 10\">10+</span>"
 msgstr "<span invisible=\"nb_unmodified_bills &lt; 10\">10+</span>"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "<span invisible=\"not early_discount\"> % if paid within </span>"
-msgstr "<span invisible=\"not early_discount\"> %, 다음 기간 내 결제 완료 시 </span>"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "<span invisible=\"not early_discount\"> days</span>"
-msgstr "<span invisible=\"not early_discount\">일</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_form
@@ -3175,7 +3114,6 @@ msgstr "판매 영수증 생성 기능을 활성화합니다."
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
-#: model:ir.model.fields,field_description:account.field_account_payment_term__active
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__active
 #: model:ir.model.fields,field_description:account.field_account_report__active
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__active
@@ -3451,7 +3389,6 @@ msgstr ""
 #. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/account_resequence/account_resequence.xml:0
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
 msgid "After"
 msgstr "결제 기간"
 
@@ -3649,11 +3586,6 @@ msgstr "이미 구독 중입니다"
 #: model:ir.model.fields.selection,name:account.selection__res_partner__autopost_bills__always
 msgid "Always"
 msgstr "항상"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term__early_pay_discount_computation__mixed
-msgid "Always (upon invoice)"
-msgstr "항상 (청구서에 따라)"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__always_tax_exigible
@@ -4054,8 +3986,6 @@ msgstr "4월"
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_filter
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_model_search
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_search
 #: model_terms:ir.ui.view,arch_db:account_reports.account_audit_search_view
 #: model_terms:ir.ui.view,arch_db:account_reports.account_return_kanban_view
 #: model_terms:ir.ui.view,arch_db:account_reports.account_return_search_view
@@ -5244,11 +5174,6 @@ msgid "Cash Discount Loss"
 msgstr "현금 할인 손실"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__early_pay_discount_computation
-msgid "Cash Discount Tax Reduction"
-msgstr "현금 할인 세금 공제"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_res_company__account_journal_early_pay_discount_gain_account_id
 msgid "Cash Discount Write-Off Gain Account"
 msgstr "현금할인상각수익 계정"
@@ -5665,7 +5590,6 @@ msgstr "협력사"
 #: model:ir.model.fields,field_description:account.field_account_payment__company_id
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__company_id
 #: model:ir.model.fields,field_description:account.field_account_payment_register__company_id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__company_id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__company_id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__company_id
 #: model:ir.model.fields,field_description:account.field_account_report_external_value__company_id
@@ -6308,8 +6232,6 @@ msgstr "작성일자"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__create_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_register__create_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term__create_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__create_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_report__create_uid
@@ -6376,8 +6298,6 @@ msgstr "작성자"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__create_date
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_payment_register__create_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term__create_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__create_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_report__create_date
@@ -6561,7 +6481,6 @@ msgstr "통화"
 #: model:ir.model.fields,field_description:account.field_account_move_reversal__currency_id
 #: model:ir.model.fields,field_description:account.field_account_payment__currency_id
 #: model:ir.model.fields,field_description:account.field_account_payment_register__currency_id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__currency_id
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__currency_id
 #: model:ir.model.fields,field_description:account.field_res_config_settings__currency_id
 #: model:ir.model.fields,field_description:account.field_res_partner__currency_id
@@ -6746,12 +6665,6 @@ msgid "Customer Payment"
 msgstr "고객 결제"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_res_partner__property_payment_term_id
-#: model:ir.model.fields,field_description:account.field_res_users__property_payment_term_id
-msgid "Customer Payment Terms"
-msgstr "고객 지급 조건"
-
-#. module: account
 #: model:ir.actions.act_window,name:account.action_account_payments
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_search
@@ -6907,11 +6820,6 @@ msgid "Date Scope"
 msgstr "날짜 범위"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_date
-msgid "Date example"
-msgstr "날짜 예시"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_financial_year_op__opening_date
 msgid ""
 "Date from which the accounting is managed in Odoo. It is the date of the "
@@ -6937,7 +6845,6 @@ msgid "Datetime"
 msgstr "일시"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__nb_days
 #: code:addons/account_reports/static/src/components/aged_partner_balance/filter_aging.xml:0
 msgid "Days"
 msgstr "일"
@@ -6947,31 +6854,6 @@ msgstr "일"
 #: model:ir.model.fields,field_description:account.field_res_users__days_sales_outstanding
 msgid "Days Sales Outstanding (DSO)"
 msgstr "매출채권 회전일수 (DSO)"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_after_end_of_month
-msgid "Days after end of month"
-msgstr "일 (매월 말일 후)"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_after_end_of_next_month
-msgid "Days after end of next month"
-msgstr "일 (익월 말일 후)"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_after
-msgid "Days after invoice date"
-msgstr "일 (청구서 날짜 후)"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__delay_type__days_end_of_month_on_the
-msgid "Days end of month on the"
-msgstr "매월 말일"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__days_next_month
-msgid "Days on the next month"
-msgstr "일 (다음달 말일 후)"
 
 #. module: account
 #. odoo-python
@@ -7241,11 +7123,6 @@ msgid "Degree of trust you have in this debtor"
 msgstr "해당 채무자에 대한 신뢰도입니다."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__delay_type
-msgid "Delay Type"
-msgstr "지연 유형"
-
-#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/section_and_note_fields_backend/section_and_note_fields_backend.xml:0
 #: model_terms:ir.ui.view,arch_db:account_reports.account_audit_kanban_view
@@ -7314,17 +7191,6 @@ msgstr "감가상각"
 #: model_terms:ir.ui.view,arch_db:account_reports.account_return_check_template_form_view
 msgid "Description"
 msgstr "설명"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid ""
-"Description on invoice (e.g. Payment terms: 30 days after invoice date)"
-msgstr "청구서 설명 (예: 결제 조건: 청구일로부터 30일)"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__note
-msgid "Description on the Invoice"
-msgstr "청구서 상세 내역"
 
 #. module: account
 #. odoo-python
@@ -7424,11 +7290,6 @@ msgid "Discount"
 msgstr "할인"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__discount_percentage
-msgid "Discount %"
-msgstr "할인율"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_line__discount
 msgid "Discount (%)"
 msgstr "할인 (%)"
@@ -7468,11 +7329,6 @@ msgstr "할인 잔액"
 #: model_terms:ir.ui.view,arch_db:account.view_move_line_tree
 msgid "Discount Date"
 msgstr "할인 날짜"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__discount_days
-msgid "Discount Days"
-msgstr "할인 기간"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_line__discount_amount_currency
@@ -7521,11 +7377,6 @@ msgstr "표시 금액"
 #: model:ir.model.fields,field_description:account.field_account_move_send_wizard__display_attachments_widget
 msgid "Display Attachments Widget"
 msgstr "첨부 파일 위젯 표시"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__display_days_next_month
-msgid "Display Days Next Month"
-msgstr "다음 달 표시일"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_validate_account_move__display_force_hash
@@ -7607,8 +7458,6 @@ msgstr "매핑 탭 표시"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__display_name
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__display_name
 #: model:ir.model.fields,field_description:account.field_account_payment_register__display_name
-#: model:ir.model.fields,field_description:account.field_account_payment_term__display_name
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__display_name
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__display_name
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__display_name
 #: model:ir.model.fields,field_description:account.field_account_report__display_name
@@ -8023,7 +7872,6 @@ msgstr "드롭하여 청구서를 가져옵니다."
 #. module: account
 #. odoo-python
 #: code:addons/account/models/account_journal_dashboard.py:0
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__value_amount
 #: code:addons/account_reports/models/account_followup_report.py:0
 #: code:addons/account_reports/models/account_journal_report.py:0
 #: code:addons/account_reports/static/src/components/journal_report/line/line.xml:0
@@ -8054,11 +7902,6 @@ msgstr "다음에 대한 금액"
 #: model:account.report.column,name:account_reports.partner_ledger_report_date_maturity
 msgid "Due Date"
 msgstr "마감 기한"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "Due Terms"
-msgstr "지급 조건"
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_subscriptions
@@ -8136,7 +7979,6 @@ msgid "EXCH"
 msgstr "EXCH"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__early_discount
 #: model_terms:ir.ui.view,arch_db:account.view_account_move_line_payment_filter
 msgid "Early Discount"
 msgstr "선납 할인"
@@ -8177,21 +8019,9 @@ msgid "Early Payment Discount Mode"
 msgstr "선납 할인 모드"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term__discount_percentage
-msgid "Early Payment Discount granted for this payment term"
-msgstr "해당 기한 내 결제 시 선납 할인 적용"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
 msgid "Early Payment Discount of"
 msgstr "선납 할인"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"Early Payment Discount: <b>%(amount)s</b> if paid before <b>%(date)s</b>"
-msgstr "선납 할인: <b>%(amount)s</b>, 다음 기간 내 결제 완료 시: <b>%(date)s</b>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -8338,11 +8168,6 @@ msgstr "활성화를 기본값으로 선택"
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__end_date
 msgid "End Date"
 msgstr "종료일"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_end_following_month
-msgid "End of Following Month"
-msgstr "익월 말일"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement__balance_end_real
@@ -8500,31 +8325,6 @@ msgstr "유럽 연합 부가가치세"
 #: code:addons/account/models/account_move.py:0
 msgid "Even magicians can't post nothing!"
 msgstr "반드시 게시해야 합니다!"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_amount
-msgid "Example Amount"
-msgstr "예시 금액"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_invalid
-msgid "Example Invalid"
-msgstr "잘못된 예시"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_preview
-msgid "Example Preview"
-msgstr "미리보기 예시"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__example_preview_discount
-msgid "Example Preview Discount"
-msgstr "예시 미리보기 할인"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "Example:"
-msgstr "예시 금액:"
 
 #. module: account
 #. odoo-python
@@ -8941,7 +8741,6 @@ msgid "Fiscalyear Last Month"
 msgstr "회계연도 마감월"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__value__fixed
 #: model:ir.model.fields.selection,name:account.selection__account_reconcile_model_line__amount_type__fixed
 #: model:ir.model.fields.selection,name:account.selection__account_tax__amount_type__fixed
 msgid "Fixed"
@@ -9055,11 +8854,6 @@ msgstr "다른 질문이 있으면,"
 msgid ""
 "For new invoices, please ensure a PDF or electronic invoice file is attached"
 msgstr "새 인보이스의 경우 PDF 또는 전자 청구서 파일이 첨부되어 있는지 확인하세요."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term_line__value_amount
-msgid "For percent enter a ratio between 0-100."
-msgstr "비율의 경우, 0에서 100 사이의 비율을 입력합니다."
 
 #. module: account
 #. odoo-python
@@ -9729,8 +9523,6 @@ msgstr "ICE:"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__id
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__id
 #: model:ir.model.fields,field_description:account.field_account_payment_register__id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__id
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__id
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__id
 #: model:ir.model.fields,field_description:account.field_account_report__id
@@ -10025,13 +9817,6 @@ msgstr ""
 "금액' 소계 뒤에 표시합니다."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term__active
-msgid ""
-"If the active field is set to False, it will allow you to hide the payment "
-"terms without removing it."
-msgstr "활성화 필드를 아니오로 설정할 경우, 지급 조건을 삭제하지 않고 숨길 수 있습니다."
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__restrict_mode_hash_table
 #: model:ir.model.fields,help:account.field_account_journal__restrict_mode_hash_table
 #: model:ir.model.fields,help:account.field_account_move__restrict_mode_hash_table
@@ -10108,11 +9893,6 @@ msgstr "비정상적인 청구서 날짜 무시하기"
 #: model_terms:ir.ui.view,arch_db:account.validate_account_move_view
 msgid "Ignore future alerts"
 msgstr "향후 알림 무시하기"
-
-#. module: account
-#: model:account.payment.term,name:account.account_payment_term_immediate
-msgid "Immediate Payment"
-msgstr "즉시 결제"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_res_config_settings__module_account_bank_statement_import_qif
@@ -11561,8 +11341,6 @@ msgstr "최근 명세서"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__write_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_payment_register__write_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term__write_uid
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__write_uid
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_report__write_uid
@@ -11629,8 +11407,6 @@ msgstr "최근 갱신한 사람"
 #: model:ir.model.fields,field_description:account.field_account_payment_method__write_date
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_payment_register__write_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term__write_date
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__write_date
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_report__write_date
@@ -12647,7 +12423,6 @@ msgid "Net"
 msgstr "순액"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term__early_pay_discount_computation__excluded
 #: model:ir.model.fields.selection,name:account.selection__account_report__filter_hide_0_lines__never
 #: model:ir.model.fields.selection,name:account.selection__account_report__filter_hierarchy__never
 #: model:ir.model.fields.selection,name:account.selection__res_partner__autopost_bills__never
@@ -13056,11 +12831,6 @@ msgid "Number of bills previously unmodified from this partner"
 msgstr "이전에 수정하지 않은 해당 파트너의 청구서 수"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term__discount_days
-msgid "Number of days before the early payment proposition expires"
-msgstr "선납 할인 종료일까지 남은 날짜"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__message_has_error_counter
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__message_has_error_counter
 #: model:ir.model.fields,field_description:account.field_account_journal__message_has_error_counter
@@ -13197,11 +12967,6 @@ msgstr "사무용품"
 #: model:account.account,description:account.2_account_account_us_furniture
 msgid "Office desks, chairs, shelving, etc"
 msgstr "사무용 책상, 의자, 선반 등"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term__early_pay_discount_computation__included
-msgid "On early payment"
-msgstr "선납 시"
 
 #. module: account
 #: model:onboarding.onboarding.step,step_image_alt:account.onboarding_onboarding_step_fiscal_year
@@ -14089,25 +13854,13 @@ msgid "Payment Term Details"
 msgstr "지급 조건 세부 내용"
 
 #. module: account
-#: model:ir.actions.act_window,name:account.action_payment_term_form
-#: model:ir.model,name:account.model_account_payment_term
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__invoice_payment_term_id
 #: model:ir.model.fields,field_description:account.field_account_move__invoice_payment_term_id
-#: model:ir.model.fields,field_description:account.field_account_payment_term__name
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__payment_id
 #: model:ir.ui.menu,name:account.menu_action_payment_term_form
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_search
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_tree
 msgid "Payment Terms"
 msgstr "지급 조건"
-
-#. module: account
-#: model:ir.model,name:account.model_account_payment_term_line
-msgid "Payment Terms Line"
-msgstr "지급 조건 내역"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_payment__payment_type
@@ -14123,60 +13876,14 @@ msgid "Payment terms"
 msgstr "지급 조건"
 
 #. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_30_days_end_month_the_10
-msgid "Payment terms: 10 Days after End of Next Month"
-msgstr "납부 기한: 익월 말일로부터 10일 이내"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_15days
-msgid "Payment terms: 15 Days"
-msgstr "지급 조건: 15일"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_21days
-msgid "Payment terms: 21 Days"
-msgstr "지급 조건: 21일"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_30days
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
 msgid "Payment terms: 30 Days"
 msgstr "지급 조건: 30일"
 
 #. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_30days_early_discount
-msgid "Payment terms: 30 Days, 2% Early Payment Discount under 7 days"
-msgstr "지급 조건: 30일, 7일 내 선납 시 2% 할인"
-
-#. module: account
 #: model_terms:account.payment.term,note:account.account_payment_term_advance
 msgid "Payment terms: 30% Advance End of Following Month"
 msgstr "지급 조건: 익월 말에 30% 선불"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_advance_60days
-msgid "Payment terms: 30% Now, Balance 60 Days"
-msgstr "지급 조건: 30% 선금, 60일 내 잔금 지급"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_45days
-msgid "Payment terms: 45 Days"
-msgstr "지급 조건: 45일"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_90days_on_the_10th
-msgid "Payment terms: 90 days, on the 10th"
-msgstr "결제 조건: 90일 후, 10일"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_end_following_month
-msgid "Payment terms: End of Following Month"
-msgstr "지급 조건: 익월 말"
-
-#. module: account
-#: model_terms:account.payment.term,note:account.account_payment_term_immediate
-msgid "Payment terms: Immediate Payment"
-msgstr "지급 조건: 즉시 지급"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -14241,11 +13948,6 @@ msgid "Pension"
 msgstr "연금"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_payment_term_line__value__percent
-msgid "Percent"
-msgstr "비율"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_automatic_entry_wizard__percentage
 #: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__percentage
 #: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__percentage
@@ -14278,12 +13980,6 @@ msgstr "작업이 실행되는 각 항목의 백분율입니다."
 #: model:ir.model.fields.selection,name:account.selection__account_reconcile_model_line__amount_type__percentage_st_line
 msgid "Percentage of statement line"
 msgstr "명세서 항목 백분율"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "Percentages on the Payment Terms lines must be between 0 and 100."
-msgstr "지급 조건 항목의 백분율은 0에서 100사이로 표시되어야 합니다."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_invoice_filter
@@ -14504,7 +14200,6 @@ msgstr "청구서와 결제 내역이 일치하면 전표를 생성하도록 사
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
 msgid "Preview"
 msgstr "미리 보기"
 
@@ -15080,11 +14775,6 @@ msgstr "기록"
 #: code:addons/account/models/account_tax.py:0
 msgid "Recursion found for tax “%s”."
 msgstr "“%s” 세금에 재귀가 발견되었습니다."
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "Reduced tax:"
-msgstr "세금 감면액:"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_analytic_line__ref
@@ -16019,11 +15709,6 @@ msgid "Select first partner"
 msgstr "첫 번째 협력사를 선택하세요."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_payment_term_line__value
-msgid "Select here the kind of valuation related to this payment terms line."
-msgstr "여기에서 지급 조건 항목과 관련된 가치평가 유형을 선택하십시오."
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Select specific invoice and delivery addresses"
 msgstr "특정 청구서 및 배송지 주소를 선택하세요."
@@ -16246,7 +15931,6 @@ msgstr "9월"
 #: model:ir.model.fields,field_description:account.field_account_merge_wizard_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_move_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_payment_method_line__sequence
-#: model:ir.model.fields,field_description:account.field_account_payment_term__sequence
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__sequence
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__sequence
 #: model:ir.model.fields,field_description:account.field_account_report__sequence
@@ -16561,11 +16245,6 @@ msgstr "초안 항목 표시"
 #: model_terms:ir.ui.view,arch_db:account.view_account_tax_search
 msgid "Show inactive taxes"
 msgstr "비활성 세금 표시"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__display_on_invoice
-msgid "Show installment dates"
-msgstr "분할 납부일 표시"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_journal__show_on_dashboard
@@ -17575,11 +17254,6 @@ msgid "Term Key"
 msgstr "용어 키"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term__line_ids
-msgid "Terms"
-msgstr "지불 조건"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_res_config_settings__invoice_terms
 msgid "Terms & Conditions"
 msgstr "이용약관"
@@ -17675,26 +17349,6 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "The Early Payment Discount days must be strictly positive."
-msgstr "선납 할인 날짜는 반드시 양수여야 합니다."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"The Early Payment Discount functionality can only be used with payment terms"
-" using a single 100% line. "
-msgstr "선납 할인 기능은 100% 일시납 조건에서만 사용할 수 있습니다. "
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "The Early Payment Discount must be strictly positive."
-msgstr "선납 할인 금액은 반드시 양수여야 합니다."
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/company.py:0
 msgid "The Hard Lock Date cannot be removed."
 msgstr "강제 잠금 날짜는 제거할 수 없습니다."
@@ -17726,14 +17380,6 @@ msgid ""
 "The Journal Entry sequence is not conform to the current format. Only the "
 "Accountant can change it."
 msgstr "전표입력 순서가 현재의 형식과 맞지 않습니다. 회계 담당자만 변경이 가능합니다."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid ""
-"The Payment Term must have at least one percent line and the sum of the "
-"percent must be 100%."
-msgstr "지급 조건에는 백분율 항목이 있어야 하며 백분율 합계는 100% 이어야 합니다."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_base_document_layout__vat
@@ -18010,12 +17656,6 @@ msgstr "세금 잠금 날짜에 대해 이 예외로 설정된 날짜입니다. 
 #: code:addons/account/models/account_payment_term.py:0
 msgid "The days added must be a number and has to be between 0 and 31."
 msgstr "추가된 날짜는 0에서 31일 사이의 숫자여야 합니다."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_payment_term.py:0
-msgid "The days added must be between 0 and 31."
-msgstr "날짜는 0에서 31 사이여야 합니다."
 
 #. module: account
 #. odoo-python
@@ -19955,7 +19595,6 @@ msgid "Validated entries can only be changed by your accountant."
 msgstr "승인 항목은 회계 담당자만 변경할 수 있습니다."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_payment_term_line__value
 #: code:addons/account_reports/static/src/components/account_report/line/popover/debug_popover.xml:0
 msgid "Value"
 msgstr "금액"
@@ -20078,12 +19717,6 @@ msgid "Vendor Payment"
 msgstr "공급업체 결제 항목"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_res_partner__property_supplier_payment_term_id
-#: model:ir.model.fields,field_description:account.field_res_users__property_supplier_payment_term_id
-msgid "Vendor Payment Terms"
-msgstr "공급업체 지급 조건"
-
-#. module: account
 #: model:ir.actions.act_window,name:account.action_account_payments_payable
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_search
@@ -20140,7 +19773,6 @@ msgstr "협력사 보기"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_group_tree
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
 msgid "Visible to all"
 msgstr "모든 사람에게 표시"
 
@@ -21274,11 +20906,6 @@ msgid "e.g. 101000"
 msgstr "예: 101000"
 
 #. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "e.g. 30 days"
-msgstr "예: 30일"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_reconcile_model_form
 msgid "e.g. Bank Fees"
 msgstr "예: 은행 수수료"
@@ -21475,11 +21102,6 @@ msgstr "해당 없음"
 #: model:ir.model.fields.selection,name:account.selection__account_tax_repartition_line__repartition_type__tax
 msgid "of tax"
 msgstr "세금"
-
-#. module: account
-#: model_terms:ir.ui.view,arch_db:account.view_payment_term_form
-msgid "on"
-msgstr "예시일:"
 
 #. module: account
 #. odoo-javascript

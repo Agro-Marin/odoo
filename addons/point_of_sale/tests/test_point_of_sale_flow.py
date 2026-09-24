@@ -691,7 +691,7 @@ class TestPointOfSaleFlow(CommonPosTest):
             {"payment_method_ids": [Command.set(payment_methods.ids)]}
         )
 
-        pay_term_30 = self.env.ref("account.account_payment_term_30days")
+        pay_term_30 = self.env.ref("payment_term.account_payment_term_30days")
         partner_a = self.env["res.partner"].create(
             {
                 "name": "APartner",

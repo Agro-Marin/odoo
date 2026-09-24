@@ -258,7 +258,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "move_type": "out_invoice",
                 "partner_id": "base.res_partner_12",
                 "invoice_user_id": "base.user_demo",
-                "invoice_payment_term_id": "account.account_payment_term_end_following_month",
+                "invoice_payment_term_id": "payment_term.account_payment_term_end_following_month",
                 "invoice_date": time.strftime("%Y-%m-01"),
                 "delivery_date": time.strftime("%Y-%m-01"),
                 "invoice_line_ids": [
@@ -318,7 +318,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "move_type": "out_invoice",
                 "partner_id": "base.res_partner_2",
                 "invoice_user_id": "base.user_demo",
-                "invoice_payment_term_id": "account.account_payment_term_immediate",
+                "invoice_payment_term_id": "payment_term.account_payment_term_immediate",
                 "invoice_date": (fields.Date.today() + timedelta(days=-15)).strftime(
                     "%Y-%m-%d"
                 ),
@@ -338,7 +338,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "move_type": "out_invoice",
                 "partner_id": "base.res_partner_5",
                 "invoice_user_id": "base.user_demo",
-                "invoice_payment_term_id": "account.account_payment_term_end_following_month",
+                "invoice_payment_term_id": "payment_term.account_payment_term_end_following_month",
                 "invoice_date": (fields.Date.today() + timedelta(days=-40)).strftime(
                     "%Y-%m-%d"
                 ),
@@ -359,7 +359,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "move_type": "out_invoice",
                 "partner_id": "base.res_partner_5",
                 "invoice_user_id": "base.user_demo",
-                "invoice_payment_term_id": "account.account_payment_term_end_following_month",
+                "invoice_payment_term_id": "payment_term.account_payment_term_end_following_month",
                 "invoice_date": (fields.Date.today() + timedelta(days=-35)).strftime(
                     "%Y-%m-%d"
                 ),
@@ -386,7 +386,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "move_type": "out_invoice",
                 "partner_id": "base.res_partner_5",
                 "invoice_user_id": "base.user_demo",
-                "invoice_payment_term_id": "account.account_payment_term_end_following_month",
+                "invoice_payment_term_id": "payment_term.account_payment_term_end_following_month",
                 "invoice_date": (
                     fields.Date.today() + relativedelta(months=-1)
                 ).strftime("%Y-%m-%d"),
@@ -406,7 +406,7 @@ class AccountChartTemplate(models.AbstractModel):
             self.company_xmlid("demo_invoice_8"): {
                 "move_type": "in_invoice",
                 "partner_id": "base.res_partner_4",
-                "invoice_payment_term_id": "account.account_payment_term_end_following_month",
+                "invoice_payment_term_id": "payment_term.account_payment_term_end_following_month",
                 "invoice_date": time.strftime("%Y-%m-01"),
                 "delivery_date": time.strftime("%Y-%m-01"),
                 "invoice_line_ids": [

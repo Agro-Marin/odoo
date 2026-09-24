@@ -57,7 +57,7 @@ class TestEventSale(TestEventSaleCommon):
                 .id,
                 "notes": "Invoice after delivery",
                 "payment_term_id": cls.env.ref(
-                    "account.account_payment_term_end_following_month"
+                    "payment_term.account_payment_term_end_following_month"
                 ).id,
             }
         )

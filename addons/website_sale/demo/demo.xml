@@ -997,7 +997,9 @@
         <field name="user_id" ref="base.user_demo" />
         <field name="website_id" ref="website.default_website" />
         <field name="team_id" ref="sale_team.salesteam_website_sales" />
-        <field name="payment_term_id" ref="account.account_payment_term_immediate" />
+        <field
+            name="payment_term_id"
+            ref="payment_term.account_payment_term_immediate" />
         <field
             name="date_order"
             eval="(datetime.now()-timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')" />

@@ -1273,9 +1273,9 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         )
 
     def test_payment_terms_for_alternative_rfq(self):
-        pay_terms_immediate = self.env.ref("account.account_payment_term_immediate")
+        pay_terms_immediate = self.env.ref("payment_term.account_payment_term_immediate")
         pay_terms_end_month = self.env.ref(
-            "account.account_payment_term_end_following_month"
+            "payment_term.account_payment_term_end_following_month"
         )
 
         self.res_partner_1.write(

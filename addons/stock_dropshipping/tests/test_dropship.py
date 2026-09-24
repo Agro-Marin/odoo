@@ -101,7 +101,7 @@ class TestDropship(common.TransactionCase):
         so_form = Form(self.env["sale.order"])
         so_form.partner_id = self.customer
         so_form.payment_term_id = self.env.ref(
-            "account.account_payment_term_end_following_month"
+            "payment_term.account_payment_term_end_following_month"
         )
         with mute_logger("odoo.tests.form.onchange"):
             with so_form.line_ids.new() as line:

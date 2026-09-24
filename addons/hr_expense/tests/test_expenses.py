@@ -13,7 +13,7 @@ from odoo.addons.hr_expense.tests.common import TestExpenseCommon
 class TestExpenses(TestExpenseCommon):
     def test_expense_main_flow(self):
         self.expense_employee.partner_id.property_supplier_payment_term_id = (
-            self.env.ref("account.account_payment_term_30days")
+            self.env.ref("payment_term.account_payment_term_30days")
         )
         expenses_by_employee = self.create_expenses(
             [

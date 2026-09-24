@@ -54,7 +54,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             }
         )
         cls.term_advance_60days = cls.env.ref(
-            "account.account_payment_term_advance_60days"
+            "payment_term.account_payment_term_advance_60days"
         )
         cls.term_0_5_10_days = cls.env["account.payment.term"].create(
             {
@@ -2813,7 +2813,7 @@ class TestAccountPaymentRegister(AccountTestInvoicingCommon, PaymentCommon):
             }
         )
         payment_term = self.env.ref(
-            "account.account_payment_term_30days_early_discount"
+            "payment_term.account_payment_term_30days_early_discount"
         )
         tax = self.env["account.tax"].create(
             {

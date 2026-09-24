@@ -212,7 +212,7 @@
                 groups="account.group_account_invoice,account.group_account_readonly">
                 <menuitem
                     id="menu_action_payment_term_form"
-                    action="action_payment_term_form"
+                    action="payment_term.action_payment_term_form"
                     sequence="10" />
                 <menuitem
                     id="menu_action_incoterm_open"

@@ -195,7 +195,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "partner_id": ref("base.res_partner_2").id,
                 "invoice_user_id": ref("base.user_demo").id,
                 "invoice_payment_term_id": ref(
-                    "account.account_payment_term_end_following_month"
+                    "payment_term.account_payment_term_end_following_month"
                 ).id,
                 "invoice_date": last_month_date,
                 "l10n_latam_document_number": "FFF-100004",
@@ -247,7 +247,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "partner_id": ref("base.res_partner_12").id,
                 "invoice_user_id": ref("base.user_demo").id,
                 "invoice_payment_term_id": ref(
-                    "account.account_payment_term_end_following_month"
+                    "payment_term.account_payment_term_end_following_month"
                 ).id,
                 "invoice_date": last_month_date,
                 "l10n_latam_document_number": "FFF-000005",
@@ -268,7 +268,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "partner_id": ref("base.res_partner_12").id,
                 "invoice_user_id": ref("base.user_demo").id,
                 "invoice_payment_term_id": ref(
-                    "account.account_payment_term_end_following_month"
+                    "payment_term.account_payment_term_end_following_month"
                 ).id,
                 "invoice_date": last_month_date,
                 "l10n_latam_document_number": "118-145266",
@@ -289,7 +289,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "partner_id": ref("base.res_partner_12").id,
                 "invoice_user_id": ref("base.user_demo").id,
                 "invoice_payment_term_id": ref(
-                    "account.account_payment_term_end_following_month"
+                    "payment_term.account_payment_term_end_following_month"
                 ).id,
                 "invoice_date": last_month_date,
                 "l10n_latam_document_number": "FFF-100009",
@@ -310,7 +310,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "partner_id": ref("base.res_partner_12").id,
                 "invoice_user_id": ref("base.user_demo").id,
                 "invoice_payment_term_id": ref(
-                    "account.account_payment_term_end_following_month"
+                    "payment_term.account_payment_term_end_following_month"
                 ).id,
                 "invoice_date": last_month_date,
                 "l10n_latam_document_number": "CNE-0000001",
@@ -330,7 +330,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "partner_id": ref("base.res_partner_12").id,
                 "invoice_user_id": ref("base.user_demo").id,
                 "invoice_payment_term_id": ref(
-                    "account.account_payment_term_end_following_month"
+                    "payment_term.account_payment_term_end_following_month"
                 ).id,
                 "invoice_date": last_month_date,
                 "l10n_latam_document_number": "FFF-100005",
@@ -350,7 +350,7 @@ class AccountChartTemplate(models.AbstractModel):
                 "invoice_user_id": ref("base.user_demo").id,
                 "l10n_latam_document_type_id": ref("l10n_pe.document_type08").id,
                 "invoice_payment_term_id": ref(
-                    "account.account_payment_term_end_following_month"
+                    "payment_term.account_payment_term_end_following_month"
                 ).id,
                 "invoice_date": last_month_date,
                 "l10n_latam_document_number": "FFF-100006",

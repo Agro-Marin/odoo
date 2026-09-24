@@ -4108,7 +4108,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                 "partner_id": self.partner_a.id,
                 "currency_id": self.other_currency.id,
                 "invoice_payment_term_id": self.env.ref(
-                    "account.account_payment_term_immediate"
+                    "payment_term.account_payment_term_immediate"
                 ).id,
                 "invoice_line_ids": [
                     Command.create(
@@ -4149,7 +4149,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
 
         with Form(invoice) as move_form:
             move_form.invoice_payment_term_id = self.env.ref(
-                "account.account_payment_term_30days"
+                "payment_term.account_payment_term_30days"
             )
 
     def test_out_invoice_rounding_recomputation_receivable_lines(self):
@@ -4172,7 +4172,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
                 "date": "2019-01-01",
                 "partner_id": self.partner_a.id,
                 "invoice_payment_term_id": self.env.ref(
-                    "account.account_payment_term_immediate"
+                    "payment_term.account_payment_term_immediate"
                 ).id,
             }
         )

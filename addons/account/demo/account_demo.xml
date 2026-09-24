@@ -59,25 +59,25 @@
         <record id="base.res_partner_2" model="res.partner">
             <field
                 name="property_payment_term_id"
-                ref="account.account_payment_term_30days" />
+                ref="payment_term.account_payment_term_30days" />
         </record>
         <record id="base.res_partner_12" model="res.partner">
             <field
                 name="property_payment_term_id"
-                ref="account.account_payment_term_end_following_month" />
+                ref="payment_term.account_payment_term_end_following_month" />
             <field
                 name="property_supplier_payment_term_id"
-                ref="account.account_payment_term_end_following_month" />
+                ref="payment_term.account_payment_term_end_following_month" />
         </record>
         <record id="base.res_partner_4" model="res.partner">
             <field
                 name="property_supplier_payment_term_id"
-                ref="account.account_payment_term_30days" />
+                ref="payment_term.account_payment_term_30days" />
         </record>
         <record id="base.res_partner_1" model="res.partner">
             <field
                 name="property_supplier_payment_term_id"
-                ref="account.account_payment_term_end_following_month" />
+                ref="payment_term.account_payment_term_end_following_month" />
         </record>
         <record id="analytic.analytic_plan_internal" model="account.analytic.plan">
             <field

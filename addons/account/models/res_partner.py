@@ -136,19 +136,6 @@ class ResPartner(models.Model):
         check_company=True,
         help="The fiscal position determines the taxes/accounts used for this contact.",
     )
-    property_payment_term_id = fields.Many2one(
-        comodel_name="account.payment.term",
-        string="Customer Payment Terms",
-        company_dependent=True,
-        ondelete="restrict",
-        check_company=True,
-    )
-    property_supplier_payment_term_id = fields.Many2one(
-        comodel_name="account.payment.term",
-        string="Vendor Payment Terms",
-        company_dependent=True,
-        check_company=True,
-    )
     ref_company_ids = fields.One2many(
         comodel_name="res.company",
         inverse_name="partner_id",
@@ -636,8 +623,6 @@ class ResPartner(models.Model):
             "property_account_payable_id",
             "property_account_receivable_id",
             "property_account_position_id",
-            "property_payment_term_id",
-            "property_supplier_payment_term_id",
             "credit_limit",
         ]
 

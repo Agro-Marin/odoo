@@ -390,7 +390,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         self.assertEqual(len(po.activity_ids), 1)
 
     def test_so_import_payment_terms(self):
-        payment_term = self.env.ref("account.account_payment_term_30days")
+        payment_term = self.env.ref("payment_term.account_payment_term_30days")
         xml_attachment = self.get_purchase_xml([], payment_term_id=payment_term.id)
         so = (
             self.env["sale.order"]
@@ -401,7 +401,7 @@ class TestOrderEdiUbl(TestAccountEdiUblCii, SaleCommon):
         self.assertEqual(so.payment_term_id, payment_term)
 
     def test_po_import_payment_terms(self):
-        payment_term = self.env.ref("account.account_payment_term_30days")
+        payment_term = self.env.ref("payment_term.account_payment_term_30days")
         xml_attachment = self.get_sale_xml([], payment_term_id=payment_term.id)
         po = (
             self.env["purchase.order"]

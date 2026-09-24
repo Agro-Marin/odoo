@@ -150,7 +150,7 @@ class TestArManual(common.TestAr):
 
         doc_27_lu_a = self.env.ref("l10n_ar.dc_liq_uci_a")
         payment_term_id = self.env.ref(
-            "account.account_payment_term_end_following_month"
+            "payment_term.account_payment_term_end_following_month"
         )
 
         # 60, 61, 27, 28, 45, 46
@@ -199,7 +199,7 @@ class TestArManual(common.TestAr):
 
         doc_60_lp_a = self.env.ref("l10n_ar.dc_a_cvl")
         payment_term_id = self.env.ref(
-            "account.account_payment_term_end_following_month"
+            "payment_term.account_payment_term_end_following_month"
         )
 
         with self.assertRaisesRegex(

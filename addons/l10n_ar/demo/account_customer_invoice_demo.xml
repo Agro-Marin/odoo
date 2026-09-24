@@ -12,7 +12,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-01'" />
         <field
@@ -29,7 +29,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-05'" />
         <field
@@ -46,7 +46,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-01'" />
         <field
@@ -63,7 +63,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-01'" />
         <field
@@ -80,7 +80,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
@@ -98,7 +98,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-03'" />
         <field name="invoice_incoterm_id" ref="incoterm.incoterm_EXW" />
@@ -117,7 +117,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-03'" />
         <field name="invoice_incoterm_id" ref="incoterm.incoterm_EXW" />
@@ -135,7 +135,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
@@ -156,7 +156,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
@@ -174,7 +174,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
@@ -191,7 +191,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
@@ -208,7 +208,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
@@ -226,7 +226,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-20'" />
         <field name="invoice_incoterm_id" ref="incoterm.incoterm_EXW" />
@@ -245,7 +245,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-20'" />
         <field name="invoice_incoterm_id" ref="incoterm.incoterm_EXW" />
@@ -264,7 +264,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-01'" />
         <field name="invoice_incoterm_id" ref="incoterm.incoterm_EXW" />
@@ -282,7 +282,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
@@ -299,7 +299,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field
@@ -316,7 +316,7 @@
         <field name="invoice_user_id" ref="base.user_demo" />
         <field
             name="invoice_payment_term_id"
-            ref="account.account_payment_term_end_following_month" />
+            ref="payment_term.account_payment_term_end_following_month" />
         <field name="move_type">out_invoice</field>
         <field name="invoice_date" eval="time.strftime('%Y-%m')+'-13'" />
         <field

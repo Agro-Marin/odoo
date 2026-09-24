@@ -152,9 +152,9 @@ class TestMergePartner(AccountTestInvoicingCommon):
         self.assertEqual(self.payment2.bank_account_id.partner_id, self.partner1)
 
     def test_merging_leaves_a_posted_bill_as_it_was_posted(self):
-        term = self.env.ref("account.account_payment_term_30days")
+        term = self.env.ref("payment_term.account_payment_term_30days")
         self.partner1.property_supplier_payment_term_id = self.env.ref(
-            "account.account_payment_term_immediate"
+            "payment_term.account_payment_term_immediate"
         )
         bill = self.env["account.move"].create(
             {

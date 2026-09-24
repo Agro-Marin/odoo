@@ -174,7 +174,7 @@ class TestAccountMoveInInvoiceOnchanges(AccountTestInvoicingCommon):
         )
         invoice_form.partner_id = self.partner_a
         invoice_form.invoice_payment_term_id = self.env.ref(
-            "account.account_payment_term_30days"
+            "payment_term.account_payment_term_30days"
         )
         with invoice_form.invoice_line_ids.new() as line_form:
             line_form.product_id = self.product_a

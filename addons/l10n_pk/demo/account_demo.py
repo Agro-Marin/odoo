@@ -25,7 +25,7 @@ class AccountChartTemplate(models.AbstractModel):
                         "move_type": "out_invoice",
                         "partner_id": "l10n_pk.res_partner_punjab",
                         "invoice_user_id": "base.user_demo",
-                        "invoice_payment_term_id": "account.account_payment_term_end_following_month",
+                        "invoice_payment_term_id": "payment_term.account_payment_term_end_following_month",
                         "invoice_date": fields.Datetime.today() - relativedelta(days=1),
                         "journal_id": sale_journal.id,
                         "invoice_line_ids": [
@@ -70,7 +70,7 @@ class AccountChartTemplate(models.AbstractModel):
                         "move_type": "out_invoice",
                         "partner_id": "l10n_pk.res_partner_punjab",
                         "invoice_user_id": "base.user_demo",
-                        "invoice_payment_term_id": "account.account_payment_term_end_following_month",
+                        "invoice_payment_term_id": "payment_term.account_payment_term_end_following_month",
                         "invoice_date": fields.Datetime.today() - relativedelta(days=2),
                         "journal_id": sale_journal.id,
                         "invoice_line_ids": [
@@ -100,7 +100,7 @@ class AccountChartTemplate(models.AbstractModel):
                         "move_type": "out_invoice",
                         "partner_id": "base.res_partner_3",
                         "invoice_user_id": "base.user_demo",
-                        "invoice_payment_term_id": "account.account_payment_term_end_following_month",
+                        "invoice_payment_term_id": "payment_term.account_payment_term_end_following_month",
                         "invoice_date": fields.Datetime.today() - relativedelta(days=3),
                         "journal_id": sale_journal.id,
                         "invoice_line_ids": [
@@ -180,7 +180,7 @@ class AccountChartTemplate(models.AbstractModel):
                         "move_type": "in_invoice",
                         "partner_id": "l10n_pk.res_partner_islamabad",
                         "invoice_user_id": "base.user_demo",
-                        "invoice_payment_term_id": "account.account_payment_term_end_following_month",
+                        "invoice_payment_term_id": "payment_term.account_payment_term_end_following_month",
                         "invoice_date": fields.Datetime.today() - relativedelta(days=1),
                         "invoice_line_ids": [
                             Command.create(
@@ -215,7 +215,7 @@ class AccountChartTemplate(models.AbstractModel):
                         "move_type": "in_invoice",
                         "partner_id": "l10n_pk.res_partner_islamabad",
                         "invoice_user_id": "base.user_demo",
-                        "invoice_payment_term_id": "account.account_payment_term_end_following_month",
+                        "invoice_payment_term_id": "payment_term.account_payment_term_end_following_month",
                         "invoice_date": fields.Datetime.today() - relativedelta(days=2),
                         "invoice_line_ids": [
                             Command.create(
@@ -243,7 +243,7 @@ class AccountChartTemplate(models.AbstractModel):
                         "move_type": "in_invoice",
                         "partner_id": "l10n_pk.res_partner_islamabad",
                         "invoice_user_id": "base.user_demo",
-                        "invoice_payment_term_id": "account.account_payment_term_end_following_month",
+                        "invoice_payment_term_id": "payment_term.account_payment_term_end_following_month",
                         "invoice_date": fields.Datetime.today() - relativedelta(days=3),
                         "invoice_line_ids": [
                             Command.create(

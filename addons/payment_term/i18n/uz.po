@@ -1,0 +1,602 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* payment_term
+#
+#
+# Translated by:
+# Deepvision - info@deepvision.uz | +998 77-093-0007
+# Amon Olimov - amon.bars@gmail.com
+# Jonibek Yorqulov - j.yorqulov@deepvision.uz
+# Mirzohidkhon Ulugkhujaev ulugkhujayevmirzohidxon@gmail.com
+#
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2025-10-18 14:56+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: uz\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+#, fuzzy
+msgid "%s (copy)"
+msgstr "%s (nusxa)"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_30_days_end_month_the_10
+#, fuzzy
+msgid "10 Days after End of Next Month"
+msgstr "Keyingi oy tugaganidan 10 kun o‘tgach"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_15days
+#, fuzzy
+msgid "15 Days"
+msgstr "15 kun"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_30days_early_discount
+#, fuzzy
+msgid "2/7 Net 30"
+msgstr "2/7 Sof 30"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_21days
+#, fuzzy
+msgid "21 Days"
+msgstr "21 kun"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_30days
+#, fuzzy
+msgid "30 Days"
+msgstr "30 kun"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_advance_60days
+#, fuzzy
+msgid "30% Now, Balance 60 Days"
+msgstr "Hozir 30%, qolgan qismi 60 kun ichida"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_45days
+#, fuzzy
+msgid "45 Days"
+msgstr "45 kun"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_90days_on_the_10th
+#, fuzzy
+msgid "90 days, on the 10th"
+msgstr "90 kun, 10-sanada"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+#, fuzzy
+msgid ""
+"<b>%(count)s#</b> Installment of <b>%(amount)s</b> due on <b style='color: "
+"#704A66;'>%(date)s</b>"
+msgstr ""
+"<b>%(count)s-chi</b> <b>%(amount)s</b> to‘lov muddati: <b style='color: "
+"#704A66;'>%(date)s</b>"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#, fuzzy
+msgid "<span invisible=\"not early_discount\"> % if paid within </span>"
+msgstr "<span invisible=\"not early_discount\">% agar to‘lansa </span>"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#, fuzzy
+msgid "<span invisible=\"not early_discount\"> days</span>"
+msgstr "<span invisible=\"not early_discount\"> kun ichida</span>"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__active
+#, fuzzy
+msgid "Active"
+msgstr "Faol"
+
+#. module: payment_term
+#. odoo-javascript
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#, fuzzy
+msgid "After"
+msgstr "Keyin"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term__early_pay_discount_computation__mixed
+#, fuzzy
+msgid "Always (upon invoice)"
+msgstr "Har doim (hisob-faktura bo‘yicha)"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_search
+#, fuzzy
+msgid "Archived"
+msgstr "Arxivlangan"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__early_pay_discount_computation
+#, fuzzy
+msgid "Cash Discount Tax Reduction"
+msgstr "Naqd pul chegirmasi solig‘ini kamaytirish"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__company_id
+#, fuzzy
+msgid "Company"
+msgstr "Kompaniya"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__create_uid
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__create_uid
+#, fuzzy
+msgid "Created by"
+msgstr "Yaratuvchi"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__create_date
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__create_date
+#, fuzzy
+msgid "Created on"
+msgstr "Yaratilgan sana"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__currency_id
+#, fuzzy
+msgid "Currency"
+msgstr "Valyuta"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_res_partner__property_payment_term_id
+#: model:ir.model.fields,field_description:payment_term.field_res_users__property_payment_term_id
+#, fuzzy
+msgid "Customer Payment Terms"
+msgstr "Mijoz to‘lov shartlari"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_date
+#, fuzzy
+msgid "Date example"
+msgstr "Sana namunasi"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__nb_days
+#, fuzzy
+msgid "Days"
+msgstr "Kunlar"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_after_end_of_month
+#, fuzzy
+msgid "Days after end of month"
+msgstr "Oy oxiridan keyingi kunlar"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_after_end_of_next_month
+#, fuzzy
+msgid "Days after end of next month"
+msgstr "Keyingi oy oxiridan keyingi kunlar"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_after
+#, fuzzy
+msgid "Days after invoice date"
+msgstr "Hisob-faktura sanasidan keyingi kunlar"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__delay_type__days_end_of_month_on_the
+#, fuzzy
+msgid "Days end of month on the"
+msgstr "Oy oxiridagi kunlar:"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__days_next_month
+#, fuzzy
+msgid "Days on the next month"
+msgstr "Keyingi oydagi kunlar"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__delay_type
+#, fuzzy
+msgid "Delay Type"
+msgstr "Kechikish turi"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#, fuzzy
+msgid ""
+"Description on invoice (e.g. Payment terms: 30 days after invoice date)"
+msgstr ""
+"Hisob-fakturadagi tavsif (masalan, To‘lov shartlari: hisob-faktura sanasidan"
+" 30 kun o‘tgach)"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__note
+#, fuzzy
+msgid "Description on the Invoice"
+msgstr "Hisob-fakturadagi tavsif"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__discount_percentage
+#, fuzzy
+msgid "Discount %"
+msgstr "Chegirma %"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__discount_days
+#, fuzzy
+msgid "Discount Days"
+msgstr "Chegirma kunlari"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__display_days_next_month
+#, fuzzy
+msgid "Display Days Next Month"
+msgstr "Keyingi oydagi kunlarni ko‘rsatish"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__display_name
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__display_name
+#, fuzzy
+msgid "Display Name"
+msgstr "Ko‘rsatiladigan nom"
+
+#. module: payment_term
+#. odoo-python
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__value_amount
+#, fuzzy
+msgid "Due"
+msgstr "To‘lov muddati"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#, fuzzy
+msgid "Due Terms"
+msgstr "To‘lov muddatlari"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__early_discount
+#, fuzzy
+msgid "Early Discount"
+msgstr "Muddatidan oldingi chegirma"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term__discount_percentage
+#, fuzzy
+msgid "Early Payment Discount granted for this payment term"
+msgstr ""
+"Ushbu to‘lov muddati uchun berilgan muddatidan oldin to‘lov chegirmasi"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+#, fuzzy
+msgid ""
+"Early Payment Discount: <b>%(amount)s</b> if paid before <b>%(date)s</b>"
+msgstr ""
+"Muddatidan oldin to‘lov chegirmasi: <b>%(amount)s</b>, agar <b>%(date)s</b> "
+"gacha to‘lansa"
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_end_following_month
+#, fuzzy
+msgid "End of Following Month"
+msgstr "Keyingi oyning oxiri"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_amount
+#, fuzzy
+msgid "Example Amount"
+msgstr "Namuna miqdori"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_invalid
+#, fuzzy
+msgid "Example Invalid"
+msgstr "Namuna noto‘g‘ri"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_preview
+#, fuzzy
+msgid "Example Preview"
+msgstr "Namuna ko‘rinishi"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__example_preview_discount
+#, fuzzy
+msgid "Example Preview Discount"
+msgstr "Namuna ko‘rinishi chegirmasi"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#, fuzzy
+msgid "Example:"
+msgstr "Misol:"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__value__fixed
+#, fuzzy
+msgid "Fixed"
+msgstr "O‘zgarmas"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term_line__value_amount
+#, fuzzy
+msgid "For percent enter a ratio between 0-100."
+msgstr "Foiz uchun 0-100 oralig‘idagi nisbatni kiriting."
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__id
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__id
+#, fuzzy
+msgid "ID"
+msgstr "ID"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term__active
+#, fuzzy
+msgid ""
+"If the active field is set to False, it will allow you to hide the payment "
+"terms without removing it."
+msgstr ""
+"Agar faol maydon Yolg‘on qilib o‘rnatilsa, to‘lov shartlarini olib "
+"tashlamasdan yashirish imkonini beradi."
+
+#. module: payment_term
+#: model:payment_term.payment.term,name:payment_term.account_payment_term_immediate
+#, fuzzy
+msgid "Immediate Payment"
+msgstr "Tezkor to‘lov"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__write_uid
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__write_uid
+#, fuzzy
+msgid "Last Updated by"
+msgstr "Oxirgi yangilovchi"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__write_date
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__write_date
+#, fuzzy
+msgid "Last Updated on"
+msgstr "Oxirgi yangilangan sana"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term__early_pay_discount_computation__excluded
+#, fuzzy
+msgid "Never"
+msgstr "Hech qachon"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term__discount_days
+#, fuzzy
+msgid "Number of days before the early payment proposition expires"
+msgstr ""
+"Muddatidan oldingi to‘lov taklifi amal qilish muddati tugashidan oldingi "
+"kunlar soni"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term__early_pay_discount_computation__included
+#, fuzzy
+msgid "On early payment"
+msgstr "Muddatidan oldin to‘lash"
+
+#. module: payment_term
+#: model:ir.actions.act_window,name:payment_term.action_payment_term_form
+#: model:ir.model,name:payment_term.model_account_payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__name
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__payment_id
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_search
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_tree
+#, fuzzy
+msgid "Payment Terms"
+msgstr "To‘lov shartlari"
+
+#. module: payment_term
+#: model:ir.model,name:payment_term.model_account_payment_term_line
+#, fuzzy
+msgid "Payment Terms Line"
+msgstr "To‘lov shartlari qatori"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_30_days_end_month_the_10
+#, fuzzy
+msgid "Payment terms: 10 Days after End of Next Month"
+msgstr "To‘lov shartlari: keyingi oy tugaganidan keyin 10 kun"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_15days
+#, fuzzy
+msgid "Payment terms: 15 Days"
+msgstr "To‘lov muddati: 15 kun"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_21days
+#, fuzzy
+msgid "Payment terms: 21 Days"
+msgstr "To‘lov muddati: 21 kun"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_30days
+#, fuzzy
+msgid "Payment terms: 30 Days"
+msgstr "To‘lov muddati: 30 kun"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_30days_early_discount
+#, fuzzy
+msgid "Payment terms: 30 Days, 2% Early Payment Discount under 7 days"
+msgstr "To‘lov shartlari: 30 kun, 7 kun ichida to‘lansa 2% chegirma"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_advance_60days
+#, fuzzy
+msgid "Payment terms: 30% Now, Balance 60 Days"
+msgstr "To‘lov shartlari: 30% hozir, qolgan qismi 60 kun ichida"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_45days
+#, fuzzy
+msgid "Payment terms: 45 Days"
+msgstr "To‘lov muddati: 45 kun"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_90days_on_the_10th
+#, fuzzy
+msgid "Payment terms: 90 days, on the 10th"
+msgstr "To‘lov muddati: 90 kun, oyning 10-sanasida"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_end_following_month
+#, fuzzy
+msgid "Payment terms: End of Following Month"
+msgstr "To‘lov shartlari: keyingi oyning oxiri"
+
+#. module: payment_term
+#: model_terms:payment_term.payment.term,note:payment_term.account_payment_term_immediate
+#, fuzzy
+msgid "Payment terms: Immediate Payment"
+msgstr "To‘lov shartlari: darhol to‘lov"
+
+#. module: payment_term
+#: model:ir.model.fields.selection,name:payment_term.selection__account_payment_term_line__value__percent
+#, fuzzy
+msgid "Percent"
+msgstr "Foiz"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+#, fuzzy
+msgid "Percentages on the Payment Terms lines must be between 0 and 100."
+msgstr ""
+"To‘lov shartlari qatorlaridagi foizlar 0 dan 100 gacha bo‘lishi kerak."
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#, fuzzy
+msgid "Preview"
+msgstr "Oldindan ko‘rish"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#, fuzzy
+msgid "Reduced tax:"
+msgstr "Kamaytirilgan soliq:"
+
+#. module: payment_term
+#: model:ir.model.fields,help:payment_term.field_account_payment_term_line__value
+#, fuzzy
+msgid "Select here the kind of valuation related to this payment terms line."
+msgstr ""
+"Bu yerda ushbu to‘lov shartlari qatoriga tegishli baholash turini tanlang."
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__sequence
+#, fuzzy
+msgid "Sequence"
+msgstr "Ketma-ketlik"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__display_on_invoice
+#, fuzzy
+msgid "Show installment dates"
+msgstr "Bo‘lib to‘lash sanalarini ko‘rsatish"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term__line_ids
+#, fuzzy
+msgid "Terms"
+msgstr "Shartlar"
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+#, fuzzy
+msgid "The Early Payment Discount days must be strictly positive."
+msgstr ""
+"Muddatidan oldin to‘lov chegirmasi kunlari albatta musbat son bo‘lishi "
+"kerak."
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+#, fuzzy
+msgid ""
+"The Early Payment Discount functionality can only be used with payment terms"
+" using a single 100% line. "
+msgstr ""
+"Muddatidan oldin to‘lov chegirmasi funksiyasidan faqat bitta 100% qatorli "
+"to‘lov shartlari bilan foydalanish mumkin."
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+#, fuzzy
+msgid "The Early Payment Discount must be strictly positive."
+msgstr "Muddatidan oldin to‘lov chegirmasi albatta musbat son bo‘lishi kerak."
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+#, fuzzy
+msgid ""
+"The Payment Term must have at least one percent line and the sum of the "
+"percent must be 100%."
+msgstr ""
+"To‘lov shartida kamida bir foizli qator bo‘lishi va foizlar yig‘indisi 100% "
+"ni tashkil etishi kerak."
+
+#. module: payment_term
+#. odoo-python
+#: code:addons/payment_term/models/account_payment_term.py:0
+#, fuzzy
+msgid "The days added must be between 0 and 31."
+msgstr "Qo‘shilgan kunlar 0 dan 31 gacha bo‘lishi shart."
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_account_payment_term_line__value
+#, fuzzy
+msgid "Value"
+msgstr "Qiymat"
+
+#. module: payment_term
+#: model:ir.model.fields,field_description:payment_term.field_res_partner__property_supplier_payment_term_id
+#: model:ir.model.fields,field_description:payment_term.field_res_users__property_supplier_payment_term_id
+#, fuzzy
+msgid "Vendor Payment Terms"
+msgstr "Yetkazib beruvchi to‘lov shartlari"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#, fuzzy
+msgid "Visible to all"
+msgstr "Barchaga ko‘rinadigan"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#, fuzzy
+msgid "e.g. 30 days"
+msgstr "masalan, 30 kun"
+
+#. module: payment_term
+#: model_terms:ir.ui.view,arch_db:payment_term.view_payment_term_form
+#, fuzzy
+msgid "on"
+msgstr "ustida"

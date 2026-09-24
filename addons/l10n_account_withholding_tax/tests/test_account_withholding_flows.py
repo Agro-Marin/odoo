@@ -819,7 +819,7 @@ class TestL10nAccountWithholdingTaxesFlows(TestTaxCommon, AnalyticCommon):
                 "move_type": "out_invoice",
                 "partner_id": self.partner_a.id,
                 "invoice_payment_term_id": self.env.ref(
-                    "account.account_payment_term_advance_60days"
+                    "payment_term.account_payment_term_advance_60days"
                 ).id,
                 "invoice_line_ids": [
                     Command.create(
@@ -1448,7 +1448,7 @@ class TestL10nAccountWithholdingTaxesFlows(TestTaxCommon, AnalyticCommon):
                 "move_type": "out_invoice",
                 "partner_id": self.partner_a.id,
                 "invoice_payment_term_id": self.env.ref(
-                    "account.account_payment_term_advance_60days"
+                    "payment_term.account_payment_term_advance_60days"
                 ).id,
                 "invoice_line_ids": [
                     Command.create(

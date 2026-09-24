@@ -110,7 +110,7 @@ class SaleOrder(models.Model):
             return
 
         default_pt = self.env.ref(
-            "account.account_payment_term_immediate", raise_if_not_found=False
+            "payment_term.account_payment_term_immediate", raise_if_not_found=False
         )
         first_term_by_company = {}
         for term in self.env["account.payment.term"].search(
