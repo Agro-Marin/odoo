@@ -15,6 +15,7 @@ ENV_KEYS = {
     "owl_env_is_small": re.compile(r"\bthis\.env\.isSmall\b"),
     "owl_env_model": re.compile(r"\bthis\.env\.model\b"),
     "owl_env_bus": re.compile(r"\bthis\.env\.bus\b"),
+    "owl_env_debug": re.compile(r"\bthis\.env\.debug\b"),
     "owl_env_config": re.compile(r"\bthis\.env\.config\b"),
     "owl_env_search_model": re.compile(r"\bthis\.env\.searchModel\b"),
 }
@@ -142,6 +143,16 @@ class TestOwl3Api(lint_case.LintCase):
             "component that scopes a bus of its own provides it with "
             "provideEventBus (both in @web/core/utils/hooks); OWL 3 components "
             "have no env",
+        )
+
+    def test_no_env_debug(self):
+        self.assert_ratchet(
+            _env_findings("owl_env_debug"),
+            "owl_env_debug",
+            "this.env.debug reads in static/src (JS and templates)",
+            "A component reads this.debug = useDebugMode() "
+            "(@web/core/debug/debug_context) from setup; OWL 3 components have "
+            "no env",
         )
 
     def test_no_env_config(self):

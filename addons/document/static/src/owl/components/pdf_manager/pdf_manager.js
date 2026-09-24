@@ -16,6 +16,7 @@ import { useCommand } from "@web/ui/commands";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { useActiveElement } from "@web/ui/ui_service";
 import { ConfirmationDialog, Dialog } from "@web/ui/dialog";
+import { useDebugMode } from "@web/core/debug/debug_context";
 
 const BLANK_PAGE_THRESHOLD = 2500;
 const BLANK_PIXEL_FILTER_VALUE = 220;
@@ -40,6 +41,7 @@ export class PdfManager extends Component {
     static template = "document.component.PdfManager";
 
     setup() {
+        this.debug = useDebugMode();
         this.ui = useService("ui");
         this.root = useRef("root");
         useActiveElement("root");
@@ -260,7 +262,7 @@ export class PdfManager extends Component {
      * @return {Boolean}
      */
     get isDebugMode() {
-        return Boolean(this.env.debug);
+        return Boolean(this.debug);
     }
     /**
      * @return {Boolean}

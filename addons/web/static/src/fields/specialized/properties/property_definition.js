@@ -14,6 +14,7 @@ import { DomainSelector } from "@web/components/domain_selector/domain_selector"
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { ModelSelector } from "@web/components/model_selector/model_selector";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 import { getSelectCreateDialog } from "@web/core/record_dialog_port";
@@ -66,6 +67,7 @@ export class PropertyDefinition extends Component {
     ]);
 
     setup() {
+        this.debug = useDebugMode();
         this.ui = useService("ui");
         this.orm = useService("orm");
 

@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component, useEffect } from "@odoo/owl";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { x2ManyCommands } from "@web/core/network";
@@ -77,6 +78,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.debug = useDebugMode();
         this.titleField = "name";
         this.priceColumns = [...this.props.aggregatedFields, "price_unit"];
         this.copyFields = ["display_type", "collapse_composition", "collapse_prices"];

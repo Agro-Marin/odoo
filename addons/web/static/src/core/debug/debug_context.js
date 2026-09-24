@@ -112,6 +112,11 @@ export function useEnvDebugContext() {
     return debugContext;
 }
 
+/** @returns {string} */
+export function useDebugMode() {
+    return useEnv().debug;
+}
+
 /**
  * @param {string} category
  * @param {Object} [context={}]

@@ -21,6 +21,7 @@ import {
 } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { router } from "@web/core/browser/router";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { RPCError } from "@web/core/network";
@@ -78,6 +79,7 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     setup() {
+        this.debug = useDebugMode();
         this.snippets = useOptionalService("html_builder.snippets");
         useLifecycleLog(log);
         this.target = null;
@@ -782,7 +784,7 @@ export class WebsiteBuilderClientAction extends Component {
         log.logic("refresh hotkey: redirect to preview", { hotkey });
         ev.preventDefault();
         const path = this.websiteService.contentWindow.location;
-        const debugMode = this.env.debug ? `&debug=${this.env.debug}` : "";
+        const debugMode = this.debug ? `&debug=${this.debug}` : "";
         redirect(
             `/odoo/action-website.website_preview?path=${encodeURIComponent(path)}${debugMode}`,
         );

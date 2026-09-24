@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { _t } from "@web/core/translation";
 import { DocumentationLink } from "@web/views/widgets";
 
@@ -19,6 +20,11 @@ export class ImportDataSidepanel extends Component {
         binaryFilesParams: { type: Object },
         onBinaryFilesParamsChanged: { type: Function },
     };
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 
     get fileName() {
         // Split on the LAST dot (mirrors `fileExtension`'s `.pop()` below): a

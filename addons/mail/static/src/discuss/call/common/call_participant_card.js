@@ -14,6 +14,7 @@ import {
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { isEventHandled } from "@web/core/utils/dom/events";
@@ -38,6 +39,7 @@ export class CallParticipantCard extends Component {
 
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.bus = useEventBus();
         this.contextMenuAnchorRef = useRef("contextMenuAnchor");
         this.root = useRef("root");
@@ -74,7 +76,7 @@ export class CallParticipantCard extends Component {
         return (
             this.isOfActiveCall &&
             (this.rtcSession.notEq(this.rtc.selfSession) ||
-                (this.env.debug &&
+                (this.debug &&
                     this.rtc.state.connectionType === CONNECTION_TYPES.SERVER))
         );
     }

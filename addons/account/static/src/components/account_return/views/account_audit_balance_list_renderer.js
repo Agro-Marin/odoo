@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { AccountReportChatter } from "@account/components/mail/chatter";
 import { useEffect, useRef } from "@odoo/owl";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { useService } from "@web/core/utils/hooks";
 import { ListRenderer } from "@web/views/list";
 
@@ -16,6 +17,7 @@ export class AccountAuditBalanceListRenderer extends ListRenderer {
 
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.ui = useService("ui");
         this.chatterService = useAuditBalanceListChatterService();
 

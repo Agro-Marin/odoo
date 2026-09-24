@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { Domain } from "@web/core/domain";
 import { useService } from "@web/core/utils/hooks";
 
@@ -15,6 +16,7 @@ export class SnippetVisibilityOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.getModel = this.dependencies["mass_mailing.SnippetVisibility"].getModel;
         this.treeProcessor = useService("tree_processor");
         this.dialog = useService("dialog");
@@ -45,7 +47,7 @@ export class SnippetVisibilityOption extends BaseOptionComponent {
         const tree = await this.treeProcessor.treeFromDomain(
             resModel,
             domain,
-            !this.env.debug,
+            !this.debug,
         );
         // Extract subtrees connected by an `&`, Odoo Standard for domain facets
         const trees = !tree.negate && tree.value === "&" ? tree.children : [tree];
@@ -69,7 +71,7 @@ export class SnippetVisibilityOption extends BaseOptionComponent {
             {
                 resModel: this.getModel(),
                 domain: this.state.domain.toString(),
-                isDebugMode: !!this.env.debug,
+                isDebugMode: !!this.debug,
                 onConfirm: (domain) => {
                     const newDomain = new Domain(domain);
                     this.state.domain = newDomain;

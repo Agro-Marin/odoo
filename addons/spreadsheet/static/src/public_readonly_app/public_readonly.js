@@ -3,6 +3,7 @@ import * as spreadsheet from "@odoo/o-spreadsheet";
 import { Model, registries, Spreadsheet } from "@odoo/o-spreadsheet";
 import { Component, onWillStart, useChildSubEnv, useState } from "@odoo/owl";
 import { useSpreadsheetNotificationStore } from "@spreadsheet/hooks";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { download } from "@web/core/network";
@@ -31,6 +32,7 @@ export class PublicReadonlySpreadsheet extends Component {
     };
 
     setup() {
+        this.debug = useDebugMode();
         useLifecycleLog(log);
         useSpreadsheetNotificationStore();
         this.http = useService("http");
@@ -79,7 +81,7 @@ export class PublicReadonlySpreadsheet extends Component {
             },
             this.data.revisions || [],
         );
-        if (this.env.debug) {
+        if (this.debug) {
             const debugObj = spreadsheet.__DEBUG__ || {};
             debugObj.model = this.model;
             globalThis.__SPREADSHEET_DEBUG__ = debugObj;

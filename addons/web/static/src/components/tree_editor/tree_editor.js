@@ -17,6 +17,7 @@ import {
     getDefaultValue,
     getValueEditorInfo,
 } from "@web/components/tree_editor/tree_editor_value_editors";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { parseExpr } from "@web/core/py_js/py";
@@ -82,6 +83,7 @@ export class TreeEditor extends Component {
     defaultCondition;
 
     setup() {
+        this.debug = useDebugMode();
         useLifecycleLog(log);
         this.isTree = isTree;
         this.fieldService = useService("field");
@@ -194,7 +196,7 @@ export class TreeEditor extends Component {
     get isDebugMode() {
         return this.props.isDebugMode !== undefined
             ? this.props.isDebugMode
-            : !!this.env.debug;
+            : !!this.debug;
     }
 
     notifyChanges() {

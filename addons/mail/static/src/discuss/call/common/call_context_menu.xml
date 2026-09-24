@@ -10,7 +10,7 @@
  <output t-out="`${Math.round(this.state.rangeVolume * 200)}%`" class="o-mail-CallContextMenu-volumeTooltip fw-bold rounded" t-attf-style="--progress:{{this.state.rangeVolume * 100}}%;"/>
  </div>
  </div>
- <t t-if="this.env.debug and !this.isSelf and this.rtc.state.connectionType === this.rtcConnectionTypes.P2P">
+ <t t-if="this.debug and !this.isSelf and this.rtc.state.connectionType === this.rtcConnectionTypes.P2P">
  <hr class="w-100 border-top"/>
  <div><span class="fw-bolder">RTC Session ID: </span><t t-out="this.props.rtcSession.id"/></div>
  <div><span class="fw-bolder">Connection type: </span><t t-out="this.rtc.state.connectionType"/></div>
@@ -29,7 +29,7 @@
  <div><span class="fw-bolder">Packets received: </span><t t-out="this.state.peerStats.packetsReceived"/></div>
  <div><span class="fw-bolder">Log step: </span><t t-out="this.props.rtcSession.logStep"/></div>
  </t>
- <t t-elif="this.env.debug and this.isSelf and this.rtc.state.connectionType === this.rtcConnectionTypes.SERVER">
+ <t t-elif="this.debug and this.isSelf and this.rtc.state.connectionType === this.rtcConnectionTypes.SERVER">
  <div><span class="fw-bolder">Connection type: </span><t t-out="this.rtc.state.connectionType"/></div>
  <div><span class="fw-bolder">RTC Session ID: </span><t t-out="this.props.rtcSession.id"/></div>
  <hr class="w-100 border-top"/>

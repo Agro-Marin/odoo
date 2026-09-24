@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useRef, useState } from "@odoo/owl";
 import { WarningDialog } from "@web/components/errors";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useNestedSortable } from "@web/core/utils/dnd";
@@ -20,6 +21,7 @@ export class AccountReportListRenderer extends ListRenderer {
     static template = "account.AccountReportList";
 
     setup() {
+        this.debug = useDebugMode();
         this.config = useViewConfig();
         this.dialog = useService("dialog");
         this.orm = useService("orm");

@@ -10,6 +10,7 @@ import {
 import { CodeEditor } from "@web/components/code_editor";
 import { CheckboxItem, Dropdown, DropdownItem } from "@web/components/dropdown";
 import { SelectMenu } from "@web/components/select_menu";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
@@ -58,7 +59,7 @@ export class ResourceEditor extends Component {
 
         this.editorRef = useRef("editor");
 
-        this.debug = this.env.debug;
+        this.debug = useDebugMode();
         this.viewKey =
             this.website.pageDocument &&
             this.website.pageDocument.documentElement.dataset.viewXmlid;

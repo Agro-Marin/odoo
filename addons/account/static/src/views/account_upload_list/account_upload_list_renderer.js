@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { BillGuide } from "@account/components/bill_guide/bill_guide";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { useSearchModel } from "@web/search/search_model";
 
 import { FileUploadListRenderer } from "../file_upload_list/file_upload_list_renderer.js";
@@ -13,6 +14,7 @@ export class AccountUploadListRenderer extends FileUploadListRenderer {
 
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.searchModel = useSearchModel();
     }
 

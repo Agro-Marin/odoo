@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { formatChar } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
@@ -21,6 +22,11 @@ export class FieldSelectorField extends FieldComponent {
         followRelations: { type: Boolean, optional: true },
         required: { type: Boolean, optional: true },
     };
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 
     /** @param {Record<string, any>} fieldDef */
     filter(fieldDef) {
@@ -63,7 +69,7 @@ export class FieldSelectorField extends FieldComponent {
             resModel: this.resModel,
             readonly: this.props.readonly,
             update: this.update.bind(this),
-            isDebugMode: !!this.env.debug,
+            isDebugMode: !!this.debug,
             filter: this.filter.bind(this),
             followRelations: this.props.followRelations,
         };

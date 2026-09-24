@@ -4,6 +4,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { ListRenderer, listView } from "@web/views/list";
 import { useViewModel } from "@web/model/model";
+import { useDebugMode } from "@web/core/debug/debug_context";
 
 export class LoyaltyActionHelper extends Component {
     static template = "loyalty.LoyaltyActionHelper";
@@ -45,6 +46,11 @@ export class LoyaltyListRenderer extends ListRenderer {
         ...ListRenderer.components,
         LoyaltyActionHelper,
     };
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 }
 
 export const LoyaltyListView = {

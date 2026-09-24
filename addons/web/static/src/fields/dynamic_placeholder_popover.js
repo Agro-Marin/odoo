@@ -3,6 +3,7 @@
 
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { ModelFieldSelectorPopover } from "@web/components/model_field_selector/model_field_selector_popover";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { user } from "@web/core/user";
 import { useAutofocus, useOptionalService } from "@web/core/utils/hooks";
 
@@ -36,6 +37,7 @@ export class DynamicPlaceholderPopover extends Component {
     allowedQwebExpressions = [];
 
     setup() {
+        this.debug = useDebugMode();
         useAutofocus();
         this.state = useState({
             path: "",

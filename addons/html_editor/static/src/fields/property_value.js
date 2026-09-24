@@ -6,6 +6,7 @@ import { MAIN_PLUGINS } from "@html_editor/plugin_sets";
 import { normalizeHTML } from "@html_editor/utils/html";
 import { Wysiwyg } from "@html_editor/wysiwyg";
 import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { localization } from "@web/core/l10n/localization";
 import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
@@ -14,6 +15,7 @@ import { PropertyValue } from "@web/fields/specialized/properties";
 
 patch(PropertyValue.prototype, {
     setup() {
+        this.debug = useDebugMode();
         this.htmlUpgradeManager = new HtmlUpgradeManager();
         this.setFieldDirty = useFieldDirtySignal();
         this.lastHtmlValue = this.propertyValue?.toString();
@@ -73,7 +75,7 @@ patch(PropertyValue.prototype, {
 
         return {
             content: this.propertyValue,
-            debug: !!this.env.debug,
+            debug: !!this.debug,
             direction: localization.direction || "ltr",
             onChange: this.onWysiwygChange.bind(this),
             placeholder: this.props.placeholder,

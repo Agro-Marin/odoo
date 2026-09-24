@@ -65,7 +65,7 @@
  value="field.value"
  name="field.name"
  >
- <span class="d-flex align-items-center"><span class="text-truncate" t-out="field.label"/><span class="ps-1" t-if="this.env.debug" t-out="' (' + field.name + ')'" /></span>
+ <span class="d-flex align-items-center"><span class="text-truncate" t-out="field.label"/><span class="ps-1" t-if="this.debug" t-out="' (' + field.name + ')'" /></span>
  </CheckBox>
  </DropdownItem>
  </t>

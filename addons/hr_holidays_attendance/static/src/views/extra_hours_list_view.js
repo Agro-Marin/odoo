@@ -4,6 +4,7 @@ import { ListRenderer, listView } from "@web/views/list";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useSearchModel } from "@web/search/search_model";
+import { useDebugMode } from "@web/core/debug/debug_context";
 
 export class ExtraHoursSummary extends Component {
     static template = "hr_attendance.ExtraHoursSummary";
@@ -65,6 +66,11 @@ export class ExtraHoursListRenderer extends ListRenderer {
         ...ListRenderer.components,
         ExtraHoursSummary,
     };
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 }
 
 export const extraHoursListView = {

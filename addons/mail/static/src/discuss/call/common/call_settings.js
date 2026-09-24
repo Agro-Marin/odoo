@@ -6,6 +6,7 @@ import { useMicrophoneVolume } from "@mail/utils/common/hooks";
 import { Component, onWillStart, useExternalListener, useState, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -22,6 +23,7 @@ export class CallSettings extends Component {
 
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.notification = useService("notification");
         this.store = useService("mail.store");
         this.rtc = useService("discuss.rtc");

@@ -53,7 +53,7 @@
                 close.bind="this.closeFieldSelector"
                 filter.bind="this.filter"
                 followRelations="true"
-                isDebugMode="!!this.env.debug"
+                isDebugMode="!!this.debug"
                 path="this.state.path"
                 resModel="this.props.resModel"
                 readProperty="true"

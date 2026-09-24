@@ -19,6 +19,7 @@ import { isHtmlEmpty } from "@web/core/utils/dom/html";
 import { isEmail } from "@web/core/utils/format/strings";
 import { FileUploader } from "@web/core/file_upload";
 import { endPos } from "@html_editor/utils/position";
+import { useDebugMode } from "@web/core/debug/debug_context";
 
 export class ProfileDialog extends Component {
     static template = "website_profile.ProfileDialog";
@@ -43,6 +44,7 @@ export class ProfileDialog extends Component {
 
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.notification = useService("notification");
         this.orm = useService("orm");
         this.upload = useRef("upload");
@@ -86,7 +88,7 @@ export class ProfileDialog extends Component {
                 allowImage: isInternalUser,
                 classList: ["form-control", websiteDescriptionClass],
                 content: this.user.website_description,
-                debug: !!this.env.debug,
+                debug: !!this.debug,
                 direction: localization.direction || "ltr",
                 placeholder: _t("Write a few words about yourself..."),
             };

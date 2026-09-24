@@ -1,11 +1,17 @@
 /** @odoo-module native */
 import { AccountReport } from "@report_formula/components/account_report/account_report";
 import { AccountReportFilters } from "@report_formula/components/account_report/filters/filters";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { parseFloat } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 
 export class MulticurrencyRevaluationReportFilters extends AccountReportFilters {
     static template = "account.MulticurrencyRevaluationReportFilters";
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 
     //------------------------------------------------------------------------------------------------------------------
     // Custom filters

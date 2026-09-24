@@ -3,6 +3,7 @@ import { DEFAULT_PALETTE } from "@html_editor/utils/color";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { isSrcCorsProtected } from "@html_editor/utils/image";
 import { useRef, useState } from "@odoo/owl";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
@@ -66,6 +67,7 @@ export class ImageSelector extends FileSelector {
 
     setup() {
         super.setup();
+        this.debug = useDebugMode();
 
         this.keepLastLibraryMedia = new KeepLast();
 
@@ -85,7 +87,7 @@ export class ImageSelector extends FileSelector {
                 IMAGE_EXTENSIONS.join(", "),
         );
         this.allLoadedText = _t("All images have been loaded");
-        this.showOptimizedOption = this.env.debug;
+        this.showOptimizedOption = this.debug;
         this.MIN_ROW_HEIGHT = 128;
 
         this.fileMimetypes = IMAGE_MIMETYPES.join(",");
@@ -144,7 +146,7 @@ export class ImageSelector extends FileSelector {
         domain.push("!", ["name", "=like", "%.crop"]);
         domain.push("|", ["type", "=", "binary"], "!", ["url", "=like", "/%/static/%"]);
 
-        if (!this.env.debug) {
+        if (!this.debug) {
             const subDomain = [false];
 
             const originalId = this.props.media && this.props.media.dataset.originalId;

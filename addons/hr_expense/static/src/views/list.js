@@ -12,6 +12,7 @@ import { user } from "@web/core/user";
 import { listView, ListController, ListRenderer } from "@web/views/list";
 
 import { onWillStart } from "@odoo/owl";
+import { useDebugMode } from "@web/core/debug/debug_context";
 
 export class ExpenseListController extends ExpenseDocumentUpload(ListController) {
     static template = `hr_expense.ListView`;
@@ -92,6 +93,11 @@ export class ExpenseListRenderer extends ExpenseDocumentDropZone(
     ExpenseMobileQRCode(ListRenderer),
 ) {
     static template = "hr_expense.ListRenderer";
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 }
 
 export class ExpenseDashboardListRenderer extends ExpenseListRenderer {
@@ -100,6 +106,11 @@ export class ExpenseDashboardListRenderer extends ExpenseListRenderer {
         ExpenseDashboard,
     };
     static template = "hr_expense.DashboardListRenderer";
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 }
 
 registry.category("views").add("hr_expense_tree", {

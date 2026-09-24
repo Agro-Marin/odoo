@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { registry } from "@web/core/registry";
 import { useSearchModel } from "@web/search/search_model";
 import { ListRenderer, listView } from "@web/views/list";
@@ -22,6 +23,11 @@ export class StockListRenderer extends ListRenderer {
         ...ListRenderer.components,
         StockActionHelper,
     };
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 }
 
 export const StockListView = {

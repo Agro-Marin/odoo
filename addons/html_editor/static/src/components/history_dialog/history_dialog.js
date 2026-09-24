@@ -13,6 +13,7 @@ import { Notebook } from "@web/components/notebook";
 import { loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
 import { colorScheme } from "@web/core/color_scheme";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { formatDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
@@ -59,6 +60,7 @@ export class HistoryDialog extends Component {
     });
 
     setup() {
+        this.debug = useDebugMode();
         this.ui = useService("ui");
         this.size = "fullscreen";
         this.title = this.props.title;
@@ -115,7 +117,7 @@ export class HistoryDialog extends Component {
     }
 
     async init() {
-        if (this.env.debug) {
+        if (this.debug) {
             await loadBundle("html_editor.assets_history_diff");
         }
         await this.updateCurrentRevision(this.state.revisionsData[0]["revision_id"]);
@@ -151,7 +153,7 @@ export class HistoryDialog extends Component {
 
     getRevisionComparisonSplit = memoize(
         async function getRevisionComparisonSplit(revisionId) {
-            if (!this.env.debug || revisionId === -1) {
+            if (!this.debug || revisionId === -1) {
                 return "";
             }
             const unifiedDiffString = await this.orm.call(

@@ -3,7 +3,7 @@ import { Component, onMounted, onWillStart, reactive } from "@odoo/owl";
 import { Navbar } from "@point_of_sale/app/components/navbar/navbar";
 import { CustomerDisplayPosAdapter } from "@point_of_sale/app/customer_display/customer_display_adapter";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
-import { useOwnDebugContext } from "@web/core/debug/debug_context";
+import { useDebugMode, useOwnDebugContext } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { Transition } from "@web/core/transition";
@@ -22,6 +22,7 @@ export class Chrome extends Component {
     static components = { Transition, MainComponentsContainer, Navbar };
     static props = { disableLoader: Function };
     setup() {
+        this.debug = useDebugMode();
         useLifecycleLog(log);
         this.pos = usePos();
         useIdleTimer(this.pos.idleTimeout, (ev) => {
@@ -38,7 +39,7 @@ export class Chrome extends Component {
         });
         log.lifecycle("Chrome setup", () => ({
             screen: this.pos.router.state.current,
-            debug: this.env.debug,
+            debug: this.debug,
             fakeTours: Boolean(odoo.use_pos_fake_tours),
             bigScrollbars: this.pos.config.iface_big_scrollbars,
         }));
@@ -49,7 +50,7 @@ export class Chrome extends Component {
         const reactivePos = reactive(this.pos);
         window.posmodel = reactivePos;
         useOwnDebugContext();
-        if (this.env.debug) {
+        if (this.debug) {
             initDebugFormatters();
         }
 

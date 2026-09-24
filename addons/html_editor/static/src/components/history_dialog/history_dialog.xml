@@ -60,7 +60,7 @@
                     </div>
                     <div t-attf-class="history-comparison-view #{this.state.currentView === 'comparison' ? '' : 'd-none'}">
                         <div class="history-view-top-bar">
-                            <t t-if="this.env.debug">
+                            <t t-if="this.debug">
                                 <div class="toggle-view-btns">
                                     <div class="btn-group" role="group">
                                         <input type="radio" class="btn-check" name="vbtn-radio" id="unified-view-btn"

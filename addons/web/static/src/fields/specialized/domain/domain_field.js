@@ -5,6 +5,7 @@ import { onWillDestroy, useState } from "@odoo/owl";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
 import { useGetDefaultLeafDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { Domain, InvalidDomainError } from "@web/core/domain";
 import { rpc } from "@web/core/network/rpc";
 import { getSelectCreateDialog } from "@web/core/record_dialog_port";
@@ -41,6 +42,7 @@ export class DomainField extends FieldComponent {
     };
 
     setup() {
+        this.debug = useDebugMode();
         this.orm = useService("orm");
         this.notification = useService("notification");
         this.treeProcessor = useService("tree_processor");
@@ -201,7 +203,7 @@ export class DomainField extends FieldComponent {
                     const tree = await this.treeProcessor.treeFromDomain(
                         resModel,
                         domain,
-                        !this.env.debug,
+                        !this.debug,
                     );
                     const castTree = /** @type {any} */ (tree);
                     const trees =
@@ -307,7 +309,7 @@ export class DomainField extends FieldComponent {
         this.addDialog(DomainSelectorDialog, {
             resModel: this.getResModel(),
             domain: this.getDomain(),
-            isDebugMode: !!this.env.debug,
+            isDebugMode: !!this.debug,
             onConfirm: this.update.bind(this),
         });
     }

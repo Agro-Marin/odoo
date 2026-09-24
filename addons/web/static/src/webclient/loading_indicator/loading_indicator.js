@@ -3,6 +3,7 @@
 
 import { Component, onWillUnmount, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
@@ -24,6 +25,7 @@ export class LoadingIndicator extends Component {
     state;
 
     setup() {
+        this.debug = useDebugMode();
         this.state = useState({
             count: 0,
             show: false,

@@ -6,6 +6,7 @@ import { CheckBox } from "@web/components/checkbox/checkbox";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
@@ -23,6 +24,7 @@ export class UserMenu extends Component {
     static props = {};
 
     setup() {
+        this.debug = useDebugMode();
         this.userName = user.name;
         this.dbName = session.db;
     }

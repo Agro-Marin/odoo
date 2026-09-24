@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { ListController, ListRenderer, listView } from "@web/views/list";
@@ -28,6 +29,7 @@ export class BankRecReconcileDialogListRenderer extends ListRenderer {
 
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.ui = useService("ui");
         this.action = useService("action");
         if (this.props.bankRecInfo?.state) {

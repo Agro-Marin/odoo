@@ -19,6 +19,7 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Pager } from "@web/components/pager/pager";
 import { useAction } from "@web/core/action_port";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { localization } from "@web/core/l10n/localization";
@@ -234,6 +235,7 @@ export class ListRenderer extends Component {
     rowApi;
 
     setup() {
+        this.debug = useDebugMode();
         this.config = useViewConfig();
         this.setupServices();
         useLifecycleLog(log);

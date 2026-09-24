@@ -3,6 +3,7 @@
 
 import { Component, status, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { useSyncedInputProperty } from "@web/core/utils/hooks";
 
@@ -54,6 +55,7 @@ export class CheckBox extends Component {
     syncWithValue;
 
     setup() {
+        this.debug = useDebugMode();
         this.id = `checkbox-comp-${CheckBox.nextId++}`;
         this.rootRef = useRef("root");
 
@@ -104,7 +106,7 @@ export class CheckBox extends Component {
                 if (status(this) === "destroyed" || !this.syncWithValue()) {
                     return;
                 }
-                if (!this.env.debug) {
+                if (!this.debug) {
                     return;
                 }
                 browser.console.warn(

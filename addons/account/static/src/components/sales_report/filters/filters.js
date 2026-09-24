@@ -1,10 +1,16 @@
 /** @odoo-module native */
 import { AccountReport } from "@report_formula/components/account_report/account_report";
 import { AccountReportFilters } from "@report_formula/components/account_report/filters/filters";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { _t } from "@web/core/translation";
 
 export class SalesReportFilters extends AccountReportFilters {
     static template = "account.SalesReportFilters";
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 
     //------------------------------------------------------------------------------------------------------------------
     // Getters

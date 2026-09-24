@@ -3,6 +3,7 @@ import { useService } from "@web/core/utils/hooks";
 import { formatMonetary } from "@web/core/formatters";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { useViewConfig } from "@web/core/view_config_hooks";
+import { useDebugMode } from "@web/core/debug/debug_context";
 
 export class ExpenseDashboard extends Component {
     static template = "hr_expense.ExpenseDashboard";
@@ -10,6 +11,7 @@ export class ExpenseDashboard extends Component {
 
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.config = useViewConfig();
         this.orm = useService("orm");
         this.actionService = useService("action");

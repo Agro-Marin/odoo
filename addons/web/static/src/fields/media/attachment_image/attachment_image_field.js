@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { Component } from "@odoo/owl";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { _t } from "@web/core/translation";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -9,6 +10,11 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 export class AttachmentImageField extends Component {
     static template = "web.AttachmentImageField";
     static props = { ...standardFieldProps };
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 }
 
 /** @type {import("registries").FieldsRegistryItemShape} */

@@ -2,10 +2,16 @@
 import { AccountReport } from "@report_formula/components/account_report/account_report";
 import { AccountReportFilters } from "@report_formula/components/account_report/filters/filters";
 import { WarningDialog } from "@web/components/errors";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { _t } from "@web/core/translation";
 
 export class AgedPartnerBalanceFilters extends AccountReportFilters {
     static template = "account.AgedPartnerBalanceFilters";
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 
     //------------------------------------------------------------------------------------------------------------------
     // Aging Interval

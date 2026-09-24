@@ -95,7 +95,7 @@
                     </div>
 
                     <!-- Second row-->
-                    <t t-if="this.env.debug">
+                    <t t-if="this.debug">
                         <div class="o_import_grid_col">
                             <label for="o_input_maxSizePerBatch">Max size per batch</label>
                             <sup t-if="this.props.binaryFilesParams.maxSizePerBatch.help" class="text-info p-1 cursor-default" t-att-data-tooltip="this.props.binaryFilesParams.maxSizePerBatch.help" t-out="'?'"/>
@@ -131,7 +131,7 @@
                 </div>
 
             </div>
-            <div t-if="this.env.debug" class="o_import_debug_options pt-3 pb-4 border-top">
+            <div t-if="this.debug" class="o_import_debug_options pt-3 pb-4 border-top">
                 <h4>Advanced</h4>
                 <div data-tooltip="If the model uses openchatter, history tracking will set up subscriptions and send notifications during the import, but lead to a slower import.">
                     <CheckBox value="!this.props.options.tracking_disable" onChange.bind="(isChecked) => this.props.onOptionChanged('tracking_disable', !isChecked)">

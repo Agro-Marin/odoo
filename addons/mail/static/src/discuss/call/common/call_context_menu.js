@@ -3,6 +3,7 @@
 import { CONNECTION_TYPES } from "@mail/discuss/call/common/rtc_service";
 import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 /** @type {Object<string, string>} */
@@ -34,6 +35,7 @@ export class CallContextMenu extends Component {
 
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.store = useService("mail.store");
         this.rtc = useService("discuss.rtc");
         this.state = useState({
@@ -48,7 +50,7 @@ export class CallContextMenu extends Component {
             rangeVolume: this.volume,
         });
         onMounted(() => {
-            if (!this.env.debug) {
+            if (!this.debug) {
                 return;
             }
             this.updateStats();

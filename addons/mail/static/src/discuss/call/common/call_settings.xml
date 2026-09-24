@@ -126,7 +126,7 @@
             </t>
             <hr class="o-discuss-separator my-2"/>
             <h4>Technical Settings</h4>
-            <t t-if="this.env.debug">
+            <t t-if="this.debug">
                 <div class="d-flex flex-column my-1">
                     <t t-call="discuss.CallSettings.textToggler"
                         text.translate="Log RTC events"

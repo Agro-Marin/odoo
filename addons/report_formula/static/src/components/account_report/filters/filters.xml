@@ -51,7 +51,7 @@
             <t t-call="report_formula.AccountReportFilterRoundingUnit"/>
         </div>
 
-        <t t-if="this.env.debug">
+        <t t-if="this.debug">
             <div id="filter_configuration" class="o-dropdown dropdown o-dropdown--no-caret">
                 <button
                     class="btn btn-secondary"

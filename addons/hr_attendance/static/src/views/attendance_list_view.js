@@ -3,6 +3,7 @@ import { registry } from "@web/core/registry";
 
 import { listView, ListRenderer } from "@web/views/list";
 import { AttendanceActionHelper } from "@hr_attendance/views/attendance_helper_view";
+import { useDebugMode } from "@web/core/debug/debug_context";
 
 export class AttendanceListRenderer extends ListRenderer {
     static template = "hr_attendance.AttendanceListRenderer";
@@ -10,6 +11,11 @@ export class AttendanceListRenderer extends ListRenderer {
         ...ListRenderer.components,
         AttendanceActionHelper,
     };
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 
     get showNoContentHelper() {
         return super.showNoContentHelper && this.props.list.count < 6;

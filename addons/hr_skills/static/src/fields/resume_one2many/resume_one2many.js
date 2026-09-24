@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { formatDate } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -14,6 +15,11 @@ export class ResumeListRenderer extends CommonSkillsListRenderer {
     static rowsTemplate = "hr_skills.ResumeListRenderer.Rows";
     static recordRowTemplate = "hr_skills.ResumeListRenderer.RecordRow";
     static useMagicColumnWidths = false;
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 
     get groupBy() {
         return "line_type_id";

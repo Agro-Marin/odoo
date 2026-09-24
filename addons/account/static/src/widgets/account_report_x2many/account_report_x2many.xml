@@ -125,7 +125,7 @@
                                 <span class="d-flex align-items-center">
                                     <span class="text-truncate" t-out="field.label"/>
 
-                                    <t t-if="this.env.debug">
+                                    <t t-if="this.debug">
                                         <span class="ps-1" t-out="' (' + field.name + ')'"/>
                                     </t>
                                 </span>

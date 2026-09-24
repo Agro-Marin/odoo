@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { onWillStart } from "@odoo/owl";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -12,6 +13,7 @@ export class SkillsListRenderer extends CommonSkillsListRenderer {
     static template = "hr_skills.SkillsListRenderer";
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.model = useViewModel();
         this.orm = useService("orm");
         this.actionService = useService("action");

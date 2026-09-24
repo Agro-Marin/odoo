@@ -9,6 +9,7 @@ import { LunchRendererMixin } from "../mixins/lunch_renderer_mixin.js";
 import { LunchSearchModel } from "./search_model.js";
 import { LunchSearchPanel } from "./search_panel.js";
 import { useSearchModel } from "@web/search/search_model";
+import { useDebugMode } from "@web/core/debug/debug_context";
 
 export class LunchListRenderer extends LunchRendererMixin(ListRenderer) {
     static template = "lunch.ListRenderer";
@@ -19,6 +20,7 @@ export class LunchListRenderer extends LunchRendererMixin(ListRenderer) {
 
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.searchModel = useSearchModel();
         const { locationId } = this.searchModel.lunchState;
         if (!locationId) {

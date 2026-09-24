@@ -13,6 +13,7 @@ import { MassMailingIframe } from "@mass_mailing/iframe/mass_mailing_iframe";
 import { ThemeSelector } from "@mass_mailing/themes/theme_selector/theme_selector";
 import { onWillUpdateProps, status, toRaw, useEffect, useRef } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -46,6 +47,7 @@ export class MassMailingHtmlField extends HtmlField {
             }
         });
         super.setup();
+        this.debug = useDebugMode();
         this.themeService = useService("mass_mailing.themes");
         this.ui = useService("ui");
         Object.assign(this.state, {
@@ -200,7 +202,7 @@ export class MassMailingHtmlField extends HtmlField {
             showCodeView: this.state.showCodeView,
             withBuilder: this.withBuilder,
         };
-        if (this.env.debug) {
+        if (this.debug) {
             Object.assign(props, {
                 toggleCodeView: () => this.toggleCodeView(),
             });
@@ -266,7 +268,7 @@ export class MassMailingHtmlField extends HtmlField {
             .flat()
             .find((cmd) => cmd.id === "codeview");
         if (codeViewCommand) {
-            codeViewCommand.isAvailable = () => this.env.debug;
+            codeViewCommand.isAvailable = () => this.debug;
         }
         return {
             ...config,

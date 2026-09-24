@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { ListRenderer } from "@web/views/list";
 
 import { FileUploadDropzoneRendererMixin } from "../file_upload_dropzone_renderer_mixin.js";
@@ -7,4 +8,9 @@ export class FileUploadListRenderer extends FileUploadDropzoneRendererMixin(
     ListRenderer,
 ) {
     static template = "account.FileUploadListRenderer";
+
+    setup() {
+        super.setup();
+        this.debug = useDebugMode();
+    }
 }

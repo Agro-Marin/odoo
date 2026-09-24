@@ -6,6 +6,7 @@ import { makeDefaultCondition } from "@web/components/domain_selector/utils";
 import { getExpressionDisplayedOperators } from "@web/components/expression_editor/expression_editor_operator_editor";
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
 import { getOperatorEditorInfo, TreeEditor } from "@web/components/tree_editor";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { _t } from "@web/core/translation";
 import { formatValue } from "@web/core/tree/condition_tree";
 import { expressionFromTree } from "@web/core/tree/expression_from_tree";
@@ -24,6 +25,7 @@ export class ExpressionEditor extends Component {
     filteredFields = {};
 
     setup() {
+        this.debug = useDebugMode();
         onWillStart(() => this.onPropsUpdated(this.props));
         onWillUpdateProps((nextProps) => this.onPropsUpdated(nextProps));
     }
@@ -119,7 +121,7 @@ export class ExpressionEditor extends Component {
     }
 
     get isDebugMode() {
-        return !!this.env.debug;
+        return !!this.debug;
     }
 
     /** @param {string} expression */

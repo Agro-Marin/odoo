@@ -15,6 +15,7 @@ import { StandNumberPage } from "@pos_self_order/app/pages/stand_number_page/sta
 import { Router } from "@pos_self_order/app/router";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { hasTouch } from "@web/core/browser/feature_detection";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 
 import { insertKioskStyle } from "./kiosk_style.js";
@@ -39,6 +40,7 @@ export class selfOrderIndex extends Component {
     };
 
     setup() {
+        this.debug = useDebugMode();
         this.selfOrder = useSelfOrder();
         window.posmodel = this.selfOrder;
 
@@ -57,7 +59,7 @@ export class selfOrderIndex extends Component {
             insertKioskStyle(primaryBgColor, primaryTextColor);
         }
 
-        if (this.env.debug) {
+        if (this.debug) {
             initDebugFormatters();
         }
     }

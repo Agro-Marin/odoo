@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { useEffect } from "@odoo/owl";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
@@ -15,12 +16,13 @@ websiteSystrayRegistry.add("UserMenu", { Component: UserMenu }, { sequence: 14 }
 patch(NavBar.prototype, {
     setup() {
         super.setup();
+        this.debug = useDebugMode();
         this.websiteService = useService("website");
         this.websiteCustomMenus = useService("website_custom_menus");
 
         useBus(websiteSystrayRegistry, "EDIT-WEBSITE", () => this.render(true));
 
-        if (this.env.debug && !websiteSystrayRegistry.contains("web.debug_mode_menu")) {
+        if (this.debug && !websiteSystrayRegistry.contains("web.debug_mode_menu")) {
             log.logic("NavBar register debug menu in website systray");
             websiteSystrayRegistry.add(
                 "web.debug_mode_menu",
