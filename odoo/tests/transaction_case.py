@@ -1,10 +1,12 @@
 import contextlib
 import difflib
 import inspect
+import ipaddress
 import logging
 import pathlib
 import pprint
 import re
+import socket
 import sys
 import threading
 import traceback
@@ -204,6 +206,34 @@ class BlockedRequest(requests.exceptions.ConnectionError):
 
 
 _super_send = requests.Session.send
+_super_getaddrinfo = socket.getaddrinfo
+
+
+# RFC 6761 names that never resolve anywhere; every other external name gets
+# a public address, so the egress guard lets it through to the request block
+# (BlockedRequest) as it would with a working resolver, without a DNS lookup
+_UNRESOLVABLE_SUFFIXES = (".invalid", ".test")
+_EXTERNAL_TEST_ADDRESS = "93.184.216.34"
+
+
+def _resolves_for_real(name: str) -> bool:
+    if name in (HOST, "localhost") or name.endswith(".localhost"):
+        return True
+    try:
+        ipaddress.ip_address(name)
+    except ValueError:
+        return False
+    return True
+
+
+def _offline_getaddrinfo(host, port=None, *args, **kwargs):
+    name = (host.decode() if isinstance(host, bytes) else str(host or "")).strip("[]")
+    if not name or _resolves_for_real(name):
+        return _super_getaddrinfo(host, port, *args, **kwargs)
+    if name.rstrip(".").endswith(_UNRESOLVABLE_SUFFIXES):
+        raise socket.gaierror(socket.EAI_NONAME, f"{name} does not exist")
+    _debug.logic("test.dns.answered", host=name)
+    return _super_getaddrinfo(_EXTERNAL_TEST_ADDRESS, port, *args, **kwargs)
 
 
 def _raise_test_timeout(timeout):
@@ -490,6 +520,11 @@ class BaseCase(TestCase):
             )
             patcher.start()
             cls.addClassCleanup(patcher.stop)
+            # the egress guard resolves a name before `requests` sends: without
+            # this, an external name waits on a DNS lookup the test may not need
+            dns_patcher = patch.object(socket, "getaddrinfo", _offline_getaddrinfo)
+            dns_patcher.start()
+            cls.addClassCleanup(dns_patcher.stop)
         _debug.lifecycle(
             "test.case.setup_class",
             cls=cls.__qualname__,
