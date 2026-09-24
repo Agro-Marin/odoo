@@ -975,7 +975,7 @@ msgstr ""
 "European Union."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which "
@@ -16414,7 +16414,7 @@ msgid "Add certification to resume of your employees"
 msgstr "在员工简历中添加认证"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr "增加用于管理POS资产包中的自定义税项代码"
 
@@ -17311,7 +17311,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr "分配休假时间并遵循休假请求"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "允许在 POS 系统中自定义税项"
 
@@ -24253,7 +24253,7 @@ msgid "Default website theme"
 msgstr "默认网站主题"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "用python代码定义税"
 
@@ -47376,7 +47376,7 @@ msgstr ""
 "将经常被选中的国家分组（如 \"拉丁美洲和加勒比\"、\"比荷卢\"、\"东盟\"）。"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "使用 python 代码定义税收"
 

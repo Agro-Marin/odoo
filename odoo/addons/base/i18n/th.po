@@ -939,7 +939,7 @@ msgstr ""
 "สหภาพยุโรป"
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which "
@@ -16099,7 +16099,7 @@ msgid "Add certification to resume of your employees"
 msgstr "เพิ่มการรับรองเพื่อดำเนินการต่อของพนักงานของคุณ"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr "เพิ่มโค้ดสำหรับจัดการภาษีแบบกำหนดเองลงในกลุ่มสินทรัพย์ POS"
 
@@ -17004,7 +17004,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "อนุญาตให้มีภาษีแบบกำหนดเองใน POS"
 
@@ -23970,7 +23970,7 @@ msgid "Default website theme"
 msgstr "ธีม"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "รหัส Python"
 
@@ -47081,7 +47081,7 @@ msgstr ""
 "\"ASEAN\")"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "ใช้รหัส Python เพื่อกำหนดภาษี"
 

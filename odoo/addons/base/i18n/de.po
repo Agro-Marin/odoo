@@ -1029,7 +1029,7 @@ msgstr ""
 "Gütern innerhalb der Europäischen Union."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which "
@@ -17850,7 +17850,7 @@ msgid "Add certification to resume of your employees"
 msgstr "Zertifizierung zum Lebenslauf Ihrer Mitarbeiter hinzufügen"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr ""
 "Fügen Sie einen Code hinzu, um benutzerdefinierte Steuern zum Assets-Bündel "
@@ -18833,7 +18833,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr "Abwesenheiten zuweisen und Urlaubsanträge verfolgen"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "Benutzerdefinierte Steuern im Kassensystem erlauben"
 
@@ -25954,7 +25954,7 @@ msgid "Default website theme"
 msgstr "Standard-Website-Designmotiv"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "Steuern als Python-Code definieren"
 
@@ -50004,7 +50004,7 @@ msgstr ""
 "ausgewählt werden (z. B. „Latam“, „BeNeLux“, „Asean“)."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "Verwenden Sie den Python-Code zur Definition von Steuern"
 

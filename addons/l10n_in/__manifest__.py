@@ -19,7 +19,7 @@ Sheet, now only Vertical format has been permitted Which is Supported By Odoo.
     "icon": "/account/static/description/l10n.png",
     "license": "LGPL-3",
     "depends": [
-        "account_tax_python",
+        "tax_python",
         "account_vat",
         "account_debit_note",
         "account",

@@ -1020,7 +1020,7 @@ msgstr ""
 "Europeiska unionen."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which "
@@ -17624,7 +17624,7 @@ msgid "Add certification to resume of your employees"
 msgstr "Lägg till certifiering i dina anställdas meritförteckning"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr "Lägg till kod för att hantera anpassade skatter i POS-tillgångspaketet"
 
@@ -18593,7 +18593,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr "Tilldela ledig tid och följ upp ledighetsförfrågningar"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "Tillåt anpassade skatter i POS"
 
@@ -25661,7 +25661,7 @@ msgid "Default website theme"
 msgstr "Standardtema för webbplatsen"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "Ange skatter som Python-kod"
 
@@ -49471,7 +49471,7 @@ msgstr ""
 "\"LATAM\", \"BeNeLux\", \"ASEAN\")."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "Använd pythonkod för att definiera skatter"
 

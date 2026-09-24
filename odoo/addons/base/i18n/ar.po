@@ -997,7 +997,7 @@ msgstr ""
 "يعرض لك هذا التطبيق تفاصيل البضائع المتداولة بين دول الاتحاد الأوروبي."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which "
@@ -17382,7 +17382,7 @@ msgid "Add certification to resume of your employees"
 msgstr "إضافة الشهادة إلى سيَر موظفيك الذاتية"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr "قم بإضافة كود إلى مجموعة أصول نقطة البيع لإدارة الضرائب المخصصة"
 
@@ -18318,7 +18318,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr "قم بتخصيص أيام الإجازة ومتابعة طلبات الإجازات"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "السماح بالضرائب المخصصة في نقطة البيع"
 
@@ -25348,7 +25348,7 @@ msgid "Default website theme"
 msgstr "سمة الموقع الافتراضية"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "تعريف الضرائب ككود بايثون"
 
@@ -48913,7 +48913,7 @@ msgstr ""
 "اللاتينية\"، \"بينيلوكس\"، \"أسيان\")."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "استخدم كود بايثون لتحديد الضرائب"
 

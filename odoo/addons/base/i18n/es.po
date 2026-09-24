@@ -933,7 +933,7 @@ msgstr ""
 "Este módulo ofrece detalles de los bienes comerciados entre países de la Unión Europea."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which are executed in a local environment containing data such as the unit price, product or partner.\n"
@@ -16021,7 +16021,7 @@ msgid "Add certification to resume of your employees"
 msgstr "Añada certificaciones a los currículums de sus empleados"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr ""
 "Añada un código para gestionar los impuestos personalizados para los activos"
@@ -16946,7 +16946,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr "Asigne permisos y siga las solicitudes de permisos"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "Permitir impuestos en el TPV"
 
@@ -24157,7 +24157,7 @@ msgid "Default website theme"
 msgstr "Tema predeterminado del sitio web"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "Definir impuestos como código Python"
 
@@ -47929,7 +47929,7 @@ msgstr ""
 "(p. ej. \"LATAM\", \"BeNeLux\", \"ASEAN\")."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "Use código Python para definir los impuestos"
 

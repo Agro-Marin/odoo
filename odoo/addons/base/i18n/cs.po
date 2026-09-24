@@ -970,7 +970,7 @@ msgstr ""
 "Tento modul uvádí podrobnosti o zboží obchodovaném mezi zeměmi Evropské unie."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which "
@@ -16678,7 +16678,7 @@ msgid "Add certification to resume of your employees"
 msgstr "Přidat certifikaci k životopisu vašich zaměstnanců"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr "Kód pro správu vlastních daní do baličku aktiv POS"
 
@@ -17618,7 +17618,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr "Přidělujte dovolenou a sledujte požadavky o dovolenou"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "Povole vlastní daně v POS"
 
@@ -24657,7 +24657,7 @@ msgid "Default website theme"
 msgstr "Výchozí téma webstránky"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "Definovat daně jako Python kód"
 
@@ -48287,7 +48287,7 @@ msgstr ""
 "(např. \"LATAM\", \"BeNeLux\", \"ASEAN\")."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "K definování daní použijte python kód"
 

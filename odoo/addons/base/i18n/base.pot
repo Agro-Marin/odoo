@@ -722,7 +722,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which are executed in a local environment containing data such as the unit price, product or partner.\n"
@@ -9383,7 +9383,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax
+#: model:ir.module.module,description:base.module_tax
 msgid ""
 "\n"
 "Tax Computation Engine\n"
@@ -18113,7 +18113,7 @@ msgid "Add certification to resume of your employees"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr ""
 
@@ -18944,7 +18944,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr ""
 
@@ -26388,7 +26388,7 @@ msgid "Defer Reason"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr ""
 
@@ -46119,7 +46119,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax
+#: model:ir.module.module,summary:base.module_tax
 msgid "Standalone tax computation for order types"
 msgstr ""
 
@@ -46908,7 +46908,7 @@ msgid "Task Logs"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax
+#: model:ir.module.module,shortdesc:base.module_tax
 msgid "Tax Computation Engine"
 msgstr ""
 
@@ -50435,7 +50435,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr ""
 

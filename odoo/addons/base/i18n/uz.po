@@ -904,7 +904,7 @@ msgstr ""
 "batafsil ma'lumot beradi."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 #, fuzzy
 msgid ""
 "\n"
@@ -16738,7 +16738,7 @@ msgid "Add certification to resume of your employees"
 msgstr "Xodimlaringiz rezyumesiga sertifikat qo‘shing"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 #, fuzzy
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr ""
@@ -17822,7 +17822,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr "Dam olish vaqtini taqsimlang va ta'til so‘rovlarini kuzatib boring"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 #, fuzzy
 msgid "Allow custom taxes in POS"
 msgstr "POS tizimida maxsus soliqlardan foydalanishga ruxsat berish"
@@ -26138,7 +26138,7 @@ msgid "Default website theme"
 msgstr "Standart veb-sayt mavzusi"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 #, fuzzy
 msgid "Define Taxes as Python Code"
 msgstr "Soliqlarni Python kodi sifatida belgilash"
@@ -52393,7 +52393,7 @@ msgstr ""
 "guruhlardan foydalaning (masalan, \"LATAM\", \"BeNeLux\", \"ASEAN\")"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 #, fuzzy
 msgid "Use python code to define taxes"
 msgstr "Soliqlarni belgilash uchun Python kodidan foydalaning"

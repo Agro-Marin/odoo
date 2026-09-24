@@ -978,7 +978,7 @@ msgstr ""
 "세부사항을 설명합니다."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which "
@@ -17071,7 +17071,7 @@ msgid "Add certification to resume of your employees"
 msgstr "임직원 경력에 자격증 추가"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr "POS 자산 번들에 사용자 지정 세금을 처리하는 코드를 추가합니다."
 
@@ -18009,7 +18009,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr "휴가 배정 및 휴가 신청 내역 관리하기"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "POS에서 사용자 지정 세금 허용"
 
@@ -25018,7 +25018,7 @@ msgid "Default website theme"
 msgstr "기본 웹사이트 테마"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "세금을 파이선 코드로 정의"
 
@@ -48492,7 +48492,7 @@ msgstr ""
 "\"베네룩스\", \"아세안\")."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "파이썬 코드를 사용하여 세금 정의"
 

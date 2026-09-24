@@ -1042,7 +1042,7 @@ msgstr ""
 "Euroopan unionin maiden välillä."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which "
@@ -17656,7 +17656,7 @@ msgid "Add certification to resume of your employees"
 msgstr "Lisää sertifiointi työntekijöiden ansioluetteloon"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr "Lisää koodia mukautettujen verojen hallintaan kassavarojen nipussa"
 
@@ -18618,7 +18618,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr "Jaa lomapäivät ja seuraa lomapyyntöjä"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "Salli mukautetut verot kassassa"
 
@@ -25695,7 +25695,7 @@ msgid "Default website theme"
 msgstr "Verkkosivun oletusteema"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "Määritä verot Python-koodina"
 
@@ -49561,7 +49561,7 @@ msgstr ""
 "\"LATAM\", \"BeNeLux\", \"ASEAN\")."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "Käytä Python-koodia verojen määrittämiseen"
 

@@ -12,7 +12,7 @@ This is the base module to manage the accounting chart for Malaysia in Odoo.
     "license": "LGPL-3",
     "depends": [
         "account",
-        "account_tax_python",
+        "tax_python",
     ],
     "countries": [
         "my",

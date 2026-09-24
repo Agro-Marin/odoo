@@ -1000,7 +1000,7 @@ msgstr ""
 "Liên minh châu Âu."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which "
@@ -17570,7 +17570,7 @@ msgid "Add certification to resume of your employees"
 msgstr "Thêm chứng nhận vào CV của nhân viên"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr "Thêm mã để quản lý thuế tùy chỉnh vào gói tài sản POS"
 
@@ -18529,7 +18529,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr "Phân bổ ngày nghỉ và theo dõi yêu cầu nghỉ phép"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "Cho phép thuế tuỳ chỉnh trong POS"
 
@@ -25601,7 +25601,7 @@ msgid "Default website theme"
 msgstr "Giao diện trang web mặc định"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "Thiết lập Thuế dưới dạng Mã Python"
 
@@ -49463,7 +49463,7 @@ msgstr ""
 "\"LATAM\", \"BeNeLux\", \"ASEAN\")."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "Dùng mã python để cấu hình thuế"
 

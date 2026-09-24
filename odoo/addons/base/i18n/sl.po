@@ -824,7 +824,7 @@ msgstr ""
 "Evropske unije."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which "
@@ -14264,7 +14264,7 @@ msgid "Add certification to resume of your employees"
 msgstr "Dodajte certifikat v življenjepis svojih zaposlenih"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr "Dodajte kodo za upravljanje davkov po meri v paket sredstev POS"
 
@@ -15213,7 +15213,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "Dovoli davke po meri v POS"
 
@@ -22247,7 +22247,7 @@ msgid "Default website theme"
 msgstr "Privzeta tema spletne strani"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "Določi davke v obliki Python kode"
 
@@ -44580,7 +44580,7 @@ msgstr ""
 "\"LATAM\", \"BeNeLux\", \"ASEAN\")."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "Za definiranje davkov uporabite kodo Python"
 

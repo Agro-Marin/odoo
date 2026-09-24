@@ -57,7 +57,7 @@
         <field name="view_mode">form</field>
         <field name="view_id" eval="ref('account.account_tax_merge_wizard_form')" />
         <field name="target">new</field>
-        <field name="binding_model_id" ref="account_tax.model_account_tax" />
+        <field name="binding_model_id" ref="tax.model_account_tax" />
         <field name="binding_type">action</field>
         <field name="binding_view_types">list</field>
         <field name="binding_icon">fa-solid fa-code-merge</field>
@@ -68,8 +68,8 @@
 
     <record id="action_unmerge_taxes" model="ir.actions.server">
         <field name="name">Unmerge Tax</field>
-        <field name="model_id" ref="account_tax.model_account_tax" />
-        <field name="binding_model_id" ref="account_tax.model_account_tax" />
+        <field name="model_id" ref="tax.model_account_tax" />
+        <field name="binding_model_id" ref="tax.model_account_tax" />
         <field name="binding_view_types">form,list</field>
         <field name="binding_icon">fa-solid fa-code-fork</field>
         <field

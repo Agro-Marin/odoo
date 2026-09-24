@@ -17,7 +17,7 @@ You could use this simplified accounting in case you work with an (external) acc
     "depends": [
         "report_formula",
         "account_coa",
-        "account_tax",
+        "tax",
         "onboarding",
         "analytic",
         "digest",

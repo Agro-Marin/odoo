@@ -979,7 +979,7 @@ msgstr ""
 "Uni Eropa."
 
 #. module: base
-#: model:ir.module.module,description:base.module_account_tax_python
+#: model:ir.module.module,description:base.module_tax_python
 msgid ""
 "\n"
 "A tax defined as python code consists of two snippets of python code which "
@@ -17117,7 +17117,7 @@ msgid "Add certification to resume of your employees"
 msgstr "Tambahkan sertifikasi ke resume karyawan Anda"
 
 #. module: base
-#: model:ir.module.module,description:base.module_pos_account_tax_python
+#: model:ir.module.module,description:base.module_pos_tax_python
 msgid "Add code to manage custom taxes to the POS assets bundle"
 msgstr "Tambahkan kode untuk mengelola pajak kustom ke bundle aset POS"
 
@@ -18075,7 +18075,7 @@ msgid "Allocate time off and follow leave requests"
 msgstr "Alokasikan cuti dan ikuti permintaan cuti"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_pos_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_pos_tax_python
 msgid "Allow custom taxes in POS"
 msgstr "Izinkan pajak kustom di POS"
 
@@ -25120,7 +25120,7 @@ msgid "Default website theme"
 msgstr "Tema website default"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_account_tax_python
+#: model:ir.module.module,shortdesc:base.module_tax_python
 msgid "Define Taxes as Python Code"
 msgstr "Definisikan Pajak sebagai Kode Python"
 
@@ -48930,7 +48930,7 @@ msgstr ""
 "(misalnya \"LATAM\", \"BeNeLux\", \"ASEAN\")."
 
 #. module: base
-#: model:ir.module.module,summary:base.module_account_tax_python
+#: model:ir.module.module,summary:base.module_tax_python
 msgid "Use python code to define taxes"
 msgstr "Gunakan kode python untuk mendefinisikan pajak"
 

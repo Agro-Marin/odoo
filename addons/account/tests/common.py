@@ -564,7 +564,7 @@ class AccountTestInvoicingCommon(ProductCommon):
         )
 
     def python_tax(self, formula, **kwargs):
-        self.ensure_installed("account_tax_python")
+        self.ensure_installed("tax_python")
         self.tax_number += 1
         return self.env["account.tax"].create(
             {

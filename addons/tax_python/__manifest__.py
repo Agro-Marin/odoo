@@ -1,0 +1,29 @@
+{
+    "name": "Define Taxes as Python Code",
+    "version": "1.0",
+    "category": "Accounting/Accounting",
+    "summary": "Use python code to define taxes",
+    "description": """
+A tax defined as python code consists of two snippets of python code which are executed in a local environment containing data such as the unit price, product or partner.
+
+"Applicable Code" defines if the tax is to be applied.
+
+"Python Code" defines the amount of the tax.
+        """,
+    "author": "Odoo S.A.",
+    "license": "LGPL-3",
+    "depends": [
+        "account",
+    ],
+    "data": [
+        "views/account_tax_views.xml",
+    ],
+    "assets": {
+        "web.assets_backend": [
+            "tax_python/static/src/helpers/*.js",
+        ],
+        "web.assets_frontend": [
+            "tax_python/static/src/helpers/*.js",
+        ],
+    },
+}

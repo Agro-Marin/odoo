@@ -77,9 +77,9 @@
                 "new_base": "addons/account_qr_code_sepa/i18n/account_qr_code_sepa.pot"
             },
             {
-                "name": "account_tax_python",
-                "filemask": "addons/account_tax_python/i18n/*.po",
-                "new_base": "addons/account_tax_python/i18n/account_tax_python.pot"
+                "name": "tax_python",
+                "filemask": "addons/tax_python/i18n/*.po",
+                "new_base": "addons/tax_python/i18n/tax_python.pot"
             },
             {
                 "name": "account_update_tax_tags",
@@ -872,9 +872,9 @@
                 "new_base": "addons/portal_rating/i18n/portal_rating.pot"
             },
             {
-                "name": "pos_account_tax_python",
-                "filemask": "addons/pos_account_tax_python/i18n/*.po",
-                "new_base": "addons/pos_account_tax_python/i18n/pos_account_tax_python.pot"
+                "name": "pos_tax_python",
+                "filemask": "addons/pos_tax_python/i18n/*.po",
+                "new_base": "addons/pos_tax_python/i18n/pos_tax_python.pot"
             },
             {
                 "name": "pos_adyen",
