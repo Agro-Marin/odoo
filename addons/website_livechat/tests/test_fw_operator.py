@@ -79,7 +79,9 @@ class TestFwOperator(ChatbotCase, HttpCase, TestLivechatCommon):
         self.assertEqual(
             channel.chatbot_current_step_id.step_type, "question_selection"
         )
-        self._post_answer_and_trigger_next_step(channel, self.fw_to_operator_answer.id)
+        self._post_answer_and_trigger_next_step(
+            channel, chatbot_script_answer=self.fw_to_operator_answer
+        )
         self.assertEqual(channel.livechat_operator_id, self.operator.partner_id)
         self.assertEqual(channel.chatbot_current_step_id.step_type, "forward_operator")
         next_step_data = self.call_jsonrpc(
