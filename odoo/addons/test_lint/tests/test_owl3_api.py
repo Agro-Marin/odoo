@@ -18,6 +18,7 @@ ENV_KEYS = {
     "owl_env_debug": re.compile(r"\bthis\.env\.debug\b"),
     "owl_env_config": re.compile(r"\bthis\.env\.config\b"),
     "owl_env_search_model": re.compile(r"\bthis\.env\.searchModel\b"),
+    "owl_env_utils": re.compile(r"\bthis\.env\.utils\b"),
 }
 REMOVED_IN_OWL3 = {
     "owl_on_rendered": re.compile(r"(?<![\w.$])onRendered\s*\("),
@@ -173,6 +174,16 @@ class TestOwl3Api(lint_case.LintCase):
             "A component under WithSearch reads this.searchModel = "
             "useSearchModel() from setup, and WithSearch provides it with "
             "provideSearchModel; OWL 3 components have no env",
+        )
+
+    def test_no_env_utils(self):
+        self.assert_ratchet(
+            _env_findings("owl_env_utils"),
+            "owl_env_utils",
+            "this.env.utils reads in static/src (JS and templates)",
+            "A point_of_sale component reads this.utils = "
+            "useService(\"contextual_utils_service\") from setup; OWL 3 "
+            "components have no env",
         )
 
     def test_no_env_services(self):

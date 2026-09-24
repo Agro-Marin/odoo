@@ -163,12 +163,12 @@
  <t t-set="toRefundDetail" t-value="line.order_id?.uiState?.lineToRefund?.[line.uuid]" />
  <li t-if="!this.pos.isProductQtyZero(line.refundedQty)"
  class="info refund-note mt-1">
- <strong t-out="this.env.utils.formatProductQty(line.refundedQty)" />
+ <strong t-out="this.utils.formatProductQty(line.refundedQty)" />
  <span> Refunded</span>
  </li>
  <li t-if="toRefundDetail and !this.pos.isProductQtyZero(toRefundDetail.qty)" class="info to-refund-highlight refund-note mt-1 fw-bold text-primary">
  <t t-set="_destinationOrderUid" t-value="toRefundDetail.destinationOrder?.uuid"/>
- <t t-set="refundQty" t-value="this.env.utils.formatProductQty(toRefundDetail.qty)"/>
+ <t t-set="refundQty" t-value="this.utils.formatProductQty(toRefundDetail.qty)"/>
  <t t-if="_destinationOrderUid">
  Refunding <t t-out="refundQty" /> in
  <span t-out="_destinationOrderUid"

@@ -59,6 +59,7 @@ export class TicketScreen extends Component {
     };
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         this.notification = useService("notification");
         useLifecycleLog(log);
         this.pos = usePos();
@@ -624,7 +625,7 @@ export class TicketScreen extends Component {
         return this.pos.getDate(order.date_order);
     }
     getTotal(order) {
-        return this.env.utils.formatCurrency(order.priceIncl);
+        return this.utils.formatCurrency(order.priceIncl);
     }
     getPartner(order) {
         return order.getPartnerName();

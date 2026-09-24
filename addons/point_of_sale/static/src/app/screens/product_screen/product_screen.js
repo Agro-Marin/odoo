@@ -55,6 +55,7 @@ export class ProductScreen extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.utils = useService("contextual_utils_service");
         this.localization = useService("localization");
         this.pos = usePos();
         this.ui = useService("ui");
@@ -222,7 +223,7 @@ export class ProductScreen extends Component {
         return this.currentOrder?.currencyDisplayPrice || 0;
     }
     get items() {
-        return this.env.utils.formatProductQty(
+        return this.utils.formatProductQty(
             this.currentOrder?.totalQuantity ?? 0,
             false,
         );

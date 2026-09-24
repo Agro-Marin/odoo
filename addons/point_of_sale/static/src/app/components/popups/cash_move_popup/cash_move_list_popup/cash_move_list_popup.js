@@ -15,6 +15,7 @@ export class CashMoveListPopup extends Component {
     };
     async setup() {
         super.setup();
+        this.utils = useService("contextual_utils_service");
         this.pos = usePos();
         this.ui = useService("ui");
         this.dialog = useService("dialog");
@@ -32,7 +33,7 @@ export class CashMoveListPopup extends Component {
     }
 
     getAmount(cm) {
-        return this.env.utils.formatCurrency(Math.abs(cm.amount));
+        return this.utils.formatCurrency(Math.abs(cm.amount));
     }
 
     async onDeleteCm(cm) {

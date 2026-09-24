@@ -26,6 +26,7 @@ export class PaymentScreenPaymentLines extends Component {
     };
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         useLifecycleLog(log);
         this.ui = useService("ui");
         this.pos = usePos();
@@ -50,7 +51,7 @@ export class PaymentScreenPaymentLines extends Component {
             this.dialog.add(NumberPopup, {
                 title: _t("New amount"),
                 buttons: enhancedButtons(),
-                startingValue: this.env.utils.formatCurrency(
+                startingValue: this.utils.formatCurrency(
                     paymentline.getAmount(),
                     false,
                 ),

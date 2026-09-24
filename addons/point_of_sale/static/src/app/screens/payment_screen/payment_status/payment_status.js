@@ -2,12 +2,18 @@
 import { Component } from "@odoo/owl";
 import { PriceFormatter } from "@point_of_sale/app/components/price_formatter/price_formatter";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 export class PaymentScreenStatus extends Component {
     static template = "point_of_sale.PaymentScreenStatus";
     static props = {
         order: Object,
     };
     static components = { PriceFormatter };
+
+    setup() {
+        super.setup();
+        this.utils = useService("contextual_utils_service");
+    }
 
     get isComplete() {
         return this.isRemaining && this.order.orderHasZeroRemaining;
@@ -42,9 +48,9 @@ export class PaymentScreenStatus extends Component {
 
     get amountText() {
         if (!this.isRemaining) {
-            return this.env.utils.formatCurrency(this.order.change);
+            return this.utils.formatCurrency(this.order.change);
         } else {
-            return this.env.utils.formatCurrency(this.order.remainingDue);
+            return this.utils.formatCurrency(this.order.remainingDue);
         }
     }
 }

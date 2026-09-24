@@ -16,7 +16,7 @@
                     <Input tModel="[this.state, 'amount']"
                         icon="{type: 'string', value: this.pos.currency.symbol}"
                         iconOnLeftSide="this.pos.currency.position === 'before'"
-                        isValid.bind="this.env.utils.isValidFloat"
+                        isValid.bind="this.utils.isValidFloat"
                         autofocus="true"
                         getRef="(ref) => this.inputRef = ref"
                         t-on-click="this.openNumpadDialog"

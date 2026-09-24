@@ -5,6 +5,7 @@ import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import { AlertDialog, Dialog } from "@web/ui/dialog";
 const log = makeLogger("pos.popup.product_info");
 export class ProductInfoPopup extends Component {
@@ -13,6 +14,7 @@ export class ProductInfoPopup extends Component {
     static props = ["info", "productTemplate", "close"];
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         useLifecycleLog(log);
         this.pos = usePos();
         log.lifecycle("opened", () => ({

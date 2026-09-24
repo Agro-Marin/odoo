@@ -33,13 +33,9 @@ test("_getLoyaltyPointsRepr", async () => {
             onClickPartner: () => {},
             onClickOrders: () => {},
         },
-        env: {
-            ...store.env,
-            utils: {
-                formatCurrency: (val) => `$${val.toFixed(2)}`,
-            },
-        },
+        env: store.env,
     });
+    component.utils = { formatCurrency: (val) => `$${val.toFixed(2)}` };
 
     const results = loyaltyCards.map((card) => component._getLoyaltyPointsRepr(card));
 

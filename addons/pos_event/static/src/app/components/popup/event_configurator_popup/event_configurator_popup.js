@@ -25,6 +25,7 @@ export class EventConfiguratorPopup extends Component {
         NumericInput,
     };
     setup() {
+        this.utils = useService("contextual_utils_service");
         this.pos = usePos();
         this.dialog = useService("dialog");
         this.state = useState({});

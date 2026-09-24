@@ -38,6 +38,7 @@ export class ClosePosPopup extends Component {
     ];
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         useLifecycleLog(log);
         this.pos = usePos();
         this.report = useService("report");
@@ -58,7 +59,7 @@ export class ClosePosPopup extends Component {
     autoFillCashCount() {
         const count = this.props.default_cash_details.amount;
         this.state.payments[this.props.default_cash_details.id].counted =
-            this.env.utils.formatCurrency(count, false);
+            this.utils.formatCurrency(count, false);
         this.setManualCashInput(count);
     }
     autoFillPMCount(paymentId) {
@@ -66,7 +67,7 @@ export class ClosePosPopup extends Component {
             (pm) => pm.id === paymentId,
         );
         if (pm) {
-            this.state.payments[paymentId].counted = this.env.utils.formatCurrency(
+            this.state.payments[paymentId].counted = this.utils.formatCurrency(
                 pm.amount,
                 false,
             );
@@ -111,7 +112,7 @@ export class ClosePosPopup extends Component {
         this.props.non_cash_payment_methods.forEach((pm) => {
             if (pm.type === "bank") {
                 initialState.payments[pm.id] = {
-                    counted: this.env.utils.formatCurrency(pm.amount, false),
+                    counted: this.utils.formatCurrency(pm.amount, false),
                 };
             }
         });
@@ -153,7 +154,7 @@ export class ClosePosPopup extends Component {
             title: _t("Payments Difference"),
             body: _t(
                 "The maximum difference allowed is %s.\nPlease contact your manager to accept the closing difference.",
-                this.env.utils.formatCurrency(this.props.amount_authorized_diff),
+                this.utils.formatCurrency(this.props.amount_authorized_diff),
             ),
         });
     }
@@ -165,7 +166,7 @@ export class ClosePosPopup extends Component {
     canConfirm() {
         return Object.values(this.state.payments)
             .map((v) => v.counted)
-            .every(this.env.utils.isValidFloat);
+            .every(this.utils.isValidFloat);
     }
     async openDetailsPopup() {
         const action = _t("Cash control - closing");
@@ -176,7 +177,7 @@ export class ClosePosPopup extends Component {
             getPayload: (payload) => {
                 const { total, moneyDetailsNotes, moneyDetails } = payload;
                 this.state.payments[this.props.default_cash_details.id].counted =
-                    this.env.utils.formatCurrency(total, false);
+                    this.utils.formatCurrency(total, false);
                 if (moneyDetailsNotes) {
                     this.state.notes = moneyDetailsNotes;
                 }
@@ -191,14 +192,14 @@ export class ClosePosPopup extends Component {
         ]);
     }
     setManualCashInput(amount) {
-        if (this.env.utils.isValidFloat(amount) && this.moneyDetails) {
+        if (this.utils.isValidFloat(amount) && this.moneyDetails) {
             this.state.notes = "";
             this.moneyDetails = null;
         }
     }
     getDifference(paymentId) {
         const counted = this.state.payments[paymentId].counted;
-        if (!this.env.utils.isValidFloat(counted)) {
+        if (!this.utils.isValidFloat(counted)) {
             return NaN;
         }
         const expectedAmount =

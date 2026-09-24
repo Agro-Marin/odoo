@@ -24,6 +24,7 @@ export class CashMovePopup extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.utils = useService("contextual_utils_service");
         this.notification = useService("notification");
         this.pos = usePos();
         this.dialog = useService("dialog");
@@ -45,7 +46,7 @@ export class CashMovePopup extends Component {
 
     async confirm() {
         const amount = parseFloat(this.state.amount);
-        const formattedAmount = this.env.utils.formatCurrency(amount);
+        const formattedAmount = this.utils.formatCurrency(amount);
         log.pipeline("[session:cash_move] confirm", () => ({
             session: this.pos.session.id,
             type: this.state.type,
@@ -120,8 +121,8 @@ export class CashMovePopup extends Component {
         this.inputRef.el.focus();
     }
     format(value) {
-        return this.env.utils.isValidFloat(value)
-            ? this.env.utils.formatCurrency(parseFloat(value))
+        return this.utils.isValidFloat(value)
+            ? this.utils.formatCurrency(parseFloat(value))
             : "";
     }
     _prepareTryCashInOutPayload(type, amount, reason, partnerId, extras) {
@@ -129,7 +130,7 @@ export class CashMovePopup extends Component {
     }
     isValidCashMove() {
         return (
-            this.env.utils.isValidFloat(this.state.amount) &&
+            this.utils.isValidFloat(this.state.amount) &&
             this.state.reason.trim() !== ""
         );
     }

@@ -38,6 +38,7 @@ export class ProductCard extends Component {
     };
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         useLifecycleLog(log);
         this.pos = useService("pos");
         this.posStock = useService("pos_stock");
@@ -70,7 +71,7 @@ export class ProductCard extends Component {
     }
 
     get productQty() {
-        return this.env.utils.formatProductQty(this.props.productCartQty ?? 0, false);
+        return this.utils.formatProductQty(this.props.productCartQty ?? 0, false);
     }
 
     get stockProductIds() {
@@ -115,7 +116,7 @@ export class ProductCard extends Component {
                 positionClass,
             };
         }
-        const text = this.env.utils.formatProductQty(qty, false);
+        const text = this.utils.formatProductQty(qty, false);
         if (qty <= 0) {
             return {
                 text,

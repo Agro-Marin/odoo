@@ -3,9 +3,14 @@ import { Component, useState } from "@odoo/owl";
 import { TicketScreen } from "@point_of_sale/app/screens/ticket_screen/ticket_screen";
 import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 import { _t } from "@web/core/translation";
-import { useAutofocus } from "@web/core/utils/hooks";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 patch(TicketScreen.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.utils = useService("contextual_utils_service");
+    },
+
     _getScreenToStatusMap() {
         return Object.assign(super._getScreenToStatusMap(...arguments), {
             PaymentScreen: this.pos.config.set_tip_after_payment
@@ -50,7 +55,7 @@ patch(TicketScreen.prototype, {
     async settleTips() {
         const promises = [];
         for (const order of this.getFilteredOrderList()) {
-            const amount = this.env.utils.parseValidFloat(
+            const amount = this.utils.parseValidFloat(
                 order.uiState.TipScreen.inputTipAmount,
             );
 
@@ -126,13 +131,14 @@ export class TipCell extends Component {
     };
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         this.state = useState({ isEditing: false });
         this.orderUiState = this.props.order.uiState.TipScreen;
         useAutofocus();
     }
     get tipAmountStr() {
-        return this.env.utils.formatCurrency(
-            this.env.utils.parseValidFloat(this.orderUiState.inputTipAmount),
+        return this.utils.formatCurrency(
+            this.utils.parseValidFloat(this.orderUiState.inputTipAmount),
         );
     }
     onBlur() {

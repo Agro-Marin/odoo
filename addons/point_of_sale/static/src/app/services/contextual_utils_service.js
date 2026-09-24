@@ -46,13 +46,15 @@ export const contextualUtilsService = {
         const parseValidFloat = (inputValue) =>
             isValidFloat(inputValue) ? parseFloat(inputValue) : 0;
 
-        env.utils = {
+        const utils = {
             formatCurrency,
             roundCurrency,
             formatProductQty,
             isValidFloat,
             parseValidFloat,
         };
+        env.utils = utils;
+        return utils;
     },
 };
 registry.category("services").add("contextual_utils_service", contextualUtilsService);

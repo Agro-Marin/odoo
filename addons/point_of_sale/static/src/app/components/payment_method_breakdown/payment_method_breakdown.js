@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { AccordionItem } from "@point_of_sale/app/components/accordion_item/accordion_item";
+import { useService } from "@web/core/utils/hooks";
 
 export class PaymentMethodBreakdown extends Component {
     static components = { AccordionItem };
@@ -15,4 +16,9 @@ export class PaymentMethodBreakdown extends Component {
     static defaultProps = {
         transactions: [],
     };
+
+    setup() {
+        super.setup();
+        this.utils = useService("contextual_utils_service");
+    }
 }

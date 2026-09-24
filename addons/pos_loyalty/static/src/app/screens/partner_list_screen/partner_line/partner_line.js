@@ -3,16 +3,18 @@ import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { PartnerLine } from "@point_of_sale/app/screens/partner_list/partner_line/partner_line";
 import { _t } from "@web/core/translation";
 import { formatFloat } from "@web/core/utils/format/numbers";
+import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 patch(PartnerLine.prototype, {
     setup() {
         super.setup(...arguments);
+        this.utils = useService("contextual_utils_service");
         this.pos = usePos();
     },
     _getLoyaltyPointsRepr(loyaltyCard) {
         const program = loyaltyCard.program_id;
         if (program.program_type === "ewallet") {
-            return `${program.name}: ${this.env.utils.formatCurrency(loyaltyCard.points)}`;
+            return `${program.name}: ${this.utils.formatCurrency(loyaltyCard.points)}`;
         }
         const balanceRepr = formatFloat(loyaltyCard.points, { digits: [69, 2] });
         if (program.portal_visible) {

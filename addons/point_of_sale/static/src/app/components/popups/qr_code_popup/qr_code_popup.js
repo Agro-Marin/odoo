@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog";
 export class QRPopup extends ConfirmationDialog {
     static template = "point_of_sale.QRConfirmationDialog";
@@ -18,7 +19,8 @@ export class QRPopup extends ConfirmationDialog {
 
     setup() {
         super.setup();
+        this.utils = useService("contextual_utils_service");
         this.props.body = _t("Please scan the QR code with %s", this.props.title);
-        this.amount = this.env.utils.formatCurrency(this.props.line.amount);
+        this.amount = this.utils.formatCurrency(this.props.line.amount);
     }
 }

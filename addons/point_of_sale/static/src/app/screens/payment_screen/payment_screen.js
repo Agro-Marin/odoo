@@ -33,6 +33,7 @@ export class PaymentScreen extends Component {
     };
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         this.localization = useService("localization");
         useLifecycleLog(log);
         this.pos = usePos();
@@ -280,7 +281,7 @@ export class PaymentScreen extends Component {
         const value = tip === 0 && change > 0 ? change : tip;
         const newTip = await makeAwaitable(this.dialog, NumberPopup, {
             title: tip ? _t("Change Tip") : _t("Add Tip"),
-            startingValue: this.env.utils.formatCurrency(value, false),
+            startingValue: this.utils.formatCurrency(value, false),
             formatDisplayedValue: (x) => `${this.pos.currency.symbol} ${x}`,
         });
 

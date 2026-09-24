@@ -25,6 +25,7 @@ export class MoneyDetailsPopup extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.utils = useService("contextual_utils_service");
         this.pos = usePos();
         this.ui = useService("ui");
         this.currency = this.pos.currency;
@@ -64,7 +65,7 @@ export class MoneyDetailsPopup extends Component {
             if (this.state.moneyDetails[bill.value]) {
                 moneyDetailsNotes +=
                     "\t" +
-                    `${this.state.moneyDetails[bill.value]} x ${this.env.utils.formatCurrency(
+                    `${this.state.moneyDetails[bill.value]} x ${this.utils.formatCurrency(
                         bill.value,
                     )}\n`;
             }
@@ -72,7 +73,7 @@ export class MoneyDetailsPopup extends Component {
         if (moneyDetailsNotes) {
             moneyDetailsNotes += _t(
                 "Total: %s",
-                this.env.utils.formatCurrency(this.computeTotal()),
+                this.utils.formatCurrency(this.computeTotal()),
             );
         }
         log.pipeline("confirm", () => ({

@@ -173,7 +173,7 @@
                                     <t t-set="data" t-value="this.getChangeCount(table)"/>
                                     <div
                                         t-if="data.changes > 0"
-                                        t-out="this.env.utils.formatProductQty(data.changes, false)"
+                                        t-out="this.utils.formatProductQty(data.changes, false)"
                                         t-att-class="{
                                             'text-bg-danger': data.changes
                                         }"

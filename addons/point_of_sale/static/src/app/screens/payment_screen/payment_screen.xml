@@ -72,7 +72,7 @@
  }">
  <div class="total text-center text-dark"
  t-att-style="!this.ui.isSmall? 'font-size: 125px;' : ''" >
- <PriceFormatter price="this.env.utils.formatCurrency(this.currentOrder.totalDue)" />
+ <PriceFormatter price="this.utils.formatCurrency(this.currentOrder.totalDue)" />
  </div>
  </section>
  </t>
@@ -134,7 +134,7 @@
  t-on-click="this.addTip">
  <span t-attf-class="{{this.currentOrder.getTip() ? 'me-auto' : 'mx-auto' }}"><i class="fa-solid fa-heart me-2" />Tip</span>
  <t t-if="this.currentOrder.getTip() != 0">
- <t t-out="this.env.utils.formatCurrency(this.currentOrder.getTip())" />
+ <t t-out="this.utils.formatCurrency(this.currentOrder.getTip())" />
  </t>
  </button>
  <button t-if="this.pos.config.iface_cashdrawer" class="button js_cashdrawer btn btn-secondary btn-lg py-3 rounded"

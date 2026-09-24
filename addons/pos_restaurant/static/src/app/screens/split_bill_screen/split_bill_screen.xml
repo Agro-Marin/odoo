@@ -27,7 +27,7 @@
  <div class="controls d-flex flex-column flex-nowrap w-100 w-lg-50 p-1">
  <div class="order-info m-auto py-3 py-lg-4 rounded-3 text-center">
  <div class="d-flex flex-row justify-content-center align-items-baseline">
- <t t-set="price" t-value="this.env.utils.formatCurrency(this.newOrderPrice)" />
+ <t t-set="price" t-value="this.utils.formatCurrency(this.newOrderPrice)" />
  <span class="subtotal text-dark fw-bold"
  t-att-style="'font-size:' + this.adjustFontSize(price)"
  t-attf-class="{{ this.ui.isSmall ? 'fs-1' : '' }}">
@@ -35,7 +35,7 @@
  </span>
  <span class="text-dark text-start ms-2"
  t-attf-class="{{ this.ui.isSmall ? 'fs-6' : 'fs-2' }}">
- / <PriceFormatter price="this.env.utils.formatCurrency(this.currentOrder.priceIncl)" />
+ / <PriceFormatter price="this.utils.formatCurrency(this.currentOrder.priceIncl)" />
  </span>
  </div>
  <div class="text-dark"

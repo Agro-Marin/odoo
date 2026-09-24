@@ -19,6 +19,7 @@ export class ComboConfiguratorPopup extends Component {
     };
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         useLifecycleLog(log);
         this.pos = usePos();
         this.ui = useService("ui");
@@ -130,7 +131,7 @@ export class ComboConfiguratorPopup extends Component {
     formattedComboPrice(comboItem) {
         return this.pos.currency.isZero(comboItem.extra_price)
             ? ""
-            : this.env.utils.formatCurrency(comboItem.extra_price);
+            : this.utils.formatCurrency(comboItem.extra_price);
     }
 
     getSelectedComboItems() {
@@ -307,7 +308,7 @@ export class ComboConfiguratorPopup extends Component {
             (acc, combo) => acc + this.computeComboExtraPrice(combo),
             0,
         );
-        return this.env.utils.formatCurrency(basePrice + extraPrice);
+        return this.utils.formatCurrency(basePrice + extraPrice);
     }
 
     getSelectedComboItemsText(combo) {

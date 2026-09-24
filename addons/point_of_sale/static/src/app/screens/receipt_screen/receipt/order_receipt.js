@@ -8,6 +8,7 @@ import { formatCurrency } from "@web/core/currency";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 const log = makeLogger("pos.screen.receipt.ticket");
 export class OrderReceipt extends Component {
     static template = "point_of_sale.OrderReceipt";
@@ -25,6 +26,7 @@ export class OrderReceipt extends Component {
     };
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         useLifecycleLog(log);
         log.lifecycle("receipt", () => ({
             order: this.props.order?.uuid,

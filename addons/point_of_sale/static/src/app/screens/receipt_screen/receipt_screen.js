@@ -23,6 +23,7 @@ export class ReceiptScreen extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.utils = useService("contextual_utils_service");
         this.pos = usePos();
         useRouterParamsChecker();
         this.ui = useService("ui");
@@ -61,13 +62,11 @@ export class ReceiptScreen extends Component {
             .getOrderlines()
             .find((line) => tip_product_id && line.product_id.id === tip_product_id);
         const tipAmount = tipLine ? tipLine.prices.total_included : 0;
-        const orderAmountStr = this.env.utils.formatCurrency(
-            orderTotalAmount - tipAmount,
-        );
+        const orderAmountStr = this.utils.formatCurrency(orderTotalAmount - tipAmount);
         if (!tipAmount) {
             return orderAmountStr;
         }
-        const tipAmountStr = this.env.utils.formatCurrency(tipAmount);
+        const tipAmountStr = this.utils.formatCurrency(tipAmount);
         return `${orderAmountStr} + ${tipAmountStr} tip`;
     }
     get ticketScreen() {

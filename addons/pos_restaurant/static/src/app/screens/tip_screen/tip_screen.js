@@ -14,6 +14,7 @@ export class TipScreen extends Component {
         orderUuid: { type: String },
     };
     setup() {
+        this.utils = useService("contextual_utils_service");
         this.pos = usePos();
         this.posReceiptContainer = useRef("pos-receipt-container");
         this.dialog = useService("dialog");
@@ -27,10 +28,10 @@ export class TipScreen extends Component {
         });
     }
     get overallAmountStr() {
-        const tipAmount = this.env.utils.parseValidFloat(this.state.inputTipAmount);
-        const original = this.env.utils.formatCurrency(this.totalAmount);
-        const tip = this.env.utils.formatCurrency(tipAmount);
-        const overall = this.env.utils.formatCurrency(this.totalAmount + tipAmount);
+        const tipAmount = this.utils.parseValidFloat(this.state.inputTipAmount);
+        const original = this.utils.formatCurrency(this.totalAmount);
+        const tip = this.utils.formatCurrency(tipAmount);
+        const overall = this.utils.formatCurrency(this.totalAmount + tipAmount);
         return `${original} + ${tip} tip = ${overall}`;
     }
     get totalAmount() {
@@ -47,7 +48,7 @@ export class TipScreen extends Component {
         ];
     }
     async validateTip() {
-        const amount = this.env.utils.parseValidFloat(this.state.inputTipAmount);
+        const amount = this.utils.parseValidFloat(this.state.inputTipAmount);
         const order = this.pos.getOrder();
         const serverId = order.isSynced && order.id;
 
@@ -73,7 +74,7 @@ export class TipScreen extends Component {
         if (amount > 0.25 * this.totalAmount) {
             const confirmed = await ask(this.dialog, {
                 title: "Are you sure?",
-                body: `${this.env.utils.formatCurrency(
+                body: `${this.utils.formatCurrency(
                     amount,
                 )} is more than 25% of the order's total amount. Are you sure of this tip amount?`,
             });
@@ -127,7 +128,7 @@ export class TipScreen extends Component {
                 {
                     data: receipts[i] || {},
                     order: order,
-                    total: this.env.utils.formatCurrency(this.totalAmount),
+                    total: this.utils.formatCurrency(this.totalAmount),
                 },
                 { webPrintFallback: false },
             );

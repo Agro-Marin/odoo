@@ -23,6 +23,7 @@ export class OpeningControlPopup extends Component {
     };
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         useLifecycleLog(log);
         this.moneyDetails = null;
         this.pos = usePos();
@@ -36,7 +37,7 @@ export class OpeningControlPopup extends Component {
         }));
         this.state = useState({
             notes: "",
-            openingCash: this.env.utils.formatCurrency(
+            openingCash: this.utils.formatCurrency(
                 this.pos.session.cash_register_balance_start || 0,
                 false,
             ),
@@ -98,10 +99,7 @@ export class OpeningControlPopup extends Component {
             getPayload: (payload) => {
                 if (payload) {
                     const { total, moneyDetails, moneyDetailsNotes } = payload;
-                    this.state.openingCash = this.env.utils.formatCurrency(
-                        total,
-                        false,
-                    );
+                    this.state.openingCash = this.utils.formatCurrency(total, false);
                     if (moneyDetailsNotes) {
                         this.state.notes = moneyDetailsNotes;
                     }
@@ -112,7 +110,7 @@ export class OpeningControlPopup extends Component {
         });
     }
     handleInputChange() {
-        if (!this.env.utils.isValidFloat(this.state.openingCash)) {
+        if (!this.utils.isValidFloat(this.state.openingCash)) {
             return;
         }
         this.state.notes = "";

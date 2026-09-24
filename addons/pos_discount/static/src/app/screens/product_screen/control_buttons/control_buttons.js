@@ -2,8 +2,14 @@
 import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/number_popup";
 import { ControlButtons } from "@point_of_sale/app/screens/product_screen/control_buttons/control_buttons";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 patch(ControlButtons.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.utils = useService("contextual_utils_service");
+    },
+
     async clickDiscount() {
         this.dialog.add(NumberPopup, {
             title: _t("Discount Percentage"),
@@ -11,7 +17,7 @@ patch(ControlButtons.prototype, {
             getPayload: (num) => {
                 const percent = Math.max(
                     0,
-                    Math.min(100, this.env.utils.parseValidFloat(num.toString())),
+                    Math.min(100, this.utils.parseValidFloat(num.toString())),
                 );
                 this.applyDiscount(percent);
             },

@@ -18,6 +18,7 @@ export class PartnerLine extends Component {
     ];
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         this.pos = usePos();
         this.ui = useService("ui");
     }

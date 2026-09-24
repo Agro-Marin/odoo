@@ -4,6 +4,7 @@ import { ProductInfoBanner } from "@point_of_sale/app/components/product_info_ba
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 const log = makeLogger("pos.popup.configurator");
 export class BaseProductAttribute extends Component {
@@ -19,12 +20,13 @@ export class BaseProductAttribute extends Component {
 
     setup() {
         super.setup(...arguments);
+        this.utils = useService("contextual_utils_service");
         this.pos = usePos();
     }
 
     getFormatPriceExtra(val) {
         const sign = val < 0 ? "- " : "+ ";
-        return sign + this.env.utils.formatCurrency(Math.abs(val));
+        return sign + this.utils.formatCurrency(Math.abs(val));
     }
 }
 
@@ -104,6 +106,7 @@ export class ProductConfiguratorPopup extends Component {
     };
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         useLifecycleLog(log);
         this.pos = usePos();
         this.state = useState({
@@ -305,7 +308,7 @@ export class ProductConfiguratorPopup extends Component {
 
         const product = this.product || this.props.productTemplate;
         const info = product.getTaxDetails({ overridedValues });
-        const total = this.env.utils.formatCurrency(
+        const total = this.utils.formatCurrency(
             info?.raw_total_included_currency || 0.0,
         );
         return `${this.props.productTemplate.display_name} | ${total}`;

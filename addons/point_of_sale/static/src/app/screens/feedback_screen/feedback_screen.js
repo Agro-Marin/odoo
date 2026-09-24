@@ -27,6 +27,7 @@ export class FeedbackScreen extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.utils = useService("contextual_utils_service");
         this.pos = usePos();
         this.notification = useService("notification");
         this.containerRef = useRef("feedback-screen");

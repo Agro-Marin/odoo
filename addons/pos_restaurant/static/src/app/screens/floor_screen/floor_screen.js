@@ -89,6 +89,7 @@ export class FloorScreen extends Component {
     static storeOnOrder = false;
 
     setup() {
+        this.utils = useService("contextual_utils_service");
         this.pos = usePos();
         this.dialog = useService("dialog");
         this.ui = useState(useService("ui"));
