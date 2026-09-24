@@ -472,7 +472,7 @@ test("a blank or non-string source is returned as a string before translations l
     translatedTerms[translationLoaded] = false;
     expect(basic_t("")).toBe("");
     expect(basic_t("  ")).toBe("  ");
-    expect(basic_t(markup("<p>help</p>"))).toBe("<p>help</p>");
+    expect(basic_t(/** @type {any} */ (markup("<p>help</p>")))).toBe("<p>help</p>");
 });
 
 test.tags("headless");

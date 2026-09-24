@@ -272,10 +272,6 @@ function isEmptyValue(value) {
 }
 
 /**
- * @param {Model | null} previous
- * @param {typeof Model} constructor
- */
-/**
  * @param {any} definition
  * @param {any} constructor
  */
@@ -302,6 +298,10 @@ function adoptSubclass(definition, constructor) {
     }
 }
 
+/**
+ * @param {Model | null} previous
+ * @param {typeof Model} constructor
+ */
 function getModelDefinition(previous, constructor) {
     const model = createRawInstance(constructor);
     model._name ||= constructor.getModelName(model);
@@ -3382,7 +3382,7 @@ export class Model extends Array {
     /**
      * @private
      * @param {Record<string, any>} values
-     * @param {number[]} ids
+     * @param {(number | false)[]} ids
      */
     _writeRelatedTargets(values, ids) {
         for (const [fieldName, value] of Object.entries(values)) {
