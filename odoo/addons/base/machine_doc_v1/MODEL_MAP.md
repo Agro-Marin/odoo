@@ -332,7 +332,7 @@ the model: `has_access`, `check_access`, `_filtered_access`, `_access_domain`.
 - `model_id` (Many2one → ir.model, required, indexed)
 - `group_id` (Many2one → res.groups, required, indexed) — a row created without one is `base.group_everyone`'s
 - `kind` (Selection permission/guard, required), `guard_scope` (Selection everyone/members, default everyone)
-- `operation` (Selection, a subset of `crud`, required), `domain` (Char)
+- `operation` (Selection, a subset of `crud`), `verbs` (Char, the declared verbs of the model it grants, comma-separated; a row names an operation, verbs or both), `domain` (Char)
 - `for_read`, `for_write`, `for_create`, `for_unlink` (Boolean, stored computes of `operation`, with inverse)
 - `is_standard` (Boolean, computed, searchable) — the row comes from a module
 
@@ -341,9 +341,25 @@ the model: `has_access`, `check_access`, `_filtered_access`, `_access_domain`.
 - `_check_domain()` — a domain validates against the registry, reads the user's groups only in ways more groups can only widen, and closes no `'access'` cycle
 - `_load_records()` — refuses while `ir.model.data` still maps an external id to an access line or a rule: base's 1.97 migration has not run
 - `customize()` — archive a module's row and open an editable copy
-- `_bound_access_rows(model_name, operation)` — the permission and guard domains that bind the current principal (what `registry.access_policy` asks)
+- `_bound_access_rows(model_name, operation)` — the permission and guard domains that bind the current principal (what `registry.access_policy` asks); `operation` is a CRUD operation or a verb the model declares (`_check_operation`, `covers()`)
+- `_check_verbs()` — a row names only verbs its model declares; a verb's records are also within those of the operation it `requires` (`_access_domain` in the ORM)
 - `_eval_context()`, `_get_access_context()` — what a domain is evaluated with, and the context values it depends on (website extends both)
 - `_scoped()`, `_company_scope_domain()` — a row held through a grant limited to some companies reaches their records and the shared ones (a members guard binds only there); `_explain(model, operation)` says it in words
+
+### models/ir_access_obligation.py
+
+#### IrAccessObligation — `ir.access.obligation` (`_name`, abstract)
+
+What a declared verb (`_access_verbs`, `models.Verb`) obliges beyond the
+capability to perform it. The kernel asks it through the access-policy port at
+every door and checkpoint of a verb, and at the write, create or import that
+moves the verb's transition field; the default obliges nothing and runs a
+door's call admitted for its records (`Transaction.admitting`). A module that
+attaches an obligation to verbs extends it.
+
+**Key Methods:**
+- `_at_door(records, verb, call)` — run `call(records)` for what the obligation admits
+- `_at_checkpoint(records, verb)` — refuse, or let through, what no door admitted
 
 ### models/ir_access_log.py
 
