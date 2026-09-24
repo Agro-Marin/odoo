@@ -34,7 +34,7 @@ class TestDeviceLogIsolation(TransactionCase):
         )
         self.env.flush_all()
         self.cr.execute("""
-            ALTER TABLE res_device ADD CONSTRAINT service_test_device_guard
+            ALTER TABLE res_device_session ADD CONSTRAINT service_test_device_guard
             CHECK (session_identifier NOT LIKE 'service_test_device%')
         """)
         session = _Session(
@@ -48,13 +48,18 @@ class TestDeviceLogIsolation(TransactionCase):
             },
         )
         session.session_token = user._get_session_token(session.sid)
-        request = SimpleNamespace(session=session, app=odoo.http.root)
+        request = SimpleNamespace(
+            session=session,
+            app=odoo.http.root,
+            httprequest=SimpleNamespace(cookies={}),
+            future_response=None,
+        )
         with self.assertLogs("odoo.service.security", level="WARNING"):
             self.assertTrue(security.is_session_valid(session, self.env, request))
         self.cr.execute("SELECT login FROM res_users WHERE id = %s", (user.id,))
         self.assertEqual(self.cr.fetchone(), ("service_device_isolation",))
         self.cr.execute(
-            "SELECT count(*) FROM res_device WHERE session_identifier LIKE 'service_test_device%'"
+            "SELECT count(*) FROM res_device_session WHERE session_identifier LIKE 'service_test_device%'"
         )
         self.assertEqual(self.cr.fetchone(), (0,))
 

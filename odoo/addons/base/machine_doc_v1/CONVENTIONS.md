@@ -202,7 +202,8 @@ class MyModel(models.Model):
 - `ir.actions.server.history` — Keep last 100 code revisions
 - `res.users.apikeys` — Expired API keys
 - `res.users.log` — Keep latest log per user
-- `res.device` — Devices (×2: sessions the store lost + archived devices past retention)
+- `res.device` — Archived devices past retention
+- `res.device.session` — Device sessions (×2: the ones the store lost + ended ones past retention)
 - `res.device.log` — Device addresses not seen within the retention
 
 ## Sequence Implementation

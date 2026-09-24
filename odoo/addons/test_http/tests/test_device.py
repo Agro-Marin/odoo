@@ -13,6 +13,7 @@ from odoo.service import security
 from odoo.tests.utils import HOST, get_db_name
 
 from .test_common import TestHttpBase
+from odoo.addons.base.models.res_device import DEVICE_KEY_COOKIE
 from odoo.addons.test_http.utils import (
     TEST_IP,
     USER_AGENT_android_chrome,
@@ -28,6 +29,7 @@ class TestDevice(TestHttpBase):
         self.Device = self.env["res.device"]
         self.DeviceLog = self.env["res.device.log"]
         self.Device.with_context(active_test=False).search([]).unlink()
+        self.browser_keys = {}
 
         self.user_admin = self.env.ref("base.user_admin")
         self.user_internal = self.env["res.users"].create(
@@ -55,11 +57,21 @@ class TestDevice(TestHttpBase):
                 "X-Forwarded-Host": "odoo.com",
                 "X-Forwarded-Proto": "http",
             }
+        # one cookie jar plays every browser: each user agent keeps its own
+        # browser key, as separate browsers would
+        agent = (headers or {}).get("User-Agent", "")
+        jar = self.opener.cookies
+        jar.set(DEVICE_KEY_COOKIE, None)
+        if agent in self.browser_keys:
+            jar.set(DEVICE_KEY_COOKIE, self.browser_keys[agent], domain=HOST)
         with (
             freeze_time(time),
             odoo.tools.config.patch(proxy_mode=bool(ip)),
         ):
-            return self.url_open(url=endpoint, headers=headers)
+            response = self.url_open(url=endpoint, headers=headers)
+        if issued := jar.get(DEVICE_KEY_COOKIE):
+            self.browser_keys[agent] = issued
+        return response
 
     def info_trace(self, trace):
         return {
@@ -460,9 +472,10 @@ class TestDevice(TestHttpBase):
         )
 
         devices, logs = self.get_devices_logs(self.user_admin)
-        self.assertEqual(len(devices), 3)
-        self.assertEqual(len(logs), 3)
-        self.assertEqual(len(self.user_admin.device_ids), 3)
+        self.assertEqual(len(devices), 2, "one Chrome across two logins, one Firefox")
+        self.assertEqual(len(logs), 2)
+        chrome = devices.filtered(lambda device: device.browser == "chrome")
+        self.assertEqual(len(chrome.session_ids), 2)
 
         self.user_admin.device_ids.filtered(
             lambda device: "firefox" in device.browser
@@ -498,14 +511,24 @@ class TestDevice(TestHttpBase):
 
     def _create_device_log_for_user(self, session, count):
         for _ in range(count):
+            identifier = odoo.http.root.session_store.generate_key()[
+                :STORED_SESSION_BYTES
+            ]
             device = self.Device.create(
                 {
-                    "session_identifier": odoo.http.root.session_store.generate_key()[
-                        :STORED_SESSION_BYTES
-                    ],
+                    "key_hash": f"key_{identifier}",
                     "user_id": session.uid,
                     "first_activity": datetime.now(),
                     "last_activity": datetime.now(),
+                    "session_ids": [
+                        Command.create(
+                            {
+                                "session_identifier": identifier,
+                                "first_activity": datetime.now(),
+                                "last_activity": datetime.now(),
+                            }
+                        )
+                    ],
                 }
             )
             self.DeviceLog.create(
@@ -539,7 +562,7 @@ class TestDevice(TestHttpBase):
             freeze_time("2025-02-01 08:00:00"),
             patch.object(self.cr, "commit", lambda: ...),
         ):
-            self.Device.sudo()._update_revoked()
+            self.env["res.device.session"].sudo()._update_revoked()
         self.env.invalidate_all()
 
         devices, _ = self.get_devices_logs(self.user_admin)
@@ -579,7 +602,7 @@ class TestDevice(TestHttpBase):
         with patch.object(
             type(self.env["ir.cron"]), "_commit_progress", lambda *a, **k: float("inf")
         ):
-            self.Device.sudo()._update_revoked()
+            self.env["res.device.session"].sudo()._update_revoked()
         self.env.invalidate_all()
 
     def test_sweep_keeps_a_live_session(self):
@@ -665,7 +688,7 @@ class TestDevice(TestHttpBase):
 
         self.env.invalidate_all()
         self.assertEqual(
-            self.user_internal.device_ids.session_identifier,
+            self.user_internal.device_ids.session_ids.session_identifier,
             other.sid[:STORED_SESSION_BYTES],
         )
 
@@ -733,5 +756,7 @@ class TestDevice(TestHttpBase):
         self.env.invalidate_all()
         device = self.user_internal.device_ids
         self.assertEqual(len(device), 1)
-        self.assertEqual(device.session_identifier, sid[:STORED_SESSION_BYTES])
+        self.assertEqual(
+            device.session_ids.session_identifier, sid[:STORED_SESSION_BYTES]
+        )
         self.assertNotIn("/web/login", self.url_open("/test_http/greeting-user").url)

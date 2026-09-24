@@ -1825,26 +1825,38 @@ Partner bank accounts.
 
 #### ResDevice — `res.device` (`_name`)
 
-One row per device: a browser on a platform in one session of one user
-(`_identity_uniq`, NULLS NOT DISTINCT). Its id is stable for the device's life.
-A revoked device is archived (`active`), and kept for
-`base.device_retention_days` (default 90, 0 keeps it forever).
+One row per browser of a user (`_identity_uniq` on user and `key_hash`). A
+browser is recognized by the `device_key` cookie: 32 random bytes, HttpOnly,
+400 days, of which only the SHA-256 is stored; an identifier, never a
+credential. A client without it (RPC, API keys) is one device per session and
+browser, keyed by a hash of those. Archived once none of its sessions lives,
+kept for `base.device_retention_days` (default 90, 0 keeps it forever).
 
 **Fields:**
-- `user_id` (Many2one → res.users, required), `session_identifier` (Char, required)
+- `user_id` (Many2one → res.users, required), `key_hash` (Char, required)
+- `name` (Char: the user's name for it, the display name when set)
 - `platform`, `browser` (Char), `device_type` (Selection: computer/mobile)
 - `ip_address`, `country`, `city` (Char: the latest address)
 - `first_activity`, `last_activity` (Datetime), `active` (Boolean)
-- `log_ids` (One2many → res.device.log, newest first), `is_current` (Boolean, computed, sortable)
+- `session_ids` (One2many → res.device.session), `log_ids` (One2many → res.device.log, newest first)
+- `is_current` (Boolean, computed, sortable: the browser of the current request)
 
 **Key Methods:**
-- `_update_device(request)` — Upsert the device and its address in one statement; at login (`ir.http._post_login`) and on each trace change
-- `revoke()` — Revoke device session (`@check_identity`); reloads when it is the current one
-- `_revoke()` — Delete from session store, archive the devices
-- `_mark_revoked(session_identifiers)` — Archive every active device of those sessions
-- `_mark_logged_out(session_identifier)` — Archive at logout (`ir.http._post_logout`); a readonly cursor leaves it to the sweep
-- `_update_revoked()` — Autovacuum: archive the devices of the sessions the store lost
+- `_update_device(request)` — Issue the browser key if missing; upsert the device, its session and its address in one statement; at login (`ir.http._post_login`) and on each trace change
+- `revoke()` — Revoke every session of the device (`@check_identity`); reloads when it is the current one
+- `action_rename()` — Open the rename form; a user may write `name` and nothing else
 - `_gc_revoked_devices()` — Autovacuum: delete archived devices past the retention
+
+#### ResDeviceSession — `res.device.session` (`_name`)
+
+One row per session a device used (`_device_session_uniq`); revocation acts on
+these, and a device is archived when its last live session ends.
+
+**Key Methods:**
+- `_mark_revoked(session_identifiers)` — End those sessions; archive the devices left without a live one
+- `_mark_logged_out(session_identifier)` — At logout (`ir.http._post_logout`); a readonly cursor leaves it to the sweep
+- `_update_revoked()` — Autovacuum: end the sessions the store lost
+- `_gc_ended_sessions()` — Autovacuum: delete ended sessions past the retention
 
 #### ResDeviceLog — `res.device.log` (`_name`)
 
@@ -2276,7 +2288,7 @@ Quick lookup — file → model → primary role:
 | `res_config.py` | res.config, res.config.settings | Settings framework |
 | `res_country.py` | res.country, .group, .state | Geography |
 | `res_currency.py` | res.currency, .rate | Currencies + rates |
-| `res_device.py` | res.device, res.device.log | Session tracking |
+| `res_device.py` | res.device, res.device.session, res.device.log | Session tracking |
 | `res_groups.py` | res.groups | Security groups |
 | `res_groups_privilege.py` | res.groups.privilege | Group categories |
 | `res_lang.py` | res.lang | Languages |

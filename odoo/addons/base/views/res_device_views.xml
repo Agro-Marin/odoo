@@ -69,11 +69,18 @@
                                 <field name="country" />
                                 <field name="city" />
                             </div>
-                            <button
-                                name="revoke"
-                                type="object"
-                                string="Log out"
-                                class="btn btn-secondary ms-auto mb-auto my-auto" />
+                            <div class="d-flex gap-1 ms-auto my-auto">
+                                <button
+                                    name="action_rename"
+                                    type="object"
+                                    string="Rename"
+                                    class="btn btn-link" />
+                                <button
+                                    name="revoke"
+                                    type="object"
+                                    string="Log out"
+                                    class="btn btn-secondary" />
+                            </div>
                         </div>
                     </t>
                 </templates>
@@ -85,7 +92,7 @@
         <field name="name">res.device.form</field>
         <field name="model">res.device</field>
         <field name="arch" type="xml">
-            <form create="0" edit="0">
+            <form create="0">
                 <sheet>
                     <widget
                         name="web_ribbon"
@@ -95,28 +102,77 @@
                     <field name="active" invisible="1" />
                     <group>
                         <group>
-                            <field name="user_id" />
-                            <field name="display_name" string="Name" />
-                            <field name="device_type" />
-                            <field name="ip_address" string="Last IP Address" />
-                            <field name="country" />
-                            <field name="city" />
+                            <field name="name" placeholder="e.g. Work laptop" />
+                            <field name="user_id" readonly="1" />
+                            <field name="platform" readonly="1" />
+                            <field name="browser" readonly="1" />
+                            <field name="device_type" readonly="1" />
+                            <field
+                                name="ip_address"
+                                string="Last IP Address"
+                                readonly="1" />
+                            <field name="country" readonly="1" />
+                            <field name="city" readonly="1" />
                         </group>
                         <group>
-                            <field name="first_activity" />
-                            <field name="last_activity" />
+                            <field name="first_activity" readonly="1" />
+                            <field name="last_activity" readonly="1" />
                         </group>
                     </group>
-                    <field name="log_ids">
-                        <list>
-                            <field name="ip_address" />
-                            <field name="country" />
-                            <field name="city" />
-                            <field name="first_activity" />
-                            <field name="last_activity" />
-                        </list>
-                    </field>
+                    <notebook>
+                        <page name="addresses" string="Addresses">
+                            <field name="log_ids" readonly="1">
+                                <list>
+                                    <field name="ip_address" />
+                                    <field name="country" />
+                                    <field name="city" />
+                                    <field name="first_activity" />
+                                    <field name="last_activity" />
+                                </list>
+                            </field>
+                        </page>
+                        <page
+                            name="sessions"
+                            string="Sessions"
+                            groups="base.group_system">
+                            <field
+                                name="session_ids"
+                                context="{'active_test': False}"
+                                readonly="1">
+                                <list decoration-muted="not active">
+                                    <field name="first_activity" />
+                                    <field name="last_activity" />
+                                    <field name="active" string="Live" />
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
                 </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="res_device_view_rename" model="ir.ui.view">
+        <field name="name">res.device.rename</field>
+        <field name="model">res.device</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="name" placeholder="e.g. Work laptop" />
+                </group>
+                <footer>
+                    <button
+                        special="save"
+                        string="Save"
+                        class="btn btn-primary"
+                        data-hotkey="q" />
+                    <button
+                        special="cancel"
+                        string="Discard"
+                        class="btn btn-secondary"
+                        data-hotkey="z" />
+                </footer>
             </form>
         </field>
     </record>
@@ -126,6 +182,7 @@
         <field name="model">res.device</field>
         <field name="arch" type="xml">
             <search string="Devices">
+                <field name="name" />
                 <field name="user_id" />
                 <field
                     name="log_ids"
