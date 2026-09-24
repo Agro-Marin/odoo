@@ -167,6 +167,7 @@ access_ir_profile,ir_profile,model_ir_profile,group_system,permission,crud,
 access_base_enable_profiling_wizard,access.base.enable.profiling.wizard,model_base_enable_profiling_wizard,group_system,permission,cru,
 user_device,Users can read and rename only their own devices,model_res_device,group_user,permission,ru,"[('user_id', '=', user.id)]"
 user_device_admin,Administrators can read and rename all devices,model_res_device,group_system,permission,ru,
+user_device_portal,Portal users can read only their own devices,model_res_device,group_portal,permission,r,"[('user_id', '=', user.id)]"
 user_device_sessions_admin,Administrators can read all device sessions,model_res_device_session,group_system,permission,r,
 user_device_logs,Users can read only their own device logs,model_res_device_log,group_user,permission,r,"[('device_id.user_id', '=', user.id)]"
 user_device_logs_admin,Administrators can read all device logs,model_res_device_log,group_system,permission,r,

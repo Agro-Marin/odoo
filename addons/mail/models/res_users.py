@@ -490,7 +490,7 @@ class ResUsers(models.Model):
             "body_html": body_html,
             "author_id": self.env.user.partner_id.id,
             "email_from": (
-                user.company_id.partner_id.email_formatted
+                user.company_id.email_formatted
                 or self.env.user.email_formatted
                 or self.env.ref("base.user_root").email_formatted
             ),

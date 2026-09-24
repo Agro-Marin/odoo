@@ -106,6 +106,11 @@ class Home(web_home.Home):
                             datetime.now() + timedelta(seconds=trusted_device_age),
                         )
                     )
+                    trust = request.env["auth_totp.device"]._match_key(
+                        "browser", key, include_expired=False
+                    )
+                    if trust:
+                        request.env["res.device"]._trust_current_device(trust[3])
                     response.set_cookie(
                         key=TRUSTED_DEVICE_COOKIE,
                         value=key,

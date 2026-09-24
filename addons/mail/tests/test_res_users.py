@@ -797,13 +797,13 @@ class TestNewDeviceAlert(MockEmail, HttpCaseWithUserDemo):
         "(KHTML, like Gecko) Chrome/130.0 Safari/537.36"
     )
 
-    def _sign_in(self, user_agent=_BROWSER, *, new_browser=False):
+    def _sign_in(self, user_agent=_BROWSER, *, new_browser=False, login="demo"):
         if new_browser:
             self.authenticate(None, None, session_extra={"_trace_disable": False})
         payload = {
             "jsonrpc": "2.0",
             "method": "call",
-            "params": {"db": self.env.cr.dbname, "login": "demo", "password": "demo"},
+            "params": {"db": self.env.cr.dbname, "login": login, "password": login},
         }
         with self.mock_mail_gateway():
             response = self.url_open(
@@ -824,6 +824,14 @@ class TestNewDeviceAlert(MockEmail, HttpCaseWithUserDemo):
         alerts = self._sign_in(new_browser=True)
         self.assertEqual(len(alerts), 1)
         self.assertIn("Linux Chrome", alerts[0].body_html)
+
+    def test_a_portal_user_signs_in_and_is_alerted_too(self):
+        portal = mail_new_test_user(
+            self.env, "rdev_portal", groups="base.group_portal", password="rdev_portal"
+        )
+        self.assertFalse(self._sign_in(new_browser=True, login=portal.login))
+        alerts = self._sign_in(new_browser=True, login=portal.login)
+        self.assertEqual(len(alerts), 1)
 
     def test_a_script_signing_in_is_not_a_browser(self):
         self._sign_in(new_browser=True)

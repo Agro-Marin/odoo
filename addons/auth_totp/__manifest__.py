@@ -31,6 +31,7 @@ can setup API keys to replace their main password.
     "data": [
         "security/ir.access.csv",
         "data/ir_action_data.xml",
+        "views/res_device_views.xml",
         "views/res_users_views.xml",
         "views/templates.xml",
         "wizards/auth_totp_wizard_views.xml",

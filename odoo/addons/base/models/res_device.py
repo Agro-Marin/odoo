@@ -73,7 +73,10 @@ def _sha256(text: str) -> str:
 
 
 def _browser_key(req: Any, *, issue: bool) -> str | None:
-    key = req.httprequest.cookies.get(DEVICE_KEY_COOKIE)
+    # a key issued earlier in this request is only in the response's cookies
+    key = getattr(req, "device_key", None) or req.httprequest.cookies.get(
+        DEVICE_KEY_COOKIE
+    )
     if key and _DEVICE_KEY_RE.fullmatch(key):
         return key
     future_response = getattr(req, "future_response", None)
@@ -83,6 +86,7 @@ def _browser_key(req: Any, *, issue: bool) -> str | None:
     future_response.set_cookie(
         DEVICE_KEY_COOKIE, key, max_age=_DEVICE_KEY_MAX_AGE, httponly=True
     )
+    req.device_key = key
     _debug.lifecycle("device_key_issued")
     return key
 

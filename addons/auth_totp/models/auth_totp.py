@@ -4,6 +4,7 @@ from odoo import models
 from odoo.exceptions import AccessError
 
 from odoo.addons.auth_totp.controllers.home import TRUSTED_DEVICE_AGE_DAYS
+from odoo.addons.auth_totp.models.res_device import ensure_trust_foreign_key
 
 _logger = logging.getLogger(__name__)
 
@@ -44,6 +45,10 @@ class Auth_TotpDevice(models.Model):
             raise AccessError(
                 self.env._("Only an authenticated user can register a trusted device")
             )
+
+    def init(self):
+        super().init()
+        ensure_trust_foreign_key(self.env.cr)
 
     def _check_credentials_for_uid(self, *, scope, key, uid):
         """Return True if device key matches given `scope` for user ID `uid`"""

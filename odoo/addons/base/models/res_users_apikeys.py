@@ -132,8 +132,8 @@ class ResUsersApikeys(models.Model):
 
     def _match_key(
         self, scope: str | None, key: str, *, include_expired: bool
-    ) -> tuple[int, datetime.datetime | None, int | None] | None:
-        """``(user_id, expiration, scope_id)`` of the key, or None.
+    ) -> tuple[int, datetime.datetime | None, int | None, int] | None:
+        """``(user_id, expiration, scope_id, key_id)`` of the key, or None.
 
         A key bound to no scope opens every door; one bound to a scope opens
         that door alone, whatever the door's own scope lets through. With no
@@ -144,7 +144,7 @@ class ResUsersApikeys(models.Model):
         self.env.cr.execute(
             SQL(
                 """
-                SELECT k.user_id, k.key, k.expiration_date, k.scope_id
+                SELECT k.user_id, k.key, k.expiration_date, k.scope_id, k.id
                 FROM %s k
                 INNER JOIN res_users u ON (u.id = k.user_id)
                 LEFT JOIN res_users_apikeys_scope s ON (s.id = k.scope_id)
@@ -171,12 +171,12 @@ class ResUsersApikeys(models.Model):
             candidates=len(candidates),
             include_expired=include_expired,
         )
-        for user_id, current_key, expiration_date, scope_id in candidates:
+        for user_id, current_key, expiration_date, scope_id, key_id in candidates:
             if KEY_CRYPT_CONTEXT.is_password_valid(key, current_key):
                 _debug.logic(
                     "apikey_matched", scope=scope, uid=user_id, expires=expiration_date
                 )
-                return user_id, expiration_date, scope_id
+                return user_id, expiration_date, scope_id, key_id
         _debug.logic("apikey_rejected", scope=scope, candidates=len(candidates))
         return None
 

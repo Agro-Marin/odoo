@@ -125,3 +125,26 @@ class TestTrustedDevice(HttpCase):
             self.env["auth_totp.device"].with_user(public_user)._generate(
                 "browser", "nope", None
             )
+
+    def test_the_remembered_browser_carries_its_trust_until_revoked(self):
+        user, secret = self._new_2fa_user("td_link", "base.group_user")
+        self._login_remembering_device("td_link", secret, CHROME_UA)
+        self.env.invalidate_all()
+        trust = user.totp_trusted_device_ids
+        self.assertEqual(len(trust), 1)
+        self.assertEqual(user.device_ids.totp_device_id, trust)
+
+        user.device_ids.with_user(user)._revoke()
+
+        self.assertFalse(trust.exists(), "revoking the device ends its 2FA trust")
+
+    def test_an_expired_trust_leaves_no_dangling_link(self):
+        user, secret = self._new_2fa_user("td_expired", "base.group_user")
+        self._login_remembering_device("td_expired", secret, CHROME_UA)
+        self.env.invalidate_all()
+        device, trust = user.device_ids, user.totp_trusted_device_ids
+        self.assertTrue(device.totp_device_id)
+        # the API-key vacuum deletes expired keys in SQL, not through the ORM
+        self.env.cr.execute("DELETE FROM auth_totp_device WHERE id = %s", [trust.id])
+        self.env.invalidate_all()
+        self.assertFalse(device.totp_device_id)
