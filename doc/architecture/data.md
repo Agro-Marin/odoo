@@ -13,7 +13,7 @@ Python source.**
    ┌──────────────────────── PostgreSQL (one database per tenant) ─────────────┐
    │  business tables          the meta-schema             the signalling tables│
    │  res_partner, …           ir_model, ir_model_fields,  orm_signaling_*      │
-   │  (rows the user owns)     ir_model_data, ir_ui_view…  (11 of them)         │
+   │  (rows the user owns)     ir_model_data, ir_ui_view…  (12 of them)         │
    └──────────────────────────────────────────────────────────────────────────┘
               │                          │                        │
               │ ir_attachment.store_fname│ drives DDL             │ version counter
@@ -86,7 +86,7 @@ per table, not a `max(id)` scan) against the one it last saw, on its next
 `check_signaling()`, and rebuilds its registry or clears the named caches
 accordingly. A serial moves even when the inserting transaction rolls back, so a
 rolled-back registry change costs the other workers one spare reload — rare, and
-cheaper than planning eleven subselects on every request.
+cheaper than planning one subselect per table on every request.
 
 This is why the process model is architectural rather than a deployment knob
 (`workers > 0` means no shared memory), and why any process-lifetime cache must
