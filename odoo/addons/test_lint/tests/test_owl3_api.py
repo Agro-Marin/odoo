@@ -11,7 +11,10 @@ _VENDORED = ("/static/lib/", "/static/src/o_spreadsheet/")
 _COMMENT = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 _OWN_RENDER = re.compile(r"^\s+render\s*\([^)]*\)\s*\{", re.MULTILINE)
 _XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
-_ENV_IS_SMALL = re.compile(r"\bthis\.env\.isSmall\b")
+ENV_KEYS = {
+    "owl_env_is_small": re.compile(r"\bthis\.env\.isSmall\b"),
+    "owl_env_model": re.compile(r"\bthis\.env\.model\b"),
+}
 REMOVED_IN_OWL3 = {
     "owl_on_rendered": re.compile(r"(?<![\w.$])onRendered\s*\("),
     "owl_on_will_render": re.compile(r"(?<![\w.$])onWillRender\s*\("),
@@ -46,13 +49,14 @@ def template_calls(pattern: re.Pattern, source: str) -> list[int]:
 
 
 @functools.cache
-def _env_is_small_findings() -> tuple[str, ...]:
+def _env_findings(gate: str) -> tuple[str, ...]:
+    pattern = ENV_KEYS[gate]
     findings = [
         f"{path}:{line}"
         for _addon, path, source in _js_sources.addon_js_outside_lib()
         if "/static/src/" in path.as_posix()
         and not any(part in path.as_posix() for part in _VENDORED)
-        for line in calls(_ENV_IS_SMALL, source)
+        for line in calls(pattern, source)
     ]
     for manifest in Manifest.get_all_addon_manifests():
         src = Path(manifest.path) / "static" / "src"
@@ -63,7 +67,7 @@ def _env_is_small_findings() -> tuple[str, ...]:
                 continue
             findings += [
                 f"{path}:{line}"
-                for line in template_calls(_ENV_IS_SMALL, path.read_text(errors="replace"))
+                for line in template_calls(pattern, path.read_text(errors="replace"))
             ]
     return tuple(findings)
 
@@ -109,11 +113,21 @@ class TestOwl3Api(lint_case.LintCase):
 
     def test_no_env_is_small(self):
         self.assert_ratchet(
-            _env_is_small_findings(),
+            _env_findings("owl_env_is_small"),
             "owl_env_is_small",
             "this.env.isSmall reads in static/src (JS and templates)",
             "A component reads this.ui.isSmall from this.ui = useService(\"ui\") "
             "in setup; OWL 3 components have no env",
+        )
+
+    def test_no_env_model(self):
+        self.assert_ratchet(
+            _env_findings("owl_env_model"),
+            "owl_env_model",
+            "this.env.model reads in static/src (JS and templates)",
+            "A component under a view reads this.model = useViewModel() from "
+            "setup, and a view provides it with provideViewModel(model); OWL 3 "
+            "components have no env",
         )
 
     def test_no_env_services(self):

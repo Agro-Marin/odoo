@@ -6,6 +6,7 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
+import { useViewModel } from "@web/model/model";
 import { ConfirmationDialog } from "@web/ui/dialog";
 
 const WEEKDAY_CODES = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
@@ -17,6 +18,7 @@ export class AccrualLevels extends Component {
     };
 
     setup() {
+        this.model = useViewModel();
         this.orm = useService("orm");
         this.action = useService("action");
         this.dialog = useService("dialog");
@@ -55,7 +57,7 @@ export class AccrualLevels extends Component {
     getFullDay(weekday) {
         const isoWeekday = String(WEEKDAY_CODES.indexOf(weekday) + 1);
         return luxon.DateTime.fromFormat(isoWeekday, "c", {
-            locale: this.env.model.config.context.lang.replace("_", "-"),
+            locale: this.model.config.context.lang.replace("_", "-"),
         }).toLocaleString({ weekday: "long" });
     }
 
@@ -65,7 +67,7 @@ export class AccrualLevels extends Component {
 
     getFullMonth(month) {
         return luxon.DateTime.fromFormat(month, "M", {
-            locale: this.env.model.config.context.lang.replace("_", "-"),
+            locale: this.model.config.context.lang.replace("_", "-"),
         }).toLocaleString({ month: "long" });
     }
 
@@ -83,7 +85,7 @@ export class AccrualLevels extends Component {
                 return luxon.DateTime.fromFormat(
                     `${planRecord._values.carryover_day} ${planRecord._values.carryover_month} 2020`,
                     "d M y",
-                    { locale: this.env.model.config.context.lang.replace("_", "-") },
+                    { locale: this.model.config.context.lang.replace("_", "-") },
                 ).toLocaleString({ day: "numeric", month: "long" });
         }
     }
@@ -108,7 +110,7 @@ export class AccrualLevels extends Component {
             additionalContext: {
                 active_id: this.props.record.evalContext.id,
             },
-            onClose: () => this.env.model.root.load(),
+            onClose: () => this.model.root.load(),
         });
     }
 

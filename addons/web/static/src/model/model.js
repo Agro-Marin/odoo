@@ -8,6 +8,7 @@ import {
     reactive,
     useEnv,
     useState,
+    useSubEnv,
 } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { SEARCH_KEYS } from "@web/core/constants";
@@ -124,6 +125,16 @@ export class Model extends SignalStore {
  */
 export function useReactiveModel(model) {
     return useState(model);
+}
+
+/** @param {Model} model */
+export function provideViewModel(model) {
+    useSubEnv({ model });
+}
+
+/** @returns {any} */
+export function useViewModel() {
+    return useEnv().model;
 }
 
 /**

@@ -16,6 +16,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { useViewModel } from "@web/model/model";
 
 export const DocumentsRendererMixin = (component) =>
     class extends component {
@@ -32,6 +33,7 @@ export const DocumentsRendererMixin = (component) =>
 
         setup() {
             super.setup();
+            this.model = useViewModel();
             this.root = useRef("root");
             this.documentService = useService("document.document");
             this.notificationService = useService("notification");
@@ -65,7 +67,7 @@ export const DocumentsRendererMixin = (component) =>
                 const { hover, invalid } = this.constructor.dropHoverClasses;
                 useDraggableDocuments({
                     ref: this.root,
-                    model: this.env.model,
+                    model: this.model,
                     targetSelector: this.constructor.dropTargetSelector,
                     elements: this.constructor.recordSelector,
                     preventDrag: () =>
@@ -88,7 +90,7 @@ export const DocumentsRendererMixin = (component) =>
 
             onWillUnmount(() => this.documentService.stopRightPanelScrollObserver());
 
-            useCommand(_t("Move to trash"), () => this.env.model.onArchive(), {
+            useCommand(_t("Move to trash"), () => this.model.onArchive(), {
                 category: "smart_action",
                 hotkey: "control+m",
                 isAvailable: () =>
@@ -97,11 +99,11 @@ export const DocumentsRendererMixin = (component) =>
                     this.selection.some((r) => !r.data.lock_uid) &&
                     this.selection.every((r) => r.data.user_permission === "edit"),
             });
-            useCommand(_t("Delete"), () => this.env.model.onDelete(), {
+            useCommand(_t("Delete"), () => this.model.onDelete(), {
                 category: "smart_action",
                 hotkey: "control+d",
                 isAvailable: () =>
-                    this.hasRecordsToDelete && this.env.model.canDeleteRecords,
+                    this.hasRecordsToDelete && this.model.canDeleteRecords,
             });
 
             const setShortcutModifier = (active) => {
@@ -166,12 +168,8 @@ export const DocumentsRendererMixin = (component) =>
                 type: "folder",
                 file_size: (this.props.list?.model.fileSize || 0) * 1e6,
             });
-            const config = { ...this.env.model.config, resId: data.id };
-            const record = new this.env.model.constructor.Record(
-                this.env.model,
-                config,
-                data,
-            );
+            const config = { ...this.model.config, resId: data.id };
+            const record = new this.model.constructor.Record(this.model, config, data);
             record.isContainer = true;
 
             /**
@@ -192,7 +190,7 @@ export const DocumentsRendererMixin = (component) =>
                         fieldsToSave.has(name),
                     ),
                 );
-                await this.env.model.orm.write(
+                await this.model.orm.write(
                     "document.document",
                     [record.data.id],
                     changesToSave,
@@ -213,7 +211,7 @@ export const DocumentsRendererMixin = (component) =>
         }
 
         getIsDomainSelected() {
-            if (this.env.model.isDomainSelected) {
+            if (this.model.isDomainSelected) {
                 this.notificationService.add(
                     _t("Only current page items can be dragged."),
                     {
@@ -221,7 +219,7 @@ export const DocumentsRendererMixin = (component) =>
                     },
                 );
             }
-            return this.env.model.isDomainSelected;
+            return this.model.isDomainSelected;
         }
 
         getNbViewItems() {

@@ -8,6 +8,7 @@ import { useSetupAction } from "@web/core/action_hook";
 import { PdfManager } from "@document/owl/components/pdf_manager/pdf_manager";
 import { PromoteStudioAutomationDialog } from "@web/webclient/promote_studio/promote_studio_dialog";
 import { EventBus, onMounted, useEnv, useRef, useSubEnv } from "@odoo/owl";
+import { provideViewModel } from "@web/model/model";
 
 export const DETAIL_PANEL_REQUIRED_FIELDS = [
     "lock_uid",
@@ -69,9 +70,7 @@ export function useDocumentView(component, helpers) {
     const action = useService("action");
     const documentService = useService("document.document");
 
-    useSubEnv({
-        model: component.model,
-    });
+    provideViewModel(component.model);
     const env = useEnv();
     const bus = env.documentsView.bus;
 

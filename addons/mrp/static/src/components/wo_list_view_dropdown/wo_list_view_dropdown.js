@@ -3,6 +3,7 @@ import { Component } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useViewModel } from "@web/model/model";
 import { standardWidgetProps } from "@web/views/widgets";
 
 export class MOListViewDropdown extends Component {
@@ -14,6 +15,7 @@ export class MOListViewDropdown extends Component {
     static props = { ...standardWidgetProps };
 
     setup() {
+        this.model = useViewModel();
         this.orm = useService("orm");
         this.action = useService("action");
         this.colorIcons = {
@@ -26,8 +28,8 @@ export class MOListViewDropdown extends Component {
     }
 
     async reload() {
-        await this.env.model.root.load();
-        this.env.model.notify();
+        await this.model.root.load();
+        this.model.notify();
     }
 
     get statusColor() {

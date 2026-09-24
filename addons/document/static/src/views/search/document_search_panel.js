@@ -9,6 +9,7 @@ import { useBus, useService } from "@web/core/utils/hooks";
 import { utils as uiUtils } from "@web/ui/viewport";
 import { toFolderValueId } from "@document/views/utils";
 import { Component, onWillStart, useState } from "@odoo/owl";
+import { useViewModel } from "@web/model/model";
 
 const DND_ALLOWED_SPECIAL_DESTINATIONS = ["COMPANY", "MY"];
 const LONG_TOUCH_THRESHOLD = 400;
@@ -56,6 +57,7 @@ export class DocumentsSearchPanel extends SearchPanel {
     };
     setup() {
         super.setup(...arguments);
+        this.model = useViewModel();
         const { uploads } = useService("file_upload");
         this.documentService = useService("document.document");
         this.documentUploads = useState(uploads);
@@ -70,7 +72,7 @@ export class DocumentsSearchPanel extends SearchPanel {
 
         onWillStart(async () => {
             await this.env.searchModel.sectionsPromise;
-            if (this.env.model.config.context.active_model) {
+            if (this.model.config.context.active_model) {
                 const categories = await this.env.searchModel.getSections(
                     (s) => s.type === "category",
                 );

@@ -1,15 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    onError,
-    onMounted,
-    onRendered,
-    status,
-    useEffect,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
+import { onError, onMounted, onRendered, status, useEffect, useState } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { useDebugCategory } from "@web/core/debug/debug_context";
@@ -21,7 +13,7 @@ import { createElement } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
 import { effect } from "@web/core/utils/reactive";
 import { Field } from "@web/fields/field";
-import { useModel } from "@web/model/model";
+import { provideViewModel, useModel } from "@web/model/model";
 import {
     addFieldDependencies,
     extractFieldsFromArchInfo,
@@ -178,7 +170,7 @@ export class FormController extends ViewController {
                     this.multiCompanyRecovery.recoverFromSaveError(error, model),
             }),
         );
-        useSubEnv({ model: this.model });
+        provideViewModel(this.model);
         onMounted(() => {
             effect(
                 (model) => {

@@ -16,6 +16,7 @@ import { DocumentsKanbanRecord } from "@document/views/kanban/document_kanban_re
 
 import { onMounted } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useViewModel } from "@web/model/model";
 
 export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRenderer) {
     static props = [...KanbanRenderer.props, "previewStore"];
@@ -36,17 +37,18 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
 
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.ui = useService("ui");
         useCommand(
             _t("Toggle favorite"),
             async () => {
                 if (this.selection.length) {
-                    await this.env.model.orm.call(
+                    await this.model.orm.call(
                         "document.document",
                         "action_toggle_user_favorite",
                         [this.selection.map((record) => record.resId)],
                     );
-                    await this.env.model.load();
+                    await this.model.load();
                 }
             },
             {
@@ -155,7 +157,7 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
     }
 
     get isRecentFolder() {
-        const groupBy = this.env.model.config.groupBy;
+        const groupBy = this.model.config.groupBy;
         return groupBy?.length === 1 && groupBy[0] === "last_access_date_group";
     }
 

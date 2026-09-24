@@ -7,6 +7,7 @@ import { formatMonetary } from "@web/core/formatters";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useViewModel } from "@web/model/model";
 import { KanbanRenderer, kanbanView } from "@web/views/kanban";
 
 import { useBankReconciliation } from "./bank_reconciliation_service.js";
@@ -32,25 +33,26 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.model = useViewModel();
         this.action = useService("action");
         this.orm = useService("orm");
         this.ui = useService("ui");
         this.bankReconciliation = useBankReconciliation();
         this.bankReconciliation.hydrateChatterState();
         this.globalState = useState({
-            resModel: this.env.model.config.resModel,
-            context: this.env.model.config.context,
+            resModel: this.model.config.resModel,
+            context: this.model.config.context,
             quickCreate: {
                 isVisible: false,
                 quickCreateView: this.props.archInfo.quickCreateView,
             },
             journalId:
-                this.env.model.config.context.default_journal_id ||
-                this.env.model.config.context.active_id,
+                this.model.config.context.default_journal_id ||
+                this.model.config.context.active_id,
             totalJournalAmount: "",
         });
 
-        this.env.model.hooks.lifecycle.onRootLoaded = async (newRoot) => {
+        this.model.hooks.lifecycle.onRootLoaded = async (newRoot) => {
             await this.prepareInitialState(newRoot.records);
         };
 
@@ -59,7 +61,7 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
         });
 
         onWillStart(async () => {
-            await this.prepareInitialState(this.env.model.root.records);
+            await this.prepareInitialState(this.model.root.records);
         });
 
         onWillDestroy(() => {
@@ -102,10 +104,10 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
 
     async validateQuickCreate(recordId, mode) {
         await this.bankReconciliation.updateAvailableReconcileModels(recordId);
-        await this.env.model.load();
+        await this.model.load();
         await this.getJournalTotalAmount();
         await this.bankReconciliation.computeReconcileLineCountPerPartnerId(
-            this.env.model.root.records,
+            this.model.root.records,
         );
 
         if (mode === "add_close") {
@@ -129,8 +131,8 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
             "account.journal",
             "action_view_bank_balance_in_gl",
             [
-                this.env.model.config.context.default_journal_id ||
-                    this.env.model.config.context.active_id,
+                this.model.config.context.default_journal_id ||
+                    this.model.config.context.active_id,
             ],
         );
         this.action.doAction(actionData);
@@ -162,7 +164,7 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
     }
 
     get hasStatementLine() {
-        return this.env.model.root.count;
+        return this.model.root.count;
     }
 
     get totalJournalLabel() {
@@ -176,7 +178,7 @@ export class BankRecKanbanRenderer extends KanbanRenderer {
     get statementGroups() {
         const statementGroups = {};
         let lastStatementId = null;
-        for (const record of this.env.model.root.records) {
+        for (const record of this.model.root.records) {
             const statementId = record.data.statement_id?.id;
             if (statementId && statementId !== lastStatementId) {
                 statementGroups[record.data.id] = {

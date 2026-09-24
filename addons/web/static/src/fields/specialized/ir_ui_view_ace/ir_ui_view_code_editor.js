@@ -4,6 +4,7 @@
 import { onMounted, useEffect } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { escapeRegExp } from "@web/core/utils/format/strings";
+import { useViewModel } from "@web/model/model";
 export class IrUiViewCodeEditor extends CodeEditor {
     static props = {
         .../** @type {any} */ (CodeEditor).props,
@@ -15,6 +16,7 @@ export class IrUiViewCodeEditor extends CodeEditor {
 
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.markers = [];
 
         onMounted(() => {
@@ -39,8 +41,8 @@ export class IrUiViewCodeEditor extends CodeEditor {
      * @param {any[]} invalid_locators
      */
     async highlightInvalidLocators(arch, invalid_locators) {
-        const resModel = this.env.model?.config.resModel;
-        const resId = this.env.model?.config.resId;
+        const resModel = this.model?.config.resModel;
+        const resId = this.model?.config.resId;
         if (resModel === "ir.ui.view" && resId) {
             const { doc } = this.aceEditor.session;
             for (const spec of invalid_locators) {

@@ -6,12 +6,14 @@ import {
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
 import { markup } from "@odoo/owl";
+import { useViewModel } from "@web/model/model";
 
 export class DocumentsHtmlComposerMessageField extends HtmlComposerMessageField {
     setup() {
         super.setup();
-        if (this.env.model.bus) {
-            useBus(this.env.model.bus, "PASTE_SHARE_LINKS", (ev) => {
+        this.model = useViewModel();
+        if (this.model.bus) {
+            useBus(this.model.bus, "PASTE_SHARE_LINKS", (ev) => {
                 this.editor.shared.dom.insert(this.formatLinks(ev.detail.links));
                 this.editor.editable.focus();
                 this.editor.shared.history.addStep();

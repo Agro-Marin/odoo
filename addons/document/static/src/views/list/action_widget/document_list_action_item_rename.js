@@ -3,10 +3,12 @@ import { documentActionRules } from "@document/views/document_action_rules";
 import { _t } from "@web/core/translation";
 
 import { DocumentsListActionItem } from "./document_list_action_item.js";
+import { useViewModel } from "@web/model/model";
 
 export class DocumentsListActionItemRename extends DocumentsListActionItem {
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.icon = "fa-edit";
         this.description = _t("Rename");
     }
@@ -17,6 +19,6 @@ export class DocumentsListActionItemRename extends DocumentsListActionItem {
 
     async onActionClicked() {
         await this.documentService.openDialogRename(this.props.record.data.id);
-        await this.env.model._notifyChange();
+        await this.model._notifyChange();
     }
 }

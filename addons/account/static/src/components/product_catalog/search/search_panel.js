@@ -4,6 +4,7 @@ import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useViewModel } from "@web/model/model";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 
 export class AccountProductCatalogSearchPanel extends SearchPanel {
@@ -11,6 +12,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
 
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.ui = useService("ui");
 
         this.notification = useService("notification");
@@ -44,7 +46,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
     }
 
     get showSections() {
-        return this.env.model.config.context.show_sections;
+        return this.model.config.context.show_sections;
     }
 
     get selectedSection() {
@@ -202,7 +204,7 @@ export class AccountProductCatalogSearchPanel extends SearchPanel {
     }
 
     _getSectionInfoParams(extra = {}) {
-        const ctx = this.env.model.config.context;
+        const ctx = this.model.config.context;
         return {
             res_model: ctx.product_catalog_order_model,
             order_id: ctx.order_id,

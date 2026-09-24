@@ -3,12 +3,14 @@ import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
+import { useViewModel } from "@web/model/model";
 
 class BankRecWidgetApplyAmountHtmlField extends Component {
     static props = standardFieldProps;
     static template = "account.BankRecWidgetApplyAmountHtmlField";
 
     setup() {
+        this.model = useViewModel();
         this.action = useService("action");
         this.orm = useService("orm");
     }
@@ -18,7 +20,7 @@ class BankRecWidgetApplyAmountHtmlField extends Component {
     }
 
     async switchApplyAmount(ev) {
-        const root = this.env.model.root;
+        const root = this.model.root;
         const fetchReconciledLines = async (fields = []) =>
             await this.orm.searchRead(
                 "account.move.line",

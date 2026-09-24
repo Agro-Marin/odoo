@@ -5,6 +5,7 @@ import { DocumentsBreadcrumbs } from "@document/components/document_breadcrumbs"
 import { DocumentsCogMenu } from "../cog_menu/document_cog_menu.js";
 import { onPatched, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useViewModel } from "@web/model/model";
 
 export class DocumentsControlPanel extends ControlPanel {
     static template = "document.ControlPanel";
@@ -17,6 +18,7 @@ export class DocumentsControlPanel extends ControlPanel {
 
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.ui = useService("ui");
         this.documentService = useService("document.document");
 
@@ -27,7 +29,7 @@ export class DocumentsControlPanel extends ControlPanel {
             if (searchPanelContainer) {
                 searchPanelContainer.classList.toggle(
                     "d-none",
-                    this.ui.isSmall && this.env.model.root.selection.length,
+                    this.ui.isSmall && this.model.root.selection.length,
                 );
             }
         });
@@ -42,7 +44,7 @@ export class DocumentsControlPanel extends ControlPanel {
         const focusing = !!this.rightPanelState.focusedRecord;
         const focusedSelected =
             focusing &&
-            !!this.env.model.root.selection.find(
+            !!this.model.root.selection.find(
                 (r) => r.id === this.rightPanelState.focusedRecord.id,
             );
         return (
@@ -53,7 +55,7 @@ export class DocumentsControlPanel extends ControlPanel {
     }
 
     get pathBreadcrumbs() {
-        if (this.env.model.config.context.active_model) {
+        if (this.model.config.context.active_model) {
             return [
                 ...this.env.config.breadcrumbs.slice(0, -1),
                 {

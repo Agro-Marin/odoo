@@ -13,6 +13,7 @@ import {
     Many2One,
     Many2OneField,
 } from "@web/fields/relational/many2one";
+import { useViewModel } from "@web/model/model";
 
 export class MailingFilterDropdown extends Dropdown {
     setup() {
@@ -55,6 +56,7 @@ export class FieldMany2OneMailingFilter extends Component {
 
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.notification = useService("notification");
         this.orm = useService("orm");
         this.filter = useState({
@@ -189,7 +191,7 @@ export class FieldMany2OneMailingFilter extends Component {
             ev.stopPropagation();
             filterInput.focus();
         } else {
-            const [newFilterId] = await this.env.model.orm.create("mailing.filter", [
+            const [newFilterId] = await this.model.orm.create("mailing.filter", [
                 {
                     name: filterName,
                     mailing_domain: this.props.record.data[this.props.domain_field],

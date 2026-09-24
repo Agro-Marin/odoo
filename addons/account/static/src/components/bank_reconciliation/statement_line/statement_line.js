@@ -5,6 +5,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatMonetary } from "@web/core/formatters";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
+import { useViewModel } from "@web/model/model";
 import { KanbanRecord } from "@web/views/kanban";
 
 import { useBankReconciliation } from "../bank_reconciliation_service.js";
@@ -26,6 +27,7 @@ export class BankRecStatementLine extends KanbanRecord {
 
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.orm = useService("orm");
         this.ui = useService("ui");
         this.bankReconciliation = useBankReconciliation();
@@ -37,10 +39,7 @@ export class BankRecStatementLine extends KanbanRecord {
             reconciledLineName: {},
         });
         this.statementLineRootRef = useRef("root");
-        if (
-            this.env.model.config.context?.default_st_line_id ===
-            this.props.record.resId
-        ) {
+        if (this.model.config.context?.default_st_line_id === this.props.record.resId) {
             this.state.isUnfolded = true;
             this.bankReconciliation.selectStatementLine(this.props.record);
         }
@@ -71,7 +70,7 @@ export class BankRecStatementLine extends KanbanRecord {
                 default_journal_id: this.recordData.journal_id.id,
             },
             onClose: async () => {
-                this.env.model.load();
+                this.model.load();
             },
         });
     }
@@ -208,7 +207,7 @@ export class BankRecStatementLine extends KanbanRecord {
     }
 
     get hasStatementLine() {
-        return this.env.model.root.count;
+        return this.model.root.count;
     }
 
     get formattedAmount() {

@@ -2,6 +2,7 @@
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useViewModel } from "@web/model/model";
 import { COG_GROUP, isActWindowView } from "@web/search/cog_menu/cog_menu_group";
 import { CogMenuItem } from "@web/search/cog_menu/cog_menu_item";
 
@@ -14,12 +15,13 @@ export class RefreshAccountReturns extends Component {
 
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.orm = useService("orm");
     }
 
     async refresh_all_account_returns() {
         await this.orm.call("account.return", "action_refresh_all_returns");
-        await this.env.model.load();
+        await this.model.load();
     }
 }
 

@@ -15,6 +15,7 @@ import { FieldComponent } from "@web/fields/field_component";
 import { archAttribute } from "@web/fields/field_options";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
+import { useViewModel } from "@web/model/model";
 import { ConfirmationDialog } from "@web/ui/dialog";
 import { usePopover } from "@web/ui/popover";
 
@@ -49,6 +50,7 @@ export class PropertiesField extends FieldComponent {
     };
 
     setup() {
+        this.model = useViewModel();
         this.ui = useService("ui");
         this.notification = useService("notification");
         this.orm = useService("orm");
@@ -98,7 +100,7 @@ export class PropertiesField extends FieldComponent {
 
     setupEditMode() {
         if (this.env.config?.viewType === "form") {
-            useBus(this.env.model.bus, ModelEvent.PROPERTY_FIELD_EDIT, async () => {
+            useBus(this.model.bus, ModelEvent.PROPERTY_FIELD_EDIT, async () => {
                 if (this.props.readonly || this.state.isInEditMode) {
                     return;
                 }

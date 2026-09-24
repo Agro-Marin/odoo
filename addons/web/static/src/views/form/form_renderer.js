@@ -8,7 +8,6 @@ import {
     useEffect,
     useRef,
     useState,
-    useSubEnv,
     xml,
 } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -21,6 +20,7 @@ import { mutate } from "@web/core/utils/dom/layout_batch";
 import { useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { Field } from "@web/fields/field";
+import { provideViewModel } from "@web/model/model";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { ButtonBox } from "@web/views/form/button_box/button_box";
 import { InnerGroup, OuterGroup } from "@web/views/form/form_group/form_group";
@@ -82,7 +82,7 @@ export class FormRenderer extends Component {
         this.archDialogs = useState(/** @type {Record<string, boolean>} */ ({}));
         this.templates = compileViewTemplates(Compiler || FormCompiler, templates);
         this.hasUnsavedEdits = useFieldIsDirty(record.model);
-        useSubEnv({ model: record.model });
+        provideViewModel(record.model);
         this.uiService = useState(useService("ui"));
         this.setupStickyStatusbar();
 

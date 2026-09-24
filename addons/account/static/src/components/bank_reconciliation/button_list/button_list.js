@@ -7,6 +7,7 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/translation";
 import { floatIsZero } from "@web/core/utils/format/numbers";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import { useViewModel } from "@web/model/model";
 import { ConfirmationDialog } from "@web/ui/dialog";
 import { MEDIAS_BREAKPOINTS, SIZES } from "@web/ui/viewport";
 import { SelectCreateDialog } from "@web/views/view_dialogs";
@@ -53,6 +54,7 @@ export class BankRecButtonList extends Component {
     };
 
     setup() {
+        this.model = useViewModel();
         this.action = useService("action");
         this.ui = useService("ui");
         this.orm = useService("orm");
@@ -84,7 +86,7 @@ export class BankRecButtonList extends Component {
         const recordsToLoad = [];
         if (this.statementLineData.partner_name) {
             recordsToLoad.push(
-                ...this.env.model.root.records.filter(
+                ...this.model.root.records.filter(
                     (record) =>
                         record.data.partner_name ===
                         this.statementLineData.partner_name,
@@ -95,7 +97,7 @@ export class BankRecButtonList extends Component {
         }
         await this.bankReconciliation.reloadRecords(recordsToLoad);
         await this.bankReconciliation.computeReconcileLineCountPerPartnerId(
-            this.env.model.root.records,
+            this.model.root.records,
         );
         this.bankReconciliation.reloadChatter();
         this.restoreFocus();
@@ -161,7 +163,7 @@ export class BankRecButtonList extends Component {
                         { context: { account_default_taxes: true } },
                     );
                     const recordsToLoad = [
-                        ...this.env.model.root.records.filter((record) =>
+                        ...this.model.root.records.filter((record) =>
                             linesToLoad.includes(record.data.id),
                         ),
                         this.props.statementLine,
@@ -275,7 +277,7 @@ export class BankRecButtonList extends Component {
                         [this.statementLineData.id, moveLines],
                     );
                     await this.bankReconciliation.computeReconcileLineCountPerPartnerId(
-                        this.env.model.root.records,
+                        this.model.root.records,
                     );
                     this.props.statementLine.load();
                     this.bankReconciliation.reloadChatter();
@@ -333,7 +335,7 @@ export class BankRecButtonList extends Component {
                 await this.orm.unlink("account.bank.statement.line", [
                     this.statementLineData.id,
                 ]);
-                this.env.model.load();
+                this.model.load();
             },
             cancel: () => {},
         });
@@ -359,7 +361,7 @@ export class BankRecButtonList extends Component {
             this.statementLineData.id,
         ]);
         await this.bankReconciliation.computeReconcileLineCountPerPartnerId(
-            this.env.model.root.records,
+            this.model.root.records,
         );
         this.props.statementLine.load();
         this.bankReconciliation.reloadChatter();

@@ -7,10 +7,16 @@ import {
 } from "@web/fields/basic/copy_clipboard/copy_clipboard_field";
 
 import { CopyButton } from "@web/components/copy_button";
+import { useViewModel } from "@web/model/model";
 
 class PaymentWizardCopyButton extends CopyButton {
+    setup() {
+        super.setup();
+        this.model = useViewModel();
+    }
+
     async onClick() {
-        await this.env.model.mutex.getUnlockedDef();
+        await this.model.mutex.getUnlockedDef();
         return super.onClick();
     }
 }

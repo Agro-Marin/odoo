@@ -7,6 +7,7 @@ import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
+import { useViewModel } from "@web/model/model";
 import { ListRenderer } from "@web/views/list";
 
 export class MovesListRenderer extends ListRenderer {
@@ -14,6 +15,7 @@ export class MovesListRenderer extends ListRenderer {
 
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.openPackageDialog = useMovePackageDialog();
         this.descriptionColumn = "description_picking";
         this.productColumns = ["product_id", "product_template_id"];
@@ -40,7 +42,7 @@ export class MovesListRenderer extends ListRenderer {
     }
 
     async forceSave() {
-        const record = this.env.model.root;
+        const record = this.model.root;
         const result = await record.save();
         this.pickingId = record.data.id;
         this.locationId = record.data.location_id?.id;

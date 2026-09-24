@@ -7,7 +7,7 @@
         </xpath>
 
         <xpath expr="//div[hasclass('o_control_panel_actions')]" position="inside">
-            <DocumentsAction t-if="this.showActions" folderId="this.currentFolderId" targetRecords="this.env.model.root.selection"/>
+            <DocumentsAction t-if="this.showActions" folderId="this.currentFolderId" targetRecords="this.model.root.selection"/>
         </xpath>
 
         <xpath expr="//*[hasclass('o_control_panel_navigation')]" position="inside">

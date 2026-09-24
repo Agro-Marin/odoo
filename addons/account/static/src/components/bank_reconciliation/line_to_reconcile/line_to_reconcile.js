@@ -6,6 +6,7 @@ import { x2ManyCommands } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { roundDecimals } from "@web/core/utils/format/numbers";
 import { useService } from "@web/core/utils/hooks";
+import { useViewModel } from "@web/model/model";
 import { usePopover } from "@web/ui/popover";
 
 import { useBankReconciliation } from "../bank_reconciliation_service.js";
@@ -25,6 +26,7 @@ export class BankRecLineToReconcile extends Component {
     };
 
     setup() {
+        this.model = useViewModel();
         this.action = useService("action");
         this.orm = useService("orm");
         this.dialogService = useService("dialog");
@@ -80,7 +82,7 @@ export class BankRecLineToReconcile extends Component {
         ]);
         if (this.lineData.reconciled_lines_ids.records.length) {
             this.bankReconciliation.computeReconcileLineCountPerPartnerId(
-                this.env.model.root.records,
+                this.model.root.records,
             );
         }
         this.props.statementLine.load();

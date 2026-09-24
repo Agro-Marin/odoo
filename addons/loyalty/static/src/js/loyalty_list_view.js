@@ -3,11 +3,13 @@ import { Component, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { ListRenderer, listView } from "@web/views/list";
+import { useViewModel } from "@web/model/model";
 
 export class LoyaltyActionHelper extends Component {
     static template = "loyalty.LoyaltyActionHelper";
     static props = ["noContentHelp"];
     setup() {
+        this.model = useViewModel();
         this.orm = useService("orm");
         this.action = useService("action");
 
@@ -17,7 +19,7 @@ export class LoyaltyActionHelper extends Component {
                 "get_program_templates",
                 [],
                 {
-                    context: this.env.model.root.context,
+                    context: this.model.root.context,
                 },
             );
         });
@@ -28,7 +30,7 @@ export class LoyaltyActionHelper extends Component {
             "loyalty.program",
             "create_from_template",
             [templateId],
-            { context: this.env.model.root.context },
+            { context: this.model.root.context },
         );
         if (!action) {
             return;

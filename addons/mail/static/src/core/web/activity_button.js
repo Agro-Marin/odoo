@@ -4,6 +4,7 @@ import { ActivityListPopover } from "@mail/core/web/activity_list_popover";
 import { Component, useEnv, useRef } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
+import { useViewModel } from "@web/model/model";
 import { usePopover } from "@web/ui/popover";
 
 const log = makeLogger("mail.activity");
@@ -15,6 +16,7 @@ export class ActivityButton extends Component {
 
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.popover = usePopover(ActivityListPopover, { position: "bottom-start" });
         this.buttonRef = useRef("button");
         this.env = useEnv();
@@ -80,7 +82,7 @@ export class ActivityButton extends Component {
             this.popover.close();
         } else {
             const resId = this.props.record.resId;
-            const selectedRecords = this.env?.model?.root?.selection ?? [];
+            const selectedRecords = this.model?.root?.selection ?? [];
             const selectedIds = selectedRecords.map((r) => r.resId);
             const resIds =
                 selectedIds.includes(resId) && selectedIds.length > 1

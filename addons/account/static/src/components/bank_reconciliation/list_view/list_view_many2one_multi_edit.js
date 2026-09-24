@@ -7,16 +7,22 @@ import {
     Many2One,
     Many2OneField,
 } from "@web/fields/relational/many2one";
+import { useViewModel } from "@web/model/model";
 
 export class BankRecMany2OneMultiID extends Component {
     static template = "account.BankRecMany2OneMultiID";
     static components = { Many2One };
     static props = { ...Many2OneField.props };
 
+    setup() {
+        super.setup();
+        this.model = useViewModel();
+    }
+
     get m2oProps() {
         const props = computeM2OProps(this.props);
         if (
-            this.env.model &&
+            this.model &&
             this.props.record.selected &&
             this.props.record.model.multiEdit
         ) {

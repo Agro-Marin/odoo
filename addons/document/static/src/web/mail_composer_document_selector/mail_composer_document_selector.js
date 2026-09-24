@@ -7,12 +7,14 @@ import { useService } from "@web/core/utils/hooks";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 
 import { SelectAddDocumentCreateDialog } from "@document/views/view_dialogs/select_add_document_create_dialog";
+import { useViewModel } from "@web/model/model";
 
 export class MailComposerDocumentSelector extends Component {
     static template = "document.MailComposerDocumentSelector";
     static props = { ...standardWidgetProps };
 
     setup() {
+        this.model = useViewModel();
         this.dialogService = useService("dialog");
         this.operations = useX2ManyCrud(
             () => this.props.record.data["attachment_ids"],
@@ -46,7 +48,7 @@ export class MailComposerDocumentSelector extends Component {
                 resId,
                 isFromFullComposer: true,
                 saveRecordHandler: this.saveRecordHandler,
-                addDocumentsBus: this.env.model.bus,
+                addDocumentsBus: this.model.bus,
             },
         });
     };

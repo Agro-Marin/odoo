@@ -2,6 +2,7 @@
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import { useViewModel } from "@web/model/model";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { SelectCreateDialog } from "@web/views/view_dialogs";
@@ -25,6 +26,7 @@ export class BankRecKanbanControlPanel extends ControlPanel {
 
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.ui = useService("ui");
         this.notification = useService("notification");
         this.addDialog = useOwnedDialogs();
@@ -68,7 +70,7 @@ export class BankRecKanbanControlPanel extends ControlPanel {
                 const partnerNames = this.selectedStatementLinesPartnerName;
                 if (partnerNames) {
                     recordsToLoad.push(
-                        ...this.env.model.root.records.filter(
+                        ...this.model.root.records.filter(
                             (record) =>
                                 partnerNames.includes(record.data.partner_name) ||
                                 record.selected,
@@ -79,7 +81,7 @@ export class BankRecKanbanControlPanel extends ControlPanel {
                 }
                 await this.bankReconciliation.reloadRecords(recordsToLoad);
                 await this.bankReconciliation.computeReconcileLineCountPerPartnerId(
-                    this.env.model.root.records,
+                    this.model.root.records,
                 );
                 this.bankReconciliation.reloadChatter();
             },
@@ -133,7 +135,7 @@ export class BankRecKanbanControlPanel extends ControlPanel {
                     { context: { account_default_taxes: true } },
                 );
                 await this.bankReconciliation.reloadRecords(
-                    this.env.model.root.records.filter((record) =>
+                    this.model.root.records.filter((record) =>
                         linesToLoad.includes(record.data.id),
                     ),
                 );
@@ -179,7 +181,7 @@ export class BankRecKanbanControlPanel extends ControlPanel {
         }
         linesToLoad = linesToLoad.flat();
         await this.bankReconciliation.reloadRecords(
-            this.env.model.root.records.filter((record) =>
+            this.model.root.records.filter((record) =>
                 linesToLoad.includes(record.data.id),
             ),
         );
@@ -223,7 +225,7 @@ export class BankRecKanbanControlPanel extends ControlPanel {
         }
         linesToLoad = linesToLoad.flat();
         await this.bankReconciliation.reloadRecords(
-            this.env.model.root.records.filter((record) =>
+            this.model.root.records.filter((record) =>
                 linesToLoad.includes(record.data.id),
             ),
         );
@@ -242,7 +244,7 @@ export class BankRecKanbanControlPanel extends ControlPanel {
             selectedLinesIds,
         ]);
         await this.bankReconciliation.computeReconcileLineCountPerPartnerId(
-            this.env.model.root.records,
+            this.model.root.records,
         );
         await this.bankReconciliation.reloadRecords(
             this.selectedUnreconciledStatementLines,
@@ -284,7 +286,7 @@ export class BankRecKanbanControlPanel extends ControlPanel {
     }
 
     get selectedStatementLines() {
-        return this.env.model.root.selection;
+        return this.model.root.selection;
     }
 
     get reconcileModelsToDisplay() {

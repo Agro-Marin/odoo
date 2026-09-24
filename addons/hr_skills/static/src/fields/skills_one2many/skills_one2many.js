@@ -4,6 +4,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
+import { useViewModel } from "@web/model/model";
 
 import { CommonSkillsListRenderer } from "../../views/skills_list_renderer.js";
 
@@ -11,6 +12,7 @@ export class SkillsListRenderer extends CommonSkillsListRenderer {
     static template = "hr_skills.SkillsListRenderer";
     setup() {
         super.setup();
+        this.model = useViewModel();
         this.orm = useService("orm");
         this.actionService = useService("action");
 
@@ -25,7 +27,7 @@ export class SkillsListRenderer extends CommonSkillsListRenderer {
     }
 
     get employeeId() {
-        const root = this.env.model.root;
+        const root = this.model.root;
         if (root.resModel === "hr.employee") {
             return root.resId;
         }

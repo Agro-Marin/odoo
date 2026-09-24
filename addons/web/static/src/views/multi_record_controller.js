@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onMounted, onWillStart, useEffect, useSubEnv } from "@odoo/owl";
+import { onMounted, onWillStart, useEffect } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { user } from "@web/core/user";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { provideViewModel } from "@web/model/model";
 import { usePager } from "@web/search/pager_hook";
 import { useViewButtons } from "@web/views/view_button/view_button_hook";
 import { useViewChassis } from "@web/views/view_components/view_layout";
@@ -124,7 +125,7 @@ export class MultiRecordController extends ViewController {
             );
         }
         this._multiRecordBehaviorReady = true;
-        useSubEnv({ model: this.model });
+        provideViewModel(this.model);
 
         onWillStart(async () => {
             this.isExportEnable = await user.hasGroup("base.group_allow_export");
