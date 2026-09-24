@@ -70,6 +70,43 @@ class TestPurchase(AccountTestInvoicingCommon):
             delta=timedelta(seconds=10),
         )
 
+    def _order_with_one_line(self):
+        return self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_a.id,
+                            "product_qty": 1,
+                            "price_unit": 100,
+                        }
+                    )
+                ],
+            }
+        )
+
+    def test_confirming_keeps_the_date_commitment_written_on_the_order(self):
+        po = self._order_with_one_line()
+        promised = fields.Datetime.now().replace(microsecond=0) + timedelta(days=7)
+        po.date_commitment = promised
+
+        po.action_confirm()
+
+        self.assertEqual(po.state, "done")
+        self.assertEqual(po.date_commitment, promised)
+
+    def test_cancelling_clears_the_date_commitment_and_a_reset_derives_it_again(
+        self,
+    ):
+        po = self._order_with_one_line()
+
+        po.action_cancel()
+        self.assertFalse(po.date_commitment)
+
+        po.action_draft()
+        self.assertEqual(po.date_commitment, po.line_ids.date_commitment)
+
     def test_date_commitment_2(self):
         po = self.env["purchase.order"].create(
             {

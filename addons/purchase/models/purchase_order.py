@@ -207,13 +207,9 @@ class PurchaseOrder(models.Model):
             order.receipt_reminder_email = partner.receipt_reminder_email
             order.reminder_date_before_receipt = partner.reminder_date_before_receipt
 
-    @api.depends("state", "line_ids", "line_ids.date_commitment")
+    @api.depends("line_ids", "line_ids.date_commitment")
     def _compute_date_commitment(self):
         for order in self:
-            if order.state == "cancel":
-                order.date_commitment = False
-                continue
-
             dates_list = order.line_ids.filtered(
                 lambda line: not line.display_type and line.date_commitment,
             ).mapped("date_commitment")
@@ -337,9 +333,16 @@ class PurchaseOrder(models.Model):
         self._create_supplier_to_product()
 
     def action_draft(self):
+        cancelled = self.filtered(lambda order: order.state == "cancel")
         self.filtered(lambda order: order.state in ("draft", "cancel")).write(
             {"state": "draft"},
         )
+        cancelled._compute_date_commitment()
+
+    def _action_cancel(self):
+        result = super()._action_cancel()
+        self.date_commitment = False
+        return result
 
     def action_lock(self):
         for order in self:
@@ -669,10 +672,18 @@ class PurchaseOrder(models.Model):
                     supplierinfo["product_uom_id"] = line.product_uom_id.id
                 supplierinfo["product_tmpl_id"] = tmpl.id
                 vals_by_company[order.company_id].append(supplierinfo)
+        # the vendor it just confirmed with becomes a seller of the product, and
+        # that does not move this order's promised dates, which a line derives
+        # from its selected seller
+        promised_dates = [
+            ([self.line_ids._fields["date_commitment"]], self.line_ids),
+            ([self._fields["date_commitment"]], self),
+        ]
         for company, vals_list in vals_by_company.items():
-            self.env["product.supplierinfo"].sudo().with_company(company).create(
-                vals_list
-            )
+            with self.env.protecting(promised_dates):
+                self.env["product.supplierinfo"].sudo().with_company(company).create(
+                    vals_list
+                )
 
     def get_acknowledge_url(self):
         return self.get_portal_url(query_string="&acknowledge=True")
