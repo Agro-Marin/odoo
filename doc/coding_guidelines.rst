@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 7.2
-:Date: 2026-09-23
+:Version: 7.3
+:Date: 2026-09-24
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -639,6 +639,40 @@ checkout (§12).
 **Run a module's ``factcheck.sh`` whenever you change the module or its machine
 doc** ``[review]``. ``gates.sh`` runs only ``doc/architecture/factcheck.sh``.
 Fork-wide assertions SKIP with a count when the repo is checked out alone.
+
+1.5 Module naming
+-----------------
+
+**A module is named for what it holds: short, and honest about what is
+inside** ``[review]``. Why: a module name is read as a claim about its content
+and about its dependencies, and nothing checks either claim.
+
+* **An extension or a bridge is ``{base}_{dimension}``**, base first:
+  ``sale_stock``, ``stock_account``, ``account_budget_purchase``. A bridge
+  between two independent modules is ``auto_install`` (§1.2).
+* **A foundation takes no prefix of a module it does not depend on.**
+  ``tax`` owns ``account.tax`` and ``account`` depends on it, so it is not
+  ``account_tax``; ``tax_python`` extends it, base first. A prefix reads as a
+  dependency, and the model namespace (``account.tax``) is not one.
+* **The name says what is inside.** ``account_payment_provider`` holds payment
+  providers; as ``account_payment`` it claimed payments it did not have.
+* **The name collides with nothing.** Not with another module's meaning
+  (``account_chart`` would promise ``account.chart.template``, which lives in
+  ``account``), and not with a prefix family: ``payment_*`` are providers;
+  ``base_*`` and ``mixin_*`` are framework modules that depend only on
+  framework modules, so a business module never takes them (``base_order``
+  breaks this today).
+* **An application's companion takes the application's module name**:
+  ``sale_team``, ``purchase_team``, ``stock_team``, ``mrp_team``.
+
+**A rename is a base pre-migration** ``[review]``: a new ``base/migrations/<v>/``
+directory whose ``pre-migrate`` calls ``tools.module_data.rename_module``
+longest name first, with base's version raised to ``<v>``. It moves the module
+row, its links, xml ids, config keys, stored references, view keys and asset
+paths before the graph is built. The same change moves every ``depends``,
+``odoo.addons.<module>`` import, ``@<module>/`` alias, asset glob, xml-id prefix
+and ``#. module:`` line; the SQL table of a model named like the module
+(``account_tax``) does not move.
 
 ----
 
@@ -5383,6 +5417,13 @@ collisions, so an eighth fails and so does a renumbering.
    * - Version
      - Date
      - Summary
+   * - 7.3
+     - 2026-09-24
+     - §1.5 (new): module naming -- base-first extensions and bridges, a
+       foundation without the prefix of a module it does not depend on
+       (``account_tax`` → ``tax``), a name that says what is inside and collides
+       with no prefix family, and a rename as a base pre-migration through
+       ``rename_module``.
    * - 7.2
      - 2026-09-23
      - §2.6: a closure defined in a loop does not capture a loop variable
