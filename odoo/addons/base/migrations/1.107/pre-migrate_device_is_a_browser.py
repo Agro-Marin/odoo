@@ -1,6 +1,11 @@
 import logging
 
-from odoo.db.schema import column_exists, create_column, create_model_table
+from odoo.db.schema import (
+    column_exists,
+    create_column,
+    create_model_table,
+    table_exists,
+)
 from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
@@ -19,7 +24,12 @@ _SESSION_COLUMNS = (
 
 
 def migrate(cr, version):
-    if not version or not column_exists(cr, "res_device", "session_identifier"):
+    # the table exists once this ran, however base's version was recorded since
+    if (
+        not version
+        or not column_exists(cr, "res_device", "session_identifier")
+        or table_exists(cr, "res_device_session")
+    ):
         return
     create_model_table(cr, "res_device_session", "Device Session", _SESSION_COLUMNS)
     cr.execute(
@@ -54,7 +64,7 @@ def migrate(cr, version):
         )
     )
     _logger.info(
-        "base 1.105: %s devices keyed by their session, %s sessions recorded",
+        "base 1.107: %s devices keyed by their session, %s sessions recorded",
         devices,
         sessions,
     )

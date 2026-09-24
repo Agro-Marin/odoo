@@ -8,9 +8,6 @@ RENAMES = (
 
 
 def migrate(cr, version):
-    # 1.105 published this; a database upgraded at a local 1.105 or 1.106
-    # recorded that version without it, so it runs again here, a no-op
-    # wherever the old modules are already renamed
     if not version:
         return
     for old, new in RENAMES:

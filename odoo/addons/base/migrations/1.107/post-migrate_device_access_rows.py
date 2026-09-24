@@ -43,7 +43,7 @@ def migrate(cr, version):
             )
         )
         if cr.rowcount:
-            _logger.info("base 1.106: base.%s %s %r -> %r", xmlid, column, old, new)
+            _logger.info("base 1.107: base.%s %s %r -> %r", xmlid, column, old, new)
             continue
         cr.execute(
             SQL(
@@ -61,7 +61,7 @@ def migrate(cr, version):
         current = cr.fetchone()
         if current and current[0] != new:
             _logger.warning(
-                "base 1.106: base.%s has %s %r, neither the old %r nor the new %r;"
+                "base 1.107: base.%s has %s %r, neither the old %r nor the new %r;"
                 " left as customized, check it by hand",
                 xmlid,
                 column,
