@@ -160,7 +160,13 @@ class HrEmployeeChangeRequest(models.Model):
                     request.employee_id.id,
                     dbg.keys(values),
                 )
-                request.employee_id.sudo().write(values)
+                owner = request.approval_request_id.request_owner_id
+                request.employee_id.with_user(owner).with_context(
+                    allowed_company_ids=owner.company_ids.ids
+                ).with_privilege(
+                    "hr.privilege_apply_employee_change",
+                    reason="an approved change request applies what it proposed",
+                ).write(values)
 
     @api.model
     def action_open_my_request(self):

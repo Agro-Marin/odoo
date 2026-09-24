@@ -36,6 +36,7 @@ class PurchaseOrder(models.Model):
             transition=("state", "*", "done"),
             amount="amount_total",
         ),
+        "unlock": models.Verb(methods=("action_unlock",)),
     }
 
     _price_history_action = "purchase.action_purchase_history"
@@ -360,13 +361,6 @@ class PurchaseOrder(models.Model):
                     self.env._("You are not allowed to lock a purchase order."),
                 )
         self.write({"locked": True, "priority": "0"})
-
-    def action_unlock(self):
-        if not self.env.user.has_group("purchase.group_order_unlock"):
-            raise AccessError(
-                self.env._("You are not allowed to unlock a purchase order."),
-            )
-        return super().action_unlock()
 
     def _merge_check_selection(self, orders):
         if len(orders) < 2:

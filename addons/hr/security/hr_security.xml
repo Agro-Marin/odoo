@@ -28,6 +28,13 @@
             eval="[Command.link(ref('base.user_root')), Command.link(ref('base.user_admin'))]" />
     </record>
 
+    <record id="privilege_apply_employee_change" model="res.groups">
+        <field name="name">Apply an Approved Employee Change</field>
+        <field
+            name="comment">An approved change request writes the private details it proposed as the employee who asked for them, onto their own employee and private address only.</field>
+        <field name="is_privilege" eval="True" />
+    </record>
+
     <data noupdate="1">
         <record id="access_res_partner_employees_hr_user" model="ir.access">
             <field name="name">HR: officers edit the partners of employees</field>

@@ -208,3 +208,56 @@ class TestPurchaseInvoice(AccountTestInvoicingCommon):
             order,
         )
         self.assertTrue(PurchaseOrder.line_ids.create(po_line_vals))
+
+    def _locked_order(self):
+        order = self.env["purchase.order"].create(
+            {
+                "partner_id": self.vendor.id,
+                "user_id": False,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.product_a.id,
+                            "product_qty": 1.0,
+                            "price_unit": 10.0,
+                        }
+                    )
+                ],
+            }
+        )
+        order.action_confirm()
+        order.locked = True
+        return order
+
+    def test_unlocking_an_order_is_the_unlock_group_s_verb(self):
+        order = self._locked_order().with_user(self.purchase_user)
+        self.assertTrue(order.has_access("write"))
+        self.assertFalse(order.has_access("unlock"))
+        with self.assertRaises(AccessError):
+            order.action_unlock()
+        self.purchase_user.group_ids |= self.env.ref("purchase.group_order_unlock")
+        self.assertTrue(order.has_access("unlock"))
+        order.action_unlock()
+        self.assertFalse(order.locked)
+
+    def test_a_buyer_who_writes_a_bill_does_not_post_it(self):
+        bill = (
+            self.env["account.move"]
+            .create(
+                {
+                    "move_type": "in_invoice",
+                    "partner_id": self.vendor.id,
+                    "invoice_user_id": self.purchase_user.id,
+                    "invoice_date": "2026-09-01",
+                    "invoice_line_ids": [
+                        Command.create({"name": "Bill line", "price_unit": 10.0})
+                    ],
+                }
+            )
+            .with_user(self.purchase_user)
+        )
+        self.assertTrue(bill.has_access("write"))
+        self.assertFalse(bill.has_access("post"))
+        with self.assertRaises(AccessError):
+            bill.action_post()
+        self.assertEqual(bill.state, "draft")

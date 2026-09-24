@@ -5868,12 +5868,8 @@ class AccountMove(models.Model):
     @_debug.perf.timed
     def _post_check_access(self):
         _debug.lifecycle("_post_check_access", records=self)
-        if not self.env.su and not self.env.user.has_group(
-            "account.group_account_invoice"
-        ):
-            raise AccessError(
-                self.env._("You don't have the access rights to post an invoice.")
-            )
+        if not self.env.su:
+            self.check_access("post")
 
     def _post_check_business_rules(self):
         return

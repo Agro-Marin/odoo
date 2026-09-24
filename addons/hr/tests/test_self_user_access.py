@@ -60,7 +60,14 @@ class TestSelfAccessPreferences(TestHrCommon):
             self.env, groups="base.group_user", login="hel", name="God"
         )
         user_all_groups.write(
-            {"group_ids": [(4, group.id, False) for group in all_groups]}
+            {
+                "group_ids": [
+                    (4, group.id, False)
+                    for group in all_groups.filtered(
+                        lambda group: not group.is_privilege
+                    )
+                ]
+            }
         )
         view_infos = self.env["res.users"].with_user(user_all_groups).get_view(view.id)
         full_fields = [

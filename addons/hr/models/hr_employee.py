@@ -256,13 +256,13 @@ class HrEmployee(models.Model):
         related="private_address_id.phone_ids",
         string="Private Phone",
         readonly=False,
-        groups="hr.group_hr_user",
+        groups="hr.group_hr_user,hr.privilege_apply_employee_change",
     )
     private_email = fields.Char(
         related="private_address_id.email",
         string="Private Email",
         readonly=False,
-        groups="hr.group_hr_user",
+        groups="hr.group_hr_user,hr.privilege_apply_employee_change",
     )
     place_of_birth = fields.Char(
         related="private_address_id.place_of_birth",
@@ -356,7 +356,7 @@ class HrEmployee(models.Model):
         store=True,
         index="btree_not_null",
         copy=False,
-        groups="hr.group_hr_user",
+        groups="hr.group_hr_user,hr.privilege_apply_employee_change",
         help="The employee's home address, held as a private child of their "
         "work contact rather than as columns here.",
     )
@@ -365,21 +365,21 @@ class HrEmployee(models.Model):
         string="Private Street",
         readonly=False,
         tracking=True,
-        groups="hr.group_hr_user",
+        groups="hr.group_hr_user,hr.privilege_apply_employee_change",
     )
     private_street2 = fields.Char(
         related="private_address_id.street2",
         string="Private Street2",
         readonly=False,
         tracking=True,
-        groups="hr.group_hr_user",
+        groups="hr.group_hr_user,hr.privilege_apply_employee_change",
     )
     private_city = fields.Char(
         related="private_address_id.city",
         string="Private City",
         readonly=False,
         tracking=True,
-        groups="hr.group_hr_user",
+        groups="hr.group_hr_user,hr.privilege_apply_employee_change",
     )
     allowed_country_state_ids = fields.Many2many(
         comodel_name="res.country.state",
@@ -393,14 +393,14 @@ class HrEmployee(models.Model):
         readonly=False,
         domain="[('id', 'in', allowed_country_state_ids)]",
         tracking=True,
-        groups="hr.group_hr_user",
+        groups="hr.group_hr_user,hr.privilege_apply_employee_change",
     )
     private_zip = fields.Char(
         related="private_address_id.zip",
         string="Private Zip",
         readonly=False,
         tracking=True,
-        groups="hr.group_hr_user",
+        groups="hr.group_hr_user,hr.privilege_apply_employee_change",
     )
     private_country_id = fields.Many2one(
         comodel_name="res.country",
@@ -408,7 +408,7 @@ class HrEmployee(models.Model):
         string="Private Country",
         readonly=False,
         tracking=True,
-        groups="hr.group_hr_user",
+        groups="hr.group_hr_user,hr.privilege_apply_employee_change",
     )
     marital = fields.Selection(
         related="private_address_id.marital",
@@ -440,14 +440,14 @@ class HrEmployee(models.Model):
     )
     emergency_contact = fields.Char(
         tracking=True,
-        groups="hr.group_hr_user",
+        groups="hr.group_hr_user,hr.privilege_apply_employee_change",
     )
     emergency_phone_ids = fields.Many2many(
         comodel_name="phone.number",
         relation="hr_employee_emergency_phone_number_rel",
         column1="employee_id",
         column2="phone_number_id",
-        groups="hr.group_hr_user",
+        groups="hr.group_hr_user,hr.privilege_apply_employee_change",
     )
 
     distance_home_work = fields.Integer(

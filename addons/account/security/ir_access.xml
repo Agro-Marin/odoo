@@ -2,9 +2,9 @@
 <odoo>
 
     <record id="access_account_move_post" model="ir.access">
-        <field name="name">account.move: post where it is written</field>
+        <field name="name">account.move: invoicing users post</field>
         <field name="model_id" ref="model_account_move" />
-        <field name="group_id" ref="base.group_user" />
+        <field name="group_id" ref="group_account_invoice" />
         <field name="kind">permission</field>
         <field name="verbs">post</field>
     </record>

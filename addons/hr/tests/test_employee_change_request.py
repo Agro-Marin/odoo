@@ -94,6 +94,26 @@ class TestEmployeeChangeRequest(TransactionCase):
             "hand-written reviewed_by_uid used to hold",
         )
 
+    def test_the_approved_change_is_written_as_the_person_who_asked(self):
+        request = self._raise_request(
+            private_street="New Street 3", emergency_contact="Newer Contact"
+        )
+        self._decide(request, "approve")
+        self.env.flush_all()
+        self.employee.invalidate_recordset(["write_uid", "private_street"])
+        self.assertEqual(self.employee.private_street, "New Street 3")
+        self.assertEqual(
+            self.employee.write_uid,
+            self.person,
+            "the approval lends no rights: the asker writes their own details under "
+            "a privilege that reaches their own employee only",
+        )
+        other = self.other_employee.with_user(self.person).with_privilege(
+            "hr.privilege_apply_employee_change"
+        )
+        with self.assertRaises(AccessError):
+            other.write({"emergency_contact": "Not Theirs"})
+
     def test_refusing_leaves_the_employee_untouched(self):
         request = self._raise_request(private_street="Never Applied")
         self._decide(request, "refuse")
