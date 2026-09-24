@@ -223,7 +223,10 @@ def discover_transitive_import_specifiers(
                 abs_spec = _resolve_export_specifier(
                     spec, target, resolver.effective_url(spec)
                 )
-                if abs_spec and abs_spec not in scanned:
+                # a relative import of a module the map already answers for
+                # (a bridge to the page's copy) is that copy's business: its
+                # own imports are not ours to serve
+                if abs_spec and abs_spec not in scanned and abs_spec not in known:
                     scanned.add(abs_spec)
                     queue.append(abs_spec)
                 continue

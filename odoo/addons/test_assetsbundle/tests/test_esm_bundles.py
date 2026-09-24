@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from odoo.tests.common import BaseCase, TransactionCase
+from odoo.tools.assets import esm_graph
 from odoo.tools.assets.esm_registry import esm_registry
 from odoo.tools.json import scriptsafe as json
 from odoo.tools.misc import file_path
@@ -427,6 +428,22 @@ class TestTransitiveSpecifierDiscovery(BaseCase):
         )
         again = self._discover(["@web/core/registry"], known=first)
         self.assertEqual(again, set())
+
+    def test_a_relative_import_of_a_known_module_is_not_walked_into(self):
+        # the map answers @a/known (a bridge to the page's copy): what it
+        # imports is the page's, not a per-file specifier of ours
+        sources = {
+            "@a/seed": "import { x } from './known';\n",
+            "@a/known": "import { y } from '@a/deep';\nexport const x = y;\n",
+            "@a/deep": "export const y = 1;\n",
+        }
+        resolver = esm_graph._BridgeExportResolver
+        with (
+            patch.object(resolver, "read_source", lambda self, spec: sources.get(spec)),
+            patch.object(resolver, "effective_url", lambda self, spec: None),
+        ):
+            self.assertEqual(self._discover(["@a/seed"], known={"@a/known"}), set())
+            self.assertEqual(self._discover(["@a/seed"]), {"@a/deep"})
 
     def test_an_unreadable_seed_yields_nothing_instead_of_raising(self):
         with self.assertLogs("odoo.assets.bridge", level="WARNING"):
