@@ -1851,6 +1851,9 @@ A revoked device is archived (`active`), and kept for
 One row per device and address (`_device_address_uniq`), with its own first and
 last activity.
 
+**Key Methods:**
+- `_gc_stale_addresses()` — Autovacuum: delete addresses not seen within the retention, never a device's current one
+
 ---
 
 ## Mixins

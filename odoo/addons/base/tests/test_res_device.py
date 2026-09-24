@@ -134,7 +134,7 @@ class TestDeviceModel(DeviceCase):
         self.assertEqual(
             vacuums("res.device"), {"_update_revoked", "_gc_revoked_devices"}
         )
-        self.assertFalse(vacuums("res.device.log"))
+        self.assertEqual(vacuums("res.device.log"), {"_gc_stale_addresses"})
 
     def test_mobile_platforms_are_parser_vocabulary(self):
         emitted = {name for _regex, name in UserAgentParser.platforms}
@@ -264,6 +264,44 @@ class TestRevokedRetention(DeviceCase):
         icp.set_param("base.device_retention_days", "7")
         self.assertEqual(self._gc(), (1, False))
         self.assertFalse(stale.exists())
+
+    def test_stale_addresses_expire_but_not_the_current_one(self):
+        now = datetime.now()
+        device = self._device(ip_address="10.0.0.3", last_activity=now)
+        Address = self.env["res.device.log"]
+        stale = Address.create(
+            {
+                "device_id": device.id,
+                "ip_address": "10.0.0.1",
+                "last_activity": now - timedelta(days=91),
+            }
+        )
+        recent = Address.create(
+            {
+                "device_id": device.id,
+                "ip_address": "10.0.0.2",
+                "last_activity": now - timedelta(days=89),
+            }
+        )
+        current = Address.create(
+            {
+                "device_id": device.id,
+                "ip_address": "10.0.0.3",
+                "last_activity": now - timedelta(days=200),
+            }
+        )
+        self.env.flush_all()
+
+        self.assertEqual(Address._gc_stale_addresses(), (1, False))
+        self.env.invalidate_all()
+
+        self.assertFalse(stale.exists())
+        self.assertTrue(recent.exists())
+        self.assertTrue(current.exists(), "the device's current address stays")
+        self.env["ir.config_parameter"].sudo().set_param(
+            "base.device_retention_days", "0"
+        )
+        self.assertIsNone(Address._gc_stale_addresses())
 
     def test_batches_report_remaining_work(self):
         for n in range(3):

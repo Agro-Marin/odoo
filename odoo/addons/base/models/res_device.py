@@ -329,11 +329,9 @@ class ResDevice(models.Model):
 
     @api.autovacuum
     def _gc_revoked_devices(self) -> tuple[int, bool] | None:
-        retention_days = self.env["ir.config_parameter"].get_param_int(
-            "base.device_retention_days", DEFAULT_RETENTION_DAYS
-        )
-        if retention_days <= 0:
-            _debug.logic("gc_revoked_devices_skipped", retention_days=retention_days)
+        cutoff = self._retention_cutoff()
+        if cutoff is None:
+            _debug.logic("gc_revoked_devices_skipped", reason="retention_disabled")
             return None
         self.env.cr.execute(
             SQL(
@@ -348,16 +346,23 @@ class ResDevice(models.Model):
                     LIMIT %s
                 )
                 """,
-                self.env.cr.now() - timedelta(days=retention_days),
+                cutoff,
                 _RETENTION_BATCH,
             )
         )
         deleted = self.env.cr.rowcount
         _logger.info("GC revoked devices delete %d entries", deleted)
-        _debug.lifecycle(
-            "gc_revoked_devices", retention_days=retention_days, count=deleted
-        )
+        _debug.lifecycle("gc_revoked_devices", cutoff=str(cutoff), count=deleted)
         return deleted, deleted == _RETENTION_BATCH
+
+    @api.model
+    def _retention_cutoff(self) -> datetime | None:
+        retention_days = self.env["ir.config_parameter"].get_param_int(
+            "base.device_retention_days", DEFAULT_RETENTION_DAYS
+        )
+        if retention_days <= 0:
+            return None
+        return self.env.cr.now() - timedelta(days=retention_days)
 
 
 class ResDeviceLog(models.Model):
@@ -380,3 +385,32 @@ class ResDeviceLog(models.Model):
     _device_address_uniq = models.UniqueIndex(
         "(device_id, ip_address) NULLS NOT DISTINCT"
     )
+
+    @api.autovacuum
+    def _gc_stale_addresses(self) -> tuple[int, bool] | None:
+        cutoff = self.env["res.device"]._retention_cutoff()
+        if cutoff is None:
+            _debug.logic("gc_stale_addresses_skipped", reason="retention_disabled")
+            return None
+        self.env.cr.execute(
+            SQL(
+                """
+                DELETE FROM res_device_log
+                WHERE id IN (
+                    SELECT address.id
+                    FROM res_device_log address
+                    JOIN res_device device ON device.id = address.device_id
+                    WHERE address.last_activity < %s
+                      AND address.ip_address IS DISTINCT FROM device.ip_address
+                    ORDER BY address.id
+                    LIMIT %s
+                )
+                """,
+                cutoff,
+                _RETENTION_BATCH,
+            )
+        )
+        deleted = self.env.cr.rowcount
+        _logger.info("GC stale device addresses delete %d entries", deleted)
+        _debug.lifecycle("gc_stale_addresses", cutoff=str(cutoff), count=deleted)
+        return deleted, deleted == _RETENTION_BATCH

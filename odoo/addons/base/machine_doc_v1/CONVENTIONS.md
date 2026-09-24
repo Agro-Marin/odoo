@@ -203,6 +203,7 @@ class MyModel(models.Model):
 - `res.users.apikeys` — Expired API keys
 - `res.users.log` — Keep latest log per user
 - `res.device` — Devices (×2: sessions the store lost + archived devices past retention)
+- `res.device.log` — Device addresses not seen within the retention
 
 ## Sequence Implementation
 
