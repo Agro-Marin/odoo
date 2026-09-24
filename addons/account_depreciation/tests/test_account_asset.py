@@ -4131,7 +4131,19 @@ class TestAccountAsset(TestAccountReportsCommon):
         self.account_asset_model_fixedassets.active = False
         self.assertFalse(self.account_asset_model_fixedassets.active)
 
+    def _skip_if_journals_number_by_year(self):
+        # these dates are where a journal numbered by month puts an entry that
+        # falls inside the lock; a journal numbered by year dates it today
+        if self.env["ir.module.module"].search_count(
+            [("name", "=", "account_move_name_sequence"), ("state", "=", "installed")]
+        ):
+            self.skipTest(
+                "account_move_name_sequence numbers journals by year, which dates a "
+                "locked entry today by decision, 2026-09-23"
+            )
+
     def test_asset_increase_with_lock_year(self):
+        self._skip_if_journals_number_by_year()
         self.company_data[
             "company"
         ].account_config_id.fiscalyear_lock_date = fields.Date.to_date("2021-03-01")
@@ -4222,6 +4234,7 @@ class TestAccountAsset(TestAccountReportsCommon):
         )
 
     def test_asset_decrease_with_lock_year(self):
+        self._skip_if_journals_number_by_year()
         self.company_data[
             "company"
         ].account_config_id.fiscalyear_lock_date = fields.Date.to_date("2021-03-01")
