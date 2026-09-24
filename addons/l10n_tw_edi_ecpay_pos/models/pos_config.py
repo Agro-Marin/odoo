@@ -8,6 +8,10 @@ class PosConfig(models.Model):
 
     is_ecpay_enabled = fields.Boolean(compute="_compute_is_ecpay_enabled")
 
+    @api.model
+    def _get_pos_client_computed_fields(self):
+        return super()._get_pos_client_computed_fields() | {"is_ecpay_enabled"}
+
     @api.depends("company_id")
     def _compute_is_ecpay_enabled(self):
         for config in self:
