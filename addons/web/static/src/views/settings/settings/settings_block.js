@@ -1,16 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    Component,
-    onWillRender,
-    useChildSubEnv,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, useChildSubEnv, useEffect, useRef, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { normalizedMatch } from "@web/core/l10n/utils";
 import { HighlightText } from "@web/views/settings/highlight_text/highlight_text";
+
+const log = makeLogger("web.views.settings.block");
 
 export class SettingsBlock extends Component {
     static template = "web.SettingsBlock";
@@ -29,7 +25,7 @@ export class SettingsBlock extends Component {
     settingsContainerTipRef;
     /** @type {import("@odoo/owl").Ref} */
     settingsContainerTitleRef;
-    /** @type {{ showAllContainer: boolean }} */
+    /** @type {{ searchState: any, readonly showAllContainer: boolean }} */
     showAllContainerState;
     /** @type {{ search: any }} */
     state;
@@ -38,9 +34,19 @@ export class SettingsBlock extends Component {
         this.state = useState({
             search: this.env.searchState,
         });
-        this.showAllContainerState = useState({
-            showAllContainer: false,
-        });
+        const block = this;
+        this.showAllContainerState = {
+            searchState: this.env.searchState,
+            get showAllContainer() {
+                const matches = block.matches(this.searchState.value);
+                log.logic("showAllContainer", () => ({
+                    title: block.props.title,
+                    search: this.searchState.value,
+                    matches,
+                }));
+                return matches;
+            },
+        };
         useChildSubEnv({
             showAllContainer: this.showAllContainerState,
         });
@@ -61,13 +67,16 @@ export class SettingsBlock extends Component {
             },
             () => [this.state.search.value],
         );
-        onWillRender(() => {
-            this.showAllContainerState.showAllContainer = this.matchesTitleOrTip();
-        });
     }
     /** @returns {boolean} */
     matchesTitleOrTip() {
-        const searchValue = this.state.search.value;
+        return this.matches(this.state.search.value);
+    }
+    /**
+     * @param {string} searchValue
+     * @returns {boolean}
+     */
+    matches(searchValue) {
         const blockText = [this.props.title, this.props.tip].join();
         return normalizedMatch(blockText, searchValue).start !== -1;
     }

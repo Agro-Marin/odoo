@@ -2,14 +2,15 @@
 /** @odoo-module native */
 
 import {
-    onWillRender,
     onWillUnmount,
     useEffect,
     useExternalListener,
     useRef,
+    useState,
 } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/translation";
 import { groupBy } from "@web/core/utils/collections/arrays";
@@ -67,40 +68,57 @@ function sameStatusBarItems(a, b) {
     );
 }
 
+const log = makeLogger("web.fields.statusbar");
+
 /** @param {any} component */
 function useOverflowAdjust(component) {
-    let status = "idle";
-    /** @type {StatusBarItem[] | null} */
-    let lastItems = null;
-    /** @type {number | null} */
-    let lastWidth = null;
-    /** @type {StatusBarItem[] | null} */
-    let sortedFrom = null;
+    /** @type {{ sortedFrom: StatusBarItem[] | null, items: Record<string, StatusBarItem[]>, needsAdjust: boolean, lastItems: StatusBarItem[] | null, lastWidth: number | null }} */
+    const overflow = {
+        sortedFrom: null,
+        items: { inline: [], before: [], after: [], folded: [] },
+        needsAdjust: true,
+        lastItems: null,
+        lastWidth: null,
+    };
+    const layout = useState({ revision: 0 });
+    component.overflow = overflow;
+    component.readItems = () => {
+        void layout.revision;
+        const allItems = component.getAllItems();
+        if (!sameStatusBarItems(overflow.sortedFrom, allItems)) {
+            log.logic("resort", () => ({ count: allItems.length }));
+            overflow.sortedFrom = allItems;
+            overflow.items = component.getSortedItems(allItems);
+            overflow.needsAdjust = true;
+        }
+        return overflow.items;
+    };
 
     const adjust = () => {
-        status = "adjusting";
+        log.logic("adjust", () => ({ width: overflow.lastWidth }));
         component.adjustVisibleItems();
-        component.render();
+        overflow.needsAdjust = false;
+        layout.revision++;
     };
 
     useEffect(() => {
-        if (status !== "shouldAdjust") {
+        if (!overflow.needsAdjust) {
             return;
         }
         measure(() => {
-            if (status !== "shouldAdjust" || !component.rootRef.el?.isConnected) {
+            if (!overflow.needsAdjust || !component.rootRef.el?.isConnected) {
                 return;
             }
             const width = component.rootRef.el.getBoundingClientRect().width;
             if (
-                width === lastWidth &&
-                sameStatusBarItems(lastItems, component.allItems)
+                width === overflow.lastWidth &&
+                sameStatusBarItems(overflow.lastItems, overflow.sortedFrom)
             ) {
-                status = "idle";
+                overflow.needsAdjust = false;
                 return;
             }
-            lastItems = component.allItems;
-            lastWidth = width;
+            overflow.lastItems = overflow.sortedFrom;
+            overflow.lastWidth = width;
             mutate(() => {
                 if (component.rootRef.el?.isConnected) {
                     adjust();
@@ -109,21 +127,13 @@ function useOverflowAdjust(component) {
         });
     });
 
-    onWillRender(() => {
-        component.allItems = component.getAllItems();
-        const itemsChanged = !sameStatusBarItems(sortedFrom, component.allItems);
-        if (status !== "adjusting" || itemsChanged) {
-            Object.assign(component.items, component.getSortedItems());
-            sortedFrom = component.allItems;
-            status = "shouldAdjust";
-        } else {
-            status = "idle";
-        }
+    const throttledResize = throttleForAnimation(() => {
+        overflow.sortedFrom = null;
+        overflow.lastWidth = null;
+        layout.revision++;
     });
-
-    const throttledAdjust = throttleForAnimation(adjust);
-    useExternalListener(window, "resize", throttledAdjust);
-    onWillUnmount(() => throttledAdjust.cancel());
+    useExternalListener(window, "resize", throttledResize);
+    onWillUnmount(() => throttledResize.cancel());
 }
 
 /** @extends {FieldComponent<StatusBarFieldProps>} */
@@ -145,9 +155,6 @@ export class StatusBarField extends FieldComponent {
     };
 
     setup() {
-        this.items = {};
-        /** @type {StatusBarItem[]} */
-        this.allItems = [];
         this.beforeRef = useRef("before");
         this.rootRef = useRef("root");
         this.afterRef = useRef("after");
@@ -276,7 +283,7 @@ export class StatusBarField extends FieldComponent {
 
         show(...itemEls);
         hide(this.dropdownRef.el, this.beforeRef.el);
-        if (this.items.folded.length) {
+        if (this.statusItems.folded.length) {
             show(this.afterRef.el);
             itemEls.forEach((el) => el.classList.remove("o_first"));
         } else {
@@ -284,11 +291,11 @@ export class StatusBarField extends FieldComponent {
             itemEls[0]?.classList.add("o_first");
         }
 
-        this.items.before = [];
-        this.items.after = [...this.items.folded];
+        this.statusItems.before = [];
+        this.statusItems.after = [...this.statusItems.folded];
         const itemsToAssign = this.allItems.filter((item) => !item.isFolded);
 
-        if (this.env.isSmall && this.items.inline.length) {
+        if (this.env.isSmall && this.statusItems.inline.length) {
             show(this.dropdownRef.el);
             hide(this.beforeRef.el, this.afterRef.el, ...itemEls);
             return;
@@ -300,11 +307,11 @@ export class StatusBarField extends FieldComponent {
                 if (itemsBefore.length) {
                     show(this.beforeRef.el);
                     hide(itemsBefore.shift());
-                    this.items.before.push(itemsToAssign.shift());
+                    this.statusItems.before.push(itemsToAssign.shift());
                 } else if (itemsAfter.length) {
                     show(this.afterRef.el);
                     hide(itemsAfter.pop());
-                    this.items.after.unshift(itemsToAssign.pop());
+                    this.statusItems.after.unshift(itemsToAssign.pop());
                 } else {
                     show(this.dropdownRef.el);
                     hide(this.beforeRef.el, this.afterRef.el, ...itemEls);
@@ -375,16 +382,28 @@ export class StatusBarField extends FieldComponent {
         return classNames.join(" ");
     }
 
-    getSortedItems() {
+    /** @param {StatusBarItem[]} [allItems] */
+    getSortedItems(allItems = this.allItems) {
         const before = [];
         const after = [];
         const { true: inline = [], false: folded = [] } = groupBy(
-            this.allItems,
+            allItems,
             (item) => item.isSelected || !item.isFolded,
         );
         inline.reverse();
         after.push(...folded);
         return { inline, before, after, folded };
+    }
+
+    /** @returns {Record<string, StatusBarItem[]>} */
+    get statusItems() {
+        return this.readItems();
+    }
+
+    /** @returns {StatusBarItem[]} */
+    get allItems() {
+        this.readItems();
+        return this.overflow.sortedFrom;
     }
 
     get isReady() {

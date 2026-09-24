@@ -1,11 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillRender, toRaw, useChildSubEnv } from "@odoo/owl";
+import { toRaw, useChildSubEnv } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { x2ManyCommands } from "@web/core/network/commands";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { deepCopy } from "@web/core/utils/collections/objects";
+import { useComputed } from "@web/core/utils/computed";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { escape } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
@@ -24,6 +26,8 @@ const viewRegistry = registry.category("views");
  * }} PrivilegeCategory
  * @typedef {{ id: string | number } & Record<string, any>} Privilege
  */
+
+const log = makeLogger("web.fields.res_user_group_ids");
 
 class ResUserGroupIdsField extends FieldComponent {
     static template = "web.ResUserGroupIdsField";
@@ -69,7 +73,13 @@ class ResUserGroupIdsField extends FieldComponent {
 
         this.info = { booleanFieldToGroupId, groups: {}, privileges };
         useChildSubEnv({ resUserGroupsInfo: this.info });
-        onWillRender(() => this.updateRenderState());
+        this.renderState = useComputed(
+            (track) => {
+                const list = track(this.props.record).data[this.props.name];
+                return this.updateRenderState(new Set(list.currentIds));
+            },
+            () => [this.props.record, this.props.name],
+        );
 
         this.hooks = {
             lifecycle: {
@@ -197,12 +207,21 @@ class ResUserGroupIdsField extends FieldComponent {
         );
     }
 
-    updateRenderState() {
-        const selectedIds = new Set(this.field.value.currentIds);
+    /** @returns {Record<string, any>} */
+    get values() {
+        return this.renderState();
+    }
+
+    /**
+     * @param {Set<number>} selectedIds
+     * @returns {Record<string, any>}
+     */
+    updateRenderState(selectedIds) {
+        log.logic("updateRenderState", () => ({ selected: [...selectedIds] }));
         this.updateGroupStates(selectedIds);
         this.updateDisjointIds();
         this.updateReachableSelections();
-        this.updateValues(selectedIds);
+        return this.updateValues(selectedIds);
     }
 
     /** @param {Set<number>} selectedIds */
@@ -261,7 +280,7 @@ class ResUserGroupIdsField extends FieldComponent {
 
     /** @param {Set<number>} selectedIds */
     updateValues(selectedIds) {
-        this.values = {};
+        const values = {};
         this.shadowedGroupIds = [];
         for (const category of this.categories) {
             for (const privilege of category.privileges) {
@@ -274,14 +293,13 @@ class ResUserGroupIdsField extends FieldComponent {
                     this.shadowedGroupIds.push(groupId);
                     groupId = false;
                 }
-                this.values[fieldName] = groupId;
+                values[fieldName] = groupId;
             }
         }
         for (const privilege of this.extraCategory.privileges) {
-            this.values[this.getFieldName(privilege)] = selectedIds.has(
-                privilege.groupId,
-            );
+            values[this.getFieldName(privilege)] = selectedIds.has(privilege.groupId);
         }
+        return values;
     }
 
     /** @returns {string} */
