@@ -1,5 +1,6 @@
 import contextlib
 import difflib
+import functools
 import inspect
 import ipaddress
 import logging
@@ -216,8 +217,23 @@ _UNRESOLVABLE_SUFFIXES = (".invalid", ".test")
 _EXTERNAL_TEST_ADDRESS = "93.184.216.34"
 
 
+@functools.cache
+def _hosts_file_names(path: str = "/etc/hosts") -> frozenset[str]:
+    try:
+        lines = pathlib.Path(path).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return frozenset()
+    return frozenset(
+        name.lower() for line in lines for name in line.split("#", 1)[0].split()[1:]
+    )
+
+
 def _resolves_for_real(name: str) -> bool:
     if name in (HOST, "localhost") or name.endswith(".localhost"):
+        return True
+    # the hosts file answers without a network, so it answers as in production
+    # (ip6-localhost is ::1 there, and the egress guard must see that)
+    if name.lower() in _hosts_file_names():
         return True
     try:
         ipaddress.ip_address(name)
