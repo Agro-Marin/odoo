@@ -379,10 +379,13 @@ class TestSearchVisibilityFields(TransactionCase):
     def test_every_search_override_declares_its_visibility_fields(self):
         # None is the conservative reading -- every write refetches -- and a
         # choice nobody made; an override says what its search reads, or ()
+        # test_orm.scope_open stays undeclared on purpose: it pins that path
         undeclared = sorted(
             name
             for name, cls in self.env.registry.items()
-            if is_search_overridden(cls) and cls._search_visibility_fields is None
+            if is_search_overridden(cls)
+            and cls._search_visibility_fields is None
+            and name != "test_orm.scope_open"
         )
         self.assertEqual(
             undeclared, [], "_search overrides without _search_visibility_fields"
