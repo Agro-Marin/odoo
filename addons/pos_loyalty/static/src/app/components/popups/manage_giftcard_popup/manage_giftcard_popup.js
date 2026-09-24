@@ -86,7 +86,7 @@ export class ManageGiftCardPopup extends Component {
             if (result.data["loyalty.card"].length > 0) {
                 const giftCard = result.data["loyalty.card"][0];
                 this.state.amountValue = roundCurrency(
-                    giftCard.points?.toString() || "0",
+                    giftCard.points || 0,
                     this.pos.currency,
                 ).toString();
                 this.state.lockGiftCardFields = true;
