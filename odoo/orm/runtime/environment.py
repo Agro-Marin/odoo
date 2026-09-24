@@ -53,8 +53,8 @@ if typing.TYPE_CHECKING:
         ResCompanyProtocol,
         ResCountryProtocol,
         ResCurrencyProtocol,
-        ResLangProtocol,
         ResGroupsProtocol,
+        ResLangProtocol,
         ResUsersApikeysScopeProtocol,
         ResUsersProtocol,
     )
