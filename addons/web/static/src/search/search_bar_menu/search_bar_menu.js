@@ -142,7 +142,7 @@ export class SearchBarMenu extends Component {
     /**
      * @param {object} param0
      * @param {number} param0.itemId
-     * @param {number} [param0.optionId]
+     * @param {string} [param0.optionId]
      */
     onFilterSelected({ itemId, optionId }) {
         if (optionId) {
@@ -178,7 +178,7 @@ export class SearchBarMenu extends Component {
     /**
      * @param {object} param0
      * @param {number} param0.itemId
-     * @param {number} [param0.optionId]
+     * @param {string} [param0.optionId]
      */
     onGroupBySelected({ itemId, optionId }) {
         if (optionId) {
@@ -224,10 +224,10 @@ export class SearchBarMenu extends Component {
 
     /** @param {number} itemId */
     editFavorite(itemId) {
-        editFavoriteFilter(
-            this.actionService,
-            this.searchModel.searchItems[itemId].serverSideId,
+        const favorite = /** @type {{ serverSideId: number }} */ (
+            this.searchModel.searchItems[itemId]
         );
+        editFavoriteFilter(this.actionService, favorite.serverSideId);
     }
 
     /**

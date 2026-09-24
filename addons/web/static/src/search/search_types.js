@@ -127,11 +127,13 @@
  * @property {any} [activeValueId]
  * @property {string} [domain]
  * @property {string|false} [groupBy]
+ * @property {number} [depth]
+ * @property {any[]} [rootIds]
  */
 
 /** @typedef {Section & { type: "category" }} Category */
 /** @typedef {Section & { type: "filter" }} Filter */
-/** @typedef {(section: Section) => boolean} SectionPredicate */
+/** @typedef {(section: Section & { empty: boolean }) => boolean} SectionPredicate */
 
 /**
  * @typedef {Object} PeriodWindow

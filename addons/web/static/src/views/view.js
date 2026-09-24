@@ -153,6 +153,7 @@ export function buildComponentProps(descr, controllerProps, config) {
     return controllerProps;
 }
 
+/** @returns {import("@web/views/view_config").ViewConfig} */
 export function getDefaultConfig() {
     const breadcrumbReactive = reactive([{ name: undefined }]);
     return {

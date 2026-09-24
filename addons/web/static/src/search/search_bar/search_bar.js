@@ -92,6 +92,7 @@ export class SearchBar extends Component {
      * expanded: any[];
      * query: string;
      * subItemsLimits: Record<string, number>;
+     * searchModelUpdates: number;
      * }}
      */
     state;
@@ -564,7 +565,9 @@ export class SearchBar extends Component {
 
         const searchItem = this.getSearchItem(item.searchItemId);
         if (
-            (searchItem.fieldType === "selection" && !item.isChild) ||
+            ("fieldType" in searchItem &&
+                searchItem.fieldType === "selection" &&
+                !item.isChild) ||
             (searchItem.type === "field" && searchItem.fieldType === "properties") ||
             (searchItem.type === "field_property" && item.unselectable)
         ) {

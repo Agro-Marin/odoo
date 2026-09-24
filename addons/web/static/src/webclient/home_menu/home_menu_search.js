@@ -93,7 +93,10 @@ export function useHomeMenuSearch({ onQueryChanged }) {
                 log.logic("blur", () => ({
                     refocus,
                     focusedElsewhere,
-                    relatedTarget: target?.outerHTML?.slice(0, 80) ?? null,
+                    relatedTarget:
+                        target instanceof Element
+                            ? target.outerHTML.slice(0, 80)
+                            : null,
                     activeElement: document.activeElement?.tagName,
                     uiActiveElement:
                         ui.activeElement === document ? "document" : "overlay",

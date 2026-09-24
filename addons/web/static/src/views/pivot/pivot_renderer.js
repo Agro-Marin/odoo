@@ -246,7 +246,7 @@ export class PivotRenderer extends Component {
     /**
      * @param {Object} param0
      * @param {number} param0.itemId
-     * @param {number} [param0.optionId]
+     * @param {string} [param0.optionId]
      */
     onGroupBySelected({ itemId, optionId }) {
         const { fieldName } = this.groupByItems.find(({ id }) => id === itemId);
@@ -256,10 +256,12 @@ export class PivotRenderer extends Component {
     /**
      * @param {Object} param0
      * @param {number} param0.itemId
-     * @param {number} [param0.optionId]
+     * @param {string} [param0.optionId]
      */
     onPropertyGroupBySelected({ itemId, optionId }) {
-        const { fieldName } = this.searchModel.searchItems[itemId];
+        const { fieldName } = /** @type {{ fieldName: string }} */ (
+            this.searchModel.searchItems[itemId]
+        );
         log.logic("onPropertyGroupBySelected", () => ({ itemId, optionId, fieldName }));
         this.addGroupBy(fieldName, optionId);
     }

@@ -228,13 +228,13 @@ export class AutoComplete extends Component {
             this._dropdownOptions = new Proxy(
                 {},
                 {
-                    get: (_, key) => this.dropdownOptions[key],
+                    get: (_, key) => Reflect.get(this.dropdownOptions, key),
                     has: (_, key) => key in this.dropdownOptions,
                     ownKeys: () => Reflect.ownKeys(this.dropdownOptions),
                     getOwnPropertyDescriptor: (_, key) =>
                         key in this.dropdownOptions
                             ? {
-                                  value: this.dropdownOptions[key],
+                                  value: Reflect.get(this.dropdownOptions, key),
                                   enumerable: true,
                                   configurable: true,
                               }

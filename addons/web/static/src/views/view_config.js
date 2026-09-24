@@ -58,7 +58,7 @@ export const VIEW_CONFIG_FOREIGN_SURFACE = ["limit", "offset", "onNodeClicked"];
  * viewType?: string,
  * viewSubType?: string,
  * views: any[],
- * viewSwitcherEntries: { type: string, [key: string]: any }[],
+ * viewSwitcherEntries: { type: import("@web/views/view").ViewType, [key: string]: any }[],
  * ControlPanel?: any,
  * SearchPanel?: any,
  * disableSearchBarAutofocus: boolean,
