@@ -1838,7 +1838,7 @@ A revoked device is archived (`active`), and kept for
 - `log_ids` (One2many → res.device.log, newest first), `is_current` (Boolean, computed, sortable)
 
 **Key Methods:**
-- `_update_device(request)` — Upsert the device and its address in one statement
+- `_update_device(request)` — Upsert the device and its address in one statement; at login (`ir.http._post_login`) and on each trace change
 - `revoke()` — Revoke device session (`@check_identity`); reloads when it is the current one
 - `_revoke()` — Delete from session store, archive the devices
 - `_mark_revoked(session_identifiers)` — Archive every active device of those sessions

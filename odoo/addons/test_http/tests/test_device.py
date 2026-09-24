@@ -9,6 +9,8 @@ import odoo
 from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.http import STORED_SESSION_BYTES
+from odoo.service import security
+from odoo.tests.utils import HOST, get_db_name
 
 from .test_common import TestHttpBase
 from odoo.addons.test_http.utils import (
@@ -666,3 +668,70 @@ class TestDevice(TestHttpBase):
             self.user_internal.device_ids.session_identifier,
             other.sid[:STORED_SESSION_BYTES],
         )
+
+    def _session_without_device(self, user):
+        session = odoo.http.root.session_store.new()
+        session.update(
+            odoo.http.prepare_default_session(), db=get_db_name(), _trace_disable=True
+        )
+        session.uid = user.id
+        session.login = user.login
+        session.session_token = security.get_session_token(session, self.env)
+        odoo.http.root.session_store.save(session)
+        return session
+
+    def _open_with(self, session, url):
+        self.opener.cookies.set("session_id", session.sid, domain=HOST)
+        return self.url_open(url)
+
+    def test_revoke_all_ends_a_session_that_has_no_device(self):
+        victim = self.authenticate(self.user_internal.login, self.user_internal.login)
+        victim["identity-check-last"] = time.time()
+        odoo.http.root.session_store.save(victim)
+        self.url_open("/test_http/greeting-user?readonly=0")
+        unlisted = self._session_without_device(self.user_internal)
+        self.assertNotIn(
+            "/web/login", self._open_with(unlisted, "/test_http/greeting-user").url
+        )
+        self.env.invalidate_all()
+        self.assertEqual(len(self.user_internal.device_ids), 1, "only the victim's")
+
+        self._open_with(victim, "/odoo")
+        response = self._call_kw(
+            "res.users", "action_revoke_all_devices", self.user_internal.ids
+        )
+
+        self.assertEqual(
+            response.get("result"), {"type": "ir.actions.client", "tag": "reload"}
+        )
+        self.assertIn(
+            "/web/login", self._open_with(unlisted, "/test_http/greeting-user").url
+        )
+        self.assertNotIn(
+            "/web/login", self._open_with(victim, "/test_http/greeting-user").url
+        )
+
+    def test_login_records_the_device_of_the_session_it_keeps(self):
+        self.authenticate(None, None)
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {
+                "db": get_db_name(),
+                "login": self.user_internal.login,
+                "password": self.user_internal.login,
+            },
+        }
+        response = self.url_open(
+            "/web/session/authenticate",
+            data=json.dumps(payload),
+            headers={"Content-Type": "application/json"},
+        )
+        self.assertNotIn("error", response.json())
+        sid = self.opener.cookies["session_id"]
+
+        self.env.invalidate_all()
+        device = self.user_internal.device_ids
+        self.assertEqual(len(device), 1)
+        self.assertEqual(device.session_identifier, sid[:STORED_SESSION_BYTES])
+        self.assertNotIn("/web/login", self.url_open("/test_http/greeting-user").url)

@@ -271,3 +271,13 @@ class TestRevokedRetention(DeviceCase):
         with patch.object(res_device, "_RETENTION_BATCH", 2):
             self.assertEqual(self._gc(), (2, True))
             self.assertEqual(self._gc(), (1, False))
+
+
+class TestEndOtherSessions(TransactionCase):
+    def test_the_epoch_changes_every_session_token(self):
+        user = self.env.user
+        before = user._get_session_token("a" * 84)
+        epoch = user.session_epoch
+        user._end_other_sessions()
+        self.assertEqual(user.session_epoch, epoch + 1)
+        self.assertNotEqual(user._get_session_token("a" * 84), before)

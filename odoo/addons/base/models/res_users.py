@@ -528,6 +528,12 @@ class ResUsers(models.Model):
         inverse_name="user_id",
         string="User devices",
     )
+    session_epoch = fields.Integer(
+        copy=False,
+        readonly=True,
+        help="Raised by 'Log out from all devices'. Every session token is "
+        "derived from it, so each session opened before is refused.",
+    )
 
     res_users_settings_ids = fields.One2many(
         comodel_name="res.users.settings",
@@ -1448,7 +1454,7 @@ class ResUsers(models.Model):
         return scope_id
 
     def _get_fields_session_token(self) -> set[str]:
-        return {"id", "login", "password", "active"}
+        return {"id", "login", "password", "active", "session_epoch"}
 
     def _prepare_session_token_query_params(self) -> dict[str, SQL]:
         database_secret = SQL(
@@ -1628,7 +1634,26 @@ class ResUsers(models.Model):
         others = self.device_ids.filtered(lambda d: not d.is_current)
         _debug.lifecycle("all_devices_revoked", user=self.id, devices=len(others))
         others._revoke()
+        self._end_other_sessions()
         return {"type": "ir.actions.client", "tag": "reload"}
+
+    def _end_other_sessions(self) -> None:
+        self.check_singleton()
+        self.env.cr.execute(
+            SQL(
+                "UPDATE res_users SET session_epoch = COALESCE(session_epoch, 0) + 1 "
+                "WHERE id = %s",
+                self.id,
+            )
+        )
+        self.invalidate_recordset(["session_epoch"])
+        self._invalidate_session_tokens()
+        keeps_current = bool(request) and request.session.uid == self.id
+        if keeps_current:
+            request.session.session_token = self._get_session_token(request.session.sid)
+        _debug.lifecycle(
+            "other_sessions_ended", user=self.id, keeps_current=keeps_current
+        )
 
     def _assert_group_query_allowed(self) -> None:
         if not (

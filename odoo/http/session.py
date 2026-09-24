@@ -251,6 +251,10 @@ class Session(collections.abc.MutableMapping):
             user_context = dict(env["res.users"].context_get())
 
             self._require_hard_rotation()
+            if self.store is not None:
+                # fix now the id this login keeps, so what is recorded against
+                # the session (its device) names the session that survives
+                self.store.stage_rotation(self, env)
             self.update(
                 {
                     "db": env.registry.db_name,
@@ -266,6 +270,8 @@ class Session(collections.abc.MutableMapping):
             uid=uid,
             context_keys=len(user_context),
         )
+        if request and request.session is self:
+            get_ir_http(env)._post_login(env)
 
     def logout(self, keep_db: bool = False) -> None:
         _debug.lifecycle("http.session.logout", uid=self.uid, keep_db=keep_db)

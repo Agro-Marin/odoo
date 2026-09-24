@@ -153,6 +153,9 @@ class HttpExtension(Protocol):
     ) -> None:
         pass
 
+    def _post_login(self, env: Any) -> None:
+        pass
+
     def _post_logout(self, retired_identifier: str | None) -> None:
         pass
 
