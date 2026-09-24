@@ -5,7 +5,7 @@ import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { Mutex } from "@web/core/utils/concurrency";
-import { useService } from "@web/core/utils/hooks";
+import { useOptionalService, useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { WebClient } from "@web/webclient/webclient";
 
@@ -15,11 +15,12 @@ const USER_DEVICES_MODEL = "mail.push.device";
 patch(WebClient.prototype, {
     setup() {
         super.setup();
+        this.store = useOptionalService("mail.store");
         this.orm = useService("orm");
         this.notification = useService("notification");
         this.serviceWorker = useService("service_worker");
         this._pushMutex = new Mutex();
-        this.env.services["mail.store"]?.initialize();
+        this.store?.initialize();
         if (this._canSendNativeNotification) {
             this.env.bus.addEventListener(
                 "WEB_CLIENT_READY",

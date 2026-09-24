@@ -86,7 +86,7 @@ export class HtmlField extends Component {
         useBus(model.bus, ModelEvent.NEED_LOCAL_CHANGES, ({ detail }) =>
             detail.proms.push(this.commitChanges()),
         );
-        this.busService = this.env.services.bus_service;
+        this.busService = useService("bus_service");
         this.ormService = useService("orm");
 
         this.isDirty = false;

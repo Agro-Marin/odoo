@@ -33,6 +33,7 @@ export class DiscussClientAction extends Component {
 
     setup() {
         super.setup();
+        this.ui = useService("ui");
         this.store = useService("mail.store");
         onWillStart(() => {
             this.restoreDiscussThread(this.props);
@@ -61,7 +62,7 @@ export class DiscussClientAction extends Component {
             props.action.context.active_id ??
             props.action.params?.active_id ??
             this.store.Thread.localIdToActiveId(this.store.discuss.thread?.localId) ??
-            (this.env.services.ui.isSmall ? undefined : this.store.discuss.lastActiveId)
+            (this.ui.isSmall ? undefined : this.store.discuss.lastActiveId)
         );
     }
 

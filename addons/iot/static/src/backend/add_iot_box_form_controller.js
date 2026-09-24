@@ -8,6 +8,7 @@ import { FormController, formView } from "@web/views/form";
 export class AddIoTBoxFormController extends FormController {
     setup() {
         super.setup();
+        this.action = useService("action");
         this.notification = useService("notification");
         this.orm = useService("orm");
         this.iotBoxesBeforeConnection = [];
@@ -70,7 +71,7 @@ export class AddIoTBoxFormController extends FormController {
      */
     notifyIoTBoxFound(found) {
         if (found) {
-            this.env.services.action.doAction({ type: "ir.actions.act_window_close" });
+            this.action.doAction({ type: "ir.actions.act_window_close" });
             this.notification.add(_t("New IoT Box connected!"), { type: "success" });
         }
     }

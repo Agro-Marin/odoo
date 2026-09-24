@@ -155,7 +155,7 @@ export class SpreadsheetDashboardAction extends Component {
      * @returns {Promise<void>}
      */
     async editDashboard(id) {
-        const action = await this.env.services.orm.call(
+        const action = await this.orm.call(
             "spreadsheet.dashboard",
             "action_edit_dashboard",
             [id],

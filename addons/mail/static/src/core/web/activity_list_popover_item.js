@@ -8,6 +8,7 @@ import { Component, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { FileUploader } from "@web/core/file_upload";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 
 const log = makeLogger("mail.activity");
 /**
@@ -30,10 +31,12 @@ export class ActivityListPopoverItem extends Component {
 
     setup() {
         super.setup();
+        this.store = useService("mail.store");
+        this.orm = useService("orm");
         this.state = useState({ hasMarkDoneView: false });
         if (this.props.activity.activity_category === "upload_file") {
             this.attachmentUploader = useAttachmentUploader(
-                this.env.services["mail.store"].Thread.insert({
+                this.store.Thread.insert({
                     model: this.props.activity.res_model,
                     id: this.props.activity.res_id,
                 }),
@@ -102,7 +105,7 @@ export class ActivityListPopoverItem extends Component {
 
     async unlink() {
         log.logic("unlink", () => ({ activityId: this.props.activity.id }));
-        await this.env.services.orm.unlink("mail.activity", [this.props.activity.id]);
+        await this.orm.unlink("mail.activity", [this.props.activity.id]);
         this.props.activity.remove();
         this.props.onActivityChanged?.();
     }

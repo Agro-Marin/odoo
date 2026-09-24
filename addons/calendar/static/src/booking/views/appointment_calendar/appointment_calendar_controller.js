@@ -21,6 +21,7 @@ patch(AttendeeCalendarController, {
 patch(AttendeeCalendarController.prototype, {
     setup() {
         super.setup(...arguments);
+        this.action = useService("action");
         this.popover = usePopover(Tooltip, { position: "bottom" });
         this.copyLinkRef = useRef("copyLinkRef");
         this.orm = useService("orm");
@@ -105,7 +106,7 @@ patch(AttendeeCalendarController.prototype, {
     },
 
     async onClickAddLeave() {
-        this.env.services.action.doAction({
+        this.action.doAction({
             name: _t("Add Closing Day(s)"),
             type: "ir.actions.act_window",
             res_model: "appointment.manage.leaves",

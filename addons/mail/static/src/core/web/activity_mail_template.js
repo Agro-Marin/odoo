@@ -22,6 +22,8 @@ export class ActivityMailTemplate extends Component {
 
     setup() {
         super.setup();
+        this.action = useService("action");
+        this.orm = useService("orm");
         this.store = useService("mail.store");
     }
 
@@ -55,7 +57,7 @@ export class ActivityMailTemplate extends Component {
             model: this.props.activity.res_model,
             id: this.props.activity.res_id,
         });
-        this.env.services.action.doAction(action, {
+        this.action.doAction(action, {
             onClose: () => this.props.onActivityChanged?.(thread),
         });
     }
@@ -76,11 +78,10 @@ export class ActivityMailTemplate extends Component {
             model: this.props.activity.res_model,
             id: this.props.activity.res_id,
         });
-        await this.env.services.orm.call(
-            this.props.activity.res_model,
-            "activity_send_mail",
-            [[this.props.activity.res_id], mailTemplate.id],
-        );
+        await this.orm.call(this.props.activity.res_model, "activity_send_mail", [
+            [this.props.activity.res_id],
+            mailTemplate.id,
+        ]);
         this.props.onActivityChanged?.(thread);
     }
 }

@@ -4,7 +4,7 @@ import { EventBus, useSubEnv } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { x2ManyCommands } from "@web/core/network";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
-import { useService } from "@web/core/utils/hooks";
+import { useOptionalService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { FormController } from "@web/views/form";
 
@@ -17,9 +17,7 @@ FormController.props = {
 patch(FormController.prototype, {
     setup() {
         super.setup();
-        if (this.env.services["mail.store"]) {
-            this.mailStore = useService("mail.store");
-        }
+        this.mailStore = useOptionalService("mail.store");
         useSubEnv({
             chatter: {
                 fetchThreadData: true,

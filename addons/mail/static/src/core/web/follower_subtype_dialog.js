@@ -22,6 +22,8 @@ export class FollowerSubtypeDialog extends Component {
 
     setup() {
         super.setup();
+        this.orm = useService("orm");
+        this.notification = useService("notification");
         this.store = useService("mail.store");
         this.state = useState({
             /** @type {import("models").MailMessageSubtype[]} */
@@ -92,7 +94,7 @@ export class FollowerSubtypeDialog extends Component {
             await this.props.follower.remove();
         } else {
             const subtypes = [...selected, ...this.unmanagedSubtypes];
-            await this.env.services.orm.call(
+            await this.orm.call(
                 this.props.follower.thread.model,
                 "message_subscribe",
                 [[this.props.follower.thread.id]],
@@ -108,7 +110,7 @@ export class FollowerSubtypeDialog extends Component {
             if (this.store.mt_comment.notIn(subtypes)) {
                 this.props.follower.removeRecipient();
             }
-            this.env.services.notification.add(
+            this.notification.add(
                 _t("The subscription preferences were successfully applied."),
                 { type: "success" },
             );

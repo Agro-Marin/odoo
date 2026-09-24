@@ -4,7 +4,7 @@ import { WebChatter } from "@mail/chatter/web/web_chatter";
 import { AttachmentView } from "@mail/core/common/attachment_view";
 import { useState } from "@odoo/owl";
 import { router } from "@web/core/browser/router";
-import { useService } from "@web/core/utils/hooks";
+import { useOptionalService, useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { SIZES } from "@web/ui/viewport";
 import { FormRenderer } from "@web/views/form";
@@ -16,9 +16,7 @@ patch(FormRenderer.prototype, {
             Chatter: WebChatter,
         };
         this.highlightMessageId = router.current.highlight_message_id;
-        if (this.env.services["mail.store"]) {
-            this.mailStore = useService("mail.store");
-        }
+        this.mailStore = useOptionalService("mail.store");
         this.uiService = useService("ui");
         this.mailPopoutService = useService("mail.popout");
         /** @type {{ thread?: import("models").Thread }} */

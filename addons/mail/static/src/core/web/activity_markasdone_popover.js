@@ -2,6 +2,7 @@
 /** @odoo-module native */
 import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useService } from "@web/core/utils/hooks";
 
 const log = makeLogger("mail.activity");
 
@@ -24,6 +25,8 @@ export class ActivityMarkAsDone extends Component {
 
     setup() {
         super.setup();
+        this.store = useService("mail.store");
+        this.action = useService("action");
         this.textArea = useRef("textarea");
         onMounted(() => {
             this.textArea.el.focus();
@@ -40,7 +43,7 @@ export class ActivityMarkAsDone extends Component {
 
     async onClickDone() {
         const { res_id, res_model } = this.props.activity;
-        const thread = this.env.services["mail.store"].Thread.insert({
+        const thread = this.store.Thread.insert({
             model: res_model,
             id: res_id,
         });
@@ -52,7 +55,7 @@ export class ActivityMarkAsDone extends Component {
 
     async onClickDoneAndScheduleNext() {
         const { res_id, res_model } = this.props.activity;
-        const thread = this.env.services["mail.store"].Thread.insert({
+        const thread = this.store.Thread.insert({
             model: res_model,
             id: res_id,
         });
@@ -73,7 +76,7 @@ export class ActivityMarkAsDone extends Component {
             return;
         }
         await new Promise((resolve) => {
-            this.env.services.action.doAction(action, {
+            this.action.doAction(action, {
                 onClose: resolve,
             });
         });

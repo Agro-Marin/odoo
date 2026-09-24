@@ -1071,7 +1071,7 @@ export class FloorScreen extends Component {
             const imageUrl = await getDataURLFromFile(file);
             const loadedImage = await loadImage(imageUrl);
             if (loadedImage) {
-                this.env.services.ui.block();
+                this.ui.block();
                 await this.pos.data.ormWrite(
                     "restaurant.floor",
                     [this.activeFloor.id],
@@ -1081,7 +1081,7 @@ export class FloorScreen extends Component {
                 );
                 // A read is added to be sure that we have the same image as the one in backend
                 await this.pos.data.read("restaurant.floor", [this.activeFloor.id]);
-                this.env.services.ui.unblock();
+                this.ui.unblock();
             } else {
                 this.dialog.add(AlertDialog, {
                     title: _t("Loading Image Error"),

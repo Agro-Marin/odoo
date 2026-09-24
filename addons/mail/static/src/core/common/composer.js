@@ -301,6 +301,7 @@ export class Composer extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.notification = useService("notification");
         this._setupServices();
         this._setupSelection();
         this._setupInputHandlers();
@@ -636,12 +637,9 @@ export class Composer extends Component {
         }));
         if (this.props.composer.attachments.some(({ uploading }) => uploading)) {
             log.logic("processMessage blocked by upload in progress");
-            this.env.services.notification.add(
-                _t("Please wait while the file is uploading."),
-                {
-                    type: "warning",
-                },
-            );
+            this.notification.add(_t("Please wait while the file is uploading."), {
+                type: "warning",
+            });
         } else if (this.canProcessMessage) {
             if (!this.state.active) {
                 log.logic("processMessage already in flight");
@@ -700,7 +698,7 @@ export class Composer extends Component {
                     thread: composer.thread?.localId,
                     recipients: allRecipients.length,
                 }));
-                this.env.services.notification.add(
+                this.notification.add(
                     _t(
                         "Cannot send: a recipient has a missing or invalid email address.",
                     ),
@@ -790,7 +788,7 @@ export class Composer extends Component {
                     }),
             );
         } else {
-            this.env.services.dialog.add(
+            this.dialogService.add(
                 MessageConfirmDialog,
                 {
                     message: composer.message,

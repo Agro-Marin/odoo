@@ -3,11 +3,17 @@ import { _t } from "@web/core/translation";
 import { ActivityController } from "@mail/views/web/activity/activity_controller";
 
 import { DocumentsControllerMixin } from "@document/views/document_controller_mixin";
+import { useService } from "@web/core/utils/hooks";
 
 export class DocumentsActivityController extends DocumentsControllerMixin(
     ActivityController,
 ) {
     static template = "document.DocumentsActivityController";
+
+    setup() {
+        super.setup();
+        this.notification = useService("notification");
+    }
 
     get rendererProps() {
         const props = super.rendererProps;
@@ -46,7 +52,7 @@ export class DocumentsActivityController extends DocumentsControllerMixin(
      */
     sendMailTemplate(templateID, activityTypeID) {
         super.sendMailTemplate(templateID, activityTypeID);
-        this.env.services.notification.add(_t("Reminder emails have been sent."), {
+        this.notification.add(_t("Reminder emails have been sent."), {
             type: "success",
         });
     }

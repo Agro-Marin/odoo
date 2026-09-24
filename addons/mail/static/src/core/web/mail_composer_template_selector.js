@@ -17,6 +17,7 @@ export class MailComposerTemplateSelector extends Component {
     static props = { ...standardFieldProps };
 
     setup() {
+        this.dialog = useService("dialog");
         this.action = useService("action");
         this.orm = useService("orm");
         this.limit = 80;
@@ -106,7 +107,7 @@ export class MailComposerTemplateSelector extends Component {
     }
 
     onSelectTemplateSearchMoreBtnClick() {
-        this.env.services.dialog.add(SelectCreateDialog, {
+        this.dialog.add(SelectCreateDialog, {
             resModel: "mail.template",
             title: _t("Select a Template"),
             multiSelect: false,

@@ -1,14 +1,20 @@
 /** @odoo-module native */
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { _t } from "@web/core/translation";
+import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 
 patch(MessagingMenu.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.action = useService("action");
+    },
+
     openFailureView(failure) {
         if (failure.type !== "snail") {
             return super.openFailureView(failure);
         }
-        this.env.services.action.doAction({
+        this.action.doAction({
             name: _t("Snailmail Failures"),
             type: "ir.actions.act_window",
             view_mode: "kanban,list,form",

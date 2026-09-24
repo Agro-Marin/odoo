@@ -14,6 +14,7 @@ Object.assign(MessagingMenu.components, { MessagingMenuQuickSearch });
 patch(MessagingMenu.prototype, {
     setup() {
         super.setup();
+        this.orm = useService("orm");
         this.action = useService("action");
         this.pwa = useService("pwa");
         this.notification = useService("mail.notification.permission");
@@ -183,14 +184,9 @@ patch(MessagingMenu.prototype, {
             resModel: failure.resModel,
             notifications: failure.notifications.length,
         }));
-        return this.env.services.orm.call(
-            failure.resModel,
-            "notify_cancel_by_type",
-            [],
-            {
-                notification_type: failure.type,
-            },
-        );
+        return this.orm.call(failure.resModel, "notify_cancel_by_type", [], {
+            notification_type: failure.type,
+        });
     },
     toggleSearch() {
         log.logic("toggleSearch", () => ({ open: !this.state.searchOpen }));

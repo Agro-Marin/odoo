@@ -2,14 +2,20 @@
 import { ActivityMenu } from "@mail/core/web/activity_menu";
 
 import { patch } from "@web/core/utils/patch";
+import { useService } from "@web/core/utils/hooks";
 
 patch(ActivityMenu.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.actionService = useService("action");
+    },
+
     /**
      * @override This
      */
     async executeActivityAction(group, domain, views, context, newWindow) {
         if (group.model === "document.document") {
-            const action = await this.env.services.action.loadAction(
+            const action = await this.actionService.loadAction(
                 "document.document_action",
             );
 
@@ -28,6 +34,6 @@ patch(ActivityMenu.prototype, {
 
     async onClickRequestDocument() {
         this.dropdown.close();
-        this.env.services.action.doAction("document.action_request_form");
+        this.actionService.doAction("document.action_request_form");
     },
 });

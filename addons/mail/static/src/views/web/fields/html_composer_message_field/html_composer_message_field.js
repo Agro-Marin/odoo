@@ -4,10 +4,10 @@ import { DYNAMIC_PLACEHOLDER_PLUGINS } from "@html_editor/backend/plugin_sets";
 import { fillEmpty } from "@html_editor/utils/dom";
 import { isEmpty } from "@html_editor/utils/dom_info";
 import { getComposerTargetThreads } from "@mail/core/web/composer_target_threads";
-import { markup } from "@odoo/owl";
+import { markup, toRaw } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
-import { useBus } from "@web/core/utils/hooks";
+import { useBus, useOptionalService } from "@web/core/utils/hooks";
 
 import { HtmlMailField, htmlMailField } from "../html_mail_field/html_mail_field.js";
 import { ContentExpandablePlugin } from "./content_expandable_plugin.js";
@@ -18,6 +18,7 @@ const log = makeLogger("mail.composer.form");
 export class HtmlComposerMessageField extends HtmlMailField {
     setup() {
         super.setup();
+        this.store = toRaw(useOptionalService("mail.store"));
         if (this.env.fullComposerBus) {
             useBus(
                 this.env.fullComposerBus,
@@ -95,7 +96,7 @@ export class HtmlComposerMessageField extends HtmlMailField {
                 }
                 this.props.record.data.attachment_ids.linkTo(attachment.id, attachment);
             };
-        const store = this.env.services["mail.store"];
+        const store = this.store;
         config.thread = store
             ? getComposerTargetThreads(store, this.props.record)[0]
             : undefined;

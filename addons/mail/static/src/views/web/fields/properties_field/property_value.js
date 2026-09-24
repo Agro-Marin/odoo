@@ -2,13 +2,15 @@
 /** @odoo-module native */
 import { useOpenChat } from "@mail/core/web/open_chat_hook";
 import { TagsList } from "@web/components/tags_list";
+import { useOptionalService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { PropertyValue } from "@web/fields/specialized/properties";
 patch(PropertyValue.prototype, {
     setup() {
         super.setup();
+        this.store = useOptionalService("mail.store");
 
-        if (this.env.services["mail.store"]) {
+        if (this.store) {
             this.openChat = useOpenChat("res.users");
         }
     },
@@ -25,7 +27,8 @@ export class Many2manyPropertiesTagsList extends TagsList {
 
     setup() {
         super.setup();
-        if (this.env.services["mail.store"]) {
+        this.store = useOptionalService("mail.store");
+        if (this.store) {
             this.openChat = useOpenChat("res.users");
         }
     }

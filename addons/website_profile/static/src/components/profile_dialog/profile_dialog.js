@@ -43,6 +43,7 @@ export class ProfileDialog extends Component {
 
     setup() {
         super.setup();
+        this.notification = useService("notification");
         this.orm = useService("orm");
         this.upload = useRef("upload");
         this.profileImg = useRef("profileImg");
@@ -145,7 +146,7 @@ export class ProfileDialog extends Component {
             this.props.close();
         } catch (e) {
             const msg = e?.data?.message || e?.message || _t("Update failed.");
-            this.env.services.notification.add(msg, { type: "danger" });
+            this.notification.add(msg, { type: "danger" });
         } finally {
             this.state.isProcessing = false;
         }

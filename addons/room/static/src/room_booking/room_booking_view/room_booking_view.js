@@ -80,7 +80,7 @@ export class RoomBookingView extends Component {
                 !isDisplayStandalone() && this.pwaService.isSupportedOnBrowser,
         });
         // Show bookings updates in live
-        this.busService = this.env.services.bus_service;
+        this.busService = useService("bus_service");
         this.busService.addChannel("room_booking#" + this.props.accessToken);
         this.busService.subscribe(`room#${this.props.id}/booking/create`, (bookings) =>
             bookings.forEach((booking) =>

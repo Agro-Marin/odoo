@@ -29,7 +29,7 @@ export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
     async onWillStart() {
         // Show status dropdown if user is in attendees list
         if (this.isEventEditable) {
-            const stateSelections = await this.env.services.orm.call(
+            const stateSelections = await this.orm.call(
                 this.props.model.resModel,
                 "get_state_selections",
             );
@@ -135,11 +135,11 @@ export class AttendeeCalendarCommonPopover extends CalendarCommonPopover {
         }
         this.changingAttendeeStatus = true;
         try {
-            await this.env.services.orm.call(
-                this.props.model.resModel,
-                "change_attendee_status",
-                [[record.id], selectedStatus, recurrenceUpdate],
-            );
+            await this.orm.call(this.props.model.resModel, "change_attendee_status", [
+                [record.id],
+                selectedStatus,
+                recurrenceUpdate,
+            ]);
             await this.props.model.load();
         } finally {
             this.changingAttendeeStatus = false;

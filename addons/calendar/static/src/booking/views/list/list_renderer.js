@@ -3,6 +3,7 @@ import { AppointmentTypeActionHelper } from "@calendar/booking/components/appoin
 import { onWillStart } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
+import { useService } from "@web/core/utils/hooks";
 import { ListRenderer } from "@web/views/list";
 
 export class AppointmentBookingListRenderer extends ListRenderer {
@@ -10,6 +11,7 @@ export class AppointmentBookingListRenderer extends ListRenderer {
 
     setup() {
         super.setup();
+        this.action = useService("action");
 
         onWillStart(async () => {
             this.isAppointmentManager = await user.hasGroup(
@@ -23,7 +25,7 @@ export class AppointmentBookingListRenderer extends ListRenderer {
     }
 
     async onClickAddLeave() {
-        this.env.services.action.doAction({
+        this.action.doAction({
             name: _t("Add Closing Day(s)"),
             type: "ir.actions.act_window",
             res_model: "appointment.manage.leaves",

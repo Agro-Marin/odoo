@@ -9,6 +9,7 @@ export class BusLogsMenuItem extends Component {
     static props = {};
 
     setup() {
+        this.busService = useService("bus_service");
         this.busLogsService = useService("bus.logs_service");
     }
 
@@ -17,7 +18,7 @@ export class BusLogsMenuItem extends Component {
     }
 
     onClickDownload() {
-        this.env.services.bus_service.downloadLogs();
+        this.busService.downloadLogs();
     }
 }
 

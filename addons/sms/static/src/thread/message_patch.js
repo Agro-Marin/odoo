@@ -4,8 +4,15 @@ import { user } from "@web/core/user";
 import { Message } from "@mail/core/common/message";
 
 import { patch } from "@web/core/utils/patch";
+import { useService } from "@web/core/utils/hooks";
 
 patch(Message.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.orm = useService("orm");
+        this.action = useService("action");
+    },
+
     async onClickNotification(ev) {
         const hasAccountFailure = this.message.notification_ids.some(
             (notification) =>
@@ -16,17 +23,12 @@ patch(Message.prototype, {
             hasAccountFailure &&
             (await user.hasGroup("base.group_system"))
         ) {
-            const [accountId] = await this.env.services.orm.call(
-                "iap.account",
-                "get",
-                [],
-                {
-                    service_name: "sms",
-                    force_create: false,
-                },
-            );
+            const [accountId] = await this.orm.call("iap.account", "get", [], {
+                service_name: "sms",
+                force_create: false,
+            });
             if (accountId) {
-                this.env.services.action.doAction({
+                this.action.doAction({
                     type: "ir.actions.act_window",
                     name: _t("SMS Account"),
                     target: "current",

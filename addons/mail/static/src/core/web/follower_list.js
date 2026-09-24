@@ -26,6 +26,7 @@ export class FollowerList extends Component {
 
     setup() {
         super.setup();
+        this.dialog = useService("dialog");
         this.action = useService("action");
         this.store = useService("mail.store");
         useVisible(
@@ -78,7 +79,7 @@ export class FollowerList extends Component {
     }
 
     async onClickEdit() {
-        this.env.services.dialog.add(FollowerSubtypeDialog, {
+        this.dialog.add(FollowerSubtypeDialog, {
             follower: this.props.thread.selfFollower,
             onFollowerChanged: () => this.props.onFollowerChanged?.(),
         });

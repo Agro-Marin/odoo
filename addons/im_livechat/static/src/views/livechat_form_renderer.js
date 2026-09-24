@@ -13,6 +13,7 @@ export class LivechatSessionFormRenderer extends FormRenderer {
 
     setup() {
         super.setup();
+        this.action = useService("action");
         this.store = useState(useService("mail.store"));
         useEffect(
             (thread) => {
@@ -43,7 +44,7 @@ export class LivechatSessionFormRenderer extends FormRenderer {
     }
 
     redirectToSessions() {
-        this.env.services.action.doAction("im_livechat.discuss_channel_action", {
+        this.action.doAction("im_livechat.discuss_channel_action", {
             clearBreadcrumbs: true,
         });
     }

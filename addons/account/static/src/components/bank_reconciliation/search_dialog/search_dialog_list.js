@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { useService } from "@web/core/utils/hooks";
 import { ListController, ListRenderer, listView } from "@web/views/list";
 
 export class BankRecReconcileDialogListController extends ListController {
@@ -22,6 +23,7 @@ export class BankRecReconcileDialogListRenderer extends ListRenderer {
 
     setup() {
         super.setup();
+        this.action = useService("action");
         if (this.props.bankRecInfo?.state) {
             this.bankRecState = useState(this.props.bankRecInfo.state);
         }
@@ -36,7 +38,7 @@ export class BankRecReconcileDialogListRenderer extends ListRenderer {
     }
 
     async openMoveView(record) {
-        this.env.services.action.doAction({
+        this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "account.move",
             res_id: record.data.move_id.id,

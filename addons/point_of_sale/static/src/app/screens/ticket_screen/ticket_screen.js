@@ -59,6 +59,7 @@ export class TicketScreen extends Component {
     };
 
     setup() {
+        this.notification = useService("notification");
         useLifecycleLog(log);
         this.pos = usePos();
         this.ui = useService("ui");
@@ -172,12 +173,11 @@ export class TicketScreen extends Component {
     }
     async onClickScanOrder(qrcode) {
         const invalidQrCode = () =>
-            this.env.services.notification.add(
-                _t("Invalid QR Code! Please, Scan again!"),
-                { type: "warning" },
-            );
+            this.notification.add(_t("Invalid QR Code! Please, Scan again!"), {
+                type: "warning",
+            });
         if (!qrcode) {
-            this.env.services.notification.add(_t("Please, Scan again!"), {
+            this.notification.add(_t("Please, Scan again!"), {
                 type: "warning",
             });
             return;

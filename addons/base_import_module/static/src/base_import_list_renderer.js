@@ -1,7 +1,13 @@
 /** @odoo-module native */
 import { ListRenderer } from "@web/views/list";
+import { useService } from "@web/core/utils/hooks";
 
 export class ImportModuleListRenderer extends ListRenderer {
+    setup() {
+        super.setup();
+        this.action = useService("action");
+    }
+
     get hasSelectors() {
         return (
             super.hasSelectors &&
@@ -27,7 +33,7 @@ export class ImportModuleListRenderer extends ListRenderer {
                     module_type: record.savedData.module_type,
                 },
             };
-            this.env.services.action.doAction(re_action);
+            this.action.doAction(re_action);
         } else {
             super.onCellClicked(record, column, ev);
         }

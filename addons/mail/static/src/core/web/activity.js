@@ -28,6 +28,7 @@ export class Activity extends Component {
 
     setup() {
         super.setup();
+        this.orm = useService("orm");
         this.storeService = useService("mail.store");
         this.linkNavigation = useService("mail.link_navigation");
         this.state = useState({ showDetails: false, day: 0 });
@@ -115,13 +116,13 @@ export class Activity extends Component {
         const thread = this.thread;
         const { activity } = this.props;
         log.logic("unlink", () => ({ activityId: activity.id }));
-        await this.env.services.orm.unlink("mail.activity", [activity.id]);
+        await this.orm.unlink("mail.activity", [activity.id]);
         activity.remove();
         this.props.onActivityChanged(thread);
     }
 
     get thread() {
-        return this.env.services["mail.store"].Thread.insert({
+        return this.storeService.Thread.insert({
             model: this.props.activity.res_model,
             id: this.props.activity.res_id,
         });

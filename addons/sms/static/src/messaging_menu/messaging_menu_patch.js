@@ -2,13 +2,19 @@
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
+import { useService } from "@web/core/utils/hooks";
 
 patch(MessagingMenu.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.action = useService("action");
+    },
+
     openFailureView(failure) {
         if (failure.type === "email") {
             return super.openFailureView(failure);
         }
-        this.env.services.action.doAction({
+        this.action.doAction({
             name: _t("SMS Failures"),
             type: "ir.actions.act_window",
             view_mode: "kanban,list,form",

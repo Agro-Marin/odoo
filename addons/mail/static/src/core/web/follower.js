@@ -20,6 +20,7 @@ export class Follower extends Component {
     static components = { DropdownItem };
 
     setup() {
+        this.dialog = useService("dialog");
         this.store = useService("mail.store");
     }
 
@@ -32,7 +33,7 @@ export class Follower extends Component {
     }
 
     async onClickEdit() {
-        this.env.services.dialog.add(FollowerSubtypeDialog, {
+        this.dialog.add(FollowerSubtypeDialog, {
             follower: this.props.follower,
             onFollowerChanged: () => this.props.onFollowerChanged?.(),
         });

@@ -7,6 +7,7 @@ import { patch } from "@web/core/utils/patch";
 patch(QRPopup.prototype, {
     setup() {
         super.setup(...arguments);
+        this.dialog = useService("dialog");
         this.orm = useService("orm");
     },
 
@@ -25,7 +26,7 @@ patch(QRPopup.prototype, {
                 [[pm_line.payment_method_id.id], pm_line.pos_order_id.uuid],
             );
         } catch {
-            this.env.services.dialog.add(AlertDialog, {
+            this.dialog.add(AlertDialog, {
                 title: _t("Failure"),
                 body: _t("Failure to verify QRIS payment status"),
             });
@@ -34,7 +35,7 @@ patch(QRPopup.prototype, {
         }
 
         if (!result) {
-            this.env.services.dialog.add(AlertDialog, {
+            this.dialog.add(AlertDialog, {
                 title: _t("Payment Status Update"),
                 body: _t("Payment Status returns unpaid"),
             });

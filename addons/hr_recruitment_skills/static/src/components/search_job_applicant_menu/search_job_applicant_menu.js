@@ -16,12 +16,13 @@ export class SearchJobApplicant extends Component {
     static props = {};
 
     setup() {
+        this.orm = useService("orm");
         this.action = useService("action");
     }
 
     async openMatchingJobApplicants() {
         const { globalContext } = this.env.searchModel;
-        const action = await this.env.services.orm.call(
+        const action = await this.orm.call(
             "hr.job",
             "action_search_matching_applicants",
             [globalContext.active_id],

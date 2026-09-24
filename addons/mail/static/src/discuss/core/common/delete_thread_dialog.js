@@ -15,6 +15,7 @@ export class DeleteThreadDialog extends Component {
 
     setup() {
         super.setup();
+        this.notification = useService("notification");
         this.store = useService("mail.store");
     }
 
@@ -38,7 +39,7 @@ export class DeleteThreadDialog extends Component {
             toOpenThread.open();
         }
         this.props.close();
-        this.env.services.notification.add(
+        this.notification.add(
             _t('Thread "%(thread_name)s" has been deleted', {
                 thread_name: threadName,
             }),

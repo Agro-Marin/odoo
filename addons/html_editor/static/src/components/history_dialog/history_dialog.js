@@ -59,6 +59,7 @@ export class HistoryDialog extends Component {
     });
 
     setup() {
+        this.ui = useService("ui");
         this.size = "fullscreen";
         this.title = this.props.title;
         this.orm = useService("orm");
@@ -195,10 +196,10 @@ export class HistoryDialog extends Component {
     );
 
     async _onRestoreRevisionClick() {
-        this.env.services.ui.block();
+        this.ui.block();
         const restoredContent = await this.getRevisionContent(this.state.revisionId);
         this.props.restoreRequested(restoredContent, this.props.close);
-        this.env.services.ui.unblock();
+        this.ui.unblock();
     }
 
     _removeExternalBlockHtml(baseHtml) {

@@ -55,6 +55,7 @@ export class ProductScreen extends Component {
     setup() {
         useLifecycleLog(log);
         super.setup();
+        this.localization = useService("localization");
         this.pos = usePos();
         this.ui = useService("ui");
         this.dialog = useService("dialog");
@@ -153,8 +154,7 @@ export class ProductScreen extends Component {
 
     getNumpadButtons() {
         const colorClassMap = {
-            [this.env.services.localization.decimalPoint]:
-                "o_colorlist_item_numpad_color_6",
+            [this.localization.decimalPoint]: "o_colorlist_item_numpad_color_6",
             Backspace: "o_colorlist_item_numpad_color_1",
             "-": "o_colorlist_item_numpad_color_3",
         };

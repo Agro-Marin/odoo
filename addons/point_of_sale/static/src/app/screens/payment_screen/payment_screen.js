@@ -33,6 +33,7 @@ export class PaymentScreen extends Component {
     };
 
     setup() {
+        this.localization = useService("localization");
         useLifecycleLog(log);
         this.pos = usePos();
         this.ui = useService("ui");
@@ -101,8 +102,7 @@ export class PaymentScreen extends Component {
 
     getNumpadButtons() {
         const colorClassMap = {
-            [this.env.services.localization.decimalPoint]:
-                "o_colorlist_item_numpad_color_6",
+            [this.localization.decimalPoint]: "o_colorlist_item_numpad_color_6",
             Backspace: "o_colorlist_item_numpad_color_1",
             "+10": "o_colorlist_item_numpad_color_10",
             "+20": "o_colorlist_item_numpad_color_10",
