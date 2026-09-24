@@ -21,21 +21,27 @@
                 <h3 name="security" class="h5">Security</h3>
                 <table class="table table-sm table-bordered o_table_fixed mb-4">
                     <colgroup>
+                        <col width="22%" />
+                        <col width="12%" />
+                        <col width="12%" />
+                        <col width="24%" />
                         <col width="30%" />
-                        <col width="15%" />
-                        <col width="55%" />
                     </colgroup>
                     <thead>
                         <tr>
                             <th>Group</th>
-                            <th>Rights</th>
+                            <th>Kind</th>
+                            <th>Operations</th>
+                            <th>Domain</th>
                             <th>Name</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr t-foreach="o.access_ids" t-as="access">
                             <td class="text-break"><span t-field="access.group_id" /></td>
-                            <td><t t-if="access.perm_read">R</t><t t-if="access.perm_write"> W</t><t t-if="access.perm_create"> C</t><t t-if="access.perm_unlink"> U</t></td>
+                            <td><span t-field="access.kind" /><t t-if="access.kind == 'guard'"> (<span t-field="access.guard_scope" />)</t></td>
+                            <td><span t-out="access.operation or ''" /><t t-if="access.verbs"> <span t-out="access.verbs" /></t></td>
+                            <td class="text-break"><span t-out="access.domain or ''" /></td>
                             <td class="text-break"><span t-field="access.name" /></td>
                         </tr>
                     </tbody>
