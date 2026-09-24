@@ -31,6 +31,7 @@ patch(PaymentPage.prototype, {
     },
     async checkAndOpenPaymentPage(order) {
         if (order.state === "draft") {
+            await this.selfOrder.data.syncLocalDataInIndexedDB();
             const onlinePaymentUrl = this.selfOrder.getOnlinePaymentUrl(order, true);
             window.open(onlinePaymentUrl, "_self");
         } else {
