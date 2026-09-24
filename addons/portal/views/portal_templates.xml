@@ -779,7 +779,7 @@
                         <button type="submit" class="btn btn-light">Change Password</button>
                     </form>
                 </section>
-                <section name="portal_devices">
+                <section name="portal_revoke_all_devices_popup">
                     <h4>Devices</h4>
                     <p class="text-muted">
                         The browsers signed in to your account. Log out from one you do

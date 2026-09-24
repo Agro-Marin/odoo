@@ -100,7 +100,9 @@
         id="passkeys_portal_hook"
         name="Passkeys Portal hook"
         inherit_id="portal.portal_my_security">
-        <xpath expr="//section[@name='portal_devices']" position="before">
+        <xpath
+            expr="//section[@name='portal_revoke_all_devices_popup']"
+            position="before">
             <section name="portal_passkey_management">
                 <h4>
                     Passkeys
