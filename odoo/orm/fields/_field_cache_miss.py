@@ -153,18 +153,25 @@ def get_cache_miss_by_compute(
 ) -> typing.Any:
     if env.is_protected(field, record):
         # protection is a fact of the row: the value a sibling model of the
-        # tree holds for it is the row's value, read through this field
+        # tree, or another access scope, holds for it is the row's value,
+        # read through this field
         value = _get_tree_sibling_cached(field, env, record_id)
+        from_sibling = value is not SENTINEL
+        if not from_sibling:
+            value = field._protected_value_of_other_scope(env, record_id)
+        from_scope = not from_sibling and value is not SENTINEL
         _debug.logic(
             "field.cache_miss.compute_protected",
             model=field.model_name,
             field=field.name,
             record=record_id,
-            from_sibling=value is not SENTINEL,
+            from_sibling=from_sibling,
+            from_scope=from_scope,
         )
         if value is SENTINEL:
             value = field.convert_to_cache(False, record, validate=False)
-        field._update_cache(record, value)
+        if not from_scope:
+            field._update_cache(record, value)
     else:
         recs = record if field.recursive else field._to_prefetch(record)
         if _run_batch_then_single(

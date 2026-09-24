@@ -188,3 +188,29 @@ def test_a_pending_record_lists_its_x2many_in_its_record_cache():
         assert as_user._convert_to_write({"tag_ids": as_user.tag_ids}) == {
             "tag_ids": [(6, 0, [a.id])]
         }
+
+
+def test_a_protected_record_reads_the_value_another_scope_is_assigning():
+    with model_test_env(Host, Child, Note, HostWithNotes) as env:
+        host = env["scope.host"].create({"name": "h"})
+        a = env["scope.child"].create({"name": "a"})
+        field = host._fields["computed_ids"]
+        as_user = host.with_env(env(user=2, su=False))
+        env.invalidate_all()
+        with env.protecting([field], host):
+            field._update_cache(as_user, (a.id,))
+            assert host.computed_ids == a
+            assert as_user.computed_ids == a
+
+
+def test_a_protected_record_keeps_the_new_rows_an_inverse_is_writing():
+    with model_test_env(Host, Child, Note, HostWithNotes) as env:
+        host = env["scope.host"].create({"name": "h"})
+        field = host._fields["computed_ids"]
+        as_user = host.with_env(env(user=2, su=False))
+        new_child = as_user.env["scope.child"].new({"name": "b"})
+        env.invalidate_all()
+        with env.protecting([field], host):
+            field._update_cache(as_user, new_child._ids)
+            assert host.computed_ids._ids == new_child._ids
+            assert as_user.computed_ids._ids == new_child._ids

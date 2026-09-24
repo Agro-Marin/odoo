@@ -488,6 +488,37 @@ class _RelationalMulti(_Relational):
         return value
 
     @override
+    def _protected_value_of_other_scope(
+        self, env: Environment, record_id: IdType
+    ) -> typing.Any:
+        # a protected row's value is the one its compute or inverse is
+        # assigning, whichever scope assigned it: a scope that reads it fresh
+        # would compute nothing and, storing that, evict the assignment
+        own = env.get_cache_key(self)
+        index = env._field_depends_context[self].index("access")
+        rest = (*own[:index], *own[index + 1 :])
+        for key, slot in env.core.iter_context_caches(self):
+            if (
+                key in (own, PENDING_SCOPE_KEY)
+                or (*key[:index], *key[index + 1 :]) != rest
+            ):
+                continue
+            value = slot.get(record_id, SENTINEL)
+            if value is SENTINEL or value is PENDING:
+                continue
+            self._get_cache(env)[record_id] = value
+            _debug.logic(
+                "field.x2many.protected_value_shared",
+                model=self.model_name,
+                field=self.name,
+                record=record_id,
+                uid=env.uid,
+                su=env.su,
+            )
+            return value
+        return SENTINEL
+
+    @override
     def _superuser_slot_snapshot(
         self, env: Environment, ids: Collection[IdType]
     ) -> dict[IdType, typing.Any] | None:
@@ -662,9 +693,7 @@ class _RelationalMulti(_Relational):
                 id_
                 for id_, ids in slot.items()
                 if id_ not in computing
-                and (
-                    not superuser_slot or ids != () or superuser_slot.get(id_) != ()
-                )
+                and (not superuser_slot or ids != () or superuser_slot.get(id_) != ())
             ]:
                 del slot[id_]
                 evicted += 1

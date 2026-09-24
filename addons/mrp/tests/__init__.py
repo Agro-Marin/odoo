@@ -1,5 +1,6 @@
 from . import test_bom
 from . import test_byproduct
+from . import test_byproduct_user_scope
 from . import test_cancel_mo
 from . import test_order
 from . import test_quant

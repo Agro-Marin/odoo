@@ -877,6 +877,11 @@ class Field[T](
     ) -> typing.Any:
         return SENTINEL
 
+    def _protected_value_of_other_scope(
+        self, env: Environment, record_id: IdType
+    ) -> typing.Any:
+        return SENTINEL
+
     def _settle_new_record_compute_group(self, records: BaseModel) -> None:
         """Materialise this field's compute group before writing to a new one.
 
