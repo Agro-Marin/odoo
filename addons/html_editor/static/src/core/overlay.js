@@ -11,7 +11,7 @@ import {
 } from "@odoo/owl";
 import { usePosition } from "@web/core/position/position_hook";
 import { useService } from "@web/core/utils/hooks";
-import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
+import { useOverlayScope } from "@web/ui/overlay/overlay_container";
 import { useActiveElement } from "@web/ui/ui_service";
 
 export class EditorOverlay extends Component {
@@ -45,6 +45,7 @@ export class EditorOverlay extends Component {
     };
 
     setup() {
+        this.overlayScope = useOverlayScope();
         this.ui = useService("ui");
         this.lastSelection = this.props.initialSelection;
         /** @type {HTMLElement} */
@@ -84,7 +85,7 @@ export class EditorOverlay extends Component {
 
         if (this.props.closeOnPointerdown) {
             const clickAway = (ev) => {
-                if (!this.env[OVERLAY_SYMBOL]?.contains(ev.composedPath()[0])) {
+                if (!this.overlayScope?.contains(ev.composedPath()[0])) {
                     this.props.close();
                 }
             };

@@ -12,7 +12,7 @@ import { mergeClasses } from "@web/core/utils/dom/classname";
 import { useClickAway } from "@web/core/utils/dom/click_away";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { useActiveElement } from "@web/ui/active_element";
-import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
+import { useOverlayScope } from "@web/ui/overlay/overlay_container";
 import { PRESENTED_PROPS } from "@web/ui/overlay/presenter";
 import { watchForDetachedTarget } from "@web/ui/popover/detached_target_watcher";
 
@@ -75,6 +75,7 @@ export class Popover extends Component {
     hasTarget = true;
 
     setup() {
+        this.overlayScope = useOverlayScope();
         useLifecycleLog(log);
         if (this.props.setActiveElement) {
             useActiveElement("ref");
@@ -194,7 +195,7 @@ export class Popover extends Component {
      * @returns {boolean}
      */
     isInside(target) {
-        return Boolean(/** @type {any} */ (this.env)[OVERLAY_SYMBOL]?.contains(target));
+        return Boolean(this.overlayScope?.contains(target));
     }
 
     /** @returns {boolean} */

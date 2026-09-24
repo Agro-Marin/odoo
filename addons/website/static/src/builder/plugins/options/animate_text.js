@@ -12,7 +12,7 @@ import {
 } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
-import { POSITION_BUS } from "@web/core/position/position_hook";
+import { usePositionBus } from "@web/core/position/position_hook";
 import { usePopover } from "@web/ui/popover";
 
 import { AnimateOption } from "./animate_option.js";
@@ -31,10 +31,11 @@ class AnimateTextPopover extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        this.positionBus = usePositionBus();
         useLifecycleLog(log);
         this.contentRef = useRef("content");
         this.resizeObserver = new ResizeObserver(() => {
-            this.env[POSITION_BUS]?.trigger("update");
+            this.positionBus?.trigger("update");
         });
         onMounted(() => {
             log.lifecycle("AnimateTextPopover resize observer attached");

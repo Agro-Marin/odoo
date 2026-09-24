@@ -7,6 +7,7 @@ import {
     useChildSubEnv,
     useComponent,
     useEffect,
+    useEnv,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -22,6 +23,16 @@ export const OVERLAY_SYMBOL = Symbol("Overlay");
 export const DEFAULT_OVERLAY_SEQUENCE = 50;
 
 const OVERLAY_ITEMS = Symbol("OverlayItems");
+
+/** @returns {{ contains: (target: EventTarget | null) => boolean } | undefined} */
+export function useOverlayScope() {
+    return /** @type {any} */ (useEnv())[OVERLAY_SYMBOL];
+}
+
+/** @returns {any[]} */
+function useOverlayItems() {
+    return /** @type {any} */ (useEnv())[OVERLAY_ITEMS];
+}
 
 /**
  * @param {object | undefined} baseEnv
@@ -59,9 +70,7 @@ class OverlayItem extends Component {
     setup() {
         this.rootRef = useRef("rootRef");
 
-        this.siblings = /** @type {OverlayItem[]} */ (
-            /** @type {Record<symbol, any>} */ (this.env)[OVERLAY_ITEMS]
-        );
+        this.siblings = /** @type {OverlayItem[]} */ (useOverlayItems());
         this.siblings.push(this);
         onWillDestroy(() => {
             const index = this.siblings.indexOf(this);

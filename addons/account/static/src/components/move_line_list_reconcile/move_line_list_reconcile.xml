@@ -17,7 +17,7 @@
             <t t-set="grouped_by_account" t-value="group.list.evalContext.default_account_id"/>
             <t t-if="group.groupByField.name == 'account_id' or (group.groupByField.name == 'partner_id' and grouped_by_account)">
                 <button class="btn btn-link"
-                        t-on-click.stop.prevent="() => this.env.callAutoReconcileAction(group)"
+                        t-on-click.stop.prevent="() => this.accountContext.callAutoReconcileAction(group)"
                         groups="account.group_account_user">
                     Auto-reconcile
                 </button>

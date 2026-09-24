@@ -33,6 +33,11 @@ import {
  * @param {HostElement} host
  * @returns {EditableDescendants}
  */
+/** @returns {Record<string, any> | undefined} */
+export function useEditorShared() {
+    return useEnv().editorShared;
+}
+
 export function getEditableDescendants(host) {
     const editableDescendants = {};
     for (const candidate of host.querySelectorAll("[data-embedded-editable]")) {

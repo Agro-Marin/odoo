@@ -808,7 +808,7 @@ assert_eq "ASSET_LAYERS.md cites the core/ formatters path" \
 assert_doc_cites "DIRECTORY_MAP.md cites the core/ JS count" \
     "$(find "$MAIL/static/src/core" -name '*.js' | wc -l)" '\| `core/` \| %s \|' DIRECTORY_MAP.md
 assert_eq "discuss/ recursive JS count" "$(find "$MAIL/static/src/discuss" -name '*.js' | wc -l)" "146"
-assert_eq "utils/ recursive JS count"   "$(find "$MAIL/static/src/utils"   -name '*.js' | wc -l)" "12"
+assert_eq "utils/ recursive JS count"   "$(find "$MAIL/static/src/utils"   -name '*.js' | wc -l)" "13"
 assert_eq "chatter/ recursive JS count" "$(find "$MAIL/static/src/chatter" -name '*.js' | wc -l)" "13"
 assert_eq "DIRECTORY_MAP.md cites discuss 146" "$(grep -c '| `discuss/` | 146 |' "$DOC/DIRECTORY_MAP.md")" "1"
 

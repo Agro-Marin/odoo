@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { useSubEnv } from "@odoo/owl";
+import { provideAccountContext, useAccountContext } from "@account/account_context";
 import { registry } from "@web/core/registry";
 
 import {
@@ -11,7 +11,7 @@ import {
 export class AccountMoveLineReconcileListController extends AccountMoveLineListController {
     setup() {
         super.setup();
-        useSubEnv({
+        provideAccountContext({
             callAutoReconcileAction: this.openAutoReconcileWizard.bind(this),
         });
     }
@@ -39,6 +39,7 @@ export class AccountMoveLineReconcileListRenderer extends AccountMoveLineListRen
 
     setup() {
         super.setup();
+        this.accountContext = useAccountContext();
         this.props.list.groups?.map((group) => this.toggleGroup(group));
     }
 }

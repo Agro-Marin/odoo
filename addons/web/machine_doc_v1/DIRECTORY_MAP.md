@@ -53,7 +53,7 @@
 | `components/time_picker/` | features | 1 | Time input with dropdown hour/minute selection and configurable rounding |
 | `components/tree_editor/` | features | 5 | UI-layer tree editor components. Data-only tree manipulation lives in `core/tree/` |
 | `components/user_switch/` | features | 1 | Login-page component for switching between recently connected accounts |
-| `core/` | shared | 33 | Namespace-root primitives: registry, domain, context, parsers/formatters, templates, events, asset loading, translation, feature flags, user, currency, the compiled-template cache, and the `field` / `name` / `allowed_qweb_expressions` / `multi_company_recovery` services |
+| `core/` | shared | 37 | Namespace-root primitives: registry, domain, context, parsers/formatters, templates, events, asset loading, translation, feature flags, user, currency, the compiled-template cache, the `field` / `name` / `allowed_qweb_expressions` / `multi_company_recovery` services, and the env-context accessors (view config, dialog, view buttons, web) |
 | `core/avatar/` | shared | 0 | Avatar component styles (SCSS only) |
 | `core/badge/` | shared | 1 | Badge colour helpers plus component styles |
 | `core/browser/` | shared | 8 | Browser abstraction: the `browser` indirection object, cookies, storage, router, hotkey key normalisation, anchor-scroll suppression, feature detection, and the `title` service |
@@ -218,7 +218,7 @@
 | `views/list/export_all/` | widgets | 1 | Cog-menu item triggering direct XLSX export of all records |
 | `views/pivot/` | widgets | 12 | Pivot view: arch parser, model, controller, renderer, group tree, aggregation, measurements, value utilities, XLSX export trigger |
 | `views/section_list/` | widgets | 2 | List renderer and one2many field rendering `line_section` records as a full-width bold title row |
-| `views/settings/` | pages | 5 | Settings form view: compiler, controller, renderer, view definition, and the Save/Discard/Stay dialog |
+| `views/settings/` | pages | 6 | Settings form view: compiler, controller, renderer, view definition, the Save/Discard/Stay dialog, and its search-context accessor |
 | `views/settings/fields/` | pages | 2 | Settings-specific fields, including the Enterprise upgrade-prompt boolean |
 | `views/settings/fields/settings_binary_field/` | pages | 1 | BinaryField variant resolving download URLs via the related field's relation |
 | `views/settings/highlight_text/` | pages | 3 | Search-term highlighting: form label variant, highlight component, radio field |

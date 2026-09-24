@@ -1,3 +1,4 @@
+// @ts-check
 /** @odoo-module native */
 import { useChildSubEnv, useEnv, useSubEnv } from "@odoo/owl";
 

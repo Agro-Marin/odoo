@@ -12,6 +12,7 @@ _COMMENT = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 _OWN_RENDER = re.compile(r"^\s+render\s*\([^)]*\)\s*\{", re.MULTILINE)
 _XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 ENV_KEYS = {
+    "owl_env_reads": re.compile(r"\bthis\.env\b"),
     "owl_env_dialog_context": re.compile(r"\bthis\.env\.(?:inDialog|dialogId|dialogData)\b"),
     "owl_env_is_small": re.compile(r"\bthis\.env\.isSmall\b"),
     "owl_env_model": re.compile(r"\bthis\.env\.model\b"),
@@ -264,6 +265,16 @@ class TestOwl3Api(lint_case.LintCase):
             "A point_of_sale component reads this.utils = "
             "useService(\"contextual_utils_service\") from setup; OWL 3 "
             "components have no env",
+        )
+
+    def test_no_env_reads(self):
+        self.assert_ratchet(
+            _env_findings("owl_env_reads"),
+            "owl_env_reads",
+            "this.env reads in static/src, components or not (JS and templates)",
+            "A component reads what its env carried through the accessor of the "
+            "scope that provides it; a service, store or model that keeps an env of "
+            "its own reads it until that owner is given one. OWL 3 has no env",
         )
 
     def test_no_env_services(self):

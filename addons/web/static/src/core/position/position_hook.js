@@ -27,6 +27,11 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 export const POSITION_BUS = Symbol("position-bus");
 
+/** @returns {import("@odoo/owl").EventBus | undefined} */
+export function usePositionBus() {
+    return /** @type {any} */ (useEnv())[POSITION_BUS];
+}
+
 /**
  * @param {string} refName
  * @param {() => HTMLElement} getTarget

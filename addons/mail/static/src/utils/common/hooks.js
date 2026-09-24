@@ -23,7 +23,7 @@ import { Deferred, delay } from "@web/core/utils/concurrency";
 import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
 import { useProps } from "@web/core/utils/owl_bridge";
-import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
+import { useOverlayScope } from "@web/ui/overlay/overlay_container";
 
 const log = makeLogger("mail.thread.ui");
 /**
@@ -360,11 +360,7 @@ export class UseHoverOverlay extends Component {
     setup() {
         super.setup();
         this.root = useRef("root");
-        const overlayContains = toRaw(
-            /** @type {Record<symbol, {contains: (target: EventTarget|null) => boolean}>} */ (
-                this.env
-            )[OVERLAY_SYMBOL].contains,
-        );
+        const overlayContains = toRaw(useOverlayScope().contains);
         /** @type {(() => void)|undefined} */
         let removeTarget;
         onMounted(() => {

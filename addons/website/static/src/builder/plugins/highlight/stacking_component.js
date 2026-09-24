@@ -2,7 +2,7 @@
 import { Component, reactive, useEffect, useState, xml } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
-import { POSITION_BUS } from "@web/core/position/position_hook";
+import { usePositionBus } from "@web/core/position/position_hook";
 
 const log = makeLogger("website.builder.option.stacking_component");
 
@@ -40,6 +40,7 @@ export class StackingComponent extends Component {
         close: { type: Function, optional: true },
     };
     setup() {
+        this.positionBus = usePositionBus();
         useLifecycleLog(log);
         this.stack = useState(this.props.stackState.stack);
         useEffect(
@@ -47,7 +48,7 @@ export class StackingComponent extends Component {
                 log.pipeline("StackingComponent position update", () => ({
                     depth: this.stack.length,
                 }));
-                this.env[POSITION_BUS]?.trigger("update");
+                this.positionBus?.trigger("update");
             },
             () => [this.stack.length],
         );

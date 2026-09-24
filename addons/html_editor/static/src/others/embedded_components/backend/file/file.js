@@ -3,6 +3,7 @@ import {
     applyObjectPropertyDifference,
     getEmbeddedProps,
     StateChangeManager,
+    useEditorShared,
     useEmbeddedState,
 } from "@html_editor/others/embedded_component_utils";
 import { ReadonlyEmbeddedFileComponent } from "@html_editor/others/embedded_components/core/file/readonly_file";
@@ -13,6 +14,7 @@ export class EmbeddedFileComponent extends ReadonlyEmbeddedFileComponent {
 
     setup() {
         super.setup();
+        this.editorShared = useEditorShared();
         this.state = useEmbeddedState(this.props.host);
         this.fileModel.state = this.state;
         this.localState = useState({
@@ -47,7 +49,7 @@ export class EmbeddedFileComponent extends ReadonlyEmbeddedFileComponent {
         }
         if (this.renameFile()) {
             this.localState.editFileName = false;
-            this.env.editorShared?.setSelectionAfter(this.props.host);
+            this.editorShared?.setSelectionAfter(this.props.host);
         }
     }
 

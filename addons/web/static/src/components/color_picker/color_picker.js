@@ -12,7 +12,7 @@ export { DEFAULT_COLORS, DEFAULT_THEME_COLOR_VARS } from "@web/core/colors/color
 import { colorScheme } from "@web/core/color_scheme";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
-import { POSITION_BUS } from "@web/core/position/position_hook";
+import { usePositionBus } from "@web/core/position/position_hook";
 import { registry } from "@web/core/registry";
 import {
     isColorGradient,
@@ -98,6 +98,7 @@ export class ColorPicker extends Component {
     getPreviewColor = () => {};
 
     setup() {
+        this.positionBus = usePositionBus();
         useLifecycleLog(log);
         this.tabHandlers = {
             applyColor: this.selectColor.bind(this),
@@ -130,7 +131,7 @@ export class ColorPicker extends Component {
         this.updateFromApplied();
         useEffect(
             () => {
-                /** @type {any} */ (this.env)[POSITION_BUS]?.trigger("update");
+                this.positionBus?.trigger("update");
             },
             () => [this.state.activeTab],
         );

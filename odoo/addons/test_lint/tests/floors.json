@@ -24,6 +24,7 @@
   "owl_env_debug": 8,
   "owl_env_is_small": 11,
   "owl_env_model": 12,
+  "owl_env_reads": 338,
   "owl_env_search_model": 27,
   "owl_env_services": 63,
   "owl_env_utils": 20,

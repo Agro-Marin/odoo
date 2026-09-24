@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onPatched, useState } from "@odoo/owl";
+import { Component, onPatched, useEnv, useState } from "@odoo/owl";
 
 /**
  * @typedef AccordionParent
@@ -9,6 +9,11 @@ import { Component, onPatched, useState } from "@odoo/owl";
  */
 
 export const ACCORDION = Symbol("Accordion");
+
+/** @returns {any} */
+function useParentAccordion() {
+    return /** @type {any} */ (useEnv())[ACCORDION];
+}
 export class AccordionItem extends Component {
     static template = "web.AccordionItem";
     static props = {
@@ -44,7 +49,7 @@ export class AccordionItem extends Component {
         this.state = useState({
             open: false,
         });
-        this.parentComponent = /** @type {any} */ (this.env)[ACCORDION];
+        this.parentComponent = useParentAccordion();
         this._reportedOpen = this.state.open;
         onPatched(() => this.reportStateChange());
     }
