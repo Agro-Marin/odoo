@@ -140,6 +140,7 @@ All extend an existing framework model; most add mail behavior.
 | File | `_name` / `_inherit` | Kind | Role |
 |------|----------------------|------|------|
 | `res_partner.py` | `res.partner` (**+`mixin.mail.activity`, `mixin.mail.presence`, `mixin.mail.thread.blacklist`**) | M | Partner mail behavior |
+| `res_device.py` | `res.device` | M | Security alert when a browser signs in for the first time |
 | `res_users.py` | `res.users` | M | User notification prefs, presence |
 | `res_company.py` | `res.company` | M | Company alias/catchall config |
 | `res_config_settings.py` | `res.config.settings` | T | Discuss/mail settings |

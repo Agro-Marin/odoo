@@ -96,7 +96,7 @@ there is no unlayered `views/fields/`. Unlike the tables above, these rows are *
 
 | Directory | Layer | Files | Responsibility |
 |-----------|-------|------:|----------------|
-| `utils/common/` | common | 9 | `format.js`, `dates.js`, `hooks.js`, `misc.js`, `counters.js`, `media_monitoring.js`, `pdf_thumbnail.js`, `composer_insert.js`, `thread_read.js` |
+| `utils/common/` | common | 12 | `format.js`, `dates.js`, `hooks.js`, `misc.js`, `counters.js`, `media_monitoring.js`, `pdf_thumbnail.js`, `composer_insert.js`, `thread_read.js`, `local_storage.js`, `mail_context.js`, `mail_delivery_error.js` |
 | `utils/web/` | web | 1 | `emojis_mixin.js` — backend-only, so it cannot sit in `utils/common/`, which ships on the public page |
 | `webclient/web/` | web | 1 | Webclient-level mail wiring |
 
@@ -120,7 +120,7 @@ there is no unlayered `views/fields/`. Unlike the tables above, these rows are *
 
 | Directory | What |
 |-----------|------|
-| `models/` (+ `models/discuss/`) | 84 Python model files (70 + 14) — see `MODEL_MAP.md` |
+| `models/` (+ `models/discuss/`) | 85 Python model files (71 + 14) — see `MODEL_MAP.md` |
 | `controllers/` (+ `controllers/discuss/`) | 20 controller files, 64 routes — see `ROUTE_MAP.md` |
 | `wizards/` | 9 wizard `.py` files (composer, activity schedule + summary, blacklist remove, followers edit, template preview/reset, + 2 `_inherit` hooks) |
 | `tools/` | Pure-Python helpers: `discuss.py` (guest context + `Store`), `alias_error.py`, `channel_avatar.py`, `jwt.py`, `link_preview.py`, `mail_validation.py`, `parser.py`, `web_push.py` |

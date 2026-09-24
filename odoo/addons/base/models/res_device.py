@@ -5,7 +5,7 @@ import secrets
 from collections.abc import Collection
 from datetime import UTC, datetime, timedelta
 from itertools import batched
-from typing import Any
+from typing import Any, Self
 
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
@@ -226,11 +226,13 @@ class ResDevice(models.Model):
         }
 
     @api.model
-    def _update_device(self, request: Any, *, at_login: bool = False) -> None:
+    def _update_device(
+        self, request: Any, *, at_login: bool = False
+    ) -> tuple[Self, bool] | None:
         trace = request.session.update_trace(request)
         if not trace:
             _debug.logic("device_log_skipped", reason="trace_unchanged")
-            return
+            return None
 
         session_identifier = request.session.sid[:STORED_SESSION_BYTES]
         # only a login issues a key: it is one request, where a session's later
@@ -282,7 +284,7 @@ class ResDevice(models.Model):
                     active = TRUE,
                     write_uid = EXCLUDED.write_uid,
                     write_date = EXCLUDED.write_date
-                RETURNING id
+                RETURNING id, xmax = 0 AS inserted
             ),
             session AS (
                 INSERT INTO res_device_session AS s (
@@ -316,6 +318,7 @@ class ResDevice(models.Model):
                 last_activity = GREATEST(l.last_activity, EXCLUDED.last_activity),
                 write_uid = EXCLUDED.write_uid,
                 write_date = EXCLUDED.write_date
+            RETURNING device_id, (SELECT inserted FROM device)
             """,
             **values,
         )
@@ -323,11 +326,13 @@ class ResDevice(models.Model):
         if own_cursor:
             with self.env.registry.cursor(readonly=False) as cr:
                 cr.execute(upsert)
+                device_id, inserted = cr.fetchone()
         else:
             # Contain this optional write without flushing unrelated pending
             # ORM work: a failure must not abort the request's transaction.
             with self.env.cr.savepoint(flush=False):
                 self.env.cr.execute(upsert)
+                device_id, inserted = self.env.cr.fetchone()
         _logger.info(
             "User %d device seen: %s %s",
             values["user_id"],
@@ -341,8 +346,10 @@ class ResDevice(models.Model):
             browser=values["browser"],
             device_type=values["device_type"],
             browser_key=key is not None,
+            inserted=inserted,
             own_cursor=own_cursor,
         )
+        return self.browse(device_id), inserted
 
     @check_identity
     def revoke(self) -> dict[str, Any] | None:
@@ -391,6 +398,10 @@ class ResDevice(models.Model):
         if must_logout:
             request.session.logout()
         return must_logout
+
+    def _notify_new_device(self) -> None:
+        # a login from a browser this user had never used: mail sends the alert
+        _debug.lifecycle("new_device", device=self.id, user=self.user_id.id)
 
     @api.autovacuum
     def _gc_revoked_devices(self) -> tuple[int, bool] | None:

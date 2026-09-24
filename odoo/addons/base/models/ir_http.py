@@ -405,7 +405,11 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _post_login(cls, env: api.Environment) -> None:
-        env["res.device"]._update_device(request, at_login=True)
+        seen = env["res.device"]._update_device(request, at_login=True)
+        if seen is not None:
+            device, is_new = seen
+            if is_new:
+                device._notify_new_device()
 
     @classmethod
     def _post_logout(cls, retired_identifier: str | None) -> None:

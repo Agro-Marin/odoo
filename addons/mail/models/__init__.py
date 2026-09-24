@@ -70,6 +70,7 @@ from . import res_company
 from . import res_config_settings
 from . import res_role
 from . import res_users
+from . import res_device
 from . import update
 
 from . import discuss

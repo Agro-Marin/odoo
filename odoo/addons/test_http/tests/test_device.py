@@ -707,7 +707,7 @@ class TestDevice(TestHttpBase):
         odoo.http.root.session_store.save(session)
         return session
 
-    def _greets(self, sid, user_agent=USER_AGENT_linux_firefox):
+    def _greets(self, sid, user_agent=None):
         with self.allow_requests():
             cookies = self.opener.cookies.copy()
             cookies.set("session_id", None)
@@ -715,7 +715,7 @@ class TestDevice(TestHttpBase):
             response = requests.get(
                 f"{self.base_url()}/test_http/greeting-user",
                 cookies=cookies,
-                headers={"User-Agent": user_agent},
+                headers={"User-Agent": user_agent or self.opener.headers["User-Agent"]},
                 timeout=10,
             )
         greeted = response.text == "Tek'ma'te"
@@ -795,6 +795,21 @@ class TestDevice(TestHttpBase):
         self.env.invalidate_all()
         devices = self.Device.with_context(active_test=False).search(
             [("user_id", "=", self.user_internal.id)]
+        )
+        _debug.logic(
+            "test.device.state",
+            devices=[
+                (
+                    device.id,
+                    device.platform,
+                    device.browser,
+                    device.active,
+                    device.with_context(active_test=False).session_ids.mapped(
+                        lambda session: (session.session_identifier[:8], session.active)
+                    ),
+                )
+                for device in devices
+            ],
         )
         kept = devices.filtered("active")
         self.assertEqual(len(kept), 1, "the thief's device is archived")

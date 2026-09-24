@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -11,7 +12,7 @@ from odoo.tools import mute_logger
 
 from odoo.addons.base.models.res_users import ResUsersPatchedInTest
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
-from odoo.addons.mail.tests.common import MailCommon, mail_new_test_user
+from odoo.addons.mail.tests.common import MailCommon, MockEmail, mail_new_test_user
 
 
 @tagged("-at_install", "post_install", "mail_tools", "res_users")
@@ -788,3 +789,79 @@ class TestUserSettings(MailCommon):
             True,
             "category state should be updated correctly",
         )
+
+
+class TestNewDeviceAlert(MockEmail, HttpCaseWithUserDemo):
+    _BROWSER = (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+    )
+
+    def _sign_in(self, user_agent=_BROWSER, *, new_browser=False):
+        if new_browser:
+            self.authenticate(None, None, session_extra={"_trace_disable": False})
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "call",
+            "params": {"db": self.env.cr.dbname, "login": "demo", "password": "demo"},
+        }
+        with self.mock_mail_gateway():
+            response = self.url_open(
+                "/web/session/authenticate",
+                data=json.dumps(payload),
+                headers={"Content-Type": "application/json", "User-Agent": user_agent},
+            )
+        self.assertNotIn("error", response.json())
+        return [
+            mail
+            for mail in self._new_mails
+            if mail.subject == "New Sign-in to your Account"
+        ]
+
+    def test_a_new_browser_alerts_a_known_one_does_not(self):
+        self.assertFalse(self._sign_in(new_browser=True), "a first device is expected")
+        self.assertFalse(self._sign_in(), "the same browser again")
+        alerts = self._sign_in(new_browser=True)
+        self.assertEqual(len(alerts), 1)
+        self.assertIn("Linux Chrome", alerts[0].body_html)
+
+    def test_a_script_signing_in_is_not_a_browser(self):
+        self._sign_in(new_browser=True)
+        self.assertFalse(self._sign_in("python-requests/2.32", new_browser=True))
+
+
+class TestNewDeviceAlertPolicy(MailCommon):
+    def _device(self, key):
+        return (
+            self.env["res.device"]
+            .sudo()
+            .create(
+                {
+                    "user_id": self.user_employee.id,
+                    "key_hash": key,
+                    "platform": "linux",
+                    "browser": "chrome",
+                }
+            )
+        )
+
+    def _alerts(self, device):
+        with self.mock_mail_gateway():
+            device._notify_new_device()
+        return [
+            mail
+            for mail in self._new_mails
+            if mail.subject == "New Sign-in to your Account"
+        ]
+
+    def test_a_user_with_2fa_is_alerted_by_it_instead(self):
+        self._device("rdev_first")
+        second = self._device("rdev_second")
+        self.assertEqual(len(self._alerts(second)), 1)
+        with patch.object(
+            ResUsersPatchedInTest, "_get_mfa_type", lambda self: "totp_mail"
+        ):
+            self.assertFalse(self._alerts(second))
+
+    def test_a_first_device_is_not_news(self):
+        self.assertFalse(self._alerts(self._device("rdev_only")))
