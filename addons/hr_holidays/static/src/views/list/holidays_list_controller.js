@@ -1,17 +1,21 @@
 /** @odoo-module native */
-import { useSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import {
+    provideViewButtonContext,
+    useViewButtonContext,
+} from "@web/core/view_button_context_hooks";
 import { ListController, listView } from "@web/views/list";
 
 export class HolidaysListController extends ListController {
     setup() {
         super.setup();
+        this.viewButtonContext = useViewButtonContext();
         this.orm = useService("orm");
 
-        this.onClickViewButton = this.env.onClickViewButton;
+        this.onClickViewButton = this.viewButtonContext.onClickViewButton;
 
-        useSubEnv({
+        provideViewButtonContext({
             onClickViewButton: (params) => this.handleViewButtonClick(params),
         });
     }

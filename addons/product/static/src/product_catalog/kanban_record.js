@@ -1,5 +1,9 @@
 /** @odoo-module native */
-import { onWillDestroy, useSubEnv } from "@odoo/owl";
+import { onWillDestroy } from "@odoo/owl";
+import {
+    provideProductCatalogContext,
+    useProductCatalogContext,
+} from "@product/product_catalog/product_catalog_context";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { useDebounced } from "@web/core/utils/timing";
@@ -46,7 +50,7 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
         this.env.productCatalogPendingUpdates?.add(this);
         onWillDestroy(() => this.env.productCatalogPendingUpdates?.delete(this));
 
-        useSubEnv({
+        provideProductCatalogContext({
             currencyId: this.props.record.context.product_catalog_currency_id,
             orderId: this.props.record.context.order_id,
             orderResModel: this.props.record.context.product_catalog_order_model,
@@ -61,11 +65,12 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
             decreaseQuantity: this.decreaseQuantity.bind(this),
             childField: this.props.record.context.child_field,
         });
+        this.catalogContext = useProductCatalogContext();
     }
 
     get orderLineComponent() {
         return productCatalogOrderLines.get(
-            this.env.orderResModel,
+            this.catalogContext.orderResModel,
             ProductCatalogOrderLine,
         );
     }
@@ -125,11 +130,11 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
 
     _getUpdateQuantityAndGetPriceParams() {
         return {
-            order_id: this.env.orderId,
-            product_id: this.env.productId,
+            order_id: this.catalogContext.orderId,
+            product_id: this.catalogContext.productId,
             quantity: this.productCatalogData.quantity,
-            res_model: this.env.orderResModel,
-            child_field: this.env.childField,
+            res_model: this.catalogContext.orderResModel,
+            child_field: this.catalogContext.childField,
         };
     }
 

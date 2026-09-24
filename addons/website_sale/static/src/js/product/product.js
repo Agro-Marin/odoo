@@ -2,6 +2,7 @@
 import { Product } from "@sale/js/product/product";
 import { formatCurrency } from "@web/core/currency";
 import { patch } from "@web/core/utils/patch";
+import { useProductConfiguratorContext } from "@sale/js/product_configurator_dialog/product_configurator_context";
 
 patch(Product, {
     props: {
@@ -14,10 +15,18 @@ patch(Product, {
 });
 
 patch(Product.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.configuratorContext = useProductConfiguratorContext();
+    },
+
     /**
      * @return {String}
      */
     get formattedStrikethroughPrice() {
-        return formatCurrency(this.props.strikethrough_price, this.env.currency.id);
+        return formatCurrency(
+            this.props.strikethrough_price,
+            this.configuratorContext.currency.id,
+        );
     },
 });

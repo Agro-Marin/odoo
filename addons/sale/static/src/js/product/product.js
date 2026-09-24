@@ -1,6 +1,7 @@
 /** @odoo-module native */
 
 import { Component } from "@odoo/owl";
+import { useProductConfiguratorContext } from "@sale/js/product_configurator_dialog/product_configurator_context";
 import { formatCurrency } from "@web/core/currency";
 import { _t } from "@web/core/translation";
 
@@ -43,14 +44,21 @@ export class Product extends Component {
         show_extra_price: true,
     };
 
+    setup() {
+        super.setup();
+        this.configuratorContext = useProductConfiguratorContext();
+    }
+
     /** @return {String} */
     getFormattedPrice() {
-        return formatCurrency(this.props.price, this.env.currency.id);
+        return formatCurrency(this.props.price, this.configuratorContext.currency.id);
     }
 
     /** @return {Boolean} */
     get isMainProduct() {
-        return this.env.mainProductTmplId === this.props.product_tmpl_id;
+        return (
+            this.configuratorContext.mainProductTmplId === this.props.product_tmpl_id
+        );
     }
 
     /** @return {String} */
@@ -64,7 +72,7 @@ export class Product extends Component {
     /** @return {Boolean} */
     shouldShowPtal(ptal) {
         return (
-            this.env.canChangeVariant ||
+            this.configuratorContext.canChangeVariant ||
             ptal.create_variant === "no_variant" ||
             !!getSelectedCustomPtav(ptal)
         );
@@ -75,7 +83,7 @@ export class Product extends Component {
     }
 
     selectUoM(event) {
-        return this.env.setUoM(
+        return this.configuratorContext.setUoM(
             this.props.product_tmpl_id,
             parseInt(event.target.value),
         );

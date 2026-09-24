@@ -37,7 +37,12 @@ ENV_KEYS = {
     ),
     "owl_env_addon_contexts": re.compile(
         r"\bthis\.env\.(?:overlayState|localOverlayContainerKey|controller|component|"
-        r"template|modelStore|calendarState|timeOffBus|searchState)\b"
+        r"template|modelStore|calendarState|timeOffBus|searchState|onClickViewButton|"
+        r"orderResModel|orderId|productId|currencyId|digits|displayUoM|precision|"
+        r"childField|increaseQuantity|decreaseQuantity|addProduct|removeProduct|"
+        r"setQuantity|mainProductTmplId|currency|canChangeVariant|showQuantity|"
+        r"showPackaging|showPrice|setUoM|updateProductTemplateSelectedPTAV|"
+        r"updatePTAVCustomValue|isPossibleCombination)\b"
     ),
     "owl_env_bus": re.compile(r"\bthis\.env\.bus\b"),
     "owl_env_debug": re.compile(r"\bthis\.env\.debug\b"),
@@ -200,7 +205,8 @@ class TestOwl3Api(lint_case.LintCase):
             "A component reads the context its addon scopes through that addon's "
             "grouped accessor (useEditorOverlayContext, useAccountReportContext, "
             "useDocModelStore, useAppointmentCalendarContext, useTimeOffContext, "
-            "useSettingsSearchContext); OWL 3 components have no env",
+            "useSettingsSearchContext, useViewButtonContext, useProductCatalogContext, "
+            "useProductConfiguratorContext); OWL 3 components have no env",
         )
 
     def test_no_env_bus(self):

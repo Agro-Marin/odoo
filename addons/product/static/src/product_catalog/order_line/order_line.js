@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { useProductCatalogContext } from "@product/product_catalog/product_catalog_context";
 import { formatFieldFloat, formatMonetary } from "@web/core/formatters";
 
 export class ProductCatalogOrderLine extends Component {
@@ -16,6 +17,11 @@ export class ProductCatalogOrderLine extends Component {
         readOnly: { type: Boolean, optional: true },
         warning: { type: String, optional: true },
     };
+
+    setup() {
+        super.setup();
+        this.catalogContext = useProductCatalogContext();
+    }
 
     /**
      * Focus input text when clicked
@@ -47,7 +53,7 @@ export class ProductCatalogOrderLine extends Component {
     }
 
     get quantity() {
-        const digits = [false, this.env.precision];
+        const digits = [false, this.catalogContext.precision];
         const options = { digits, decimalPoint: ".", thousandsSep: "" };
         return parseFloat(formatFieldFloat(this.props.quantity, options));
     }

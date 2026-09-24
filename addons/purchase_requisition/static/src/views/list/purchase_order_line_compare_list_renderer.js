@@ -1,10 +1,15 @@
 /** @odoo-module native */
 import { ListRenderer } from "@web/views/list";
-import { onWillStart, useState, useSubEnv } from "@odoo/owl";
+import { onWillStart, useState } from "@odoo/owl";
+import {
+    provideViewButtonContext,
+    useViewButtonContext,
+} from "@web/core/view_button_context_hooks";
 
 export class PurchaseOrderLineCompareListRenderer extends ListRenderer {
     setup() {
         super.setup();
+        this.viewButtonContext = useViewButtonContext();
         this.bestFields = useState({
             best_price_ids: [],
             best_date_ids: [],
@@ -13,8 +18,8 @@ export class PurchaseOrderLineCompareListRenderer extends ListRenderer {
         onWillStart(async () => {
             await this.updateBestFields();
         });
-        const defaultOnClickViewButton = this.env.onClickViewButton;
-        useSubEnv({
+        const defaultOnClickViewButton = this.viewButtonContext.onClickViewButton;
+        provideViewButtonContext({
             onClickViewButton: async (params) => {
                 await defaultOnClickViewButton(params);
                 await this.updateBestFields();

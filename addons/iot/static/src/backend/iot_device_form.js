@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { readDeviceEvent } from "@iot/device_messages";
 import { printReport } from "@iot/iot_report_action";
-import { useSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { provideViewButtonContext } from "@web/core/view_button_context_hooks";
 import { formView } from "@web/views/form";
 
 class IoTDeviceController extends formView.Controller {
@@ -14,7 +14,9 @@ class IoTDeviceController extends formView.Controller {
         this.notification = useService("notification");
         this.orm = useService("orm");
 
-        useSubEnv({ onClickViewButton: this.onClickButtonTest.bind(this) });
+        provideViewButtonContext({
+            onClickViewButton: this.onClickButtonTest.bind(this),
+        });
     }
 
     async onRecordSaved(record) {

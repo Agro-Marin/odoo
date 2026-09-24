@@ -26,7 +26,7 @@
                     class="input-group o_product_catalog_quantity o_product_catalog_cancel_global_click w-50">
                 <div class="d-flex">
                     <button class="btn btn-primary border"
-                            t-on-click.stop="this.env.decreaseQuantity"
+                            t-on-click.stop="this.catalogContext.decreaseQuantity"
                             t-att-disabled="this.disableRemove"
                             t-att-data-tooltip="this.disabledButtonTooltip">
                         <i class="fa-solid fa-minus center"/>
@@ -34,14 +34,14 @@
                     <div class="d-flex w-100">
                         <input class="o_input text-center text-bg-light rounded-0 border border-end-0"
                                 type="number"
-                                t-att-class="this.env.displayUoM ? 'w-50' : 'w-100'"
+                                t-att-class="this.catalogContext.displayUoM ? 'w-50' : 'w-100'"
                                 t-att-value="this.quantity"
-                                t-on-change="this.env.setQuantity"
+                                t-on-change="this.catalogContext.setQuantity"
                                 t-on-focus="this._onFocus"/>
-                        <span class="fst-italic text-muted text-bg-light text-truncate w-50 border border-start-0 py-1" t-if="this.env.displayUoM" t-out="this.props.uomDisplayName"/>
+                        <span class="fst-italic text-muted text-bg-light text-truncate w-50 border border-start-0 py-1" t-if="this.catalogContext.displayUoM" t-out="this.props.uomDisplayName"/>
                     </div>
                     <button class="btn btn-primary border"
-                            t-on-click.stop="(ev) => this.env.increaseQuantity()">
+                            t-on-click.stop="(ev) => this.catalogContext.increaseQuantity()">
                         <i class="fa-solid fa-plus"/>
                     </button>
                 </div>
@@ -57,13 +57,13 @@
                 class="ms-auto o_product_catalog_buttons o_product_catalog_cancel_global_click"
                 style="min-width: max-content;">
                 <button t-if="!this.isInOrder()"
-                        t-on-click.stop="() => this.env.addProduct()"
+                        t-on-click.stop="() => this.catalogContext.addProduct()"
                         class="btn btn-secondary">
                     <i class="fa-solid fa-shopping-cart"/>
                     Add
                 </button>
                 <div t-else="" class="o_tooltip_div_remove" t-att-data-tooltip="this.disabledButtonTooltip">
-                    <button t-on-click.stop="this.env.removeProduct"
+                    <button t-on-click.stop="this.catalogContext.removeProduct"
                             t-att-disabled="this.disableRemove"
                             class="btn btn-light border">
                         <i class="fa-solid fa-trash-can"/>

@@ -1,15 +1,19 @@
 /** @odoo-module native */
-import { useSubEnv } from "@odoo/owl";
 import { patch } from "@web/core/utils/patch";
 import { ViewButton } from "@web/views/view_button";
 
 import { trace } from "../../common/approval_trace.js";
 import { ApprovalButton } from "./approval_button.js";
 import { useApprovalButton } from "./approval_button_hook.js";
+import {
+    provideViewButtonContext,
+    useViewButtonContext,
+} from "@web/core/view_button_context_hooks";
 
 patch(ViewButton.prototype, {
     setup() {
         super.setup(...arguments);
+        this.viewButtonContext = useViewButtonContext();
         const { name, type } = this.props.clickParams || {};
         const model = this.props.record?.resModel;
         // Every button of every row reaches this line, so it stays silent: the
@@ -32,8 +36,8 @@ patch(ViewButton.prototype, {
         // its kind. A window action has nothing on the server to refuse it, so it is
         // always asked; an object button is gated where it runs as well, so it is
         // asked only while its loaded approvals say it is gated.
-        const onClickViewButton = this.env.onClickViewButton;
-        useSubEnv({
+        const onClickViewButton = this.viewButtonContext.onClickViewButton;
+        provideViewButtonContext({
             onClickViewButton: (params) =>
                 onClickViewButton({
                     ...params,
@@ -56,6 +60,7 @@ patch(ViewButton.prototype, {
                     },
                 }),
         });
+        this.viewButtonContext = useViewButtonContext();
     },
 
     /**

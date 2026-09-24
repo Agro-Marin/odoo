@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "@odoo/owl";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useViewButtonContext } from "@web/core/view_button_context_hooks";
 import { formView } from "@web/views/form/form_view";
 import { provideSettingsSearchContext } from "@web/views/settings/settings_search_context";
 import { recordResParams } from "@web/views/view_button/view_button";
@@ -21,6 +22,7 @@ export class SettingsFormController extends formView.Controller {
 
     setup() {
         super.setup();
+        this.viewButtonContext = useViewButtonContext();
         this.dialogContext = useDialogContext();
         this.ui = useService("ui");
         useAutofocus();
@@ -110,13 +112,13 @@ export class SettingsFormController extends formView.Controller {
      * @returns {Promise<any>}
      */
     async save(_params) {
-        await this.env.onClickViewButton(
+        await this.viewButtonContext.onClickViewButton(
             this.viewButtonParams({ name: "execute", type: "object" }),
         );
     }
 
     async discard() {
-        this.env.onClickViewButton(
+        this.viewButtonContext.onClickViewButton(
             this.viewButtonParams({
                 name: "cancel",
                 type: "object",

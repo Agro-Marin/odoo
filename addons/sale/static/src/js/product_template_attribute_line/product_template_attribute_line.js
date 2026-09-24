@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { useProductConfiguratorContext } from "@sale/js/product_configurator_dialog/product_configurator_context";
 import { formatCurrency } from "@web/core/currency";
 import { _t } from "@web/core/translation";
 
@@ -55,9 +56,14 @@ export class ProductTemplateAttributeLine extends Component {
         show_extra_price: { type: Boolean },
     };
 
+    setup() {
+        super.setup();
+        this.configuratorContext = useProductConfiguratorContext();
+    }
+
     /** @param {Event} event */
     updateSelectedPTAV(event) {
-        this.env.updateProductTemplateSelectedPTAV(
+        this.configuratorContext.updateProductTemplateSelectedPTAV(
             this.props.productTmplId,
             this.props.id,
             event.target.value,
@@ -67,7 +73,7 @@ export class ProductTemplateAttributeLine extends Component {
 
     /** @param {Event} event */
     updateCustomValue(event) {
-        this.env.updatePTAVCustomValue(
+        this.configuratorContext.updatePTAVCustomValue(
             this.props.productTmplId,
             this.props.selected_attribute_value_ids[0],
             event.target.value,
@@ -101,7 +107,7 @@ export class ProductTemplateAttributeLine extends Component {
             const sign = ptav.price_extra > 0 ? "+" : "-";
             const price = formatCurrency(
                 Math.abs(ptav.price_extra),
-                this.env.currency.id,
+                this.configuratorContext.currency.id,
             );
             return ptav.name + " (" + sign + " " + price + ")";
         } else {
@@ -116,7 +122,8 @@ export class ProductTemplateAttributeLine extends Component {
 
     get showValuesChoice() {
         return (
-            (this.env.canChangeVariant || this.props.create_variant === "no_variant") &&
+            (this.configuratorContext.canChangeVariant ||
+                this.props.create_variant === "no_variant") &&
             (this.props.attribute_values.length > 1 ||
                 this.props.attribute.display_type === "multi")
         );

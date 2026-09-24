@@ -4,6 +4,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
+import { useViewButtonContext } from "@web/core/view_button_context_hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 const log = makeLogger("website.field.redirect_field");
@@ -11,6 +12,11 @@ const log = makeLogger("website.field.redirect_field");
 class RedirectField extends Component {
     static template = "website.RedirectField";
     static props = { ...standardFieldProps };
+    setup() {
+        super.setup();
+        this.viewButtonContext = useViewButtonContext();
+    }
+
     get info() {
         return this.props.record.data[this.props.name]
             ? _t("Published")
@@ -22,7 +28,7 @@ class RedirectField extends Component {
             resModel: this.props.record.resModel,
             resId: this.props.record.resId,
         }));
-        this.env.onClickViewButton({
+        this.viewButtonContext.onClickViewButton({
             clickParams: {
                 type: "object",
                 name: "open_website_url",

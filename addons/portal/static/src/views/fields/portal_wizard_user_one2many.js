@@ -1,14 +1,18 @@
 /** @odoo-module native */
-import { useSubEnv } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import {
+    provideViewButtonContext,
+    useViewButtonContext,
+} from "@web/core/view_button_context_hooks";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
 
 export class PortalUserX2ManyField extends X2ManyField {
     setup() {
         super.setup();
-        const onClickViewButton = this.env.onClickViewButton;
+        this.viewButtonContext = useViewButtonContext();
+        const onClickViewButton = this.viewButtonContext.onClickViewButton;
         let pending = false;
-        useSubEnv({
+        provideViewButtonContext({
             async onClickViewButton(click) {
                 if (click.clickParams.name === "action_refresh_modal" || pending) {
                     return;

@@ -35,7 +35,7 @@
                     productTmplId="this.props.product_tmpl_id"
                 />
             </t>
-            <div t-if="!this.env.isPossibleCombination(this.props)" class="alert alert-warning impossible_combination_alert mt-3">
+            <div t-if="!this.configuratorContext.isPossibleCombination(this.props)" class="alert alert-warning impossible_combination_alert mt-3">
                 <span>This option or combination of options is not available</span>
             </div>
             <t t-if="this.props.available_uoms" t-call="sale.uom_selector"/>
@@ -45,21 +45,21 @@
                 class="o_sale_product_configurator_qty w-25 py-3 px-0 text-end"
             >
                 <div
-                    t-if="this.env.showPrice"
+                    t-if="this.configuratorContext.showPrice"
                     class="d-md-flex gap-2 align-items-baseline justify-content-end"
                 >
                     <t t-call="sale.product_price" name="sale_product_configurator_price"/>
                 </div>
                 <t t-set="isComboProduct" t-value="this.isMainProduct &amp;&amp; this.props.selectedComboItems.length"/>
-                <t t-if="this.env.showQuantity &amp;&amp; !isComboProduct">
+                <t t-if="this.configuratorContext.showQuantity &amp;&amp; !isComboProduct">
                     <QuantityButtons
                         quantity="this.props.quantity"
-                        setQuantity="quantity => this.env.setQuantity(this.props.product_tmpl_id, quantity)"
+                        setQuantity="quantity => this.configuratorContext.setQuantity(this.props.product_tmpl_id, quantity)"
                         isMinusButtonDisabled="this.props.quantity === 1 &amp;&amp; this.isMainProduct"
                     />
                 </t>
                 <span
-                    t-elif="this.env.showQuantity &amp;&amp; isComboProduct"
+                    t-elif="this.configuratorContext.showQuantity &amp;&amp; isComboProduct"
                     t-out="this.props.quantity"
                     class="h5"
                 />
@@ -67,7 +67,7 @@
                     class="d-block mt-2 text-end"
                     role="button"
                     t-if="!this.isMainProduct"
-                    t-on-click="() => this.env.removeProduct(this.props.product_tmpl_id)"
+                    t-on-click="() => this.configuratorContext.removeProduct(this.props.product_tmpl_id)"
                 >
                     Remove
                 </a>
@@ -79,7 +79,7 @@
                 class="o_sale_product_configurator_price py-3 px-0 text-end"
             >
                 <div
-                    t-if="this.env.showPrice"
+                    t-if="this.configuratorContext.showPrice"
                     class="d-md-flex gap-2 align-items-baseline justify-content-end"
                 >
                     <t t-call="sale.product_price" name="sale_product_configurator_optional_price"/>
@@ -87,8 +87,8 @@
                 <button
                     name="sale_product_configurator_add_button"
                     class="btn btn-secondary"
-                    t-att-class="{'disabled': !this.env.isPossibleCombination(this.props)}"
-                    t-on-click="() => this.env.addProduct(this.props.product_tmpl_id)"
+                    t-att-class="{'disabled': !this.configuratorContext.isPossibleCombination(this.props)}"
+                    t-on-click="() => this.configuratorContext.addProduct(this.props.product_tmpl_id)"
                 >
                     <i class="oi oi-plus" role="img"/>
                     <span name="add_button" class="ms-2 d-none d-md-inline">Add</span>

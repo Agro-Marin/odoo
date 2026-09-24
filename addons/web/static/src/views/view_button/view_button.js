@@ -6,6 +6,7 @@ import { useDropdownCloser } from "@web/components/dropdown/dropdown_hook";
 import { sharedComponents } from "@web/core/shared_components";
 import { pick } from "@web/core/utils/collections/objects";
 import { debounce as debounceFn } from "@web/core/utils/timing";
+import { useViewButtonContext } from "@web/core/view_button_context_hooks";
 const explicitRankClasses = [
     "btn-primary",
     "btn-secondary",
@@ -91,6 +92,7 @@ export class ViewButton extends Component {
     dropdownControl;
 
     setup() {
+        this.viewButtonContext = useViewButtonContext();
         if (this.props.icon) {
             this.icon = iconFromString(this.props.icon);
         }
@@ -161,7 +163,7 @@ export class ViewButton extends Component {
      * @returns {any}
      */
     execute(newWindow) {
-        return this.env.onClickViewButton({
+        return this.viewButtonContext.onClickViewButton({
             clickParams: this.clickParams,
             getResParams: () => recordResParams(this.props.record || {}),
             beforeExecute: () => this.dropdownControl.close(),

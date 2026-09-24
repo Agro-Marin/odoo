@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEnv, useSubEnv } from "@odoo/owl";
+import { useEnv } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { sharedComponents } from "@web/core/shared_components";
 import { useIsDestroyed, useService } from "@web/core/utils/hooks";
+import { provideViewButtonContext } from "@web/core/view_button_context_hooks";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 const log = makeLogger("web.view.button");
@@ -191,7 +192,7 @@ export function useViewButtons(ref, options = {}) {
         }
     }
 
-    useSubEnv({
+    provideViewButtonContext({
         async onClickViewButton(click) {
             const execute = () => executeViewButton(deps, click);
             const el = /** @type {HTMLElement} */ (getEl());

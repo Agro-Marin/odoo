@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { onMounted, useEnv, useSubEnv } from "@odoo/owl";
+import { onMounted, useEnv } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { useEventBus, useService } from "@web/core/utils/hooks";
+import { provideViewButtonContext } from "@web/core/view_button_context_hooks";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { FormController, formView } from "@web/views/form";
@@ -18,7 +19,7 @@ export function useLoaderOnClick() {
     const action = useService("action");
     const env = useEnv();
     const previousOnClickViewButton = env.onClickViewButton;
-    useSubEnv({
+    provideViewButtonContext({
         async onClickViewButton(params) {
             const name = params.clickParams.name;
             log.logic("onClickViewButton", { name });

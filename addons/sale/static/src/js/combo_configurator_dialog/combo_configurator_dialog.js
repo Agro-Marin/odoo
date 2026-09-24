@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, useState, useSubEnv } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
+import { provideProductConfiguratorContext } from "@sale/js/product_configurator_dialog/product_configurator_context";
 import { formatCurrency } from "@web/core/currency";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { rpc } from "@web/core/network";
@@ -56,7 +57,7 @@ export class ComboConfiguratorDialog extends Component {
         this._initSelectedComboItems();
         this.getPriceUrl = "/sale/combo_configurator/get_price";
         this._priceRequests = new KeepLast();
-        useSubEnv({ currency: { id: this.props.currency_id } });
+        provideProductConfiguratorContext({ currency: { id: this.props.currency_id } });
 
         this.emptyCombos = this.props.combos.filter((combo) => combo.isEmpty);
         this.unconfigurableCombos = this.props.combos.filter(

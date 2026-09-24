@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { useProductConfiguratorContext } from "@sale/js/product_configurator_dialog/product_configurator_context";
 
 import { BadgeExtraPrice } from "../badge_extra_price/badge_extra_price.js";
 import { ProductProduct } from "../models/product_product.js";
@@ -14,6 +15,11 @@ export class ProductCard extends Component {
         isSelected: { type: Boolean, optional: true },
         isConfigurable: { type: Boolean, optional: true },
     };
+
+    setup() {
+        super.setup();
+        this.configuratorContext = useProductConfiguratorContext();
+    }
 
     /** @param {KeyboardEvent} event */
     onKeydown(event) {

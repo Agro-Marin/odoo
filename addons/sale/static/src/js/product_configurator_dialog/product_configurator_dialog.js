@@ -1,5 +1,9 @@
 /** @odoo-module native */
-import { Component, onWillStart, useState, useSubEnv } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
+import {
+    provideProductConfiguratorContext,
+    useProductConfiguratorContext,
+} from "@sale/js/product_configurator_dialog/product_configurator_context";
 import { formatCurrency } from "@web/core/currency";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { rpc } from "@web/core/network";
@@ -88,7 +92,7 @@ export class ProductConfiguratorDialog extends Component {
         this.getOptionalProductsUrl =
             "/sale/product_configurator/get_optional_products";
 
-        useSubEnv({
+        provideProductConfiguratorContext({
             mainProductTmplId: this.props.productTemplateId,
             currency: this.currency,
             canChangeVariant: this.props.options?.canChangeVariant ?? true,
@@ -104,20 +108,24 @@ export class ProductConfiguratorDialog extends Component {
             updatePTAVCustomValue: this._updatePTAVCustomValue.bind(this),
             isPossibleCombination,
         });
+        this.configuratorContext = useProductConfiguratorContext();
 
         onWillStart(async () => {
             const { products, optional_products, currency_id } = await this._loadData(
                 this.props.edit,
             );
 
-            const mainProduct = findProduct(products, this.env.mainProductTmplId);
+            const mainProduct = findProduct(
+                products,
+                this.configuratorContext.mainProductTmplId,
+            );
             mainProduct.selectedComboItems = this.props.selectedComboItems || [];
 
             this.state.products = products;
             this.state.optionalProducts = optional_products;
             for (const customPtav of this.props.customPtavs) {
                 this._updatePTAVCustomValue(
-                    this.env.mainProductTmplId,
+                    this.configuratorContext.mainProductTmplId,
                     customPtav.id,
                     customPtav.value,
                 );
@@ -151,7 +159,7 @@ export class ProductConfiguratorDialog extends Component {
             pricelist_id: this.props.pricelistId,
             ptav_ids: this.props.ptavIds,
             only_main_product: onlyMainProduct,
-            show_packaging: this.env.showPackaging,
+            show_packaging: this.configuratorContext.showPackaging,
             ...this._getAdditionalRpcParams(),
         });
     }
@@ -259,7 +267,7 @@ export class ProductConfiguratorDialog extends Component {
      */
     async _setQuantity(productTmplId, quantity) {
         if (quantity <= 0) {
-            if (productTmplId === this.env.mainProductTmplId) {
+            if (productTmplId === this.configuratorContext.mainProductTmplId) {
                 quantity = 1;
             } else {
                 this._removeProduct(productTmplId);
@@ -410,9 +418,12 @@ export class ProductConfiguratorDialog extends Component {
                 }),
         );
         await this.props.save(
-            findProduct(this.state.products, this.env.mainProductTmplId),
+            findProduct(
+                this.state.products,
+                this.configuratorContext.mainProductTmplId,
+            ),
             this.state.products.filter(
-                (p) => p.product_tmpl_id !== this.env.mainProductTmplId,
+                (p) => p.product_tmpl_id !== this.configuratorContext.mainProductTmplId,
             ),
             options,
         );

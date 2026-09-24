@@ -1,13 +1,19 @@
 /** @odoo-module native */
 import { ProductCatalogKanbanRecord } from "@product/product_catalog/kanban_record";
+import { useProductCatalogContext } from "@product/product_catalog/product_catalog_context";
 import { patch } from "@web/core/utils/patch";
 
 import { ProductCatalogSaleOrderLine } from "./sale_order_line/sale_order_line.js";
 
 patch(ProductCatalogKanbanRecord.prototype, {
+    setup() {
+        super.setup(...arguments);
+        this.catalogContext = useProductCatalogContext();
+    },
+
     updateQuantity(quantity) {
         if (
-            this.env.orderResModel !== "sale.order" ||
+            this.catalogContext.orderResModel !== "sale.order" ||
             this.productCatalogData.productType === "service"
         ) {
             super.updateQuantity(...arguments);
@@ -25,7 +31,7 @@ patch(ProductCatalogKanbanRecord.prototype, {
     },
 
     get orderLineComponent() {
-        if (this.env.orderResModel === "sale.order") {
+        if (this.catalogContext.orderResModel === "sale.order") {
             return ProductCatalogSaleOrderLine;
         }
         return super.orderLineComponent;

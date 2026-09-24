@@ -1,17 +1,22 @@
 /** @odoo-module native */
-import { onWillUnmount, useSubEnv } from "@odoo/owl";
+import { onWillUnmount } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useEventBus, useService } from "@web/core/utils/hooks";
+import {
+    provideViewButtonContext,
+    useViewButtonContext,
+} from "@web/core/view_button_context_hooks";
 import { FormController, formView } from "@web/views/form";
 
 export class SelectPrinterFormController extends FormController {
     setup() {
         super.setup();
+        this.viewButtonContext = useViewButtonContext();
         this.bus = useEventBus();
         this.notification = useService("notification");
         this.orm = useService("orm");
-        this.onClickViewButton = this.env.onClickViewButton;
+        this.onClickViewButton = this.viewButtonContext.onClickViewButton;
 
         onWillUnmount(() => {
             // If the user closes the popup without selecting a printer we still send a message back
@@ -20,7 +25,9 @@ export class SelectPrinterFormController extends FormController {
                 deviceSettings: null,
             });
         });
-        useSubEnv({ onClickViewButton: this.onClickViewButtonIoT.bind(this) });
+        provideViewButtonContext({
+            onClickViewButton: this.onClickViewButtonIoT.bind(this),
+        });
     }
 
     async onClickViewButtonIoT(params) {

@@ -33,7 +33,7 @@
                     <BadgeExtraPrice
                         t-if="this.props.extraPrice"
                         price="this.props.extraPrice"
-                        currencyId="this.env.currency.id"
+                        currencyId="this.configuratorContext.currency.id"
                     />
                 </div>
             </article>

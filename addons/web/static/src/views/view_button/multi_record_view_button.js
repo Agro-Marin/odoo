@@ -1,6 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
+import { useViewButtonContext } from "@web/core/view_button_context_hooks";
+
 import { ViewButton } from "./view_button.js";
 
 export class MultiRecordViewButton extends ViewButton {
@@ -9,6 +11,11 @@ export class MultiRecordViewButton extends ViewButton {
         list: { type: Object },
         domain: { type: Array, optional: true },
     };
+
+    setup() {
+        super.setup();
+        this.viewButtonContext = useViewButtonContext();
+    }
 
     /** @param {boolean} [newWindow] */
     async execute(newWindow) {
@@ -23,7 +30,7 @@ export class MultiRecordViewButton extends ViewButton {
             },
         };
 
-        return this.env.onClickViewButton({
+        return this.viewButtonContext.onClickViewButton({
             clickParams,
             getResParams: () => ({
                 context: list.context,
