@@ -6,7 +6,15 @@ registry.category("web_tour.tours").add("test_stock_route_diagram_report", {
             trigger: ".o_breadcrumb",
         },
         {
-            trigger: ".o_kanban_record",
+            trigger: ".o_searchview_input",
+            run: "edit Test Storable Product",
+        },
+        {
+            trigger: ".o_searchview_input",
+            run: "press Enter",
+        },
+        {
+            trigger: ".o_kanban_record:contains(Test Storable Product)",
             run: "click",
         },
         {
