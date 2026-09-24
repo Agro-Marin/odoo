@@ -146,7 +146,7 @@ class MixinApprovalGate(models.AbstractModel):
     def _split_for_approval(self, operation):
         ready = need_approval = self.browse()
         for record in self:
-            state = record.approval_request_id and record.approval_state
+            state = record.approval_state if record.approval_request_id else False
             if state and not record._approval_request_gates(operation):
                 state = False
             if state in ("new", "pending"):
@@ -257,7 +257,7 @@ class MixinApprovalGate(models.AbstractModel):
         admitted = self._get_admitted_ids(operation)
         blocked = self.browse()
         for record in self.filtered(lambda r: r.id not in admitted):
-            state = record.approval_request_id and record.approval_state
+            state = record.approval_state if record.approval_request_id else False
             if state == "approved" and record._approval_request_gates(operation):
                 record._check_approval_covers(operation)
                 continue
