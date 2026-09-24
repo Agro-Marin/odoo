@@ -364,16 +364,16 @@ class RepairOrder(models.Model):
         for repair in self:
             if repair.picking_id:
                 if repair.tracking in ["serial", "lot"] and repair.lot_id:
-                    lot_move_lines = repair.picking_id.move_line_ids.filtered(
-                        lambda m, repair=repair: (
-                            m.product_id == repair.product_id
-                            and m.lot_id == repair.lot_id
-                        )
+                    lot_move_lines = repair.picking_id.move_line_ids.filtered_domain(
+                        [
+                            ("product_id", "=", repair.product_id.id),
+                            ("lot_id", "=", repair.lot_id.id),
+                        ]
                     )
                     repair.product_qty = sum(lot_move_lines.mapped("quantity"))
                 else:
-                    product_moves = repair.picking_id.move_ids.filtered(
-                        lambda m, repair=repair: m.product_id == repair.product_id
+                    product_moves = repair.picking_id.move_ids.filtered_domain(
+                        [("product_id", "=", repair.product_id.id)]
                     )
                     repair.product_qty = sum(product_moves.mapped("quantity"))
             else:

@@ -7,6 +7,10 @@ from odoo.tests import tagged
 from odoo.addons.stock.tests.common import TestStockCommon
 
 
+def _filtered_dormancy(quants, compare, days):
+    return quants.filtered(lambda quant: compare(quant.days_since_last_movement, days))
+
+
 @tagged("post_install", "-at_install")
 class TestQuantIncomingDate(TestStockCommon):
     @classmethod
@@ -477,9 +481,7 @@ class TestQuantSearchShape(TestStockCommon):
                         ("days_since_last_movement", operator, threshold),
                     ]
                 )
-                expected = quants.filtered(
-                    lambda q, t=threshold, f=predicate: f(q.days_since_last_movement, t)
-                )
+                expected = _filtered_dormancy(quants, predicate, threshold)
                 self.assertEqual(
                     set(found.ids),
                     set(expected.ids),

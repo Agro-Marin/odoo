@@ -1,3 +1,4 @@
+import functools
 from collections import defaultdict
 
 from odoo import fields, models
@@ -6,6 +7,12 @@ from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import OrderedSet
 
 _debug = DebugLog(__name__)
+
+
+def _get_auto_wave_grouping_key(picking_type, nearest_parent_locations, line):
+    return line._get_auto_wave_grouping_key(
+        picking_type, nearest_parent_locations[line]
+    )
 
 
 class WaveFill:
@@ -307,10 +314,8 @@ class StockMoveLine(models.Model):
         _debug.pipeline("auto_wave_into_new", lines=self)
         for picking_type, lines in self.grouped("picking_type_id").items():
             grouped = lines.grouped(
-                lambda line, picking_type=picking_type: (
-                    line._get_auto_wave_grouping_key(
-                        picking_type, nearest_parent_locations[line]
-                    )
+                functools.partial(
+                    _get_auto_wave_grouping_key, picking_type, nearest_parent_locations
                 )
             )
             for wave_lines in grouped.values():

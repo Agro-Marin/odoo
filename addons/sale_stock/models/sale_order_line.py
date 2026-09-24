@@ -1,4 +1,5 @@
 import contextlib
+import functools
 from collections import defaultdict
 from datetime import timedelta
 
@@ -9,6 +10,10 @@ from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare, float_is_zero
 
 _debug = DebugLog(__name__)
+
+
+def _get_rule_warehouse_rank(warehouse, rule):
+    return 0 if rule.location_src_id.warehouse_id in (False, warehouse) else 1
 
 
 class SaleOrderLine(models.Model):
@@ -171,11 +176,8 @@ class SaleOrderLine(models.Model):
             for line in lines:
                 best = sorted(
                     rules,
-                    key=lambda rule, line=line: (
-                        0
-                        if rule.location_src_id.warehouse_id
-                        in (False, line.order_id.warehouse_id)
-                        else 1
+                    key=functools.partial(
+                        _get_rule_warehouse_rank, line.order_id.warehouse_id
                     ),
                 )
                 line.warehouse_id = best[0].location_src_id.warehouse_id
@@ -287,7 +289,7 @@ class SaleOrderLine(models.Model):
             combined_moves = (
                 line.move_ids
                 | self.env["stock.move"].browse(line.move_ids._rollup_move_orig_ids())
-            ).filtered(lambda m, line=line: m.product_id == line.product_id)
+            ).filtered_domain([("product_id", "=", line.product_id.id)])
             all_moves |= combined_moves
             line_all_moves_cached[line.id] = combined_moves
 

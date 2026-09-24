@@ -6,6 +6,10 @@ from odoo.tests import tagged
 from odoo.addons.stock.tests.common import TestStockCommon
 
 
+def _filtered_dormancy(quants, compare, days):
+    return quants.filtered(lambda quant: compare(quant.days_since_last_movement, days))
+
+
 @tagged("post_install", "-at_install")
 class TestQuantDormancy(TestStockCommon):
     @classmethod
@@ -90,11 +94,7 @@ class TestQuantDormancy(TestStockCommon):
         for days in (1, 5, 100, 200, 500):
             for symbol, compare in comparators.items():
                 with self.subTest(days=days, operator=symbol):
-                    expected = quants.filtered(
-                        lambda quant, c=compare, n=days: c(
-                            quant.days_since_last_movement, n
-                        )
-                    )
+                    expected = _filtered_dormancy(quants, compare, days)
                     found = self.env["stock.quant"].search(
                         [
                             ("id", "in", quants.ids),

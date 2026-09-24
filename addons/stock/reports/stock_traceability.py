@@ -19,10 +19,8 @@ class StockTraceabilityReport(models.TransientModel):
             move_line = lines_todo.popleft()
             if move_line.move_id.move_orig_ids:
                 lines = (
-                    move_line.move_id.move_orig_ids.move_line_ids.filtered(
-                        lambda m, lot=move_line.lot_id: (
-                            m.lot_id == lot and m.state == "done"
-                        )
+                    move_line.move_id.move_orig_ids.move_line_ids.filtered_domain(
+                        [("lot_id", "=", move_line.lot_id.id), ("state", "=", "done")]
                     )
                     - lines_seen
                 )

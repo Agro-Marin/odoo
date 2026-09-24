@@ -51,11 +51,11 @@ class MixinStockWarnInsufficientQty(models.AbstractModel):
         )
         for quantity in self:
             company = company_per_record[quantity.id]
-            quantity.quant_ids = quants.filtered(
-                lambda quant, company=company, product=quantity.product_id: (
-                    quant.product_id == product
-                    and quant.company_id.id in (False, company.id)
-                )
+            quantity.quant_ids = quants.filtered_domain(
+                [
+                    ("product_id", "=", quantity.product_id.id),
+                    ("company_id", "in", [False, company.id]),
+                ]
             )
 
     def action_done(self):

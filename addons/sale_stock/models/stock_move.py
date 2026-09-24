@@ -82,14 +82,13 @@ class StockMove(models.Model):
 
             product = move.product_id
 
-            if line := sale_order.line_ids.filtered(
-                lambda l, product=product: (
-                    l.product_id == product
-                    and not l.display_type
-                    and not l.is_downpayment
-                    and l.state != "cancel"
-                ),
-            ):
+            if line := sale_order.line_ids.filtered_domain(
+                [
+                    ("product_id", "=", product.id),
+                    ("display_type", "=", False),
+                    ("is_downpayment", "=", False),
+                ]
+            ).filtered(lambda l: l.state != "cancel"):
                 _debug.logic("move_matched_order_line", move=move, line=line[:1])
                 move.sale_line_id = line[:1]
                 continue

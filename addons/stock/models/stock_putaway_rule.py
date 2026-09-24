@@ -227,10 +227,8 @@ class StockPutawayRule(models.Model):
                     return location_out
                 checked_locations.add(location_out)
                 continue
-            child_locations = location_out.child_internal_location_ids.filtered(
-                lambda loc, putaway_rule=putaway_rule: (
-                    loc.storage_category_id == putaway_rule.storage_category_id
-                )
+            child_locations = location_out.child_internal_location_ids.filtered_domain(
+                [("storage_category_id", "=", putaway_rule.storage_category_id.id)]
             )
             dbg.logic.debug(
                 "[putaway_rule:%s] storage category %s: %d candidate locations under %s",

@@ -111,10 +111,8 @@ class SaleOrderLine(models.Model):
                 )
                 and line.product_uom_id.compare(line.product_qty, 0) > 0
             ):
-                binded_ro_ids = line.order_id.sudo().repair_order_ids.filtered(
-                    lambda ro, line=line: (
-                        ro.sale_order_line_id.id == line.id and ro.state == "cancel"
-                    )
+                binded_ro_ids = line.order_id.sudo().repair_order_ids.filtered_domain(
+                    [("sale_order_line_id", "=", line.id), ("state", "=", "cancel")]
                 )
                 binded_ro_ids.action_repair_cancel_draft()
                 binded_ro_ids._action_repair_confirm()
@@ -145,10 +143,8 @@ class SaleOrderLine(models.Model):
         _debug.lifecycle("repair_order_cancel_from_sale", lines=self)
         binded_ro_ids = self.env["repair.order"]
         for line in self:
-            binded_ro_ids |= line.order_id.sudo().repair_order_ids.filtered(
-                lambda ro, line=line: (
-                    ro.sale_order_line_id.id == line.id and ro.state != "done"
-                )
+            binded_ro_ids |= line.order_id.sudo().repair_order_ids.filtered_domain(
+                [("sale_order_line_id", "=", line.id), ("state", "!=", "done")]
             )
         binded_ro_ids.action_repair_cancel()
 

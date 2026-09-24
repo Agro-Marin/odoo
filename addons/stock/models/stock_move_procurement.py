@@ -593,9 +593,7 @@ class StockMoveProcurement(models.Model):
     def _reverse_negative_moves(self):
         for move in self:
             new_source, new_dest = move.location_dest_id, move.location_id
-            move.move_line_ids.filtered(
-                lambda ml, src=new_source: not ml.location_id._is_child_of(src),
-            ).unlink()
+            move.move_line_ids._filtered_located_outside(new_source).unlink()
             orig_move_ids, dest_move_ids = [], []
             for m in move.move_orig_ids | move.move_dest_ids:
                 from_loc, to_loc = m.location_id, m.location_dest_id

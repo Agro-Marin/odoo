@@ -472,11 +472,7 @@ class StockLocation(models.Model):
                 (
                     (location, children)
                     for location in self
-                    if (
-                        children := descendants.filtered(
-                            lambda child, parent=location: child._is_child_of(parent),
-                        )
-                    )
+                    if (children := descendants._filtered_child_of(location))
                 ),
                 (self.browse(), self.browse()),
             )
@@ -680,6 +676,9 @@ class StockLocation(models.Model):
 
     def _is_child_of(self, other_location):
         return self._is_descendant_of(other_location)
+
+    def _filtered_child_of(self, other_location):
+        return self.filtered(lambda location: location._is_child_of(other_location))
 
     def _is_prefixed_by_parent(self):
         self.check_singleton()

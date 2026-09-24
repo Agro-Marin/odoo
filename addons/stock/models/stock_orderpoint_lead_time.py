@@ -117,10 +117,9 @@ class StockWarehouseOrderpointLeadTime(models.Model):
         if not orderpoints_to_compute:
             return
 
+        orderpoints_by_company = orderpoints_to_compute.grouped("company_id")
         for company in orderpoints_to_compute.company_id:
-            company_orderpoints = orderpoints_to_compute.filtered(
-                lambda c, company=company: c.company_id == company,
-            )
+            company_orderpoints = orderpoints_by_company[company]
             horizon = relativedelta.relativedelta(
                 days=company.stock_config_id.horizon_days,
             )

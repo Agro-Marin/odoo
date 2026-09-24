@@ -298,6 +298,9 @@ class StockMoveLine(models.Model):
         % ", ".join(RESERVATION_KEY_FIELDS)
     )
 
+    def _filtered_located_outside(self, location):
+        return self.filtered(lambda line: not line.location_id._is_child_of(location))
+
     @api.model
     def _get_negative_quantity_message(self):
         return self.env._("You can not enter negative quantities.")

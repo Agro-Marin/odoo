@@ -102,12 +102,7 @@ class TestPacking(TestPackingCommon):
         pack_picking.move_ids.picked = True
 
         first_pack = pack_picking.action_put_in_pack()
-        lines_by_product = {
-            product: pack_picking.move_line_ids.filtered(
-                lambda line, product=product: line.product_id == product
-            )
-            for product in (self.productA, self.productB)
-        }
+        lines_by_product = pack_picking.move_line_ids.grouped("product_id")
         ml = lines_by_product[self.productA].copy()
         ml.write(
             {

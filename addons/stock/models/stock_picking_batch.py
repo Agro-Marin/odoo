@@ -361,10 +361,11 @@ class StockPickingBatch(models.Model):
     def _inverse_move_line_ids(self):
         for batch in self:
             new_move_lines = batch.move_line_ids
+            new_lines_by_picking = new_move_lines.grouped("picking_id")
             for picking in batch.picking_ids:
                 old_move_lines = picking.move_line_ids
-                picking.move_line_ids = new_move_lines.filtered(
-                    lambda ml, picking=picking: ml.picking_id.id == picking.id
+                picking.move_line_ids = new_lines_by_picking.get(
+                    picking, new_move_lines.browse()
                 )
                 move_lines_to_unlink = old_move_lines - new_move_lines
                 if move_lines_to_unlink:

@@ -349,11 +349,10 @@ class TestAvailabilitySearchMatchesTheField(PickingAuditCase):
         self.env.flush_all()
         self.env.invalidate_all()
 
+        pickings_by_state = pickings.grouped("products_availability_state")
         for state in ("available", "expected", "late"):
             with self.subTest(state=state):
-                by_field = pickings.filtered(
-                    lambda p, s=state: p.products_availability_state == s,
-                )
+                by_field = pickings_by_state.get(state, pickings.browse())
                 by_search = self.env["stock.picking"].search(
                     [
                         ("id", "in", pickings.ids),

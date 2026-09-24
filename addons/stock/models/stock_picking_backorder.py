@@ -58,10 +58,13 @@ class StockPickingBackorder(models.Model):
     def _create_backorder(self, backorder_moves=None):
         self._detach_from_batch_before_backorder()
         moves_by_picking = {}
+        backorder_moves_by_picking = (
+            backorder_moves.grouped("picking_id") if backorder_moves else {}
+        )
         for picking in self:
             if backorder_moves:
-                moves_to_backorder = backorder_moves.filtered(
-                    lambda m, picking=picking: m.picking_id == picking,
+                moves_to_backorder = backorder_moves_by_picking.get(
+                    picking, backorder_moves.browse()
                 )
             else:
                 moves_to_backorder = picking._get_moves_to_backorder()

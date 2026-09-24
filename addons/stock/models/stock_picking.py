@@ -885,8 +885,8 @@ class StockPicking(models.Model):
             "_action_done -> stock.move._action_done %s", dbg.rec(todo_moves)
         )
         for owner, pickings in self.filtered("owner_id").grouped("owner_id").items():
-            owner_moves = todo_moves.filtered(
-                lambda move, pickings=pickings: move.picking_id in pickings,
+            owner_moves = todo_moves.filtered_domain(
+                [("picking_id", "in", pickings.ids)]
             )
             owner_moves.write({"restrict_partner_id": owner.id})
             owner_moves.move_line_ids.write({"owner_id": owner.id})

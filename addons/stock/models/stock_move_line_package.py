@@ -290,8 +290,8 @@ class StockMoveLinePackage(models.Model):
                 or not pickings._is_package_entirely_moved(package)
             ):
                 ids_to_update.update(
-                    pickings.move_line_ids.filtered(
-                        lambda ml, package=package: ml.package_id == package
+                    pickings.move_line_ids.filtered_domain(
+                        [("package_id", "=", package.id)]
                     ).ids
                 )
 
@@ -360,8 +360,8 @@ class StockMoveLinePackage(models.Model):
                 "location_dest_id": package.location_dest_id.id,
                 "move_line_ids": [
                     Command.set(
-                        package.move_line_ids.filtered(
-                            lambda ml, package=package: ml.result_package_id == package
+                        package.move_line_ids.filtered_domain(
+                            [("result_package_id", "=", package.id)]
                         ).ids
                     )
                 ],

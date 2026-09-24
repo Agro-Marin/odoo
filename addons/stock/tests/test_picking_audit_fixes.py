@@ -214,9 +214,11 @@ class TestPickingAuditFixes(TestStockCommon):
             (early_product, datetime(2031, 1, 1)),
             (late_product, datetime(2031, 12, 1)),
         ):
-            source = upstream.move_ids.filtered(lambda m, p=product: m.product_id == p)
-            picking.move_ids.filtered(
-                lambda m, p=product: m.product_id == p
+            source = upstream.move_ids.filtered_domain(
+                [("product_id", "=", product.id)]
+            )
+            picking.move_ids.filtered_domain(
+                [("product_id", "=", product.id)]
             ).move_orig_ids = [(6, 0, source.ids)]
             source.date = date
         picking.move_ids.date = datetime(2030, 1, 1)

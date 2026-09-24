@@ -167,10 +167,9 @@ class DeliveryCarrier(models.Model):
             )
             return packages
 
+        move_lines_by_package = picking.move_line_ids.grouped("result_package_id")
         for package in picking.move_line_ids.result_package_id:
-            move_lines = picking.move_line_ids.filtered(
-                lambda ml, package=package: ml.result_package_id == package
-            )
+            move_lines = move_lines_by_package[package]
             commodities = self._get_commodities_from_stock_move_lines(move_lines)
             package_total_cost = 0.0
             for quant in package.quant_ids:

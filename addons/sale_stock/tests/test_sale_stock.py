@@ -1935,10 +1935,9 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             ],
         )
 
+        moves_by_picking_type = moves.grouped("picking_type_id")
         for picking_type in warehouse.delivery_route_id.rule_ids.picking_type_id:
-            step_moves = moves.filtered(
-                lambda m, picking_type=picking_type: m.picking_type_id == picking_type
-            )
+            step_moves = moves_by_picking_type.get(picking_type, moves.browse())
             total_qty = sum(
                 m.product_uom_qty
                 if m.location_id == picking_type.default_location_src_id
@@ -2089,12 +2088,11 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             ],
         )
 
+        moves_by_picking_type = moves.grouped("picking_type_id")
         for (
             picking_type
         ) in self.warehouse_3_steps_pull.delivery_route_id.rule_ids.picking_type_id:
-            step_moves = moves.filtered(
-                lambda m, picking_type=picking_type: m.picking_type_id == picking_type
-            )
+            step_moves = moves_by_picking_type.get(picking_type, moves.browse())
             total_qty = sum(
                 m.product_uom_qty
                 if m.location_id == picking_type.default_location_src_id
@@ -2176,12 +2174,11 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
             ],
         )
 
+        moves_by_picking_type = moves.grouped("picking_type_id")
         for (
             picking_type
         ) in self.warehouse_3_steps_pull.delivery_route_id.rule_ids.picking_type_id:
-            step_moves = moves.filtered(
-                lambda m, picking_type=picking_type: m.picking_type_id == picking_type
-            )
+            step_moves = moves_by_picking_type.get(picking_type, moves.browse())
             total_qty = sum(
                 m.product_uom_qty
                 if m.location_id == picking_type.default_location_src_id

@@ -1220,10 +1220,11 @@ class StockMove(models.Model):
             )
             if move.propagate_cancel:
                 if all(state == "cancel" for state in siblings_states):
-                    move_dest_to_cancel = move.move_dest_ids.filtered(
-                        lambda m, move=move: (
-                            m.state != "done" and move.location_dest_id == m.location_id
-                        )
+                    move_dest_to_cancel = move.move_dest_ids.filtered_domain(
+                        [
+                            ("state", "!=", "done"),
+                            ("location_id", "=", move.location_dest_id.id),
+                        ]
                     )
                     dest_ids_to_cancel.update(move_dest_to_cancel.ids)
                     for dest in move.move_dest_ids - move_dest_to_cancel:
@@ -1475,9 +1476,7 @@ class StockMove(models.Model):
             else:
                 moves_state_to_write["confirmed"].add(move.id)
         for state, moves_ids in moves_state_to_write.items():
-            changing = self.browse(moves_ids).filtered(
-                lambda m, state=state: m.state != state
-            )
+            changing = self.browse(moves_ids).filtered_domain([("state", "!=", state)])
             if changing:
                 dbg.lifecycle.debug(
                     "_recompute_state: %s -> %s", dbg.rec(changing), state
