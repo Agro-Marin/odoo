@@ -334,12 +334,6 @@ msgid ").<br/>"
 msgstr ").<br/>"
 
 #. module: account
-#. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
-msgid "+ Add Section"
-msgstr "+ Adicionar seção"
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/account_tax.py:0
 msgid "- %(name)s in %(company)s"
@@ -8085,7 +8079,6 @@ msgstr "Saldo final"
 
 #. module: account
 #. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
 #: code:addons/account/static/src/components/product_label_section_and_note_field/product_label_section_and_note_field.xml:0
 msgid "Enter a description"
 msgstr "Digite uma descrição"
@@ -8491,12 +8484,6 @@ msgstr "Tipo de figura"
 #: code:addons/account/static/src/js/tours/account.js:0
 msgid "Fill in the details of the product or see the suggestion."
 msgstr "Preencha os detalhes do produto ou veja a sugestão."
-
-#. module: account
-#. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
-msgid "Filter"
-msgstr "Filtro"
 
 #. module: account
 #. odoo-python
@@ -15650,7 +15637,6 @@ msgstr "Seção de"
 
 #. module: account
 #. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
 #: model:ir.model.fields,field_description:account.field_account_report__section_report_ids
 #: model_terms:ir.ui.view,arch_db:account_reports.account_report_form
 msgid "Sections"

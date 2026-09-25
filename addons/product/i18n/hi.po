@@ -4670,3 +4670,27 @@ msgstr " "
 #: code:addons/product/static/src/js/pricelist_report/product_pricelist_report.xml:0
 msgid "xlsx"
 msgstr ""
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "+ Add Section"
+msgstr ""
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Enter a description"
+msgstr "जानकारी डालें"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Filter"
+msgstr "फ़िल्टर"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Sections"
+msgstr "सेक्शन"

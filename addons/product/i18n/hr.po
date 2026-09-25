@@ -4996,3 +4996,27 @@ msgstr ""
 
 #~ msgid "the parent company"
 #~ msgstr "Nadređena tvrtka"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "+ Add Section"
+msgstr ""
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Enter a description"
+msgstr ""
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Filter"
+msgstr "Filtar"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Sections"
+msgstr ""

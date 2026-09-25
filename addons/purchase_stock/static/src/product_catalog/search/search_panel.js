@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { AccountProductCatalogSearchPanel } from "@account/components/product_catalog/search/search_panel";
 import { useState } from "@odoo/owl";
 import { useProductCatalogContext } from "@product/product_catalog/product_catalog_context";
+import { ProductCatalogSearchPanel } from "@product/product_catalog/search/search_panel";
 import { formatMonetary } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
 import { clamp } from "@web/core/utils/format/numbers";
@@ -10,7 +10,7 @@ import { useSearchModel } from "@web/search/search_model";
 
 import { TimePeriodSelectionField } from "./time_period_selection_fields.js";
 
-export class PurchaseSuggestCatalogSearchPanel extends AccountProductCatalogSearchPanel {
+export class PurchaseSuggestCatalogSearchPanel extends ProductCatalogSearchPanel {
     static template = "purchase_stock.ProductCatalogSearchPanel";
     static components = { TimePeriodSelectionField };
     static basedOnOptions = [

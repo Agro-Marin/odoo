@@ -7,6 +7,7 @@ import {
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { useDebounced } from "@web/core/utils/timing";
+import { useSearchModel } from "@web/search/search_model";
 import { KanbanRecord } from "@web/views/kanban";
 
 import { ProductCatalogOrderLine } from "./order_line/order_line.js";
@@ -35,6 +36,7 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
 
     setup() {
         super.setup();
+        this.searchModel = useSearchModel();
         this.debouncedUpdateQuantity = useDebounced(
             this._updateQuantity.bind(this),
             500,
@@ -132,6 +134,12 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
         return this._pendingUpdate;
     }
 
+    get sectionIdOfPendingUpdate() {
+        return this._sectionIdOfPendingUpdate === undefined
+            ? this.searchModel.selectedSection.sectionId
+            : this._sectionIdOfPendingUpdate;
+    }
+
     _getUpdateQuantityAndGetPriceParams() {
         return {
             order_id: this.catalogContext.orderId,
@@ -139,7 +147,15 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
             quantity: this.productCatalogData.quantity,
             res_model: this.catalogContext.orderResModel,
             child_field: this.catalogContext.childField,
+            section_id: this.sectionIdOfPendingUpdate,
         };
+    }
+
+    notifyLineCountChange(lineCountChange) {
+        this.searchModel.trigger("section-line-count-change", {
+            sectionId: this.sectionIdOfPendingUpdate,
+            lineCountChange: lineCountChange,
+        });
     }
 
     //--------------------------------------------------------------------------
@@ -147,8 +163,13 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
     //--------------------------------------------------------------------------
 
     updateQuantity(quantity) {
+        this._sectionIdOfPendingUpdate = this.searchModel.selectedSection.sectionId;
         if (this.productCatalogData.readOnly) {
             return;
+        }
+        const lineCountChange = (quantity > 0) - (this.productCatalogData.quantity > 0);
+        if (lineCountChange !== 0) {
+            this.notifyLineCountChange(lineCountChange);
         }
         // A catalog line is never negative: removing more than is on the order
         // takes the product off it, it does not owe any back.
@@ -160,6 +181,12 @@ export class ProductCatalogKanbanRecord extends KanbanRecord {
      * Add the product to the order
      */
     addProduct(qty = 1) {
+        if (
+            this.productCatalogData.quantity === 0 &&
+            qty < this.productCatalogData.min_qty
+        ) {
+            qty = this.productCatalogData.min_qty;
+        }
         this.updateQuantity(qty);
     }
 

@@ -5331,3 +5331,27 @@ msgstr "xlsx"
 
 #~ msgid "the parent company"
 #~ msgstr "emoyhtiö"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "+ Add Section"
+msgstr "+ Lisää osio"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Enter a description"
+msgstr "Kirjoita kuvaus"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Filter"
+msgstr "Suodatin"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Sections"
+msgstr "Osiot"

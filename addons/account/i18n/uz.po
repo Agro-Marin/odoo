@@ -355,13 +355,6 @@ msgid ").<br/>"
 msgstr ").<br/>"
 
 #. module: account
-#. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
-#, fuzzy
-msgid "+ Add Section"
-msgstr "+ Bo‘lim qo‘shish"
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/account_tax.py:0
 #, fuzzy
@@ -9127,7 +9120,6 @@ msgstr "Yakuniy qoldiq"
 
 #. module: account
 #. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
 #: code:addons/account/static/src/components/product_label_section_and_note_field/product_label_section_and_note_field.xml:0
 #, fuzzy
 msgid "Enter a description"
@@ -9602,13 +9594,6 @@ msgstr "Raqam turi"
 #, fuzzy
 msgid "Fill in the details of the product or see the suggestion."
 msgstr "Mahsulot tafsilotlarini to‘ldiring yoki taklif bilan tanishing"
-
-#. module: account
-#. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
-#, fuzzy
-msgid "Filter"
-msgstr "Filtr"
 
 #. module: account
 #. odoo-python
@@ -17850,7 +17835,6 @@ msgstr "Bo‘limi"
 
 #. module: account
 #. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
 #: model:ir.model.fields,field_description:account.field_account_report__section_report_ids
 #: model_terms:ir.ui.view,arch_db:account_reports.account_report_form
 #, fuzzy

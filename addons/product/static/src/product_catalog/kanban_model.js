@@ -16,11 +16,25 @@ export class ProductCatalogKanbanModel extends RelationalModel {
     static Record = ProductCatalogRecord;
     static withCache = false;
 
-    async _loadData(params) {
+    async _loadData(params, ...rest) {
         // The sample ORM is installed for the duration of the sample load, so
         // this has to be read before awaiting super.
         const isSample = Boolean(this.orm.isSample);
-        const result = await super._loadData(...arguments);
+        const selectedSection = this.env.searchModel.selectedSection;
+        if (selectedSection.filtered) {
+            params = {
+                ...params,
+                domain: [
+                    ...(params.domain || []),
+                    ["is_in_selected_section_of_order", "=", true],
+                ],
+                context: {
+                    ...params.context,
+                    section_id: selectedSection.sectionId,
+                },
+            };
+        }
+        const result = await super._loadData(params, ...rest);
         if (params.isMonoRecord) {
             return result;
         }
@@ -74,6 +88,7 @@ export class ProductCatalogKanbanModel extends RelationalModel {
             product_ids: productIds,
             res_model: params.context.product_catalog_order_model,
             child_field: params.context.child_field,
+            section_id: this.env.searchModel.selectedSection.sectionId,
         };
     }
 

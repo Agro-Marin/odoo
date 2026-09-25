@@ -4833,3 +4833,27 @@ msgstr "xlsx"
 
 #~ msgid "Number of price rules"
 #~ msgstr "價格規則的數"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "+ Add Section"
+msgstr ""
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Enter a description"
+msgstr "輸入描述"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Filter"
+msgstr "篩選"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Sections"
+msgstr "分節"

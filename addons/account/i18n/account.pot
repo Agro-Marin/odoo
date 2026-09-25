@@ -515,12 +515,6 @@ msgstr ""
 
 #. module: account
 #. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
-msgid "+ Add Section"
-msgstr ""
-
-#. module: account
-#. odoo-javascript
 #: code:addons/account/static/src/components/bank_reconciliation_report/warnings.xml:0
 msgid ", leading to an unexplained difference of"
 msgstr ""
@@ -9719,7 +9713,6 @@ msgstr ""
 
 #. module: account
 #. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
 #: code:addons/account/static/src/components/product_label_section_and_note_field/product_label_section_and_note_field.xml:0
 msgid "Enter a description"
 msgstr ""
@@ -10257,12 +10250,6 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/account/static/src/js/tours/account_tour.js:0
 msgid "Fill in the details of the product or see the suggestion."
-msgstr ""
-
-#. module: account
-#. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
-msgid "Filter"
 msgstr ""
 
 #. module: account
@@ -15327,12 +15314,6 @@ msgid "No Payment Method"
 msgstr ""
 
 #. module: account
-#. odoo-python
-#: code:addons/account/models/mixin_product_catalog.py:0
-msgid "No Section"
-msgstr ""
-
-#. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_fiscal_position__foreign_vat_header_mode__no_template
 msgid "No Template"
 msgstr ""
@@ -19489,7 +19470,6 @@ msgstr ""
 
 #. module: account
 #. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
 #: model:ir.model.fields,field_description:account.field_account_report__section_report_ids
 #: model_terms:ir.ui.view,arch_db:account.account_report_form
 msgid "Sections"
@@ -22270,12 +22250,6 @@ msgstr ""
 msgid ""
 "The scheduled action 'Send Invoices automatically' is archived. You won't be"
 " able to send invoices in batch."
-msgstr ""
-
-#. module: account
-#. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.js:0
-msgid "The sections could not be updated. Please retry."
 msgstr ""
 
 #. module: account

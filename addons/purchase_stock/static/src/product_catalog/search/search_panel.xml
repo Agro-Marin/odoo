@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <t t-name="purchase_stock.ProductCatalogSearchPanel" t-inherit="account.ProductCatalogSearchPanel" t-inherit-mode="primary">
-        <xpath expr="//t[@t-call='account.ProductCatalogSearchPanelContent']" position="attributes">
+    <t t-name="purchase_stock.ProductCatalogSearchPanel" t-inherit="product.ProductCatalogSearchPanel" t-inherit-mode="primary">
+        <xpath expr="//t[@t-call='product.ProductCatalogSearchPanelContent']" position="attributes">
             <attribute name="t-call">purchase_stock.ProductCatalogSearchPanelContent</attribute>
         </xpath>
     </t>
-    <t t-name="purchase_stock.ProductCatalogSearchPanelContent" t-inherit="account.ProductCatalogSearchPanelContent" t-inherit-mode="primary">
+    <t t-name="purchase_stock.ProductCatalogSearchPanelContent" t-inherit="product.ProductCatalogSearchPanelContent" t-inherit-mode="primary">
         <xpath expr="//section[hasclass('o_search_panel_sections')]" position="attributes">
             <attribute name="t-att-class">
                 this.suggest.suggestToggle.isOn ? 'mt-4' : 'mt-5'

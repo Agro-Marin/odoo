@@ -5087,3 +5087,27 @@ msgstr "xlsx"
 
 #~ msgid "the parent company"
 #~ msgstr "perusahaan induk"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "+ Add Section"
+msgstr "+ Tambah Bagian"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Enter a description"
+msgstr "Masukkan keterangan"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Filter"
+msgstr "Filter"
+
+#. module: product
+#. odoo-javascript
+#: code:addons/product/static/src/product_catalog/search/search_panel.xml:0
+msgid "Sections"
+msgstr "Bagian-Bagian"

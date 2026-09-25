@@ -323,12 +323,6 @@ msgid ").<br/>"
 msgstr ").<br/>"
 
 #. module: account
-#. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
-msgid "+ Add Section"
-msgstr "+ セクションを追加"
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/account_tax.py:0
 msgid "- %(name)s in %(company)s"
@@ -7942,7 +7936,6 @@ msgstr "終了残高"
 
 #. module: account
 #. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
 #: code:addons/account/static/src/components/product_label_section_and_note_field/product_label_section_and_note_field.xml:0
 msgid "Enter a description"
 msgstr "説明を入力"
@@ -8336,12 +8329,6 @@ msgstr "数字型"
 #: code:addons/account/static/src/js/tours/account.js:0
 msgid "Fill in the details of the product or see the suggestion."
 msgstr "プロダクトの詳細を入力するか、提案を参照して下さい。"
-
-#. module: account
-#. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
-msgid "Filter"
-msgstr "フィルタ"
 
 #. module: account
 #. odoo-python
@@ -15306,7 +15293,6 @@ msgstr "以下のセクション:"
 
 #. module: account
 #. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
 #: model:ir.model.fields,field_description:account.field_account_report__section_report_ids
 #: model_terms:ir.ui.view,arch_db:account_reports.account_report_form
 msgid "Sections"

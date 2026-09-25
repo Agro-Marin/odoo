@@ -319,12 +319,6 @@ msgid ").<br/>"
 msgstr ").<br/>"
 
 #. module: account
-#. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
-msgid "+ Add Section"
-msgstr "+ 섹션 추가"
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/account_tax.py:0
 msgid "- %(name)s in %(company)s"
@@ -8101,7 +8095,6 @@ msgstr "기말 잔액"
 
 #. module: account
 #. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
 #: code:addons/account/static/src/components/product_label_section_and_note_field/product_label_section_and_note_field.xml:0
 msgid "Enter a description"
 msgstr "설명 추가하기"
@@ -8495,12 +8488,6 @@ msgstr "기능 유형"
 #: code:addons/account/static/src/js/tours/account.js:0
 msgid "Fill in the details of the product or see the suggestion."
 msgstr "제품 세부 정보를 입력하거나 제안된 내용을 검토하세요."
-
-#. module: account
-#. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
-msgid "Filter"
-msgstr "필터"
 
 #. module: account
 #. odoo-python
@@ -15482,7 +15469,6 @@ msgstr "영역"
 
 #. module: account
 #. odoo-javascript
-#: code:addons/account/static/src/components/product_catalog/search/search_panel.xml:0
 #: model:ir.model.fields,field_description:account.field_account_report__section_report_ids
 #: model_terms:ir.ui.view,arch_db:account_reports.account_report_form
 msgid "Sections"

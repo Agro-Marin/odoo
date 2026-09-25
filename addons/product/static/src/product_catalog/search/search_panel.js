@@ -8,8 +8,8 @@ import { useViewModel } from "@web/model/model";
 import { useSearchModel } from "@web/search/search_model";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 
-export class AccountProductCatalogSearchPanel extends SearchPanel {
-    static template = "account.ProductCatalogSearchPanel";
+export class ProductCatalogSearchPanel extends SearchPanel {
+    static template = "product.ProductCatalogSearchPanel";
 
     setup() {
         super.setup();

@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import { AccountProductCatalogSearchModel } from "@account/components/product_catalog/search/search_model";
 import { reactive } from "@odoo/owl";
 import { provideProductCatalogContext } from "@product/product_catalog/product_catalog_context";
+import { ProductCatalogSearchModel } from "@product/product_catalog/search/search_model";
 
 import { getSuggestToggleState } from "../utils.js";
 
-export class PurchaseStockProductCatalogSearchModel extends AccountProductCatalogSearchModel {
+export class PurchaseStockProductCatalogSearchModel extends ProductCatalogSearchModel {
     setup() {
         super.setup(...arguments);
         // The total arrives from its own RPC after the kanban has reloaded and

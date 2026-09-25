@@ -1,5 +1,8 @@
 from odoo.exceptions import UserError
 from odoo.http import Controller, request, route
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class ProductCatalogController(Controller):
@@ -51,5 +54,56 @@ class ProductCatalogController(Controller):
         return order.with_company(order.company_id)._update_order_line_info(
             product_id,
             quantity,
+            **kwargs,
+        )
+
+    @route("/product/catalog/get_sections", auth="user", type="jsonrpc", readonly=True)
+    def product_catalog_get_sections(self, res_model, order_id, child_field, **kwargs):
+        _debug.pipeline(
+            "route",
+            handler="ProductCatalogController.product_catalog_get_sections",
+        )
+        order = self._get_order(res_model, order_id)
+        return order.with_company(order.company_id)._get_sections(child_field, **kwargs)
+
+    @route("/product/catalog/create_section", auth="user", type="jsonrpc")
+    def product_catalog_create_section(
+        self,
+        res_model,
+        order_id,
+        child_field,
+        name,
+        position,
+        **kwargs,
+    ):
+        _debug.pipeline(
+            "route",
+            handler="ProductCatalogController.product_catalog_create_section",
+        )
+        order = self._get_order(res_model, order_id)
+        return order.with_company(order.company_id)._create_section(
+            child_field,
+            name,
+            position,
+            **kwargs,
+        )
+
+    @route("/product/catalog/resequence_sections", auth="user", type="jsonrpc")
+    def product_catalog_resequence_sections(
+        self,
+        res_model,
+        order_id,
+        sections,
+        child_field,
+        **kwargs,
+    ):
+        _debug.pipeline(
+            "route",
+            handler="ProductCatalogController.product_catalog_resequence_sections",
+        )
+        order = self._get_order(res_model, order_id)
+        return order.with_company(order.company_id)._resequence_sections(
+            sections,
+            child_field,
             **kwargs,
         )

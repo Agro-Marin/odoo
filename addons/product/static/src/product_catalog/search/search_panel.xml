@@ -2,7 +2,7 @@
 
 <templates id="template" xml:space="preserve">
     <t
-        t-name="account.ProductCatalogSearchPanelContent"
+        t-name="product.ProductCatalogSearchPanelContent"
         t-inherit="web.SearchPanelContent"
         t-inherit-mode="primary"
     >
@@ -97,9 +97,9 @@
         </div>
     </t>
 
-    <t t-name="account.ProductCatalogSearchPanel" t-inherit="web.SearchPanel" t-inherit-mode="primary">
+    <t t-name="product.ProductCatalogSearchPanel" t-inherit="web.SearchPanel" t-inherit-mode="primary">
         <t t-call="web.SearchPanel.Regular" position="attributes">
-            <attribute name="t-call">account.ProductCatalogSearchPanelContent</attribute>
+            <attribute name="t-call">product.ProductCatalogSearchPanelContent</attribute>
         </t>
     </t>
 </templates>
