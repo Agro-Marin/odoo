@@ -12,6 +12,7 @@ def manager():
         mgr.cr = MagicMock()
         mgr.graph = []
         mgr.migrations = {"mymod": sources}
+        mgr.pending_end = {}
         pkg = MagicMock()
         pkg.name = "mymod"
         pkg.load_state = state
@@ -183,3 +184,49 @@ class TestAcrossTheThreeSources:
             "a/1.5/pre-a.py",
             "z/1.5/pre-a.py",
         ], "a tie on basename must still order deterministically"
+
+
+class TestPendingEndMigrations:
+    def _pending(self, manager, pending, *, state="installed", installed="2.0"):
+        mgr, pkg = manager(
+            {"module": {"1.5": ["m/1.5/pre-a.py", "m/1.5/end-b.py"]}},
+            installed=installed,
+            state=state,
+        )
+        mgr.pending_end = dict(pending)
+        return mgr, pkg
+
+    def test_a_pending_module_runs_its_end_scripts_from_the_recorded_version(
+        self, manager
+    ):
+        mgr, pkg = self._pending(manager, {"mymod": "1.0"})
+        assert _run(mgr, pkg, "end") == [("[$1.5]", "m/1.5/end-b.py")]
+
+    def test_a_pending_module_does_not_rerun_its_pre_and_post_scripts(self, manager):
+        mgr, pkg = self._pending(manager, {"mymod": "1.0"})
+        assert _run(mgr, pkg, "pre") == []
+        assert _run(mgr, pkg, "post") == []
+
+    def test_an_upgrade_records_where_its_end_stage_starts(self, manager):
+        mgr, pkg = self._pending(manager, {}, state="to upgrade", installed="1.0")
+        mgr.record_pending_end_migrations(pkg)
+        assert mgr.pending_end == {"mymod": "1.0"}
+
+    def test_an_upgrade_without_an_end_script_records_nothing(self, manager):
+        mgr, pkg = manager({"module": {"1.5": ["m/1.5/pre-a.py"]}}, installed="1.0")
+        mgr.pending_end = {}
+        mgr.record_pending_end_migrations(pkg)
+        assert mgr.pending_end == {}
+        mgr.cr.execute.assert_not_called()
+
+    def test_a_second_upgrade_keeps_the_oldest_start(self, manager):
+        mgr, pkg = self._pending(
+            manager, {"mymod": "0.9"}, state="to upgrade", installed="1.0"
+        )
+        mgr.record_pending_end_migrations(pkg)
+        assert mgr.pending_end == {"mymod": "0.9"}
+
+    def test_clearing_removes_only_the_modules_whose_end_stage_ran(self, manager):
+        mgr, _pkg = self._pending(manager, {"mymod": "1.0", "other": "3.0"})
+        mgr.clear_pending_end_migrations(["mymod"])
+        assert mgr.pending_end == {"other": "3.0"}

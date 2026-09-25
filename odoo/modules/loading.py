@@ -26,7 +26,7 @@ from odoo.tools.convert import ConvertMode as LoadMode
 from odoo.tools.convert import IdRef, convert_file
 
 from . import db as modules_db
-from .migration import MigrationManager
+from .migration import MigrationManager, read_pending_end_migrations
 from .module import (
     adapt_version,
     get_module_content_checksum,
@@ -838,6 +838,7 @@ class _PackageLoader:
         }
         if schema.column_exists(env.cr, "ir_module_module", "content_checksum"):
             values["content_checksum"] = get_module_content_checksum(self.name)
+        self.migrations.record_pending_end_migrations(self.package)
         self.module.write(values)
 
         self.package.state = "installed"
@@ -1400,7 +1401,11 @@ class _ModuleLoader:
             self.report = assertion_report(self.registry.db_name)
         self.env = api.Environment(self.cr, api.SUPERUSER_ID, {})
         self.env.transaction.default_env = self.env
-        self.migrations = MigrationManager(self.cr, self.graph)
+        self.migrations = MigrationManager(
+            self.cr,
+            self.graph,
+            pending_end=read_pending_end_migrations(self.cr),
+        )
         _debug.lifecycle(
             "modules.environment_opened",
             db=self.registry.db_name,
@@ -1640,6 +1645,9 @@ class _ModuleLoader:
         with _debug.perf("modules.end_migrations", cr=self.cr, modules=len(self.graph)):
             for package in self.graph:
                 self.migrations.migrate_module(package, "end")
+            self.migrations.clear_pending_end_migrations(
+                package.name for package in self.graph
+            )
 
     def restore_relations_dropped_by_migrations(self) -> None:
         if not self.registry.updated_modules:

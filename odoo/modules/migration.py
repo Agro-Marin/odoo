@@ -1,6 +1,7 @@
 import annotationlib
 import inspect
 import itertools
+import json
 import logging
 import re
 import typing
@@ -9,6 +10,7 @@ from pathlib import Path
 
 import odoo.upgrade
 from odoo import release
+from odoo.db import schema
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.parse_version import parse_version
 from odoo.modules.module import load_script
@@ -147,17 +149,100 @@ def _get_addon_path(path: str) -> str:
         return ""
 
 
+PENDING_END_MIGRATIONS_KEY = "base.pending_end_migrations"
+
+
+def read_pending_end_migrations(cr: Cursor) -> dict[str, str]:
+    if not schema.table_exists(cr, "ir_config_parameter"):
+        return {}
+    cr.execute(
+        "SELECT value FROM ir_config_parameter WHERE key = %s",
+        [PENDING_END_MIGRATIONS_KEY],
+    )
+    row = cr.fetchone()
+    return json.loads(row[0]) if row and row[0] else {}
+
+
+def _write_pending_end_migrations(cr: Cursor, pending: dict[str, str]) -> None:
+    if not pending:
+        cr.execute(
+            "DELETE FROM ir_config_parameter WHERE key = %s",
+            [PENDING_END_MIGRATIONS_KEY],
+        )
+        return
+    cr.execute(
+        "INSERT INTO ir_config_parameter "
+        "(key, value, create_uid, write_uid, create_date, write_date) "
+        "VALUES (%s, %s, 1, 1, now() AT TIME ZONE 'UTC', now() AT TIME ZONE 'UTC') "
+        "ON CONFLICT (key) DO UPDATE "
+        "SET value = EXCLUDED.value, write_date = EXCLUDED.write_date",
+        [PENDING_END_MIGRATIONS_KEY, json.dumps(pending, sort_keys=True)],
+    )
+
+
 class MigrationManager:
     migrations: dict[str, dict]
+    pending_end: dict[str, str]
 
-    def __init__(self, cr: Cursor, graph: module_graph.ModuleGraph) -> None:
+    def __init__(
+        self,
+        cr: Cursor,
+        graph: module_graph.ModuleGraph,
+        pending_end: dict[str, str] | None = None,
+    ) -> None:
         self.cr = cr
         self.graph = graph
         self.migrations = {}
+        self.pending_end = dict(pending_end or {})
         self.index_migration_scripts()
 
-    def _is_migration_required(self, pkg: module_graph.ModuleNode) -> bool:
-        return pkg.load_state == "to upgrade"
+    def _is_migration_required(
+        self, pkg: module_graph.ModuleNode, stage: str | None = None
+    ) -> bool:
+        if pkg.load_state == "to upgrade":
+            return True
+        return stage in (None, "end") and pkg.name in self.pending_end
+
+    def _get_installed_version(self, pkg: module_graph.ModuleNode, stage: str) -> str:
+        if stage == "end" and pkg.name in self.pending_end:
+            return self.pending_end[pkg.name]
+        return pkg.load_version or ""
+
+    def record_pending_end_migrations(self, pkg: module_graph.ModuleNode) -> None:
+        # the module's new db_version is committed before the end stage runs,
+        # so the version the end scripts start from must outlive a crash there
+        if pkg.load_state != "to upgrade" or pkg.name in self.pending_end:
+            return
+        if not self._has_applicable_scripts(pkg, "end"):
+            return
+        self.pending_end[pkg.name] = pkg.load_version or ""
+        _write_pending_end_migrations(self.cr, self.pending_end)
+        _debug.lifecycle(
+            "migration.end_pending",
+            module=pkg.name,
+            installed=pkg.load_version,
+        )
+
+    def clear_pending_end_migrations(self, names: typing.Iterable[str]) -> None:
+        cleared = self.pending_end.keys() & set(names)
+        if not cleared:
+            return
+        for name in cleared:
+            del self.pending_end[name]
+        _write_pending_end_migrations(self.cr, self.pending_end)
+        _debug.lifecycle("migration.end_cleared", modules=len(cleared))
+
+    def _has_applicable_scripts(self, pkg: module_graph.ModuleNode, stage: str) -> bool:
+        sources = self.migrations.get(pkg.name, {})
+        installed_version = self._get_installed_version(pkg, stage)
+        target_version = pkg.manifest["version"]
+        return any(
+            Path(f).name.startswith(f"{stage}-")
+            and _is_migration_applicable(version, installed_version, target_version)
+            for by_version in sources.values()
+            for version, files in by_version.items()
+            for f in files
+        )
 
     def index_migration_scripts(self) -> None:
         with _debug.perf(
@@ -212,7 +297,7 @@ class MigrationManager:
             "post": "[%s>]",
             "end": "[$%s]",
         }
-        if not self._is_migration_required(pkg):
+        if not self._is_migration_required(pkg, stage):
             return
 
         def _get_migration_versions(
@@ -250,7 +335,7 @@ class MigrationManager:
                 key=lambda f: (Path(f).name, f),
             )
 
-        installed_version = pkg.load_version or ""
+        installed_version = self._get_installed_version(pkg, stage)
         target_version = pkg.manifest["version"]
 
         versions = _get_migration_versions(pkg, stage)
