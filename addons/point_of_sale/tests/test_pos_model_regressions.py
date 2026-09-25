@@ -660,6 +660,22 @@ class TestPosModelRegressions(CommonPosTest):
         with self.assertRaises(UserError):
             method.write({"name": "Blocked after invalidation"})
 
+    def test_bank_parties_are_not_offered_as_customers(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "point_of_sale.limited_customer_count", "1"
+        )
+        bank = self.env["res.bank"].create(
+            {"name": "000 Bank Party", "bic": "BKPTXXXX"}
+        )
+        customer = self.env["res.partner"].create({"name": "000 Bank Party Customer"})
+        ranked = [row[0] for row in self.pos_config_usd.get_limited_partners_loading()]
+        self.assertEqual(ranked, customer.ids)
+        searched = self.env["res.partner"].get_new_partner(
+            self.pos_config_usd.id, [("name", "ilike", "000 Bank Party%")], 0
+        )["res.partner"]
+        self.assertEqual([row["id"] for row in searched], customer.ids)
+        self.assertNotIn(bank.partner_id.id, [row["id"] for row in searched])
+
     def test_partner_pagination_hidden_first_page(self):
         self.env["ir.config_parameter"].sudo().set_param(
             "point_of_sale.limited_customer_count", "3"

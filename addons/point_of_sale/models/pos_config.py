@@ -1689,7 +1689,7 @@ class PosConfig(models.Model):
     @dbg.timed
     def get_limited_partners_loading(self, offset=0):
         self.check_singleton()
-        partner_query = self.env["res.partner"]._search([])
+        partner_query = self.env["res.partner"]._search([("is_bank", "=", False)])
         self.env["res.partner"].flush_model(["active", "name", "company_id"])
         self.env["pos.order"].flush_model(["partner_id", "company_id"])
         return self.env.execute_query(

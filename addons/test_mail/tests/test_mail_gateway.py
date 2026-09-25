@@ -1075,9 +1075,9 @@ class TestMailgateway(MailGatewayCommon):
         with (
             self.assertRaises(ForeignKeyViolation),
             patch(
-                "odoo.addons.mail.models.mixin_mail_gateway.MixinMailGateway._routing_bounce_alias",
+                "odoo.addons.mail.models.mixin_mail_gateway.MixinMailGateway._routing_bounce_failed_creation",
                 autospec=True,
-            ) as _routing_bounce_alias_mock,
+            ) as _bounce_mock,
         ):
             self.format_and_process(
                 MAIL_TEMPLATE,
@@ -1087,20 +1087,13 @@ class TestMailgateway(MailGatewayCommon):
                 target_model=test_model_track.model,
             )
 
-        # method executed in another transaction, so we cannot test its result directly but just below
-        _routing_bounce_alias_mock.assert_called_once()
-
-        # replay it on the test transaction to validate its effect. The mock is
-        # autospec'd on the router's method, so `self` -- the thread mixin that sends
-        # the bounce -- is the first argument and the alias is the second.
-        _thread, alias, message, message_dict = (
-            _routing_bounce_alias_mock.call_args.args
-        )
+        # in production the bounce runs in a transaction of its own, which could
+        # not see this test's alias: replay it once the failure is rolled back
+        _bounce_mock.assert_called_once()
+        _gateway, alias, message, message_dict = _bounce_mock.call_args.args
         with self.mock_mail_gateway():
-            self.env["mixin.mail.thread"]._routing_bounce_alias(
-                self.env["mail.alias"].browse(alias.id),  # in the test transaction
-                message,
-                message_dict,
+            self.env["mixin.mail.thread"]._routing_bounce_failed_creation(
+                self.env["mail.alias"].browse(alias.id), message, message_dict
             )
 
         self.assertEqual(alias_valid.alias_status, "invalid")
@@ -4064,7 +4057,6 @@ class TestMailGatewayHelpers(MailGatewayCommon):
                 "alias_name": "failing",
             }
         )
-        self.registry_enter_test_mode()
         message_dict = {
             "message_id": "<failing-create@example.com>",
             "email_from": self.email_from,
@@ -4115,6 +4107,50 @@ class TestMailGatewayHelpers(MailGatewayCommon):
         self.assertEqual(
             len(bounced), 2, "an alias that had recovered is reported afresh"
         )
+
+    def test_a_bounce_for_an_alias_its_transaction_cannot_see_is_not_sent(self):
+        # the bounce transaction used to go on with an alias it could not read,
+        # and the MissingError that raised replaced the creation failure
+        alias = self.env["mail.alias"].create(
+            {
+                "alias_domain_id": self.mail_alias_domain.id,
+                "alias_contact": "everyone",
+                "alias_model_id": self.mail_test_gateway_model.id,
+                "alias_name": "uncommitted",
+            }
+        )
+        message_dict = {
+            "message_id": "<uncommitted-alias@example.com>",
+            "email_from": self.email_from,
+            "to": alias.alias_full_name,
+            "references": "",
+            "in_reply_to": "",
+        }
+        message = self.from_string(
+            MAIL_TEMPLATE.format(
+                to=alias.alias_full_name,
+                cc="",
+                subject="Breaks on create",
+                email_from=self.email_from,
+                return_path=self.email_from,
+                msg_id=message_dict["message_id"],
+                date="Wed, 19 Aug 2026 10:00:00 +0000",
+                extra="",
+            )
+        )
+        self.env.flush_all()
+        # a real second connection: the uncommitted alias must be invisible to it
+        with (
+            self.leave_registry_test_mode(),
+            self.assertLogs(
+                "odoo.addons.mail.models.mixin_mail_gateway", level="WARNING"
+            ) as capture,
+        ):
+            self.env["mixin.mail.thread"]._routing_bounce_failed_creation(
+                alias, message, message_dict
+            )
+        self.assertIn("not visible", capture.output[0])
+        self.assertEqual(alias.alias_status, "not_tested")
 
     def test_a_force_new_anchor_is_refused_as_route_and_as_parent(self):
         """`reply_to_force_new` means "a reply to me is not part of my thread".

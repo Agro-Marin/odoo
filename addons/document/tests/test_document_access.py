@@ -96,7 +96,9 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
         self.assertNotIn("hidden-secret-name", str(capture.exception))
 
-    @mute_logger("odoo.addons.base.models.ir_model", "odoo.addons.base.models.ir_access")
+    @mute_logger(
+        "odoo.addons.base.models.ir_model", "odoo.addons.base.models.ir_access"
+    )
     def test_access_type_internal(self):
         self.assertEqual(self.folder_a.access_internal, "view")
         self._assert_no_members(self.folder_a)
@@ -949,7 +951,9 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
                 active_model="document.document", active_id=document.id
             ).run()
 
-    @mute_logger("odoo.addons.base.models.ir_model", "odoo.addons.base.models.ir_access")
+    @mute_logger(
+        "odoo.addons.base.models.ir_model", "odoo.addons.base.models.ir_access"
+    )
     def test_create_document_access(self):
         with self.assertRaises(AccessError):
             self.folder_a.with_user(self.internal_user).name = "test"
@@ -2381,7 +2385,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             partners={self.portal_user.partner_id.id: ("view", False)},
         )
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref(
                 "document.ir_cron_documents_access_tracking"
             ).method_direct_trigger()
@@ -2407,7 +2411,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
 
         while self.env["document.access.tracking"].search_count([]) > 0:
-            with self.enter_registry_test_mode():
+            with self.sync_env_with_side_cursors():
                 self.env.ref(
                     "document.ir_cron_documents_access_tracking"
                 ).method_direct_trigger()
@@ -2474,6 +2478,10 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         )
 
     def test_members_invitation(self):
+        # website answers the scope from its own setting, "b2b" by default
+        self.patch(
+            type(self.env["res.users"]), "_get_signup_invitation_scope", lambda _: "b2c"
+        )
         Access = self.env["document.access"]
         internal_access = Access.create(
             {
@@ -2513,6 +2521,12 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             Access._get_member_from_token(public_access.id, "invalid" + token),
             public_access,
         )
+        with patch.object(
+            type(self.env["res.users"]), "_get_signup_invitation_scope", lambda _: "b2b"
+        ):
+            with self.assertRaises(UserError):
+                public_access._get_member_signup_token()
+            self.assertFalse(Access._get_member_from_token(public_access.id, token))
 
         public_access.expiration_date = fields.Datetime.now() + datetime.timedelta(
             days=1

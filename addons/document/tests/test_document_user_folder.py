@@ -133,9 +133,11 @@ class TestDocumentsUserFolder(TransactionCaseDocuments):
         cls.company_restr_doc.action_update_access_rights(
             partners={cls.doc_user.partner_id: ("view", False)}
         )
-        cls.env["document.document"].search(
+        # hidden, not sent to the trash: the trash refuses the folders other
+        # applications use (document_hr's employee folders)
+        cls.env["document.document"].sudo().search(
             [("id", "not in", cls.test_documents.ids)]
-        ).action_archive()
+        ).write({"active": False})
 
     @users("dtdm")
     def test_create_with_default_user_folder_id(self):

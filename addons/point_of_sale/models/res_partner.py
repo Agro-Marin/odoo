@@ -85,7 +85,11 @@ class ResPartner(models.Model):
             domain += [("id", "in", list(limited_partner_ids))]
             new_partners = self.search(domain)
         else:
-            new_partners = self.search(domain, offset=offset, limit=100)
+            new_partners = self.search(
+                fields.Domain(domain) & fields.Domain("is_bank", "=", False),
+                offset=offset,
+                limit=100,
+            )
         fiscal_positions = new_partners.fiscal_position_id
         dbg.pipeline.debug(
             "[load:res.partner] on demand config=%s offset=%s %s -> %s fpos=%s",

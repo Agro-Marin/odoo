@@ -1523,10 +1523,24 @@ class MixinMailGateway(models.AbstractModel):
     def _routing_bounce_failed_creation(
         self, alias: MailAlias, message: EmailMessage, message_dict: dict
     ) -> None:
+        # its own transaction: the caller's is aborted or about to be rolled
+        # back, and the bounce must outlive it
         with self.pool.cursor() as new_cr:
             bounce_env = self.env(cr=new_cr)
             bounce_alias = bounce_env["mail.alias"].browse(alias.id)
-            if bounce_alias.exists() and bounce_alias.alias_status == "invalid":
+            if not bounce_alias.exists():
+                _debug.logic(
+                    "creation_bounce_skipped", alias=alias.id, reason="not_visible"
+                )
+                _logger.warning(
+                    "Routing mail with Message-Id %s: alias %s is not visible "
+                    "outside the failing transaction (uncommitted or deleted); "
+                    "no bounce is sent.",
+                    message_dict["message_id"],
+                    alias.id,
+                )
+                return
+            if bounce_alias.alias_status == "invalid":
                 _debug.logic(
                     "creation_bounce_skipped", alias=alias.id, reason="already_invalid"
                 )
@@ -1537,6 +1551,11 @@ class MixinMailGateway(models.AbstractModel):
                     bounce_alias.alias_full_name,
                 )
                 return
+            _debug.lifecycle(
+                "creation_bounce_own_transaction",
+                alias=alias.id,
+                message_id=message_dict["message_id"],
+            )
             bounce_env["mixin.mail.gateway"]._routing_bounce_alias(
                 bounce_alias, message, message_dict, is_config_error=True
             )

@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from dateutil.relativedelta import relativedelta
 from lxml import etree
 
@@ -13,12 +15,24 @@ from odoo.addons.survey.tests import common
 class TestSurveyInvite(common.TestSurveyCommon, MailCase):
     def setUp(self):
         res = super().setUp()
-        self.env["ir.config_parameter"].set_param("auth_signup.invitation_scope", "b2b")
+        self._set_signup_scope("b2b")
         view = self.env.ref("survey.survey_invite_view_form").sudo()
         tree = etree.fromstring(view.arch)
         tree.xpath('//field[@name="emails"]')[0].attrib.pop("invisible", None)
         view.arch = etree.tostring(tree)
         return res
+
+    def _set_signup_scope(self, scope):
+        # the parameter decides only without `website`, whose per-website
+        # scope wins (b2b by default, b2c once website_sale is installed)
+        self.startPatcher(
+            patch.object(
+                type(self.env["res.users"]),
+                "_get_signup_invitation_scope",
+                lambda _users: scope,
+            )
+        )
+        self.env.invalidate_all()
 
     @users("survey_manager")
     def test_survey_invite_action(self):
@@ -225,7 +239,6 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
             {
                 "access_mode": "token",
                 "users_login_required": True,
-                "users_can_signup": False,
             }
         )
         invite = self.env["survey.invite"].create(
@@ -260,10 +273,7 @@ class TestSurveyInvite(common.TestSurveyCommon, MailCase):
 
     @users("survey_manager")
     def test_survey_invite_authentication_signup(self):
-        self.env["ir.config_parameter"].sudo().set_param(
-            "auth_signup.invitation_scope", "b2c"
-        )
-        self.env.invalidate_all()
+        self._set_signup_scope("b2c")
         Answer = self.env["survey.user_input"]
 
         self.survey.write({"access_mode": "public", "users_login_required": True})
