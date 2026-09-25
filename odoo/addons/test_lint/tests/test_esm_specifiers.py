@@ -10,9 +10,58 @@ from . import _js_sources, lint_case
 
 _logger = logging.getLogger(__name__)
 
+_REMOTE_PREFIXES = ("http://", "https://", "data:", "blob:")
+# Standalone pages that render their own import map: the bare specifiers it
+# maps resolve there and nowhere else.
+_PAGE_MAPPED_BARE = {
+    "web/src/public/database_manager": {"bootstrap"},  # its .qweb.html
+}
+
 
 def _addon_js_sources():
     return _js_sources.addon_js_outside_lib()
+
+
+def _unresolved_specifiers(sources):
+    addon_paths = {
+        manifest.name: Path(manifest.path)
+        for manifest in Manifest.get_all_addon_manifests()
+    }
+    broken = []
+    for source_addon, path, source in sources:
+        # JSDoc import() expressions resolve types, not runtime JS assets.
+        for spec in _js_sources.specifiers(source):
+            if spec in external_libs() or spec.startswith(_REMOTE_PREFIXES):
+                continue
+            if spec.startswith("/"):
+                # an absolute URL (/web/static/lib/...) is served as is
+                addon, _, relative = spec.lstrip("/").partition("/")
+                root = addon_paths.get(addon)
+                if root is None or not (root / relative).is_file():
+                    broken.append((path, spec, f"no such file {spec.lstrip('/')}"))
+                continue
+            if not spec.startswith(("@", ".")):
+                page_mapped = _PAGE_MAPPED_BARE.get(
+                    _js_sources.module_key(source_addon, path), ()
+                )
+                if spec not in page_mapped:
+                    # only an import map resolves a bare specifier
+                    broken.append(
+                        (path, spec, "bare specifier outside esm.external_libs")
+                    )
+                continue
+            url = addon_specifier_to_url(spec)
+            if url is None:
+                continue
+            addon, _, relative = url.lstrip("/").partition("/")
+            root = addon_paths.get(addon)
+            if root is None:
+                continue
+            target = root / relative
+            index = target.with_suffix("") / "index.js"
+            if not target.is_file() and not index.is_file():
+                broken.append((path, spec, f"no such file {addon}/{relative}"))
+    return broken
 
 
 class TestEsmSpecifiers(lint_case.LintCase):
@@ -81,38 +130,45 @@ class TestEsmSpecifiers(lint_case.LintCase):
                 f"included:\n{details}"
             )
 
-    def test_esm_specifiers_resolve(self):
-        addon_paths = {
-            manifest.name: Path(manifest.path)
-            for manifest in Manifest.get_all_addon_manifests()
-        }
-        broken = []
-        scanned = 0
+    def test_bare_and_absolute_specifiers_are_checked(self):
+        web = Path(Manifest.for_addon("web").path)
+        source = (
+            'import "not-a-declared-lib";\n'
+            'import "/web/static/lib/no_such_lib.js";\n'
+            'import "/web/static/lib/owl/owl.es.js";\n'
+            'import "https://example.test/remote.js";\n'
+            'import { t } from "@web/core/no_such_module";\n'
+        )
+        broken = _unresolved_specifiers(
+            [
+                ("web", web / "static/src/fake_probe.js", source),
+                (
+                    "web",
+                    web / "static/src/public/database_manager.js",
+                    'import "bootstrap";',
+                ),
+            ]
+        )
+        self.assertEqual(
+            sorted(spec for _path, spec, _why in broken),
+            [
+                "/web/static/lib/no_such_lib.js",
+                "@web/core/no_such_module",
+                "not-a-declared-lib",
+            ],
+        )
 
-        for _addon, path, source in _addon_js_sources():
-            scanned += 1
-            # JSDoc import() expressions resolve types, not runtime JS assets.
-            for spec in _js_sources.specifiers(source):
-                if spec in external_libs():
-                    continue
-                url = addon_specifier_to_url(spec)
-                if url is None:
-                    continue
-                addon, _, relative = url.lstrip("/").partition("/")
-                root = addon_paths.get(addon)
-                if root is None:
-                    continue
-                target = root / relative
-                index = target.with_suffix("") / "index.js"
-                if not target.is_file() and not index.is_file():
-                    broken.append((path, spec, f"{addon}/{relative}"))
+    def test_esm_specifiers_resolve(self):
+        sources = _addon_js_sources()
+        scanned = len(sources)
+        broken = _unresolved_specifiers(sources)
 
         _logger.info("checked ESM specifiers in %s js files", scanned)
         self.assertGreater(scanned, 1000, "the scan reached almost no JS")
         if broken:
             details = "\n".join(
-                f"  {path}\n      imports {spec!r} -> no such file {target}"
-                for path, spec, target in sorted(broken)
+                f"  {path}\n      imports {spec!r} -> {why}"
+                for path, spec, why in sorted(broken)
             )
             self.fail(
                 f"{len(broken)} unresolvable ESM specifier(s). Each one fails the "
