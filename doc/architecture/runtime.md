@@ -123,8 +123,8 @@ Registry.new(db)
    └─ register_model_hooks() · check_null_constraints()
 ```
 
-Fifteen of the 26 `loader.*` calls, in call order; the sketch selects, it does
-not enumerate. Every one of the 26 is *called* on every load — the "update
+Fifteen of the 27 `loader.*` calls, in call order; the sketch selects, it does
+not enumerate. Every one of the 27 is *called* on every load — the "update
 only" phases return at their first line when `update_module` is false, and
 `warn_code_ahead_of_database` when it is true. An update holds a per-database
 advisory lock for the whole call, so a second `-i`/`-u` on the same database

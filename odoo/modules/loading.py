@@ -1247,6 +1247,37 @@ class _UninstallRequiresReload(Exception):
     pass
 
 
+def _stored_fields_without_column(
+    registry: Registry, cr: Cursor
+) -> list[tuple[str, str, str]]:
+    expected: dict[str, dict[str, str]] = {}
+    for model_name, model in registry.models.items():
+        if model._abstract or model._table_query or not model._auto:
+            continue
+        columns = expected.setdefault(model._table, {})
+        for name, field in model._fields.items():
+            if field.store and field.column_type and not field.manual:
+                columns.setdefault(name, model_name)
+    cr.execute(
+        """
+        SELECT table_name, column_name
+          FROM information_schema.columns
+         WHERE table_schema = current_schema AND table_name = ANY(%s)
+        """,
+        [list(expected)],
+    )
+    present: dict[str, set[str]] = {}
+    for table, column in cr.fetchall():
+        present.setdefault(table, set()).add(column)
+    return [
+        (model_name, table, column)
+        for table, columns in expected.items()
+        if table in present
+        for column, model_name in columns.items()
+        if column not in present[table]
+    ]
+
+
 class _ModuleLoader:
     __slots__ = (
         "cr",
@@ -1641,33 +1672,11 @@ class _ModuleLoader:
             and parse_version(adapt_version(package.manifest["version"]))
             > parse_version(package.db_version)
         )
-        registry = self.registry
-        expected: dict[str, set[str]] = {}
-        for model in registry.models.values():
-            if model._abstract or model._table_query or not model._auto:
-                continue
-            columns = expected.setdefault(model._table, set())
-            columns.update(
-                name
-                for name, field in model._fields.items()
-                if field.store and field.column_type and not field.manual
-            )
-        self.cr.execute(
-            """
-            SELECT table_name, column_name
-              FROM information_schema.columns
-             WHERE table_schema = current_schema AND table_name = ANY(%s)
-            """,
-            [list(expected)],
-        )
-        present: dict[str, set[str]] = {}
-        for table, column in self.cr.fetchall():
-            present.setdefault(table, set()).add(column)
         missing = sorted(
             f"{table}.{column}"
-            for table, columns in expected.items()
-            if table in present
-            for column in columns - present[table]
+            for _model, table, column in _stored_fields_without_column(
+                self.registry, self.cr
+            )
         )
         _debug.logic(
             "modules.code_ahead_of_database", modules=len(ahead), columns=len(missing)
@@ -1845,6 +1854,37 @@ class _ModuleLoader:
             added=len(self.models_to_check) - before,
             to_check=len(self.models_to_check),
         )
+
+    def collect_models_with_unreflected_fields(self) -> None:
+        if not self.update_module:
+            return
+        with _debug.perf("modules.unreflected_fields", cr=self.cr) as span:
+            self.cr.execute(
+                "SELECT model, array_agg(name) FROM ir_model_fields GROUP BY model"
+            )
+            reflected = {model: set(names) for model, names in self.cr.fetchall()}
+            unreflected = {
+                model_name
+                for model_name, model in self.registry.models.items()
+                if any(
+                    not field.manual and name not in reflected.get(model_name, ())
+                    for name, field in model._fields.items()
+                )
+            }
+            without_column = {
+                model_name
+                for model_name, _table, _column in _stored_fields_without_column(
+                    self.registry, self.cr
+                )
+            }
+            before = len(self.models_to_check)
+            self.models_to_check.update(sorted(unreflected | without_column))
+            span.set(
+                unreflected=len(unreflected),
+                without_column=len(without_column),
+                added=len(self.models_to_check) - before,
+                to_check=len(self.models_to_check),
+            )
 
     def reinit_models_to_check(self) -> None:
         if not self.models_to_check:
@@ -2073,6 +2113,7 @@ def load_modules(
             return
 
         loader.collect_models_with_manual_fields()
+        loader.collect_models_with_unreflected_fields()
         loader.reinit_models_to_check()
         loader.warn_invalid_custom_views()
         loader.log_unresolved_access_domains()
