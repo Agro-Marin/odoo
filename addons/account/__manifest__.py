@@ -237,11 +237,6 @@ You could use this simplified accounting in case you work with an (external) acc
             "account/static/src/css/report_invoice.css",
         ],
     },
-    "esm": {
-        "bundles": [
-            "account.assets_financial_report",
-        ],
-    },
     "application": True,
     "post_init_hook": "_account_post_init",
 }

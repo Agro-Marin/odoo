@@ -35,9 +35,6 @@ Keeps track of depreciations, and creates corresponding journal entries.
         "demo/account_asset_demo.xml",
     ],
     "assets": {
-        "account.assets_financial_report": [
-            "account_depreciation/static/src/scss/account_asset.scss",
-        ],
         "web.assets_backend": [
             "account_depreciation/static/src/scss/account_asset.scss",
             "account_depreciation/static/src/components/**/*",
