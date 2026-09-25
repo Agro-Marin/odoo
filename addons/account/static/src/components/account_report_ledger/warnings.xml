@@ -10,6 +10,12 @@
         prior or included in this period.
     </t>
 
+    <t t-name="account.common_warning_fiscalyear_anchor">
+        This period follows the fiscal year of <t t-out="this.warningParams.main_company"/>.
+        <t t-out="this.warningParams.companies"/> close their fiscal year on another date:
+        their figures cover this date range, not their own fiscal year.
+    </t>
+
     <t t-name="account.common_possibly_unbalanced_because_cta">
         This report uses the CTA conversion method to consolidate multiple companies using different currencies,
         which can lead the report to be unbalanced.

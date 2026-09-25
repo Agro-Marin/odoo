@@ -170,3 +170,4 @@ from . import test_marin_payment_reconcile_fixes
 from . import test_marin_report_fiscalyear_scopes
 from . import test_marin_report_external_fiscalyear
 from . import test_marin_report_manual_value_company
+from . import test_marin_report_fiscalyear_anchor

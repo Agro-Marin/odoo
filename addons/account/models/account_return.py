@@ -1494,8 +1494,10 @@ class AccountReturn(models.Model):
     @_debug.perf.timed
     def action_export_working_files(self):
         _debug.lifecycle("action_export_working_files", records=self)
-        report = self.env.ref("account.trial_balance_report").with_company(
-            self.company_id.id
+        report = self.env.ref("account.trial_balance_report").with_context(
+            allowed_company_ids=self._get_report_allowed_company_ids(
+                accessible_only=True
+            )
         )
         options = report.get_options(
             {
@@ -1544,9 +1546,20 @@ class AccountReturn(models.Model):
             "type": "ir.actions.client",
             "name": self.type_id.report_id.display_name,
             "tag": "account_report",
-            "context": {"report_id": self.type_id.report_id.id},
+            "context": {
+                "report_id": self.type_id.report_id.id,
+                "allowed_company_ids": self._get_report_allowed_company_ids(
+                    accessible_only=True
+                ),
+            },
             "params": {"options": options, "ignore_session": True},
         }
+
+    def _get_report_allowed_company_ids(self, accessible_only=False):
+        companies = self.company_ids - self.company_id
+        if accessible_only:
+            companies &= self.env.user.company_ids
+        return [self.company_id.id, *companies.ids]
 
     def _get_closing_report_options(self):
         report = self.type_id.report_id
@@ -1569,12 +1582,9 @@ class AccountReturn(models.Model):
             "tax_unit": "company_only" if not self.tax_unit_id else self.tax_unit_id.id,
             "selected_return_type_id": self.type_id.id,
         }
-        current_company = self.env.company
-        company_ids = self.company_ids.ids
         return (
             report.sudo()
-            .with_context(allowed_company_ids=company_ids)
-            .with_company(current_company)
+            .with_context(allowed_company_ids=self._get_report_allowed_company_ids())
             .get_options(previous_options=options)
         )
 
@@ -2524,7 +2534,10 @@ class AccountReturn(models.Model):
 
     @_debug.perf.timed
     def _check_suite_annual_closing(self, check_codes_to_ignore):
+        report_company_ids = self._get_report_allowed_company_ids(accessible_only=True)
+
         def get_unknown_partner_aml_ids(report):
+            report = report.with_context(allowed_company_ids=report_company_ids)
             options = report.get_options({})
             unknown_partner_line = next(
                 (
@@ -2546,6 +2559,7 @@ class AccountReturn(models.Model):
             return aml_ids
 
         def has_overdue_aged_balance(report, older_expr):
+            report = report.with_context(allowed_company_ids=report_company_ids)
             options = report.get_options(
                 {"aging_interval": 15}
             )  # 15-day intervals so amounts aged over 60 fall under 'Older' column

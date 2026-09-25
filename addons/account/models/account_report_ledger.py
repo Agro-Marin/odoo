@@ -2433,6 +2433,15 @@ class AccountReport(models.Model):
         if options.get("available_tax_units") and options["tax_unit"] == "company_only":
             warnings["account.common_warning_tax_unit"] = {}
 
+        if options.get("date") and (
+            off_anchor := self._get_companies_off_fiscalyear_anchor(options)
+        ):
+            warnings["account.common_warning_fiscalyear_anchor"] = {
+                "alert_type": "warning",
+                "main_company": self.env.company.display_name,
+                "companies": ", ".join(off_anchor.mapped("display_name")),
+            }
+
         report_company_ids = self.get_report_company_ids(options)
         # The _get_accessible_branches function will return the accessible branches from the ones that are already selected,
         # and get_report_company_ids will return the current company and its branches (that are selected) with the same VAT
@@ -2906,6 +2915,34 @@ class AccountReport(models.Model):
                 self.get_report_company_ids(options)
             )
         }
+
+    def _get_companies_off_fiscalyear_anchor(self, options):
+        periods = [options["date"], *options.get("comparison", {}).get("periods", [])]
+        company_ids = set()
+        for period in periods:
+            if period.get("mode") != "range" or period.get("period_type") not in {
+                "fiscalyear",
+                "today",
+            }:
+                continue
+            date_to = fields.Date.to_date(period["date_to"])
+            anchor = self._get_year_bounds(date_to)
+            company_ids.update(
+                company_id
+                for company_id, fiscal_year in self._get_fiscalyear_dates_by_company(
+                    options, date_to
+                ).items()
+                if (fiscal_year["date_from"], fiscal_year["date_to"])
+                != (anchor["date_from"], anchor["date_to"])
+            )
+        _debug.logic(
+            "fiscalyear_anchor_checked",
+            report=self,
+            anchor_company=self.env.company,
+            periods=len(periods),
+            off_anchor=sorted(company_ids),
+        )
+        return self.env["res.company"].browse(sorted(company_ids))
 
     def _get_fiscalyear_start_by_company(self, options):
         if starts := options.get("fiscalyear_start_by_company"):
@@ -3580,40 +3617,23 @@ class AccountReport(models.Model):
             options["date"]["filter"] in {"today", "custom"}
             and options["date"]["mode"] == "single"
         ):
-            options_company_ids = [company["id"] for company in options["companies"]]
-            root_companies_ids = (
-                self.env["res.company"].browse(options_company_ids).root_id.ids
+            date_to = fields.Date.to_date(options["date"]["date_to"])
+            root_companies = (
+                self.env["res.company"]
+                .browse(self.get_report_company_ids(options))
+                .root_id
             )
-            fiscal_year = self.env["account.fiscal.year"].search_fetch(
-                [
-                    ("company_id", "in", root_companies_ids),
-                    ("date_from", "<=", options["date"]["date_to"]),
-                    ("date_to", ">=", options["date"]["date_to"]),
-                ],
-                limit=1,
-                field_names=["date_from"],
-            )
-            if fiscal_year:
-                _debug.logic(
-                    "date_from_fiscal_year",
-                    report=self,
-                    fiscal_year=fiscal_year,
-                )
-                return datetime.datetime.combine(
-                    fiscal_year.date_from, datetime.time.min
-                )
-
-            period_date_from, _ = date_utils.get_fiscal_year(
-                datetime.datetime.strptime(options["date"]["date_to"], "%Y-%m-%d"),
-                day=self.env.company.account_config_id.fiscalyear_last_day,
-                month=int(self.env.company.account_config_id.fiscalyear_last_month),
+            period_date_from = min(
+                company.compute_fiscalyear_dates(date_to)["date_from"]
+                for company in root_companies
             )
             _debug.logic(
-                "date_from_company_fiscal",
+                "date_from_earliest_fiscal_year",
                 report=self,
+                companies=root_companies,
                 date_from=period_date_from,
             )
-            return period_date_from
+            return datetime.datetime.combine(period_date_from, datetime.time.min)
 
         date_from = datetime.datetime.strptime(options["date"]["date_from"], "%Y-%m-%d")
         if options["date"]["period_type"] == "fiscalyear":
