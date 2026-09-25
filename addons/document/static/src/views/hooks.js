@@ -9,7 +9,7 @@ import { PdfManager } from "@document/owl/components/pdf_manager/pdf_manager";
 import { PromoteStudioAutomationDialog } from "@web/webclient/promote_studio/promote_studio_dialog";
 import { EventBus, onMounted, useEnv, useRef } from "@odoo/owl";
 import { provideViewModel } from "@web/model/model";
-import { provideDocumentContext } from "@document/document_context";
+import { provideDocumentContext } from "@document/views/document_context";
 
 export const DETAIL_PANEL_REQUIRED_FIELDS = [
     "lock_uid",

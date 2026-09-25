@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
+import { usePosSelfOrderContext } from "@pos_self_order/app/pos_self_order_context";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
-import { usePosSelfOrderContext } from "@pos_self_order/pos_self_order_context";
 
 import { AttributeSelectionHelper } from "./attribute_selection_helper.js";
 

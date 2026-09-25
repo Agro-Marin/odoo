@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { patch } from "@web/core/utils/patch";
 import { ProductConfiguratorDialog } from "@sale/js/product_configurator_dialog/product_configurator_dialog";
-import { provideWebsiteSaleStockContext } from "@website_sale_stock/website_sale_stock_context";
+import { provideWebsiteSaleStockContext } from "@website_sale_stock/js/product_configurator_dialog/website_sale_stock_context";
 
 patch(ProductConfiguratorDialog.prototype, {
     setup() {

@@ -11,7 +11,7 @@ import { toFolderValueId } from "@document/views/utils";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { useViewModel } from "@web/model/model";
 import { useSearchModel } from "@web/search/search_model";
-import { useDocumentContext } from "@document/document_context";
+import { useDocumentContext } from "@document/views/document_context";
 
 const DND_ALLOWED_SPECIAL_DESTINATIONS = ["COMPANY", "MY"];
 const LONG_TOUCH_THRESHOLD = 400;

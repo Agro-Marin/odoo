@@ -19,12 +19,15 @@ import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { renderToElement } from "@web/core/utils/render";
 import { WebsiteDialog } from "@website/components/dialog/dialog";
 import {
+    provideWebsiteContext,
+    useWebsiteContext,
+} from "@website/components/dialog/website_context";
+import {
     applyTextHighlight,
     getObservedEls,
     removeTextHighlight,
 } from "@website/js/highlight_utils";
 import { onceAllImagesLoaded } from "@website/utils/images";
-import { provideWebsiteContext, useWebsiteContext } from "@website/website_context";
 
 const NO_OP = () => {};
 

@@ -10,7 +10,7 @@ import {
     getCommonEmbeddedActions,
 } from "@document/views/utils";
 import { getSpecEvalContext } from "@web/model/relational_model";
-import { useDocumentContext } from "@document/document_context";
+import { useDocumentContext } from "@document/views/document_context";
 
 export const DocumentsModelMixin = (component) =>
     class extends component {

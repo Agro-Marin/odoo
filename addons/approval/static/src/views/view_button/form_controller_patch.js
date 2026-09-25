@@ -3,7 +3,7 @@ import { patch } from "@web/core/utils/patch";
 import { FormController } from "@web/views/form";
 
 import { trace } from "../../common/approval_trace.js";
-import { provideApprovalContext } from "@approval/approval_context";
+import { provideApprovalContext } from "@approval/views/approval_context";
 
 patch(FormController.prototype, {
     setup() {

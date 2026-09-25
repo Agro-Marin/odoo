@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Composer } from "@mail/core/common/composer";
 import { onWillStart } from "@odoo/owl";
-import { usePortalContext } from "@portal/portal_context";
+import { usePortalContext } from "@portal/chatter/core/portal_context";
 import { patch } from "@web/core/utils/patch";
 
 patch(Composer.prototype, {

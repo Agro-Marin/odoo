@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { useAccountContext } from "@account/account_context";
+import { useAccountContext } from "@account/components/account_context";
 import { Component, onWillStart } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { colorScheme } from "@web/core/color_scheme";

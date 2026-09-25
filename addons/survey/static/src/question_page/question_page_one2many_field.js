@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { provideSurveyContext } from "@survey/survey_context";
+import { provideSurveyContext } from "@survey/question_page/survey_context";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";

@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Chatter, chatterProps } from "@mail/chatter/web_portal/chatter";
 import { onWillUpdateProps } from "@odoo/owl";
-import { providePortalContext } from "@portal/portal_context";
+import { providePortalContext } from "@portal/chatter/core/portal_context";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 

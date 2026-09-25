@@ -1,5 +1,8 @@
 /** @odoo-module native */
-import { provideAccountContext, useAccountContext } from "@account/account_context";
+import {
+    provideAccountContext,
+    useAccountContext,
+} from "@account/components/account_context";
 import { reactive } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { KanbanRenderer } from "@web/views/kanban";

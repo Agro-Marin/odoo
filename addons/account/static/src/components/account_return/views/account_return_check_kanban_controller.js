@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { provideAccountContext } from "@account/account_context";
+import { provideAccountContext } from "@account/components/account_context";
 import { useSetupAction } from "@web/core/action_hook";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { KanbanController } from "@web/views/kanban";

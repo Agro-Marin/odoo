@@ -9,7 +9,7 @@ import {
     provideViewButtonContext,
     useViewButtonContext,
 } from "@web/core/view_button_context_hooks";
-import { useApprovalContext } from "@approval/approval_context";
+import { useApprovalContext } from "@approval/views/approval_context";
 
 patch(ViewButton.prototype, {
     setup() {

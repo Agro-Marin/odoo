@@ -2,7 +2,7 @@
 import { COG_GROUP } from "@web/search/cog_menu/cog_menu_group";
 import { DocumentsCogMenuItem } from "./document_cog_menu_item.js";
 import { _t } from "@web/core/translation";
-import { useDocumentContext } from "@document/document_context";
+import { useDocumentContext } from "@document/views/document_context";
 
 export class DocumentsCogMenuItemAutomations extends DocumentsCogMenuItem {
     setup() {

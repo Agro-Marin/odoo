@@ -3,7 +3,7 @@ import { DocumentsFileViewer } from "@document/attachments/document_file_viewer"
 import { Component, useRef, useState } from "@odoo/owl";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useService } from "@web/core/utils/hooks";
-import { useDocumentContext } from "@document/document_context";
+import { useDocumentContext } from "@document/views/document_context";
 
 /** Fixed-position host of the viewer inside a documents view. */
 export class DocumentsFileViewerHost extends Component {

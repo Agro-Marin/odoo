@@ -2,7 +2,7 @@
 import { Component, useRef } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { useDocumentContext } from "@document/document_context";
+import { useDocumentContext } from "@document/views/document_context";
 
 export class DocumentsTypeIcon extends Component {
     static template = "document.DocumentsTypeIcon";

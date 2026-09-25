@@ -2,15 +2,15 @@
 import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { AttributeSelection } from "@pos_self_order/app/components/attribute_selection/attribute_selection";
 import {
+    providePosSelfOrderContext,
+    usePosSelfOrderContext,
+} from "@pos_self_order/app/pos_self_order_context";
+import {
     getAttributeValues,
     getAttributeValuesExtraPrice,
     getProductVariantByAttributes,
 } from "@pos_self_order/app/services/card_utils";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
-import {
-    providePosSelfOrderContext,
-    usePosSelfOrderContext,
-} from "@pos_self_order/pos_self_order_context";
 import { useService } from "@web/core/utils/hooks";
 
 import { useScrollShadow } from "../../utils/scroll_shadow_hook.js";

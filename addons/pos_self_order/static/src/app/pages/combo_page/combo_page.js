@@ -3,11 +3,11 @@ import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl
 import { AttributeSelection } from "@pos_self_order/app/components/attribute_selection/attribute_selection";
 import { ComboStepper } from "@pos_self_order/app/components/combo_stepper/combo_stepper";
 import { ProductNameWidget } from "@pos_self_order/app/components/product_name_widget/product_name_widget";
-import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import {
     providePosSelfOrderContext,
     usePosSelfOrderContext,
-} from "@pos_self_order/pos_self_order_context";
+} from "@pos_self_order/app/pos_self_order_context";
+import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { useService } from "@web/core/utils/hooks";
 
 import { computeTotalComboPrice } from "../../services/card_utils.js";

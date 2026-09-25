@@ -1,5 +1,8 @@
 /** @odoo-module native */
-import { provideAccountContext, useAccountContext } from "@account/account_context";
+import {
+    provideAccountContext,
+    useAccountContext,
+} from "@account/components/account_context";
 import { registry } from "@web/core/registry";
 
 import {

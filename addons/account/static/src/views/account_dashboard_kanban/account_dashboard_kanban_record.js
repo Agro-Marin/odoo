@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { useAccountContext } from "@account/account_context";
+import { useAccountContext } from "@account/components/account_context";
 import { AccountFileUploader } from "@account/components/account_file_uploader/account_file_uploader";
 import { UploadDropZone } from "@account/components/upload_drop_zone/upload_drop_zone";
 import { onWillStart, useState } from "@odoo/owl";

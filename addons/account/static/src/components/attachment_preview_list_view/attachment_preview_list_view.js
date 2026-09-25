@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { provideChildAccountContext } from "@account/account_context";
+import { provideChildAccountContext } from "@account/components/account_context";
 import { useState } from "@odoo/owl";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";

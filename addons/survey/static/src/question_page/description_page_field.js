@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { useRef } from "@odoo/owl";
-import { useSurveyContext } from "@survey/survey_context";
+import { useSurveyContext } from "@survey/question_page/survey_context";
 import { registry } from "@web/core/registry";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { CharField, charField } from "@web/fields/basic/char/char_field";

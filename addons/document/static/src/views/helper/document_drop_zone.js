@@ -3,7 +3,7 @@ import { Component, useState } from "@odoo/owl";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useService } from "@web/core/utils/hooks";
 import { useSearchModel } from "@web/search/search_model";
-import { useDocumentContext } from "@document/document_context";
+import { useDocumentContext } from "@document/views/document_context";
 
 export class DocumentsDropZone extends Component {
     static template = "document.DocumentsDropZone";

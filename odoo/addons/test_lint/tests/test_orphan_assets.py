@@ -20,6 +20,7 @@ URL_FETCHED = frozenset(
         "mail/static/src/discuss/voice_message/worklets/processor.js",
         "mail/static/src/service_worker.js",
         "mail/static/src/worklets/audio_processor.js",
+        "speech/static/src/worklets/pcm_capture.js",
         "web/static/src/module_loader.js",
         "web/static/src/public/database_manager.js",
         "web/static/src/service_worker.js",

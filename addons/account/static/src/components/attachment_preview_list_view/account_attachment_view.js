@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { useAccountContext } from "@account/account_context";
+import { useAccountContext } from "@account/components/account_context";
 import { AttachmentView } from "@mail/core/common/attachment_view";
 import { onMounted } from "@odoo/owl";
 import { useBus } from "@web/core/utils/hooks";
