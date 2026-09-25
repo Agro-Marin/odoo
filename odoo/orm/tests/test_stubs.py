@@ -131,6 +131,7 @@ def _run_mypy(tmp_path, source, client_source, *, check_stub=False):
             "-m",
             "mypy",
             "--no-incremental",
+            "--no-color-output",
             "--config-file",
             str(config),
             str(client),
