@@ -550,7 +550,6 @@ class TestAccountReturn(TestAccountReportsCommon):
         profit_account = self.company_data["default_account_revenue"]
         loss_account = self.company_data["default_account_expense"]
         with (
-            self.allow_pdf_render(),
             self._patch_postprocess_vat_closing_entry_results(
                 profit_account, loss_account, *report_lines
             ),
@@ -609,8 +608,7 @@ class TestAccountReturn(TestAccountReportsCommon):
         )
 
         # Locking this one ("2023-12-01", "2023-12-31")
-        with self.allow_pdf_render():
-            existing_returns[0].action_validate()
+        existing_returns[0].action_validate()
 
         # Regenerate new returns without overriding posted ones
         with self._patch_returns_generation():
@@ -661,8 +659,7 @@ class TestAccountReturn(TestAccountReportsCommon):
         )
 
         # Locking this one ("2023-11-01", "2023-12-31")
-        with self.allow_pdf_render():
-            existing_returns[0].action_validate()
+        existing_returns[0].action_validate()
 
         # Regenerate new returns without overriding posted ones
         with self._patch_returns_generation():
@@ -723,8 +720,7 @@ class TestAccountReturn(TestAccountReportsCommon):
             ]
         )
         # Locking this one ("2023-12-01", "2023-12-31")
-        with self.allow_pdf_render():
-            existing_returns[0].action_validate()
+        existing_returns[0].action_validate()
 
         with self._patch_returns_generation():
             self.basic_return_type.deadline_start_date = "2024-12-01"
@@ -1178,8 +1174,7 @@ class TestAccountReturn(TestAccountReportsCommon):
         )
         self.assertEqual(len(first_return), 1)
 
-        with self.allow_pdf_render():
-            first_return.action_validate()
+        first_return.action_validate()
 
         self.assertTrue(first_return.closing_move_ids)
 
@@ -1387,9 +1382,8 @@ class TestAccountReturn(TestAccountReportsCommon):
             limit=2,
         )
 
-        with self.allow_pdf_render():
-            first_return.action_validate()
-            second_return.action_validate()
+        first_return.action_validate()
+        second_return.action_validate()
 
         self.company_data["company"].account_config_id.tax_lock_date = (
             first_return.date_from - relativedelta(days=1)
@@ -1411,13 +1405,11 @@ class TestAccountReturn(TestAccountReportsCommon):
             limit=2,
         )
 
-        with self.allow_pdf_render():
-            with self.assertRaises(UserError):
-                second_return.action_validate()
-
-        with self.allow_pdf_render():
-            first_return.action_validate()
+        with self.assertRaises(UserError):
             second_return.action_validate()
+
+        first_return.action_validate()
+        second_return.action_validate()
 
     def test_return_manual_creation_wizard_single_return(self):
         original_number_of_returns = self.env["account.return"].search_count([])
@@ -2582,8 +2574,7 @@ class TestAccountReturn(TestAccountReportsCommon):
                 ("date_to", "=", "2024-01-31"),
             ]
         )
-        with self.allow_pdf_render():
-            january_return.action_validate(bypass_failing_tests=True)
+        january_return.action_validate(bypass_failing_tests=True)
         self.assertEqual(january_return.total_amount_to_pay, -2.1)
         self.assertEqual(january_return.period_amount_to_pay, -2.1)
         self.assertRecordValues(
@@ -2601,8 +2592,7 @@ class TestAccountReturn(TestAccountReportsCommon):
                 ("date_to", "=", "2024-02-29"),
             ]
         )
-        with self.allow_pdf_render():
-            february_return.action_validate(bypass_failing_tests=True)
+        february_return.action_validate(bypass_failing_tests=True)
         self.assertEqual(february_return.total_amount_to_pay, 2.1)
         self.assertEqual(february_return.period_amount_to_pay, 4.2)
         self.assertRecordValues(
@@ -2621,8 +2611,7 @@ class TestAccountReturn(TestAccountReportsCommon):
                 ("date_to", "=", "2024-03-31"),
             ]
         )
-        with self.allow_pdf_render():
-            march_return.action_validate(bypass_failing_tests=True)
+        march_return.action_validate(bypass_failing_tests=True)
         self.assertEqual(march_return.total_amount_to_pay, 6.3)
         self.assertEqual(march_return.period_amount_to_pay, 6.3)
         self.assertRecordValues(
@@ -2640,8 +2629,7 @@ class TestAccountReturn(TestAccountReportsCommon):
                 ("date_to", "=", "2024-04-30"),
             ]
         )
-        with self.allow_pdf_render():
-            april_return.action_validate(bypass_failing_tests=True)
+        april_return.action_validate(bypass_failing_tests=True)
         self.assertEqual(april_return.total_amount_to_pay, -21.0)
         self.assertEqual(april_return.period_amount_to_pay, -21.0)
         self.assertRecordValues(
@@ -2659,8 +2647,7 @@ class TestAccountReturn(TestAccountReportsCommon):
                 ("date_to", "=", "2024-05-31"),
             ]
         )
-        with self.allow_pdf_render():
-            may_return.action_validate(bypass_failing_tests=True)
+        may_return.action_validate(bypass_failing_tests=True)
         self.assertEqual(may_return.total_amount_to_pay, -18.9)
         self.assertEqual(may_return.period_amount_to_pay, 2.10)
         self.assertRecordValues(
@@ -2679,8 +2666,7 @@ class TestAccountReturn(TestAccountReportsCommon):
                 ("date_to", "=", "2024-06-30"),
             ]
         )
-        with self.allow_pdf_render():
-            june_return.action_validate(bypass_failing_tests=True)
+        june_return.action_validate(bypass_failing_tests=True)
         self.assertEqual(june_return.total_amount_to_pay, 0.0)
         self.assertEqual(june_return.period_amount_to_pay, 18.9)
         self.assertRecordValues(
@@ -2709,8 +2695,7 @@ class TestAccountReturn(TestAccountReportsCommon):
                 ("date_to", "=", "2024-07-31"),
             ]
         )
-        with self.allow_pdf_render():
-            july_return.action_validate(bypass_failing_tests=True)
+        july_return.action_validate(bypass_failing_tests=True)
         self.assertEqual(july_return.total_amount_to_pay, 210.5)
         self.assertEqual(july_return.period_amount_to_pay, 10.5)
         self.assertRecordValues(

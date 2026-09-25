@@ -54,3 +54,18 @@ def test_a_hosts_file_loopback_name_stays_loopback_for_the_egress_guard():
             policy=netguard.PUBLIC_ONLY,
             resolver=transaction_case._offline_getaddrinfo,
         )
+
+
+@pytest.mark.parametrize(
+    "host", ["erp.invalid", "erp.test", "foo.internal", "nas.home.arpa"]
+)
+def test_a_name_public_dns_never_answers_does_not_resolve(host):
+    with pytest.raises(socket.gaierror):
+        transaction_case._offline_getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+    with pytest.raises(netguard.DestinationRefused):
+        netguard.check_host(
+            host,
+            443,
+            policy=netguard.PUBLIC_ONLY,
+            resolver=transaction_case._offline_getaddrinfo,
+        )

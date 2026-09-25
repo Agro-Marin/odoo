@@ -238,7 +238,7 @@ class TestDataRecycle(TransactionCase):
         # tests do for code that commits mid-run. The cursor must be opened
         # while `current_test` is still set -- `TestCursor` itself asserts
         # that on open -- so the patch only wraps the call, not the `with`.
-        with self.enter_registry_test_mode(), self.registry.cursor() as cr:
+        with self.sync_env_with_side_cursors(), self.registry.cursor() as cr:
             env = api.Environment(cr, self.env.uid, self.env.context)
             with (
                 patch.object(odoo_module, "current_test", False),

@@ -120,7 +120,7 @@ class TestAccountPartner(AccountTestInvoicingCommon):
             ]
         ).action_post()
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.cr.postcommit.run()
         self.assertEqual(self.partner_a.supplier_rank, 1)
         self.assertEqual(self.partner_a.customer_rank, 1)
@@ -136,7 +136,7 @@ class TestAccountPartner(AccountTestInvoicingCommon):
                 },
             ]
         ).action_post()
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.cr.postcommit.run()
         self.assertEqual(self.partner_a.customer_rank, 2)
 
@@ -729,7 +729,7 @@ class TestAccountPartner(AccountTestInvoicingCommon):
         self.env.cr.execute("DELETE FROM res_partner WHERE id = %s", (deleted_id,))
         self.env.invalidate_all()
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.cr.postcommit.run()
 
         self.env.invalidate_all()

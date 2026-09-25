@@ -397,6 +397,8 @@ class TestStream(TransactionCase):
 
 @tagged("post_install", "-at_install", "integration")
 class TestStreamLease(TransactionCase):
+    registry_test_mode = False
+
     def test_a_second_runtime_cannot_lead_while_the_first_does(self):
         first, second = StreamRuntime(), StreamRuntime()
         self.addCleanup(first.shutdown)

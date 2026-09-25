@@ -5328,7 +5328,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
 
         (valid_invoice + invalid_invoice_1 + invalid_invoice_2).auto_post = "at_date"
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref(
                 "account.ir_cron_auto_post_draft_entry"
             ).method_direct_trigger()
@@ -6630,7 +6630,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
             )
 
         def post_next_entry():
-            with self.enter_registry_test_mode():
+            with self.sync_env_with_side_cursors():
                 self.env.ref(
                     "account.ir_cron_auto_post_draft_entry"
                 ).method_direct_trigger()

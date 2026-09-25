@@ -482,7 +482,7 @@ class TestNemhandelMessage(TestAccountMoveSendCommon):
                 "odoo.addons.account_edi_ubl_cii.models.account_edi_xml_ubl_20.AccountEdiXmlUBL20._export_invoice_constraints",
                 mocked_export_invoice_constraints,
             ),
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             wizard.action_send_and_print()
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()

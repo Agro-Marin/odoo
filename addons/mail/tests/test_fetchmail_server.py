@@ -67,7 +67,7 @@ class FetchmailCommon(TransactionCase):
 
     @contextlib.contextmanager
     def _polling_cursor(self, **context):
-        with self.enter_registry_test_mode(), self.registry.cursor() as cr:
+        with self.sync_env_with_side_cursors(), self.registry.cursor() as cr:
             yield self.env(cr=cr, context=dict(self.env.context, **context))
 
     def _server(self, **values):
@@ -619,7 +619,7 @@ class TestFetchmailPolling(FetchmailCommon):
 
     def test_the_sink_follows_a_replaced_handler(self):
         server = self._server(name="late bound")
-        with self.enter_registry_test_mode(), self.registry.cursor() as cr:
+        with self.sync_env_with_side_cursors(), self.registry.cursor() as cr:
             sink = server._prepare_message_sink(cr)
             self.assertEqual(
                 sink.options,
@@ -647,7 +647,7 @@ class TestFetchmailPolling(FetchmailCommon):
             seen["message"] = message
 
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: connection),
             patch.object(
@@ -673,7 +673,7 @@ class TestFetchmailPolling(FetchmailCommon):
             processed.append(message)
 
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: connection),
             patch.object(
@@ -700,7 +700,7 @@ class TestFetchmailPolling(FetchmailCommon):
                 raise ValueError("unparseable")
 
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: connection),
             patch.object(
@@ -717,7 +717,7 @@ class TestFetchmailPolling(FetchmailCommon):
         server = self._server(name="busy")
         connection = MockedConnection({n: _message(n) for n in range(1, 6)})
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: connection),
             patch.object(
@@ -795,7 +795,7 @@ class TestFetchmailDurability(FetchmailCommon):
     def _poll(self, connection, message_process):
         server = self._server(name="durable")
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: connection),
             patch.object(
@@ -854,7 +854,7 @@ class TestFetchmailDurability(FetchmailCommon):
         connection = MockedConnection({1: _message(1)})
         order = []
         connection.mark_message_handled = lambda num: order.append("acknowledged")
-        with self.enter_registry_test_mode(), self.registry.cursor() as cr:
+        with self.sync_env_with_side_cursors(), self.registry.cursor() as cr:
             commit = type(cr).commit
 
             def spy(this):
@@ -892,7 +892,7 @@ class TestFetchmailDurability(FetchmailCommon):
             polling_cr.append(obj.env.cr)
 
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: connection),
             patch.object(type(self.env["ir.cron"]), "_commit_progress", spy),
@@ -921,7 +921,7 @@ class TestFetchmailDurability(FetchmailCommon):
         publish = type(self.env["ir.cron"])._commit_progress
 
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as poll_cr,
             patch.object(type(server), "_connect__", lambda self, **kw: connection),
         ):
@@ -978,7 +978,7 @@ class TestFetchmailAccounting(FetchmailCommon):
             )
         )
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: connection),
             patch.object(
@@ -1035,7 +1035,7 @@ class TestFetchmailAccounting(FetchmailCommon):
                 raise ValueError("unparseable")
 
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: connection),
             patch.object(
@@ -1059,7 +1059,7 @@ class TestFetchmailAccounting(FetchmailCommon):
         server = self._server(name="unflaggable")
         connection = MockedConnection({1: _message(1)}, fail_ack=True)
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: connection),
             patch.object(
@@ -1111,7 +1111,7 @@ class TestFetchmailProgress(FetchmailCommon):
             )
         )
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: connection),
             patch.object(type(self.env["ir.cron"]), "_commit_progress", spy),
@@ -1138,7 +1138,7 @@ class TestFetchmailProgress(FetchmailCommon):
             )
         )
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(
                 self.registry["fetchmail.server"],
@@ -1188,7 +1188,7 @@ class TestFetchmailProgress(FetchmailCommon):
             )
         )
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
             patch.object(type(server), "_connect__", lambda self, **kw: Broken()),
         ):

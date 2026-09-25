@@ -786,7 +786,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertTrue(invoice1.is_being_sent)
         self.assertTrue(invoice2.is_being_sent)
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
         self.assertTrue(invoice1.invoice_pdf_report_id)
         invoice_attachments = self.env["ir.attachment"].search(
@@ -823,7 +823,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             },
         )
         wizard.action_send_and_print()
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
         invoice_attachments = self.env["ir.attachment"].search(
             [
@@ -901,7 +901,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         self.assertTrue("account_missing_email" in wizard.alerts)
         self.assertEqual(wizard.alerts["account_missing_email"]["level"], "warning")
         wizard.action_send_and_print()
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
         self.assertTrue(invoice1.invoice_pdf_report_id)
         self.assertFalse(self._get_mail_message(invoice1, limit=None).partner_ids)
@@ -1199,7 +1199,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         wizard = self.create_send_and_print(invoice_1 + invoice_2)
 
         wizard.action_send_and_print()
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
         self.assertTrue(invoice_1.invoice_pdf_report_id)
         self.assertTrue(invoice_2.invoice_pdf_report_id)
@@ -1298,7 +1298,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
         invoices = invoices.sudo()
         self.assertFalse(invoices.invoice_pdf_report_id)
         self.assertTrue(all(invoice.sending_data for invoice in invoices))
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
         self.assertTrue(all(invoice.invoice_pdf_report_id for invoice in invoices))
         self.assertTrue(all(not invoice.sending_data for invoice in invoices))
@@ -1331,7 +1331,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
             return real_send_mail(self, move, *args, **kwargs)
 
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(MixinAccountMoveSend, "_send_mail", _send_mail_maybe_fail),
             self.assertLogs(_SEND_LOGGER, "ERROR") as logs,
         ):
@@ -1400,7 +1400,7 @@ class TestAccountMoveSend(TestAccountMoveSendCommon):
                 "odoo.addons.account.models.mixin_account_move_send.MixinAccountMoveSend._hook_invoice_document_before_pdf_report_render",
                 _hook_invoice_document_before_pdf_report_render,
             ),
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
             self.env.cr.precommit.run()

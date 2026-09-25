@@ -8,7 +8,7 @@ import operator
 import threading
 import time
 from contextlib import ExitStack, contextmanager
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import Any, ClassVar
 from unittest.mock import patch
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 from uuid import uuid4
@@ -32,9 +32,6 @@ from .transaction_case import (
     release_test_lock,
 )
 from .utils import HOST, InfrastructureUnavailable, env_int, get_db_name
-
-if TYPE_CHECKING:
-    from collections.abc import Generator
 
 _logger = logging.getLogger(__name__)
 _debug = DebugLog(__name__)
@@ -93,7 +90,6 @@ class JsonRpcException(Exception):
 
 
 class HttpCase(TransactionCase):
-    registry_test_mode = True
     browser = None
     browser_size = "1366x768"
     touch_enabled = False
@@ -110,8 +106,6 @@ class HttpCase(TransactionCase):
                 f"{cls.__name__} requires a running HTTP server (--no-http?)"
             )
         super().setUpClass()
-        if cls.registry_test_mode:
-            cls.registry_enter_test_mode_cls()
 
         ICP = cls.env["ir.config_parameter"]
         ICP.set_param("web.base.url", cls.base_url())  # type: ignore[attr-defined]  # ir.config_parameter is an addon model
@@ -162,18 +156,6 @@ class HttpCase(TransactionCase):
     def _close_opener(self) -> None:
         _debug.lifecycle("test.http.opener_closed", test=_tag(self))
         self.opener.close()
-
-    @contextmanager
-    def enter_registry_test_mode(self) -> Generator[None]:
-        _debug.logic("test.registry.test_mode_redundant", test=_tag(self))
-        _logger.warning("HTTPCase is already in test mode")
-        yield
-
-    @contextmanager
-    def allow_pdf_render(self) -> Generator[None]:
-        _debug.logic("test.registry.pdf_render_redundant", test=_tag(self))
-        _logger.warning("HTTPCase does not require calling allow_pdf_render")
-        yield
 
     @contextmanager
     def allow_requests(self, browser: ChromeBrowser | None = None, all_requests=False):

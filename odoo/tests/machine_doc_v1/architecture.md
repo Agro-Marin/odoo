@@ -7,9 +7,16 @@ unittest.TestCase
   └─ case.TestCase           (vendored: trimmed run loop, subtests, tb surgery)
        └─ BaseCase           (tags, retry, HTTP blocking, patch helpers)     [transaction_case.py]
             ├─ TransactionCase        (one class-level tx; savepoint per test) [transaction_case.py]
-            │    └─ HttpCase          (registry test mode + url_open/browser_js) [http.py]
+            │    └─ HttpCase          (url_open/browser_js)                        [http.py]
             └─ SingleTransactionCase  (one tx across all test methods; no savepoints)
 ```
+
+- Both transaction cases put the registry in **test mode** in `setUpClass`:
+  `registry.cursor()` then hands out a test cursor on the class's own
+  transaction, so production code that opens a side cursor stays inside the
+  test's rollback. A test that needs a real second connection (a lock race, a
+  side cursor after its transaction aborted) sets `registry_test_mode = False`
+  on its class, or uses `leave_registry_test_mode()` for one block.
 
 - `BaseCase.__init_subclass__` assigns default `test_tags = {standard,
   at_install}` and `test_module` (used by tag selection) to any subclass in

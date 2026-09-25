@@ -610,7 +610,7 @@ class TestPeppolMessage(TestAccountMoveSendCommon, MailCommon):
             (move_1 + move_2 + move_3).mapped("is_being_sent"), [True, True, True]
         )
         # the cron is ran asynchronously and should be agnostic from the current self.env.company
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("account.ir_cron_account_move_send").with_company(
                 company_2
             ).method_direct_trigger()
@@ -661,7 +661,7 @@ class TestPeppolMessage(TestAccountMoveSendCommon, MailCommon):
         self.assertEqual(not_peppol_partner.peppol_verification_state, "not_verified")
         wizard.action_send_and_print()
         self.assertEqual((move_1 + move_2).mapped("is_being_sent"), [True, True])
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
         self.assertRecordValues(
             (move_1 + move_2),
@@ -731,7 +731,7 @@ class TestPeppolMessage(TestAccountMoveSendCommon, MailCommon):
             },
         )
         wizard.action_send_and_print()
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()
 
         self.assertEqual(len(moves.ubl_cii_xml_id), 2)
@@ -758,7 +758,7 @@ class TestPeppolMessage(TestAccountMoveSendCommon, MailCommon):
                 "odoo.addons.account_edi_ubl_cii.models.account_edi_xml_ubl_20.AccountEdiXmlUBL20._export_invoice_constraints",
                 mocked_export_invoice_constraints,
             ),
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             wizard.action_send_and_print()
             self.env.ref("account.ir_cron_account_move_send").method_direct_trigger()

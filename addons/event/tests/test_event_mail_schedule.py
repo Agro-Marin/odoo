@@ -121,7 +121,7 @@ class EventMailCommon(EventCase, MailCase, CronMixinCase):
                 stack.enter_context(self.mock_datetime_and_now(freeze_date))
             stack.enter_context(self.mock_mail_gateway())
             stack.enter_context(self.mock_mail_app())
-            stack.enter_context(self.enter_registry_test_mode())
+            stack.enter_context(self.sync_env_with_side_cursors())
             capture = stack.enter_context(
                 self.capture_triggers("event.event_mail_scheduler")
             )

@@ -328,7 +328,7 @@ class TestScheduledMessageBusiness(TestScheduledMessage, CronMixinCase):
         with (
             self.mock_mail_gateway(),
             self.mock_datetime_and_now(self.reference_now),
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             # Needed to get force_send disabled due to mail_notify_force_send in the context
             self.env.ref("mail.ir_cron_post_scheduled_message").with_user(

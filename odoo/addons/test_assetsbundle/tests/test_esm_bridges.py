@@ -364,6 +364,7 @@ class TestParentSelfBridge(TransactionCase):
 
 
 class TestBridgeRwCursorEscalation(TransactionCase):
+    registry_test_mode = False
     URL_PREFIX = "/web/assets/esm/bridges/rwprobe"
 
     def setUp(self):

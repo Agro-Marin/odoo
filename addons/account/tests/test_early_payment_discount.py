@@ -189,19 +189,17 @@ class TestAccountEarlyPaymentDiscount(AccountTestInvoicingCommon):
 
         self.assertEqual(out_invoice.invoice_date, False)
 
-        with self.allow_pdf_render():
-            report = (
-                self.env["ir.actions.report"]
-                .with_context(force_report_rendering=True)
-                ._render_qweb_pdf("account.account_invoices", res_ids=out_invoice.id)
-            )
+        report = (
+            self.env["ir.actions.report"]
+            .with_context(force_report_rendering=True)
+            ._render_qweb_pdf("account.account_invoices", res_ids=out_invoice.id)
+        )
         self.assertTrue(report)
 
         out_invoice.invoice_payment_term_id = self.pay_30_percents_now_balance_60_days
-        with self.allow_pdf_render():
-            new_report = self.env["ir.actions.report"]._render_qweb_pdf(
-                "account.account_invoices", res_ids=out_invoice.id
-            )
+        new_report = self.env["ir.actions.report"]._render_qweb_pdf(
+            "account.account_invoices", res_ids=out_invoice.id
+        )
         self.assertTrue(new_report)
 
     def test_fixed_tax_amount_discounted_payment_mixed(self):

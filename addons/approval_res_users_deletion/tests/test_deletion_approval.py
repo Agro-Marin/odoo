@@ -31,7 +31,7 @@ class TestDeletionApproval(TransactionCase):
         return self.env["res.users.deletion"].search([("user_id", "=", user.id)])
 
     def _run_cron(self):
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("base.ir_cron_res_users_deletion").method_direct_trigger()
 
     @mute_logger("odoo.addons.base.models.res_users_deletion")

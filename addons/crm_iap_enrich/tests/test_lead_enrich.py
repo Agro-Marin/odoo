@@ -8,7 +8,6 @@ class TestLeadEnrich(TestCrmCommon, MockIAPEnrich):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.registry_enter_test_mode_cls()
 
         cls.leads = cls.env["crm.lead"]
         for x in range(4):

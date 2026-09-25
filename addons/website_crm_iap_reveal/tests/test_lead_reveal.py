@@ -9,7 +9,6 @@ class TestLeadMine(TestCrmCommon, MockIAPReveal):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.registry_enter_test_mode_cls()
 
         cls.test_industry_tags = cls.env.ref(
             "crm_iap_mine.crm_iap_mine_industry_33"

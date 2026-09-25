@@ -706,7 +706,7 @@ class TestMassMailValues(MassMailCommon):
         mailing.action_put_in_queue()
         with (
             self.mock_mail_gateway(mail_unlink_sent=False),
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             self.env.ref(
                 "mass_mailing.ir_cron_mass_mailing_queue"
@@ -1000,7 +1000,7 @@ class TestMassMailFeatures(MassMailCommon, CronMixinCase):
         self.assertEqual(mailing.email_from, self.env.user.email_formatted)
         with (
             self.mock_mail_gateway(mail_unlink_sent=False),
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             self.env.ref(
                 "mass_mailing.ir_cron_mass_mailing_queue"
@@ -1053,7 +1053,7 @@ Email: <a id="url5" href="mailto:test@odoo.com">test@odoo.com</a></div>""",
 
         with (
             self.mock_mail_gateway(mail_unlink_sent=False),
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             self.env.ref(
                 "mass_mailing.ir_cron_mass_mailing_queue"

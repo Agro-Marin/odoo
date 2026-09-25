@@ -93,6 +93,8 @@ class TestCredentialUnlinkAudit(CredentialUnlinkCommon):
 
 @tagged("post_install", "-at_install")
 class TestCredentialUnlinkRealCursor(CredentialUnlinkCommon):
+    registry_test_mode = False
+
     def test_unlink_on_a_real_cursor(self):
         registry = self.env.registry
         dbname = self.env.cr.dbname

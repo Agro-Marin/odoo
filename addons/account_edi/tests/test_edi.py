@@ -228,7 +228,7 @@ class TestAccountEdi(AccountEdiTestCommon, CronMixinCase):
                 "_test_edi_post_invoice",
                 lambda edi_format, inv: {inv: {"success": True}},
             ),
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             # One capture per action, never one spanning both. 'method_direct_trigger'
             # processes the job exactly the way a worker does, and a worker consumes

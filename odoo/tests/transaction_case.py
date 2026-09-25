@@ -210,10 +210,13 @@ _super_send = requests.Session.send
 _super_getaddrinfo = socket.getaddrinfo
 
 
-# RFC 6761 names that never resolve anywhere; every other external name gets
-# a public address, so the egress guard lets it through to the request block
-# (BlockedRequest) as it would with a working resolver, without a DNS lookup
-_UNRESOLVABLE_SUFFIXES = (".invalid", ".test")
+# names public DNS never answers: RFC 6761's .invalid and .test, and the
+# private-use .internal (ICANN, 2024) and .home.arpa (RFC 8375), which only a
+# private resolver answers, never with a public address; every other external
+# name gets a public address, so the egress guard lets it through to the
+# request block (BlockedRequest) as it would with a working resolver, without
+# a DNS lookup
+_UNRESOLVABLE_SUFFIXES = (".invalid", ".test", ".internal", ".home.arpa")
 _EXTERNAL_TEST_ADDRESS = "93.184.216.34"
 
 
@@ -350,6 +353,7 @@ class BaseCase(TestCase):
 
     _tests_run_count = env_int("ODOO_TEST_FAILURE_RETRIES", 0) + 1
 
+    registry_test_mode: ClassVar[bool] = True
     _registry_patched = False
     _registry_readonly_enabled = True
     test_cursor_lock_timeout: int = 20
@@ -1455,12 +1459,9 @@ class BaseCase(TestCase):
         cls._registry_enter_test_mode(cr=cls.cr)
         cls.addClassCleanup(cls.registry_leave_test_mode)
 
-    def registry_enter_test_mode(
-        self, *, cr: Cursor | None = None, register_cleanup: bool = True
-    ) -> None:
-        type(self)._registry_enter_test_mode(cr=cr or self.cr)
-        if register_cleanup:
-            self.addCleanup(self.registry_leave_test_mode)
+    def registry_enter_test_mode(self) -> None:
+        type(self)._registry_enter_test_mode(cr=self.cr)
+        self.addCleanup(self.registry_leave_test_mode)
 
     @classmethod
     def registry_leave_test_mode(cls) -> None:
@@ -1733,6 +1734,8 @@ class TransactionCase(BaseCase):
             _get_crypt_context,
         )
         cls.startClassPatcher(cls._crypt_context_patcher)
+        if cls.registry_test_mode:
+            cls.registry_enter_test_mode_cls()
         _debug.lifecycle(
             "test.case.transaction_ready",
             cls=cls.__qualname__,
@@ -1762,6 +1765,8 @@ class TransactionCase(BaseCase):
                 )
 
         self.addCleanup(_check_registry_lock)
+        if type(self)._registry_patched:
+            self._redo_registry_resets_after_rollback()
         envs = self.env.transaction.envs
         for env in list(envs):
             self.addCleanup(env.clear)
@@ -1803,28 +1808,63 @@ class TransactionCase(BaseCase):
             savepoint = self.cr.savepoint(flush=False)
         self.addCleanup(savepoint.close)
 
+    def _redo_registry_resets_after_rollback(self) -> None:
+        # in test mode `reset_changes` rebuilds from a test cursor, which still
+        # sees what this test wrote: rebuilt from the test's own cleanup, the
+        # models keep what the rollback then undoes, so the reset is redone
+        # once the rollback and the environments' clearing are both done
+        registry = self.registry
+        reset_changes = registry.reset_changes
+        resets: list[bool] = []
+
+        def recording_reset_changes() -> None:
+            if registry.registry_invalidated:
+                resets.append(True)
+            reset_changes()
+
+        def redo() -> None:
+            if not resets:
+                return
+            _debug.lifecycle(
+                "test.registry.reset_after_rollback",
+                test=self.canonical_tag,
+                resets=len(resets),
+            )
+            registry.setup_models(self.cr)
+
+        self.startPatcher(
+            patch.object(registry, "reset_changes", recording_reset_changes)
+        )
+        self.addCleanup(redo)
+
     @contextmanager
-    def enter_registry_test_mode(self) -> Generator[None]:
+    def sync_env_with_side_cursors(self) -> Generator[None]:
+        # a side cursor shares this transaction but not this env: it reads
+        # only what was flushed, and what it writes this cache cannot see
         env = self.env
         env.flush_all()
-        self.registry_enter_test_mode(register_cleanup=False)
-        _debug.lifecycle("test.registry.test_mode_scope", test=self.canonical_tag)
+        _debug.lifecycle("test.registry.side_cursor_sync", test=self.canonical_tag)
         try:
             yield
         finally:
-            self.registry_leave_test_mode()
             env.invalidate_all()
 
     @contextmanager
-    def allow_pdf_render(self) -> Generator[None]:
-        with ExitStack() as stack:
-            entered = not type(self)._registry_patched
-            _debug.logic(
-                "test.registry.pdf_render", test=self.canonical_tag, entered=entered
-            )
-            if entered:
-                stack.enter_context(self.enter_registry_test_mode())
+    def leave_registry_test_mode(self) -> Generator[None]:
+        # for what only a second connection shows: another transaction's
+        # snapshot, its locks, or a cursor that outlives this one's failure
+        cls = type(self)
+        left = cls._registry_patched
+        if left:
+            cls.registry_leave_test_mode()
+        _debug.lifecycle(
+            "test.registry.real_cursor_scope", test=self.canonical_tag, left=left
+        )
+        try:
             yield
+        finally:
+            if left:
+                cls._registry_enter_test_mode(cr=cls.cr)
 
 
 class SingleTransactionCase(BaseCase):
@@ -1860,6 +1900,8 @@ class SingleTransactionCase(BaseCase):
 
         cls.env = api.Environment(cls.cr, api.SUPERUSER_ID, {})
         cls.env.transaction.default_env = cls.env
+        if cls.registry_test_mode:
+            cls.registry_enter_test_mode_cls()
         _debug.lifecycle(
             "test.case.single_transaction_ready",
             cls=cls.__qualname__,

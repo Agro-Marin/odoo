@@ -64,6 +64,8 @@ class InMemoryCase(TransactionCase):
     # the point of the class is to run another class's methods, which the
     # loader collects only for a class that says so
     allow_inherited_tests_method = True
+    # an in-memory registry opens no cursor, so there is none to redirect
+    registry_test_mode = False
 
     hosts_modules: typing.ClassVar[tuple[str, ...]] = ("base",)
     skip_data_files: typing.ClassVar[tuple[str, ...]] = LOADER_OWNED_DATA

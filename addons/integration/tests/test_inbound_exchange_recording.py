@@ -92,7 +92,7 @@ class TestInboundExchangeRecording(TransactionCase):
 
         cr = self.env.cr
         cr.clear()
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             cr.postrollback.run()
 
         row = self._rows()
@@ -145,7 +145,7 @@ class TestInboundExchangeRecording(TransactionCase):
 
         cr = self.env.cr
         cr.clear()
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             cr.postrollback.run()
 
         rows = self._rows().sorted("id")

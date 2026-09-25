@@ -45,7 +45,7 @@ class TestMailingRetry(MassMailCommon, CronMixinCase):
                 "odoo.addons.mail.models.mail_mail.MailMail._send",
                 patched_mail_mail_send,
             ),
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             self.env.ref(
                 "mass_mailing.ir_cron_mass_mailing_queue"

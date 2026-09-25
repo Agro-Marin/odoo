@@ -78,7 +78,6 @@ class TestOrderpointSchedulerContract(TransactionCase):
             captured["flushed_qty"] = self._read_stored_qty_to_order(records.env.cr)
             return procure_orderpoint_confirm(records, *args, **kwargs)
 
-        self.registry_enter_test_mode()
         with self.registry.cursor() as scheduler_cr:
             scheduler_env = self.env(cr=scheduler_cr)
             with patch.object(
@@ -118,7 +117,6 @@ class TestOrderpointSchedulerContract(TransactionCase):
             calls.append("procure")
             return {}
 
-        self.registry_enter_test_mode()
         with self.registry.cursor() as scheduler_cr:
             scheduler_env = self.env(cr=scheduler_cr)
             with (

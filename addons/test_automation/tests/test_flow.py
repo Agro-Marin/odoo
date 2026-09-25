@@ -1083,7 +1083,7 @@ action = {
         self.assertFalse(automation.last_run)
         with (
             self.assertLogs("odoo.addons.automation", "WARNING") as capture,
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             self.automation_cron.method_direct_trigger()
         self.assertRegex(capture.output[0], r"Missing date trigger")
@@ -1092,7 +1092,7 @@ action = {
         )
 
         # normal run
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.automation_cron.method_direct_trigger()
         self.assertTrue(automation.last_run)
 
@@ -1126,7 +1126,7 @@ action = {
             patch.object(
                 automation.__class__, "_process", side_effect=automation._process
             ) as mock,
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             with patch.object(self.env.cr, "_now", now := datetime.datetime.now()):
                 past_date = now - datetime.timedelta(1)

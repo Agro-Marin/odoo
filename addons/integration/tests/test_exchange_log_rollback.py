@@ -29,7 +29,7 @@ class TestExchangeLogSurvivesRollback(APITransportTestCase):
     def _roll_back_the_callers_transaction(self):
         cr = self.env.cr
         cr.clear()
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             cr.postrollback.run()
 
     def test_a_failed_call_is_logged_even_when_the_caller_rolls_back(self):

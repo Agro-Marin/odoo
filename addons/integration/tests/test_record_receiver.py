@@ -4,7 +4,7 @@ from odoo.tests import TransactionCase, tagged
 @tagged("post_install", "-at_install", "integration")
 class TestRecordReceiver(TransactionCase):
     def _for_record(self, name, purpose=None):
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             return self.env["integration.receiver"]._for_record(
                 self.env.company, name, purpose=purpose
             )

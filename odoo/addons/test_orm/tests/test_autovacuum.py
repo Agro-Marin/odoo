@@ -9,7 +9,7 @@ class TestAutovacuum(common.TransactionCase):
         instance = Model.create({"expire_at": datetime.now() - timedelta(days=15)})
         self.assertTrue(instance.exists())
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("base.autovacuum_job").method_direct_trigger()
 
         self.assertFalse(instance.exists())

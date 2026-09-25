@@ -167,8 +167,7 @@ class TestTaxReportCarryover(TestAccountReportsCommon):
                 "date_to": "2021-12-31",
             }
         )
-        with self.allow_pdf_render():
-            tax_return.action_validate()
+        tax_return.action_validate()
 
         # There should be an external value of -1000.0
         external_value = self.env["report.formula.external.value"].search(
@@ -315,8 +314,7 @@ class TestTaxReportCarryover(TestAccountReportsCommon):
                 "date_to": "2021-12-31",
             }
         )
-        with self.allow_pdf_render():
-            tax_return.action_validate()
+        tax_return.action_validate()
 
         self.assertTrue(
             all(move.state == "posted" for move in tax_return.closing_move_ids)

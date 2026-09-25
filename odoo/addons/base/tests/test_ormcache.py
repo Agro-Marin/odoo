@@ -24,6 +24,8 @@ class TestCacheSize(BaseCase):
 
 @tagged("-at_install", "post_install")
 class TestOrmCache(TransactionCase):
+    registry_test_mode = False
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

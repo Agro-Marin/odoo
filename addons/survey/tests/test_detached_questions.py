@@ -167,6 +167,8 @@ class TestDetachedQuestions(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestDetachedHistoryConcurrency(TransactionCase):
+    registry_test_mode = False
+
     def test_stale_edits_cannot_erase_committed_answers(self):
         # Independent committed fixtures are required: the competing snapshots
         # cannot see this TransactionCase's uncommitted records.

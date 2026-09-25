@@ -3,6 +3,8 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from werkzeug.user_agent import UserAgent
+
 from odoo import models
 from odoo.api import SUPERUSER_ID
 from odoo.exceptions import AccessDenied, AccessError, UserError, ValidationError
@@ -798,7 +800,12 @@ class TestUsersIdentitycheck(HttpCase):
             SimpleNamespace(
                 session=session,
                 env=self.env,
-                httprequest=SimpleNamespace(remote_addr="127.0.0.1", path="/web"),
+                httprequest=SimpleNamespace(
+                    remote_addr="127.0.0.1",
+                    path="/web",
+                    cookies={},
+                    user_agent=UserAgent(""),
+                ),
                 cookies={TEST_CURSOR_COOKIE_NAME: self.http_request_key},
             )
         )

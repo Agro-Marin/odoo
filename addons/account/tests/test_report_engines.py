@@ -2114,8 +2114,7 @@ class TestReportEngines(TestAccountReportsCommon):
                 }
             )
 
-            with self.allow_pdf_render():
-                tax_return.action_validate()
+            tax_return.action_validate()
 
         self._run_external_engine_default_test_case(True, False, lock_via_tax_closing)
 

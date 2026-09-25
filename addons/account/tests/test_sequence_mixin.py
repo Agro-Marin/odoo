@@ -1134,6 +1134,8 @@ class TestSequenceMixinDeletion(TestSequenceMixinCommon):
 
 @tagged("post_install", "-at_install")
 class TestSequenceMixinConcurrency(TransactionCase):
+    registry_test_mode = False
+
     def setUp(self):
         super().setUp()
         with self.env.registry.cursor() as cr:

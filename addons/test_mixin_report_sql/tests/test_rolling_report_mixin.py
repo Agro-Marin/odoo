@@ -210,6 +210,8 @@ class TestConcurrency(RollingCase):
     max_connections.
     """
 
+    registry_test_mode = False
+
     def test_a_refresh_already_running_elsewhere_is_skipped(self):
         self._seed(0, value=1.0)
         other = self.registry.cursor()

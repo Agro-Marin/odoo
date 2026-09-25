@@ -1278,7 +1278,7 @@ class TestAccountAsset(TestAccountReportsCommon):
                 self.subTest(period=period, depreciation_date=depreciation_move.date),
                 freeze_time(depreciation_move.date),
             ):
-                with self.enter_registry_test_mode():
+                with self.sync_env_with_side_cursors():
                     self.env.ref(
                         "account.ir_cron_auto_post_draft_entry"
                     ).method_direct_trigger()
@@ -3412,7 +3412,7 @@ class TestAccountAsset(TestAccountReportsCommon):
         truck_b.action_confirm()
         self.truck.analytic_distribution = {self.analytic_account.id: 100}
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref(
                 "account.ir_cron_auto_post_draft_entry"
             ).method_direct_trigger()
@@ -3508,7 +3508,7 @@ class TestAccountAsset(TestAccountReportsCommon):
         truck_b.date_acquisition = self.truck.date_acquisition
         truck_b.action_confirm()
         self.truck.analytic_distribution = {self.analytic_account.id: 100}
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref(
                 "account.ir_cron_auto_post_draft_entry"
             ).method_direct_trigger()
@@ -3723,7 +3723,7 @@ class TestAccountAsset(TestAccountReportsCommon):
             )
             asset.action_confirm()
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref(
                 "account.ir_cron_auto_post_draft_entry"
             ).method_direct_trigger()

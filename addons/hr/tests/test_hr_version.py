@@ -442,7 +442,7 @@ class TestHrVersion(TestHrCommon):
     def test_cron_update_current_version(self):
         cron = self.env.ref("hr.ir_cron_data_employee_update_current_version")
 
-        with freeze_time(date(2020, 1, 1)), self.enter_registry_test_mode():
+        with freeze_time(date(2020, 1, 1)), self.sync_env_with_side_cursors():
             employee = self.env["hr.employee"].create(
                 {
                     "name": "John Doe",
@@ -455,7 +455,7 @@ class TestHrVersion(TestHrCommon):
             cron.method_direct_trigger()
             self.assertEqual(v1, employee.current_version_id)
 
-        with freeze_time(date(2020, 1, 2)), self.enter_registry_test_mode():
+        with freeze_time(date(2020, 1, 2)), self.sync_env_with_side_cursors():
             self.assertEqual(v1, employee.current_version_id)
             cron.method_direct_trigger()
             self.assertEqual(v2, employee.current_version_id)

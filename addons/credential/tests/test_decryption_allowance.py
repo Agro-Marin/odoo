@@ -7,6 +7,8 @@ from odoo.addons.rate_limit.tools import get_caller_rate_limiter
 
 @tagged("post_install", "-at_install")
 class TestDecryptionAllowance(TransactionCase):
+    registry_test_mode = False
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()

@@ -112,7 +112,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         self.test_move.date = fields.Date.today()
         with (
             freeze_time(self.test_move.date - relativedelta(days=1)),
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             self.env.ref(
                 "account.ir_cron_auto_post_draft_entry"
@@ -120,7 +120,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
             self.assertEqual(self.test_move.state, "draft")
         with (
             freeze_time(self.test_move.date + relativedelta(days=1)),
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
         ):
             self.env.ref(
                 "account.ir_cron_auto_post_draft_entry"
@@ -146,7 +146,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
                 )
                 with (
                     freeze_time(self.test_move.date + relativedelta(days=1)),
-                    self.enter_registry_test_mode(),
+                    self.sync_env_with_side_cursors(),
                     patch.object(move_cls, "_post", side_effect=error),
                     expect_log as logs,
                 ):
@@ -185,7 +185,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         self.test_move.date = date
         self.test_move.invoice_date_due = date + relativedelta(days=1)
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref(
                 "account.ir_cron_auto_post_draft_entry"
             ).method_direct_trigger()
@@ -199,7 +199,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
             new_date_1 + relativedelta(days=1), new_invoices_1.invoice_date_due
         )
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref(
                 "account.ir_cron_auto_post_draft_entry"
             ).method_direct_trigger()
@@ -216,7 +216,7 @@ class TestAccountMove(AccountTestInvoicingCommon):
         )
         self.assertEqual(new_invoices_2.invoice_user_id, self.test_move.invoice_user_id)
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref(
                 "account.ir_cron_auto_post_draft_entry"
             ).method_direct_trigger()

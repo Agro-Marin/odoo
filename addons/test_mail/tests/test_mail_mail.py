@@ -1997,6 +1997,8 @@ class TestMailMailServer(MailCommon):
 
 @tagged("mail_mail")
 class TestMailMailRace(MailCommon):
+    registry_test_mode = False
+
     @mute_logger("odoo.addons.mail.models.mail_mail")
     def test_mail_bounce_during_send(self):
         cr = self.registry.cursor()

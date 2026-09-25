@@ -534,7 +534,7 @@ class TestSaleOrder(SaleCommon):
         self.env["ir.config_parameter"].set_param("sale.async_emails", "True")
         self.sale_order.pending_email_template_id = self.confirmation_email_template
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("sale.send_pending_emails_cron").method_direct_trigger()
         self.assertFalse(
             self.sale_order.pending_email_template_id,

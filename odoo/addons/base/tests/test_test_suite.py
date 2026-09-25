@@ -16,7 +16,7 @@ from pathlib import PurePath
 from unittest import SkipTest, skip
 from unittest.mock import patch
 
-from odoo.db import Cursor
+from odoo.db import Cursor, db_connect
 from odoo.orm.runtime.backend import COPY_THRESHOLD
 from odoo.tests import browser
 from odoo.tests.benchmark import compare_results, compute_stats
@@ -24,6 +24,7 @@ from odoo.tests.case import TestCase
 from odoo.tests.common import (
     BaseCase,
     HttpCase,
+    SingleTransactionCase,
     TransactionCase,
     _registry_test_lock,
     mute_logger,
@@ -593,8 +594,8 @@ class TestRegistryRLock(BaseCase):
 class TestCursorStack(TransactionCase):
     def test_out_of_order_close(self):
         lock = threading.RLock()
-        cr1 = self.registry.cursor()
-        cr2 = self.registry.cursor()
+        cr1 = db_connect(self.cr.dbname).cursor()
+        cr2 = db_connect(self.cr.dbname).cursor()
         tc1 = TestCursor(cr1, lock, readonly=False)
         tc2 = TestCursor(cr2, lock, readonly=False)
 
@@ -618,8 +619,8 @@ class TestCursorStack(TransactionCase):
 
     def test_readonly_nesting_enforced_lazily(self):
         lock = threading.RLock()
-        cr_ro = self.registry.cursor()
-        cr_rw = self.registry.cursor()
+        cr_ro = db_connect(self.cr.dbname).cursor()
+        cr_rw = db_connect(self.cr.dbname).cursor()
         tc_ro = TestCursor(cr_ro, lock, readonly=True)
 
         def cleanup():
@@ -793,9 +794,79 @@ class TestPatchExecuteStatementApi(TransactionCase):
         "\n".join(caught)
 
 
+def _backend_pid(cr) -> int:
+    cr.execute("SELECT pg_backend_pid()")
+    return cr.fetchone()[0]
+
+
+class TestRegistryTestModeIsTheDefault(TransactionCase):
+    def test_the_registry_cursor_is_on_this_transaction(self):
+        partner = self.env["res.partner"].create({"name": "uncommitted"})
+        with self.registry.cursor() as cr:
+            self.assertIsInstance(cr, TestCursor)
+            self.assertEqual(_backend_pid(cr), _backend_pid(self.cr))
+            cr.execute("SELECT name FROM res_partner WHERE id = %s", [partner.id])
+            self.assertEqual(cr.fetchone(), ("uncommitted",))
+
+    def test_a_side_cursor_sync_hands_over_pending_writes_and_takes_back_its_own(
+        self,
+    ):
+        partner = self.env["res.partner"].create({"name": "created"})
+        partner.name = "pending"
+        with self.sync_env_with_side_cursors(), self.registry.cursor() as cr:
+            cr.execute("SELECT name FROM res_partner WHERE id = %s", [partner.id])
+            self.assertEqual(cr.fetchone(), ("pending",))
+            cr.execute(
+                "UPDATE res_partner SET name = 'written' WHERE id = %s", [partner.id]
+            )
+            cr.commit()
+        self.assertTrue(type(self)._registry_patched)
+        self.assertEqual(partner.name, "written")
+
+    def test_leaving_hands_out_a_second_connection_until_the_block_ends(self):
+        with self.leave_registry_test_mode(), self.registry.cursor() as cr:
+            self.assertNotIsInstance(cr, TestCursor)
+            self.assertNotEqual(_backend_pid(cr), _backend_pid(self.cr))
+        with self.registry.cursor() as cr:
+            self.assertIsInstance(cr, TestCursor)
+
+
+class TestRegistryTestModeOptOut(TransactionCase):
+    registry_test_mode = False
+
+    def test_the_class_gets_a_second_connection(self):
+        self.assertFalse(type(self)._registry_patched)
+        with self.registry.cursor() as cr:
+            self.assertNotIsInstance(cr, TestCursor)
+            self.assertNotEqual(_backend_pid(cr), _backend_pid(self.cr))
+
+
+class TestSingleTransactionCaseIsInRegistryTestMode(SingleTransactionCase):
+    def test_the_registry_cursor_is_on_this_transaction(self):
+        with self.registry.cursor() as cr:
+            self.assertIsInstance(cr, TestCursor)
+            self.assertEqual(_backend_pid(cr), _backend_pid(self.cr))
+
+
+class TestARegistryResetInATestIsRedoneAfterItsRollback(TransactionCase):
+    def test_a_custom_field_reset_by_the_test_itself(self):
+        self.addCleanup(self.registry.reset_changes)
+        self.env["ir.model.fields"].create(
+            {
+                "name": "x_reset_probe",
+                "model_id": self.env.ref("base.model_res_country").id,
+                "ttype": "boolean",
+            }
+        )
+        self.assertIn("x_reset_probe", self.env["res.country"]._fields)
+
+    def test_b_the_rolled_back_field_is_gone_from_the_registry(self):
+        self.assertNotIn("x_reset_probe", self.env["res.country"]._fields)
+        self.env["res.country"].search([], limit=1)
+
+
 class TestReadonlyModeIsTestScoped(TransactionCase):
     def test_a_disables_readonly(self):
-        self.registry_enter_test_mode(register_cleanup=True)
         self.set_registry_readonly_mode(False)
         self.assertFalse(type(self)._registry_readonly_enabled)
 
@@ -904,7 +975,6 @@ class TestStrandedTestCursorReleasesItsLock(TransactionCase):
     def test_stranded_cursor_does_not_leak_an_acquisition(self):
         before = _registry_test_lock.count
 
-        self.registry_enter_test_mode(register_cleanup=True)
         cursor = self.registry.cursor()
         self.assertIsInstance(cursor, TestCursor)
         self.assertEqual(
@@ -1352,7 +1422,6 @@ class TestStrandedCursorsUnwindInnermostFirst(TransactionCase):
     def test_two_stranded_cursors_leave_the_transaction_usable(self):
         from psycopg.pq import TransactionStatus
 
-        self.registry_enter_test_mode(register_cleanup=True)
         outer = self.registry.cursor()
         outer.execute("SELECT 1")
         inner = self.registry.cursor()
