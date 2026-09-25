@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="voice.VoiceNumbers">
+        <div t-if="this.state.numbers.length" class="o_voice_numbers" aria-hidden="true">
+            <span t-foreach="this.state.numbers" t-as="badge" t-key="badge.n"
+                class="o_voice_number badge" t-att-style="this.badgeStyle(badge)" t-out="badge.n"/>
+        </div>
+    </t>
+</templates>

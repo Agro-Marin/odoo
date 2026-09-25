@@ -1,0 +1,77 @@
+.o_voice_hud {
+    position: fixed;
+    bottom: map-get($spacers, 4);
+    left: 50%;
+    z-index: $zindex-toast;
+    display: flex;
+    flex-direction: column;
+    gap: map-get($spacers, 2);
+    width: min(36rem, calc(100vw - #{map-get($spacers, 4)}));
+    padding: map-get($spacers, 3);
+    transform: translateX(-50%);
+    border-radius: $border-radius-lg;
+    background-color: o-token(--o-dropdown-bg, $dropdown-bg);
+    color: o-token(--o-text, $o-main-text-color);
+    box-shadow: $box-shadow-lg;
+
+    .o_voice_hud_head,
+    .o_voice_session,
+    .o_voice_confirm,
+    .o_voice_done_item {
+        display: flex;
+        align-items: center;
+        gap: map-get($spacers, 2);
+    }
+
+    .o_voice_heard,
+    .o_voice_session_label,
+    .o_voice_confirm_label {
+        flex-grow: 1;
+    }
+
+    .o_voice_confirm_label {
+        font-weight: $font-weight-bold;
+    }
+
+    .o_voice_actions,
+    .o_voice_candidates,
+    .o_voice_help {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: map-get($spacers, 2);
+    }
+
+    .o_voice_done,
+    .o_voice_message,
+    .o_voice_notice p {
+        margin: 0;
+    }
+
+    .o_voice_message {
+        color: o-token(--o-text-muted, $o-main-color-muted);
+    }
+
+    .o_voice_example {
+        padding: 0 map-get($spacers, 2);
+        border-radius: $border-radius-pill;
+        border: $border-width solid o-token(--o-action, $o-action);
+        color: o-token(--o-action, $o-action);
+    }
+
+    .o_voice_listening {
+        animation: o-voice-pulse 1.2s ease-in-out infinite;
+    }
+}
+
+@keyframes o-voice-pulse {
+    50% {
+        opacity: 0.4;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .o_voice_hud .o_voice_listening {
+        animation: none;
+    }
+}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="purpose_voice_intent" model="gateway.ml.purpose">
+        <field name="key">voice.intent</field>
+        <field name="name">Understanding voice commands</field>
+        <field name="sensitive" eval="True" />
+    </record>
+
+</odoo>

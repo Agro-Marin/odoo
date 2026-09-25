@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="voice.VoiceHud">
+        <section t-if="this.state.open" class="o_voice_hud" role="region" aria-live="polite" aria-label="Voice commands">
+            <header class="o_voice_hud_head">
+                <i t-att-class="this.state.listening ? 'fa fa-microphone text-danger o_voice_listening' : 'fa fa-microphone'" aria-hidden="true"/>
+                <span class="o_voice_heard" t-att-class="{'fst-italic': this.state.interim or this.state.listening}" t-out="this.heard"/>
+                <button type="button" class="btn btn-link o_voice_close" title="Close" aria-label="Close" t-on-click="this.close">
+                    <i class="fa fa-times" aria-hidden="true"/>
+                </button>
+            </header>
+
+            <div t-if="this.state.session" class="o_voice_session">
+                <i class="fa fa-circle text-danger o_voice_listening" aria-hidden="true"/>
+                <span class="o_voice_session_label" t-out="this.state.session.label"/>
+                <button type="button" class="btn btn-secondary btn-sm o_voice_session_stop"
+                    t-att-disabled="this.state.session.stopping" t-on-click="() => this.voice.stopSession()">
+                    <t t-if="this.state.session.stopping">Finishing…</t>
+                    <t t-else="">Stop</t>
+                </button>
+            </div>
+
+            <div t-if="this.state.notice" class="o_voice_notice">
+                <p t-out="this.state.notice"/>
+                <p>The microphone listens only while it is on, and what you say is not stored.</p>
+                <div class="o_voice_actions">
+                    <button type="button" class="btn btn-primary btn-sm o_voice_notice_accept" t-on-click="() => this.voice.acknowledge(true)">Continue</button>
+                    <button type="button" class="btn btn-secondary btn-sm" t-on-click="() => this.voice.acknowledge(false)">Not now</button>
+                </div>
+            </div>
+
+            <div t-if="this.state.pending" class="o_voice_confirm">
+                <i t-if="this.state.pending.fromModel" class="fa fa-magic o_voice_from_model" title="Understood by an AI model" aria-label="Understood by an AI model"/>
+                <span class="o_voice_confirm_label" t-out="this.state.pending.description"/>
+                <div class="o_voice_actions">
+                    <button type="button" class="btn btn-primary btn-sm o_voice_confirm_button" t-on-click="() => this.voice.confirm()">Confirm</button>
+                    <button type="button" class="btn btn-secondary btn-sm" t-on-click="() => this.voice.clear()">Cancel</button>
+                </div>
+            </div>
+
+            <div t-if="this.state.candidates.length" class="o_voice_candidates">
+                <span class="text-muted small">Which one?</span>
+                <button t-foreach="this.state.candidates" t-as="candidate" t-key="candidate_index" type="button"
+                    class="btn btn-light btn-sm o_voice_candidate" t-on-click="() => this.voice.pick(candidate_index)" t-out="candidate.description"/>
+            </div>
+
+            <ul t-if="this.state.done.length" class="o_voice_done list-unstyled">
+                <li t-foreach="this.state.done" t-as="done" t-key="done_index" class="o_voice_done_item">
+                    <i class="fa fa-check text-success" aria-hidden="true"/>
+                    <i t-if="done.fromModel" class="fa fa-magic o_voice_from_model" title="Understood by an AI model" aria-label="Understood by an AI model"/>
+                    <span t-out="done.description"/>
+                    <button t-if="done_index === 0 and done.undo" type="button" class="btn btn-link btn-sm o_voice_undo" t-on-click="() => this.voice.undo()">Undo</button>
+                </li>
+            </ul>
+
+            <p t-if="this.state.busy and !this.state.pending" class="o_voice_message">Working…</p>
+            <p t-if="this.state.message" class="o_voice_message" t-out="this.state.message"/>
+
+            <div t-if="this.state.help" class="o_voice_help">
+                <span class="text-muted small">You can say:</span>
+                <span t-foreach="this.examples" t-as="example" t-key="example_index" class="o_voice_example" t-out="example"/>
+            </div>
+        </section>
+    </t>
+</templates>

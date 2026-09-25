@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="voice.VoiceSystray">
+        <button type="button"
+            class="o_voice_systray btn btn-link d-flex align-items-center px-2"
+            t-att-class="{'text-danger': this.active}"
+            t-att-aria-pressed="this.active ? 'true' : 'false'"
+            t-att-title="this.title"
+            t-att-aria-label="this.title"
+            t-on-click="this.toggle">
+            <i class="fa fa-microphone" aria-hidden="true"/>
+        </button>
+    </t>
+</templates>

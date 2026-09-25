@@ -1,0 +1,14 @@
+.o_voice_numbers {
+    position: fixed;
+    inset: 0;
+    z-index: $zindex-tooltip;
+    pointer-events: none;
+
+    .o_voice_number {
+        position: absolute;
+        transform: translate(-25%, -25%);
+        background-color: o-token(--o-action, $o-action);
+        color: o-token(--o-white, $white);
+        font-variant-numeric: tabular-nums;
+    }
+}
