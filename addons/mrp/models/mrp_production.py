@@ -4193,10 +4193,7 @@ class MrpProduction(models.Model):
                     "product_id": product_id.id,
                     "bom_id": bom_id.id,
                     "picking_type_id": self.picking_type_id.id,
-                    "product_qty": sum(
-                        production.product_uom_qty for production in self
-                    ),
-                    "product_uom_id": product_id.uom_id.id,
+                    **self._get_merged_quantity_vals(product_id),
                     "location_final_id": all(mo.location_final_id for mo in self)
                     and len(self.location_final_id) == 1
                     and self.location_final_id.id,
@@ -4209,11 +4206,9 @@ class MrpProduction(models.Model):
             )
         )
 
-        self.env["stock.move"].search(
-            [
-                ("production_group_id", "in", self.production_group_id.ids),
-            ]
-        ).production_group_id = production.production_group_id
+        self._get_merge_regrouped_moves().production_group_id = (
+            production.production_group_id
+        )
 
         production.production_group_id.parent_ids = [
             Command.set(self.production_group_id.parent_ids.ids)
@@ -4266,6 +4261,34 @@ class MrpProduction(models.Model):
             "res_id": production.id,
         }
 
+    def _get_merged_quantity_vals(self, product):
+        if len(self.product_uom_id) == 1:
+            return {
+                "product_qty": sum(self.mapped("product_qty")),
+                "product_uom_id": self.product_uom_id.id,
+            }
+        return {
+            "product_qty": sum(
+                production.product_uom_id._get_quantity_in_unit(
+                    production.product_qty, product.uom_id, round=False
+                )
+                for production in self
+            ),
+            "product_uom_id": product.uom_id.id,
+        }
+
+    def _get_merge_regrouped_moves(self):
+        own = self.move_raw_ids | self.move_finished_ids
+        siblings = self.production_group_id.production_ids - self
+        sibling_moves = siblings.move_raw_ids | siblings.move_finished_ids
+        chain = own.browse(own._rollup_move_orig_ids() | own._rollup_move_dest_ids())
+        return chain.filtered(
+            lambda move: (
+                move.production_group_id in self.production_group_id
+                and not (move.move_dest_ids | move.move_orig_ids) & sibling_moves
+            )
+        )
+
     def action_plan_with_components_availability(self):
         for production in self.filtered(lambda p: p.state in ("draft", "confirmed")):
             if production.state == "draft":
@@ -4312,13 +4335,18 @@ class MrpProduction(models.Model):
 
         ratio = self._get_ratio_between_mo_and_bom_quantities(bom)
         bom_lines_by_id = self._get_bom_lines_to_link(bom)
+        never_values = self.never_product_template_attribute_value_ids
         bom_byproducts_by_id = {
             byproduct.id: byproduct
-            for byproduct in bom.byproduct_ids.filtered(self._is_bom_record_applicable)
+            for byproduct in bom.byproduct_ids._filtered_applicable_to(
+                self.product_id, never_values
+            )
         }
         operations_by_id = {
             operation.id: operation
-            for operation in bom.operation_ids.filtered(self._is_bom_record_applicable)
+            for operation in bom.operation_ids._filtered_applicable_to(
+                self.product_id, never_values
+            )
         }
 
         _debug.pipeline(
@@ -4348,23 +4376,16 @@ class MrpProduction(models.Model):
         workorders_to_unlink.unlink()
         self.bom_id = bom
 
-    def _is_bom_record_applicable(self, record, product=None):
-        self.check_singleton()
-        if product is None:
-            product = self.product_id
-        product_attribute_ids = product.product_template_attribute_value_ids.ids
-        return not record.bom_product_template_attribute_value_ids or any(
-            attribute_value.id in product_attribute_ids
-            for attribute_value in record.bom_product_template_attribute_value_ids
-        )
-
     def _get_bom_lines_to_link(self, bom):
         self.check_singleton()
-        _dummy, bom_lines = bom._explode(self.product_id, bom.product_qty)
+        _dummy, bom_lines = bom._explode(
+            self.product_id,
+            bom.product_qty,
+            picking_type=bom.picking_type_id,
+            never_attribute_values=self.never_product_template_attribute_value_ids,
+        )
         bom_lines_by_id = defaultdict(lambda: [None, 0])
         for line, exploded_values in bom_lines:
-            if not self._is_bom_record_applicable(line, exploded_values["product"]):
-                continue
             key = (line.id, line.product_id.id)
             bom_lines_by_id[key][0] = line
             bom_lines_by_id[key][1] += (

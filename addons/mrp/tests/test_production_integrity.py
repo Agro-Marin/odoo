@@ -70,7 +70,7 @@ class TestProductionIntegrity(TestMrpCommon):
         self.env["change.production.qty"].create(
             {"mo_id": sibling.id, "product_qty": 15}
         ).change_prod_qty()
-        self.assertEqual(len(sibling._get_main_finished_moves()), 2)
+        self.assertEqual(len(sibling._get_main_finished_moves()), 1)
 
         sibling.qty_producing = 15
         sibling._update_moves_from_qty_producing()
@@ -81,6 +81,20 @@ class TestProductionIntegrity(TestMrpCommon):
             sum(sibling._get_main_finished_moves().mapped("quantity")), 15.0
         )
         self.assertEqual(sibling.qty_produced, 15.0)
+
+    def test_an_order_with_a_split_finished_move_produces_its_quantity_once(self):
+        mo, *_rest = self.generate_mo(qty_final=15, qty_base_1=1, qty_base_2=1)
+        finished = mo._get_main_finished_moves()
+        self.env["stock.move"].create(finished._split(5))
+        self.assertEqual(len(mo._get_main_finished_moves()), 2)
+
+        mo.qty_producing = 15
+        mo._update_moves_from_qty_producing()
+        mo.button_mark_done()
+
+        self.assertEqual(mo.state, "done")
+        self.assertEqual(sum(mo._get_main_finished_moves().mapped("quantity")), 15.0)
+        self.assertEqual(mo.qty_produced, 15.0)
 
     def test_merge_survives_a_bom_byproduct_removed_from_every_order(self):
         byproduct = self.env["product.product"].create(
@@ -122,6 +136,213 @@ class TestProductionIntegrity(TestMrpCommon):
         self.assertEqual(merged.product_qty, 4)
         self.assertEqual(merged.state, "confirmed")
         self.assertEqual(set(productions.mapped("state")), {"cancel"})
+
+    def _rows(self, production):
+        return (
+            sorted(production.move_raw_ids.product_id.mapped("name")),
+            sorted(production.move_byproduct_ids.product_id.mapped("name")),
+            sorted(production.workorder_ids.mapped("name")),
+        )
+
+    def _variant_bom(self, template, restriction):
+        common, restricted, byproduct = self.env["product.product"].create(
+            [
+                {"name": "Common part", "is_storable": True},
+                {"name": "Restricted part", "is_storable": True},
+                {"name": "Restricted scrap", "is_storable": True},
+            ]
+        )
+        restricted_to = [Command.set(restriction.ids)]
+        return self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": template.id,
+                "product_qty": 1,
+                "bom_line_ids": [
+                    Command.create({"product_id": common.id, "product_qty": 1}),
+                    Command.create(
+                        {
+                            "product_id": restricted.id,
+                            "product_qty": 1,
+                            "bom_product_template_attribute_value_ids": restricted_to,
+                        }
+                    ),
+                ],
+                "byproduct_ids": [
+                    Command.create(
+                        {
+                            "product_id": byproduct.id,
+                            "product_qty": 1,
+                            "cost_share": 0,
+                            "bom_product_template_attribute_value_ids": restricted_to,
+                        }
+                    )
+                ],
+                "operation_ids": [
+                    Command.create(
+                        {"name": "Common step", "workcenter_id": self.workcenter_1.id}
+                    ),
+                    Command.create(
+                        {
+                            "name": "Restricted step",
+                            "workcenter_id": self.workcenter_1.id,
+                            "bom_product_template_attribute_value_ids": restricted_to,
+                        }
+                    ),
+                ],
+            }
+        )
+
+    def test_update_bom_keeps_the_rows_of_the_orders_no_variant_value(self):
+        engrave = self.env["product.attribute"].create(
+            {
+                "name": "Engrave",
+                "create_variant": "no_variant",
+                "value_ids": [
+                    Command.create({"name": "Yes"}),
+                    Command.create({"name": "No"}),
+                ],
+            }
+        )
+        template = self.env["product.template"].create(
+            {
+                "name": "Engraved",
+                "is_storable": True,
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": engrave.id,
+                            "value_ids": [Command.set(engrave.value_ids.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        yes = template.attribute_line_ids.product_template_value_ids.filtered(
+            lambda value: value.name == "Yes"
+        )
+        bom = self._variant_bom(template, yes)
+        production = self.env["mrp.production"].create(
+            {
+                "product_id": template.product_variant_id.id,
+                "bom_id": bom.id,
+                "product_qty": 1,
+                "never_product_template_attribute_value_ids": [Command.set(yes.ids)],
+            }
+        )
+        production.action_confirm()
+        confirmed = self._rows(production)
+        self.assertEqual(
+            confirmed,
+            (
+                ["Common part", "Restricted part"],
+                ["Restricted scrap"],
+                ["Common step", "Restricted step"],
+            ),
+        )
+
+        production.action_update_bom()
+
+        self.assertEqual(self._rows(production), confirmed)
+
+    def test_update_bom_applies_a_row_only_on_every_value_it_names(self):
+        color, size = self.env["product.attribute"].create(
+            [
+                {
+                    "name": "Color",
+                    "value_ids": [
+                        Command.create({"name": "Red"}),
+                        Command.create({"name": "Blue"}),
+                    ],
+                },
+                {
+                    "name": "Size",
+                    "value_ids": [
+                        Command.create({"name": "S"}),
+                        Command.create({"name": "L"}),
+                    ],
+                },
+            ]
+        )
+        template = self.env["product.template"].create(
+            {
+                "name": "Shirt",
+                "is_storable": True,
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": attribute.id,
+                            "value_ids": [Command.set(attribute.value_ids.ids)],
+                        }
+                    )
+                    for attribute in (color, size)
+                ],
+            }
+        )
+        values = template.attribute_line_ids.product_template_value_ids
+        red_large = values.filtered(lambda value: value.name in ("Red", "L"))
+        red_small = template.product_variant_ids.filtered(
+            lambda variant: (
+                set(variant.product_template_attribute_value_ids.mapped("name"))
+                == {"Red", "S"}
+            )
+        )
+        bom = self._variant_bom(template, red_large)
+        production = self.env["mrp.production"].create(
+            {"product_id": red_small.id, "bom_id": bom.id, "product_qty": 1}
+        )
+        production.action_confirm()
+        confirmed = self._rows(production)
+        self.assertEqual(confirmed, (["Common part"], [], ["Common step"]))
+
+        production.action_update_bom()
+
+        self.assertEqual(self._rows(production), confirmed)
+
+    def test_merging_some_siblings_leaves_the_others_moves_in_their_group(self):
+        mo, *_rest = self.generate_mo(qty_final=3, qty_base_1=1, qty_base_2=1)
+        first, second, third = mo._split_productions({mo: [1, 1, 1]})
+        group = third.production_group_id
+
+        merged = self.env["mrp.production"].browse(
+            (first | second).action_merge()["res_id"]
+        )
+
+        self.assertEqual(third.production_group_id, group)
+        self.assertEqual(
+            (third.move_raw_ids | third.move_finished_ids).production_group_id, group
+        )
+        self.assertNotIn(third, merged.production_group_id.move_ids.production_id)
+
+    def test_merging_keeps_the_orders_unit(self):
+        dozen = self.env.ref("uom.product_uom_dozen")
+        finished, component = self.env["product.product"].create(
+            [
+                {"name": "Boxed", "is_storable": True, "uom_id": dozen.id},
+                {"name": "Box part", "is_storable": True},
+            ]
+        )
+        bom = self._simple_bom(finished, component)
+        productions = self.env["mrp.production"].create(
+            [
+                {
+                    "product_id": finished.id,
+                    "bom_id": bom.id,
+                    "product_qty": 5,
+                    "product_uom_id": self.uom_unit.id,
+                }
+                for _index in range(2)
+            ]
+        )
+        productions.action_confirm()
+        demand = sum(productions.move_raw_ids.mapped("product_uom_qty"))
+
+        merged = self.env["mrp.production"].browse(productions.action_merge()["res_id"])
+
+        self.assertEqual(merged.product_uom_id, self.uom_unit)
+        self.assertEqual(merged.product_qty, 10)
+        self.assertAlmostEqual(
+            sum(merged.move_raw_ids.mapped("product_uom_qty")), demand
+        )
 
     def test_batched_orders_from_one_procurement_get_one_pick_each(self):
         self.warehouse_1.manufacture_steps = "pbm"
