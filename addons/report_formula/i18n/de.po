@@ -1,0 +1,1798 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * report_formula
+#
+# Translators:
+# Leon Grill <leg@odoo.com>, 2022
+# Jinjiu Liu, 2022
+# Johannes Croe <jcr@odoo.com>, 2022
+# Friederike Fasterling-Nesselbosch, 2022
+# Felix Hoßfeld <felix.hossfeld@thoughtgang.de>, 2022
+# Andreas Jonderko <a.jonderko@gastronovi.com>, 2022
+# Niyas Raphy, 2022
+# Felix Schubert <felix.schubert@go-erp.com>, 2022
+# Alexander Bigga, 2023
+# Thomas, 2023
+# Jordan D. (Joda), 2023
+# Chris Egal <sodaswed@web.de>, 2023
+# Larissa Manderfeld, 2023
+# Martin Trigaux, 2023
+# Stefan Reisich <nafex@gmx.net>, 2023
+# Janik Vonrotz <login@janikvonrotz.ch>, 2023
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Larissa Manderfeld (lman)" <lman@odoo.com>, 2025, 2026.
+# Adrian Böttcher <boettcher@top-arbeitsschutz.de>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+# Michael Hofer <michael.hofer@nordicdrinks.ch>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2026-02-13 09:18+0000\n"
+"Last-Translator: \"Larissa Manderfeld (lman)\" <lman@odoo.com>\n"
+"Language-Team: German <https://translate.odoo.com/projects/odoo-19/account/de/>\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+msgid "%(date_from)s - %(date_to)s"
+msgstr "%(date_from)s - %(date_to)s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+msgid "%s is not a numeric value"
+msgstr "%s ist kein numerischer Wert"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid "'external' engine does not support groupby, limit nor offset."
+msgstr ""
+"„Externe“ Maschine unterstützt weder groupby noch Limit noch Zeitversatz."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid "(%s lines)"
+msgstr "(%s Zeilen)"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid "(1 line)"
+msgstr "(1 Zeile)"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid "(copy)"
+msgstr "(Kopie)"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid "A line cannot have both children and a groupby value (line '%s')."
+msgstr ""
+"Eine Zeile kann nicht untergeordnet und ein „groupby“-Wert sein (Zeile "
+"„%s“)."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid ""
+"A report line id segment cannot contain %(tilde)s or %(delimiter)s: "
+"%(segment)s"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.constraint,message:report_formula.constraint_report_formula_line_code_uniq
+msgid "A report line with the same code already exists."
+msgstr "Eine Berichtszeile mit dem gleichen Code existiert bereits."
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__filter_date
+msgid ""
+"A report whose figures do not depend on a period hides the date filter."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+msgid "Account Name"
+msgstr "Kontoname"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__action_id
+msgid "Action"
+msgstr "Aktion"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__active
+msgid "Active"
+msgstr "Aktiv"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__engine__aggregation
+msgid "Aggregate Other Formulas"
+msgstr "Andere Formeln zusammenführen"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__aggregation_formula
+msgid "Aggregation Formula Shortcut"
+msgstr "Tastenkürzel zum Formelzusammenführen"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+msgid "All"
+msgstr "Alle"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+msgid "All Report Variants"
+msgstr "Alle Berichtsvarianten"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__availability_condition__always
+msgid "Always"
+msgstr "Immer"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+msgid "Amounts in Lakhs"
+msgstr "Beträge in Einhunderttausend"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+msgid "Amounts in Millions"
+msgstr "Beträge in Millionen"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+msgid "Amounts in Thousands"
+msgstr "Beträge in Tausend"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/header/header.xml:0
+msgid "Analytic coverage"
+msgstr "Abdeckung der Kostenrechnung"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+msgid "As of %s"
+msgstr "Stand %s"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "Ascending"
+msgstr "Aufsteigend"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__date_scope__to_beginning_of_fiscalyear
+msgid "At the beginning of the fiscal year"
+msgstr "Zu Beginn des Geschäftsjahres"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__date_scope__to_beginning_of_period
+msgid "At the beginning of the period"
+msgstr "Zu Beginn der Periode"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__auditable
+msgid "Auditable"
+msgstr "Prüfbar"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__availability_condition
+msgid "Availability"
+msgstr "Verfügbarkeit"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__blank_if_zero
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__blank_if_zero
+msgid "Blank if Zero"
+msgstr "Leer, wenn Null"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__boolean
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__boolean
+msgid "Boolean"
+msgstr "Boolesch"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__foldable
+msgid ""
+"By default, we always unfold the lines that can be. If this is checked, the "
+"line won't be unfolded by default, and a folding button will be displayed."
+msgstr ""
+"Standardmäßig werden die Zeilen, die ausgeklappt werden können, immer "
+"ausgeklappt. Wenn diese Option aktiviert ist, wird die Zeile standardmäßig "
+"nicht ausgeklappt und es wird eine Schaltfläche zum Ausklappen angezeigt."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+msgid ""
+"Cannot get aggregation details from a line not using 'aggregation' engine"
+msgstr ""
+"Aggregationsdetails können nicht von einer Zeile abgerufen werden, die keine"
+" „Aggregations“-Maschine verwendet"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__children_ids
+msgid "Child Lines"
+msgstr "Untergeordnete Zeilen"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__code
+msgid "Code"
+msgstr "Code"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_optional_columns.xml:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__column_ids
+msgid "Columns"
+msgstr "Spalten"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__groupby
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__user_groupby
+msgid ""
+"Comma-separated list of fields from account.move.line (Journal Item). When "
+"set, this line will generate sublines grouped by those keys."
+msgstr ""
+"Durch Kommata getrennte Liste der Felder aus account.move.line "
+"(Buchungszeile). Wenn eingestellt, werden Unterzeilen erzeugt, die nach "
+"diesen Kontoschlüsseln gruppiert sind."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+msgid "Companies"
+msgstr "Unternehmen"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__company_id
+msgid "Company"
+msgstr "Unternehmen"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+msgid "Company Currency"
+msgstr "Unternehmenswährung"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+msgid "Comparison"
+msgstr "Vergleich"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__use_sections
+msgid "Composite Report"
+msgstr "Zusammengesetzter Bericht"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__engine
+msgid "Computation Engine"
+msgstr "Berechnungsmaschine"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Could not expand term %(term)s while evaluating formula "
+"%(unexpanded_formula)s"
+msgstr ""
+"Begriff %(term)s konnte bei der Auswertung der Formel %(unexpanded_formula)s"
+" nicht erweitert werden"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__country_id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__report_country_id
+msgid "Country"
+msgstr "Land"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__availability_condition__country
+msgid "Country Matches"
+msgstr "Land stimmt überein"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__use_sections
+msgid ""
+"Create a structured report with multiple sections for convenient navigation "
+"and simultaneous printing."
+msgstr ""
+"Erstellen Sie einen strukturierten Bericht mit mehreren Abschnitten zur "
+"bequemen Navigation und zum gleichzeitigen Drucken."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__create_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__create_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__create_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__create_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__create_uid
+msgid "Created by"
+msgstr "Erstellt von"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__create_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__create_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__create_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__create_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__create_date
+msgid "Created on"
+msgstr "Erstellt am"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+msgid "Currency Code"
+msgstr "Währungscode"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.pdf_export_filters
+msgid "Currency:"
+msgstr "Währung:"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__custom_audit_action_id
+msgid "Custom Audit Action"
+msgstr "Benutzerdefinierte Prüfaktion"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_date.xml:0
+msgid "Custom Dates"
+msgstr "Benutzerdefinierte Daten"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__custom_handler_model_id
+msgid "Custom Handler Model"
+msgstr "Modell des benutzerdefinierten Handlers"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__custom_handler_model_name
+msgid "Custom Handler Model Name"
+msgstr "Modellname des benutzerdefinierten Handlers"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__engine__custom
+msgid "Custom Python Function"
+msgstr "Benutzerdefinierte Python-Funktion"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Cyclic aggregation: %(expressions)s cannot be computed, because its formula "
+"%(formula)s references expressions that reference it back."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__date
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__date
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__date
+msgid "Date"
+msgstr "Datum"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_date
+msgid "Date Filter"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_date_range
+msgid "Date Range"
+msgstr "Datumsbereich"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__date_scope
+msgid "Date Scope"
+msgstr "Datumsbereich"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "Date cannot be empty"
+msgstr "Datum darf nicht leer sein"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__source_date_field
+msgid ""
+"Date field of the source model the report's period filters on. Empty: "
+"'date'."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__datetime
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__datetime
+msgid "Datetime"
+msgstr "Datum/Zeit"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__default_opening_date_filter
+msgid "Default Opening"
+msgstr "Standard-Eröffnung"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "Descending"
+msgstr "Absteigend"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__display_custom_groupby_warning
+msgid "Display Custom Groupby Warning"
+msgstr "Benutzerdefinierte Groupby-Warnung anzeigen"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_ir_actions_account_report_download__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_custom_handler__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__display_name
+msgid "Display Name"
+msgstr "Anzeigename"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Division by zero occurred while evaluating Expression: %(line_name)s > "
+"%(label)s."
+msgstr ""
+"Bei der Auswertung des Ausdrucks kam es zu einer Division durch Null: "
+"%(line_name)s > %(label)s."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__domain_formula
+msgid "Domain Formula Shortcut"
+msgstr "Bereichsformel-Kürzel"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__integer_rounding__down
+msgid "Down"
+msgstr "Runter"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+msgid ""
+"Editing a manual report line is not allowed when multiple companies are "
+"selected."
+msgstr ""
+"Die Bearbeitung einer manuellen Berichtszeile ist nicht erlaubt, wenn "
+"mehrere Unternehmen ausgewählt sind."
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_variant.xml:0
+msgid "Enable more ..."
+msgstr "Mehr aktivieren ..."
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__filter_hide_0_lines__by_default
+msgid "Enabled by Default"
+msgstr "Standardmäßig aktiviert"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "End of Month"
+msgstr "Ende des Monats"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "End of Quarter"
+msgstr "Ende des Quartals"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "End of Year"
+msgstr "Ende des Jahres"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line/popover/debug_popover.xml:0
+msgid "Engine"
+msgstr "Maschine"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__expression_label
+msgid "Expression Label"
+msgstr "Ausdrucksbezeichnung"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Expression labelled '%(label)s' of line '%(line)s' is being overwritten when"
+" computing the current report. Make sure the cross-report aggregations of "
+"this report only reference terms belonging to other reports."
+msgstr ""
+"Der Ausdruck „%(label)s“ der Zeile „%(line)s“ wird beim Berechnen des "
+"aktuellen Berichts überschrieben. Stellen Sie sicher, dass die "
+"berichtsübergreifenden Aggregationen dieses Berichts nur auf Begriffe "
+"verweisen, die zu anderen Berichten gehören."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__expression_ids
+msgid "Expressions"
+msgstr "Ausdrücke"
+
+#. module: report_formula
+#: model:ir.model.constraint,message:report_formula.constraint_report_formula_expression_domain_engine_subformula_required
+msgid "Expressions using 'domain' engine should all have a subformula."
+msgstr ""
+"Ausdrücke, die die „Bereichs“-Maschine verwenden, sollten eine Unterformel "
+"haben."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__external_formula
+msgid "External Formula Shortcut"
+msgstr "Kürzel für externe Formel"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__engine__external
+msgid "External Value"
+msgstr "Externer Wert"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Field %(field)s does not exist on %(model)s, and is not supported by this "
+"report's custom handler."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid "Field %(field)s does not exist on %(model)s."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid "Field %(field)s of %(model)s cannot be used in a groupby expression."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Field %(field)s of %(model)s is not searchable and can therefore not be used"
+" in a groupby expression."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid ""
+"Field 'Custom Handler Model' can only reference records inheriting from "
+"[%s]."
+msgstr ""
+"Das Feld „Modell des benutzerdefinierten Handlers“ kann nur Datensätze, die "
+"von [%s] erben, referenzieren."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__figure_type
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__figure_type
+msgid "Figure Type"
+msgstr "Zahlenangabe"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+msgid "Filters"
+msgstr "Filter"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__float
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__float
+msgid "Float"
+msgstr "Gleitkommazahlen"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__foldable
+msgid "Foldable"
+msgstr "Einklappbar"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line/popover/debug_popover.xml:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__formula
+msgid "Formula"
+msgstr "Formel"
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula
+msgid "Formula Report"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula_column
+msgid "Formula Report Column"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula_custom_handler
+msgid "Formula Report Custom Handler"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula_expression
+msgid "Formula Report Expression"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula_external_value
+msgid "Formula Report External Value"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula_line
+msgid "Formula Report Line"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__date_scope__from_fiscalyear
+msgid "From the start of the fiscal year"
+msgstr "Seit Beginn des Geschäftsjahres"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__date_scope__from_beginning
+msgid "From the very start"
+msgstr "Von Beginn an"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__groupby
+msgid "Group By"
+msgstr "Gruppieren nach"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+msgid ""
+"Groupby feature isn't supported by '%(engine)s' engine. Please remove the "
+"groupby value on '%(report_line)s'"
+msgstr ""
+"Der Motor %(engine)s unterstützt die Gruppierungsfunktion nicht. Entfernen "
+"Sie den Gruppierungswert in %(report_line)s."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_growth_comparison
+msgid "Growth Comparison"
+msgstr "Wachstumsvergleich"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__hide_if_zero
+msgid "Hide if Zero"
+msgstr "Verbergen falls 0"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_hide_0_lines
+msgid "Hide lines at 0"
+msgstr "Zeilen bei 0 verbergen"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+msgid "Horizontal Group"
+msgstr "Horizontale Gruppe"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__horizontal_split_side
+msgid "Horizontal Split Side"
+msgstr "Horizontal geteilte Seite"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.pdf_export_filters
+msgid "Horizontal:"
+msgstr "Horizontal:"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_ir_actions_account_report_download__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_custom_handler__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__id
+msgid "ID"
+msgstr "ID"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "In %s"
+msgstr "In %s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+msgid ""
+"In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
+"Failed to parse the cross report id or xml_id.\n"
+msgstr ""
+"Im Bericht „%(report_name)s“, in Zeile „%(line_name)s“, mit der Bezeichnung „%(label)s“,\n"
+"konnte die ID des Querberichts nicht analysiert werden.\n"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+msgid ""
+"In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
+"The format of the cross report expression is invalid. \n"
+"Expected: cross_report(<report_id>|<xml_id>)Example:  cross_report(my_module.my_report) or cross_report(123)"
+msgstr ""
+"Im Bericht „%(report_name)s“, in Zeile „%(line_name)s“, mit der Bezeichnung „%(label)s“,\n"
+"ist der Ausdruck des Querberichts ungültig.\n"
+"Erwartet: cross_report(<report_id>|<xml_id>)Beispiel:  cross_report(my_module.my_report) or cross_report(123)"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+msgid ""
+"Inconsistent data: more than one external value at the same date for a "
+"'most_recent' external line."
+msgstr ""
+"Inkonsistente Daten: mehr als ein externer Wert zum gleichen Datum für eine "
+"externe „most_recent“-Zeile."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid ""
+"Inconsistent report_id in options dictionary. Options says "
+"%(options_report)s; report is %(report)s."
+msgstr ""
+"Inkonsistente report_id in Optionenwörterbuch. Optionen sagen "
+"%(options_report)s; Bericht ist %(report)s."
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__integer
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__integer
+msgid "Integer"
+msgstr "Ganzzahl"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__integer_rounding
+msgid "Integer Rounding"
+msgstr "Ganzzahlrundung"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__aggregation_formula
+msgid ""
+"Internal field to shorten expression_ids creation for the aggregation engine"
+msgstr ""
+"Internes Feld zur Verkürzung der Erstellung von expression_ids für die "
+"Aggregationsmaschine"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__domain_formula
+msgid ""
+"Internal field to shorten expression_ids creation for the domain engine"
+msgstr ""
+"Internes Feld zur Verkürzung der Erstellung von expression_ids für die "
+"Bereichsmaschine"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__external_formula
+msgid ""
+"Internal field to shorten expression_ids creation for the external engine"
+msgstr ""
+"Internes Feld zur Verkürzung der Erstellung von expression_ids für die "
+"externe Maschine"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Invalid bound subformula: %(subformula)s. Expected if_above(CUR(amount)), "
+"if_below(CUR(amount)) or if_between(CUR(amount), CUR(amount)), with CUR an "
+"upper-case currency code."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid ""
+"Invalid domain formula '%(formula)s' on report line '%(line)s'. Expected the"
+" form 'sum(<domain>)' (optionally '-sum(<domain>)')."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Invalid domain formula in expression \"%(expression)s\" of line "
+"\"%(line)s\": %(formula)s"
+msgstr ""
+"Ungültige Domainformel in Ausdruck „%(expression)s“ der Zeile „%(line)s“: "
+"%(formula)s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+msgid ""
+"Invalid formula for expression '%(label)s' of line '%(line)s': %(formula)s"
+msgstr ""
+"Ungültige Formel für Ausdruck „%(label)s“ von Zeile „%(line)s“: %(formula)s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid "Invalid method “%s”"
+msgstr "Ungültige Methode „%s“"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Invalid rounding subformula: %(subformula)s. Expected round(decimal_places) "
+"or round(decimal_places, ROUNDING-METHOD), with a method among HALF-UP, "
+"HALF-DOWN, HALF-EVEN, UP, DOWN."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Invalid subformula in expression \"%(expression)s\" of line \"%(line)s\": "
+"%(subformula)s"
+msgstr ""
+"Ungültige Unterformel im Ausdruck „%(expression)s“ der Zeile „%(line)s“: "
+"%(subformula)s"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__green_on_positive
+msgid "Is Growth Good when Positive"
+msgstr "Ist Wachstum gut, wenn positiv"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line/popover/debug_popover.xml:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__label
+msgid "Label"
+msgstr "Buchungstext"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__previous_month
+msgid "Last Month"
+msgstr "Letzter Monat"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__previous_quarter
+msgid "Last Quarter"
+msgstr "Letztes Quartal"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__write_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__write_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__write_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__write_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__write_uid
+msgid "Last Updated by"
+msgstr "Zuletzt aktualisiert von"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__write_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__write_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__write_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__write_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__write_date
+msgid "Last Updated on"
+msgstr "Zuletzt aktualisiert am"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__previous_year
+msgid "Last Year"
+msgstr "Letztes Jahr"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_line__horizontal_split_side__left
+msgid "Left"
+msgstr "Links"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__hierarchy_level
+msgid "Level"
+msgstr "Ebene"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid ""
+"Line \"%(line)s\" belongs to report \"%(report)s\" but its parent "
+"\"%(parent)s\" belongs to \"%(parent_report)s\". A line and its parent must "
+"be in the same report."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid ""
+"Line \"%(line)s\" defines line \"%(parent_line)s\" as its parent, but "
+"appears before it in the report. The parent must always come first."
+msgstr ""
+"Die Zeile „%(line)s“ definiert die Zeile „%(parent_line)s“ als übergeordnete"
+" Zeile, erscheint aber im Bericht vor ihr. Die übergeordnete Zeile muss "
+"immer an erster Stelle stehen."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid "Line \"%s\" defines itself as its parent."
+msgstr "Zeile „%s“ definiert sich selbst als übergeordnet."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid ""
+"Line '%(child)s' is configured to appear before its parent '%(parent)s'. "
+"This is not allowed."
+msgstr ""
+"Die Zeile „%(child)s“ ist so konfiguriert, dass sie vor der übergeordneten "
+"Zeile „%(parent)s“ erscheint. Das ist nicht erlaubt."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__line_ids
+msgid "Lines"
+msgstr "Zeilen"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__load_more_limit
+msgid "Load More Limit"
+msgstr "„Mehr Laden“-Grenze"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid "Load more..."
+msgstr "Mehr laden ..."
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/account_report.xml:0
+msgid "Loading..."
+msgstr "Lädt …"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.company_information
+msgid "Logo"
+msgstr "Logo"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid "Malformed report line id: %(line_id)s"
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid ""
+"Malformed report line id: %(line_id)s. %(value)s is not a valid %(model)s "
+"id."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+msgid "Manual value"
+msgstr "Manueller Wert"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+msgid "Manual values"
+msgstr "Manuelle Werte"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid "Method '%(method_name)s' must start with the '%(prefix)s' prefix."
+msgstr "Methode „%(method_name)s“ muss mit Präfix „%(prefix)s“ beginnen."
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__monetary
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__monetary
+msgid "Monetary"
+msgstr "Monetär"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "Month"
+msgstr "Monat"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__name
+msgid "Name"
+msgstr "Name"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__integer_rounding__half-up
+msgid "Nearest"
+msgstr "Nächste halbe Zahl"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__filter_hide_0_lines__never
+msgid "Never"
+msgstr "Niemals"
+
+#. module: report_formula
+#. odoo-javascript
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#: code:addons/report_formula/static/src/components/account_report/line_cell/popover/edit_popover.xml:0
+msgid "No"
+msgstr "Nein"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+msgid "No Comparison"
+msgstr "Ohne Vergleich"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/account_report.xml:0
+msgid "No data to display !"
+msgstr "Keine anzuzeigenden Daten!"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "None"
+msgstr "Keine"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "Number of periods cannot be smaller than 1"
+msgstr "Die Anzahl Zeiträume darf nicht kleiner als 1 sein"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__value
+msgid "Numeric Value"
+msgstr "Numerischer Wert"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__source_measure_field
+msgid "Numeric field of the source model a 'domain' expression sums."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__engine__domain
+msgid "Odoo Domain"
+msgstr "Odoo-Bereich"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "Odoo Warning"
+msgstr "Odoo-Warnung"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid ""
+"Only a report without a root report of its own can be selected as root "
+"report."
+msgstr ""
+"Nur ein Bericht ohne eigenen Stammbericht kann als Stammbericht ausgewählt "
+"werden."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__optional
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__filter_hide_0_lines__optional
+msgid "Optional"
+msgstr "Optional"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__optional_hidden
+msgid "Optional, Hidden by Default"
+msgstr ""
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_extra_options.xml:0
+msgid "Options"
+msgstr "Optionen"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.pdf_export_filter_extra_options_template
+msgid "Options:"
+msgstr "Optionen:"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__carryover_origin_expression_label
+msgid "Origin Expression Label"
+msgstr "Ursprüngliche Ausdrucksbezeichnung"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__carryover_origin_report_line_id
+msgid "Origin Line"
+msgstr "Ursprüngliche Zeile"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+msgid "PDF"
+msgstr "PDF"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__parent_id
+msgid "Parent Line"
+msgstr "Übergeordnete Zeile"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__report_id
+msgid "Parent Report"
+msgstr "Übergeordneter Bericht"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+msgid "Partner Categories"
+msgstr "Partner-Kategorien"
+
+#. module: report_formula
+#. odoo-javascript
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_partner.xml:0
+msgid "Partners"
+msgstr "Partner"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.pdf_export_filters
+msgid "Partners Categories:"
+msgstr "Partnerkategorien:"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.pdf_export_filters
+msgid "Partners:"
+msgstr "Partner:"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__percentage
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__percentage
+msgid "Percentage"
+msgstr "Prozentsatz"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "Period"
+msgstr "Zeitraum"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_period_comparison
+msgid "Period Comparison"
+msgstr "Periodenvergleich"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+msgid "Period Total"
+msgstr "Gesamt des Zeitraums"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+msgid "Period order"
+msgstr "Reihenfolge der Periode"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "Periods"
+msgstr "Zeiträume"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line_cell/popover/edit_popover.xml:0
+msgid "Post"
+msgstr "Buchen"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__prefix_groups_threshold
+msgid "Prefix Groups Threshold"
+msgstr "Schwellenwert für Präfixgruppen"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+msgid "Previous Period"
+msgstr "Vorherige Periode"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+msgid "Previous Periods"
+msgstr "Vorherige Perioden"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+msgid "Previous Year"
+msgstr "Vorheriges Jahr"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+msgid "Previous Years"
+msgstr "Vorherige Jahre"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__print_on_new_page
+msgid "Print On New Page"
+msgstr "Auf neuer Seite drucken"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "Quarter"
+msgstr "Quartal"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__report_id
+msgid "Report"
+msgstr "Bericht"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid ""
+"Report \"%(report)s\" is the root report of %(count)s other report(s), so it"
+" cannot become a variant itself."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid ""
+"Report '%(report)s' has no source model, so it can neither evaluate a "
+"'domain' expression nor group its lines."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid ""
+"Report '%(report)s' names the source model '%(model)s', which does not "
+"exist."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid "Report '%(report)s': '%(field)s' is not a field of '%(model)s'."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__report_line_id
+msgid "Report Line"
+msgstr "Berichtszeile"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__report_line_name
+msgid "Report Line Name"
+msgstr "Name der Berichtszeile"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/warnings.xml:0
+msgid ""
+"Report is being loaded in the background. Presented data were cached and may"
+" not be accurate."
+msgstr ""
+"Der Bericht wird im Hintergrund geladen. Die angezeigten Daten wurden "
+"zwischengespeichert und sind möglicherweise nicht korrekt."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid "Report lines cannot form a recursive parent hierarchy."
+msgstr ""
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_variant.xml:0
+msgid "Report:"
+msgstr "Bericht:"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_line__horizontal_split_side__right
+msgid "Right"
+msgstr "Rechts"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__root_report_id
+msgid "Root Report"
+msgstr "Stammbericht"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+msgid "Same Period Last Year"
+msgstr "Gleiche Periode letzten Jahres"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__search_bar
+msgid "Search Bar"
+msgstr "Suchleiste"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/search_bar/search_bar.xml:0
+msgid "Search..."
+msgstr "Suchen ..."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__section_main_report_ids
+msgid "Section Of"
+msgstr "Abschnitt von"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__section_report_ids
+msgid "Sections"
+msgstr "Abschnitte"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__sequence
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__sequence
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__sequence
+msgid "Sequence"
+msgstr "Sequenz"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__action_id
+msgid ""
+"Setting this field will turn the line into a link, executing the action when"
+" clicked."
+msgstr ""
+"Wenn dieses Feld bestimmt wird, wird die Zeile in einen Link verwandelt, der"
+" beim Anklicken die Aktion ausführt."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__sortable
+msgid "Sortable"
+msgstr "Sortierbar"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__source_date_field
+msgid "Source Date Field"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__source_measure_field
+msgid "Source Measure Field"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__source_model
+msgid "Source Model"
+msgstr ""
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_date.xml:0
+msgid "Specific Date"
+msgstr "Bestimmtes Datum"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "Split Horizontally"
+msgstr "Horizontal teilen"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__date_scope__strict_range
+msgid "Strictly on the given dates"
+msgstr "Streng zu den angegebenen Daten"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__string
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__string
+msgid "String"
+msgstr "Zeichenkette"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line/popover/debug_popover.xml:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__subformula
+msgid "Subformula"
+msgstr "Unterformel"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_partner.xml:0
+msgid "Tags"
+msgstr "Stichwörter"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__target_report_expression_id
+msgid "Target Expression"
+msgstr "Zielausdruck"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__target_report_expression_label
+msgid "Target Expression Label"
+msgstr "Zielausdrucksbezeichnung"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__target_report_line_id
+msgid "Target Line"
+msgstr "Zielzeile"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.company_information
+msgid "Tax ID:"
+msgstr "USt-IdNr.:"
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_ir_actions_account_report_download
+msgid "Technical model for report downloads"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__source_model
+msgid ""
+"Technical name of the model the report's 'domain' expressions search and its"
+" lines group by. Empty: the module that owns the report decides."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__text_value
+msgid "Text Value"
+msgstr "Textwert"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/ellipsis/ellipsis.js:0
+msgid "Text copied"
+msgstr "Text kopiert"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid ""
+"The Availability is set to 'Country Matches' but the field Country is not "
+"set."
+msgstr ""
+"Die Verfügbarkeit ist auf „Land stimmt überein“ gesetzt, aber das Feld "
+"„Land“ ist nicht gesetzt."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid ""
+"The code of line \"%(line)s\" is \"%(code)s\". A code is what an aggregation"
+" formula and a carryover target name a line by, so it cannot contain a dot, "
+"a bracket, whitespace or an operator."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.constraint,message:report_formula.constraint_report_formula_expression_line_label_uniq
+msgid "The expression label must be unique per report line."
+msgstr "Die Ausdrucksbezeichnung muss je Berichtszeile eindeutig sein."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+msgid ""
+"The label of expression \"%(label)s\" on line \"%(line)s\" is the second "
+"half of an aggregation term, so it cannot contain a dot, a bracket, "
+"whitespace or an operator."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__root_report_id
+msgid "The report this report is a variant of."
+msgstr "Der Bericht, von dem dieser Bericht eine Variante ist."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid "The sections defined on a report cannot have sections themselves."
+msgstr ""
+"Die in einem Bericht definierten Abschnitte können selbst keine Abschnitte "
+"haben."
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/account_report.xml:0
+msgid "There is no data to display for the given filters."
+msgstr ""
+"Für die angegebenen Filter gibt es keine Daten, die angezeigt werden können."
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__this_month
+msgid "This Month"
+msgstr "Diesen Monat"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__this_quarter
+msgid "This Quarter"
+msgstr "Dieses Quartal"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__this_year
+msgid "This Year"
+msgstr "Dieses Jahr"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__hide_if_zero
+msgid ""
+"This line and its children will be hidden when all of their columns are 0."
+msgstr ""
+"Diese Zeile und die untergeordneten werden verborgen, wenn alle ihre Spalten"
+" 0 sind."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+msgid "This report already has a menuitem."
+msgstr "Dieser Bericht hat bereits einen Menüpunkt."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid "This subformula references an unknown expression: %s"
+msgstr "Diese Teilformel verweist auf einen unbekannten Ausdruck: %s"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_date.xml:0
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__today
+msgid "Today"
+msgstr "Heute"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid "Total %s"
+msgstr "Gesamt %s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+msgid ""
+"Trying to dispatch an action on a report not compatible with the provided "
+"options."
+msgstr ""
+"Der Versuch, eine Aktion für einen Bericht zu versenden, der nicht mit den "
+"angegebenen Optionen kompatibel ist."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+msgid ""
+"Trying to dispatch an action on a report unrelated to the provided sections "
+"source."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid ""
+"Trying to expand a group for a line which was not generated by a report "
+"line: %s"
+msgstr ""
+"Versuch, eine Gruppe für eine Zeile zu erweitern, die nicht durch eine "
+"Berichtszeile erzeugt wurde: %s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid "Trying to expand a line without an expansion function."
+msgstr "Versuch, eine Zeile ohne Erweiterungsfunktion zu erweitern."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid "Trying to expand groupby results on lines without a groupby value."
+msgstr ""
+"Versuch, Groupby-Ergebnisse auf Zeilen ohne Groupby-Wert zu erweitern."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid "Undefined"
+msgstr "Undefiniert"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_unfold_all
+msgid "Unfold All"
+msgstr "Alle ausklappen"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__code
+msgid "Unique identifier for this line."
+msgstr "Eindeutiger Bezeichner für diese Zeile."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid "Unknown"
+msgstr "Unbekannt"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid "Unknown bound criterium: %s"
+msgstr "Unbekanntes Grenzkriterium: %s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid "Unknown currency code in bound subformula %(subformula)s: %(codes)s."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+msgid "Unknown date scope: %s"
+msgstr "Unbekannter Datumsumfang: %s"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__integer_rounding__up
+msgid "Up"
+msgstr "Hoch"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__user_groupby
+msgid "User Group By"
+msgstr "Benutzergruppierung nach"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line/popover/debug_popover.xml:0
+msgid "Value"
+msgstr "Wert"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__variant_report_ids
+msgid "Variants"
+msgstr "Varianten"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+msgid "View Partner"
+msgstr "Partner ansehen"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__print_on_new_page
+msgid ""
+"When checked this line and everything after it will be printed on a new "
+"page."
+msgstr ""
+"Diese Zeile markieren, damit alle nachfolgenden auf eine neue Seite gedruckt"
+" werden."
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_column__blank_if_zero
+msgid "When checked, 0 values will not show in this column."
+msgstr ""
+"Wenn diese Option aktiviert ist, werden in dieser Spalte keine 0-Werte "
+"angezeigt."
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_expression__blank_if_zero
+msgid ""
+"When checked, 0 values will not show when displaying this expression's "
+"value."
+msgstr ""
+"Wenn diese Option aktiviert ist, werden bei der Anzeige dieses Ausdruckswert"
+" keine 0-Werte angezeigt."
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_column__optional_hidden
+msgid "When checked, an optional column starts out switched off."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_column__optional
+msgid "When checked, the reader can switch this column off from the report."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid "Wrong format for if_other_expr_above/if_other_expr_below formula: %s"
+msgstr ""
+"Falsches Format für Formel if_other_expr_above/if_other_expr_below: %s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+msgid "XLSX"
+msgstr "XLSX"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+msgid "Year"
+msgstr "Jahr"
+
+#. module: report_formula
+#. odoo-javascript
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#: code:addons/report_formula/static/src/components/account_report/line_cell/popover/edit_popover.xml:0
+msgid "Yes"
+msgstr "Ja"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid "You can't delete a report that has variants."
+msgstr "Sie können keinen Bericht löschen, der Varianten hat."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+msgid "You cannot use cross report on itself"
+msgstr "Sie können Querverweise nicht auf sich selbst anwenden"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid "n/a"
+msgstr "k. A."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+msgid "report.%(file_extension)s"
+msgstr "Bericht.%(file_extension)s"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_date.xml:0
+msgid "to"
+msgstr "bis"

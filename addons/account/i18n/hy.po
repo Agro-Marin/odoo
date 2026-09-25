@@ -68,18 +68,6 @@ msgstr ""
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "'external' engine does not support groupby, limit nor offset."
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "(%s lines)"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_bank_reconciliation_report.py:0
 msgid "(+) Outstanding Receipts"
 msgstr ""
@@ -88,12 +76,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/account_reports/models/account_bank_reconciliation_report.py:0
 msgid "(-) Outstanding Payments"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "(1 line)"
 msgstr ""
 
 #. module: account_reports
@@ -499,12 +481,6 @@ msgstr ""
 #: code:addons/account_reports/static/src/components/multicurrency_revaluation_report/filters/filter_exchange_rate.xml:0
 msgid "Apply"
 msgstr "Ավելացնել"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "As of %s"
-msgstr ""
 
 #. module: account_reports
 #: model:account.report.column,name:account_reports.aged_payable_report_period0
@@ -1021,16 +997,6 @@ msgid "Custom"
 msgstr "Ձեւափոխված"
 
 #. module: account_reports
-#: model:ir.model.fields,field_description:account_reports.field_account_report__custom_handler_model_id
-msgid "Custom Handler Model"
-msgstr ""
-
-#. module: account_reports
-#: model:ir.model.fields,field_description:account_reports.field_account_report__custom_handler_model_name
-msgid "Custom Handler Model Name"
-msgstr ""
-
-#. module: account_reports
 #: model:account.report.column,name:account_reports.bank_reconciliation_report_date
 #: model:account.report.column,name:account_reports.general_ledger_report_date
 #: model:ir.model.fields,field_description:account_reports.field_account_multicurrency_revaluation_wizard__date
@@ -1042,12 +1008,6 @@ msgstr "Ամսաթիվ"
 #: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
 #: code:addons/account_reports/static/src/components/account_report/filters/filter_date.xml:0
 msgid "Date :"
-msgstr ""
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Date cannot be empty"
 msgstr ""
 
 #. module: account_reports
@@ -1145,12 +1105,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 msgid "Editing a manual report line is not allowed in multivat setup when displaying data from all fiscal positions."
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Editing a manual report line is not allowed when multiple companies are selected."
 msgstr ""
 
 #. module: account_reports
@@ -1308,12 +1262,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 msgid "Field %s of account.move.line is not stored, and hence cannot be used in a groupby expression"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Field 'Custom Handler Model' can only reference records inheriting from [%s]."
 msgstr ""
 
 #. module: account_reports
@@ -1592,12 +1540,6 @@ msgstr ""
 #. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
-msgid "Inconsistent data: more than one external value at the same date for a 'most_recent' external line."
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
 msgid "Inconsistent report_id in options dictionary. Options says %s; report is %s."
 msgstr ""
 
@@ -1735,18 +1677,6 @@ msgid "Last Financial Year"
 msgstr ""
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_date.xml:0
-msgid "Last Month"
-msgstr ""
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_date.xml:0
-msgid "Last Quarter"
-msgstr ""
-
-#. module: account_reports
 #: model_terms:ir.ui.view,arch_db:account_reports.account_reports_journal_dashboard_kanban_view
 msgid "Last Statement balance + Transactions since statement"
 msgstr ""
@@ -1790,12 +1720,6 @@ msgid "Lines"
 msgstr ""
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Load more..."
-msgstr ""
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_tax_unit__main_company_id
 msgid "Main Company"
 msgstr ""
@@ -1816,12 +1740,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 msgid "Manual value"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Manual values"
 msgstr ""
 
 #. module: account_reports
@@ -1919,12 +1837,6 @@ msgid "No"
 msgstr ""
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-msgid "No Comparison"
-msgstr ""
-
-#. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 msgid "No VAT number associated with your company. Please define one."
@@ -1971,12 +1883,6 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
 msgid "Number of periods :"
-msgstr ""
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Number of periods cannot be smaller than 1"
 msgstr ""
 
 #. module: account_reports
@@ -2038,12 +1944,6 @@ msgid "Options"
 msgstr ""
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_extra_options.xml:0
-msgid "Options:"
-msgstr ""
-
-#. module: account_reports
 #: model:account.report.line,name:account_reports.account_financial_report_other_income0
 msgid "Other Income"
 msgstr ""
@@ -2053,12 +1953,6 @@ msgstr ""
 #: code:addons/account_reports/models/account_bank_reconciliation_report.py:0
 #: model_terms:ir.ui.view,arch_db:account_reports.account_reports_journal_dashboard_kanban_view
 msgid "Outstanding Payments/Receipts"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "PDF"
 msgstr ""
 
 #. module: account_reports
@@ -2122,11 +2016,6 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/account_reports/static/src/components/account_report/filters/filter_partner.xml:0
 msgid "Partners"
-msgstr ""
-
-#. module: account_reports
-#: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filters
-msgid "Partners:"
 msgstr ""
 
 #. module: account_reports
@@ -2233,12 +2122,6 @@ msgid "Preview Data"
 msgstr ""
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-msgid "Previous Period"
-msgstr ""
-
-#. module: account_reports
 #: model:account.report.line,name:account_reports.account_financial_previous_year_earnings0
 msgid "Previous Years Unallocated Earnings"
 msgstr ""
@@ -2333,12 +2216,6 @@ msgid "Report lines mentioning the account code"
 msgstr ""
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_variant.xml:0
-msgid "Report:"
-msgstr ""
-
-#. module: account_reports
 #: model_terms:ir.ui.view,arch_db:account_reports.res_config_settings_view_form
 msgid "Reporting"
 msgstr ""
@@ -2382,12 +2259,6 @@ msgstr ""
 #. module: account_reports
 #: model_terms:ir.ui.view,arch_db:account_reports.account_reports_journal_dashboard_kanban_view
 msgid "Running Balance"
-msgstr ""
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-msgid "Same Period Last Year"
 msgstr ""
 
 #. module: account_reports
@@ -2683,18 +2554,6 @@ msgid "This Financial Year"
 msgstr ""
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_date.xml:0
-msgid "This Month"
-msgstr ""
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_date.xml:0
-msgid "This Quarter"
-msgstr ""
-
-#. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 msgid "This account exists in the Chart of Accounts but is not mentioned in any line of the report"
@@ -2759,13 +2618,6 @@ msgstr ""
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_bank_reconciliation_report.py:0
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Total %s"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 msgid "Trade Partners"
 msgstr ""
@@ -2808,24 +2660,6 @@ msgstr ""
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Trying to expand a group for a line which was not generated by a report line: %s"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Trying to expand a line without an expansion function."
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Trying to expand groupby results on lines without a groupby value."
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_journal_report.py:0
 msgid "Trying to use the journal line expand function on a line that is not linked to a journal."
 msgstr ""
@@ -2836,34 +2670,10 @@ msgid "Unallocated Earnings"
 msgstr ""
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_extra_options.xml:0
-msgid "Unfold All"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Unknown"
-msgstr ""
-
-#. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_partner_ledger.py:0
 #: code:addons/account_reports/models/account_sales_report.py:0
 msgid "Unknown Partner"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Unknown bound criterium: %s"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Unknown date scope: %s"
 msgstr ""
 
 #. module: account_reports
@@ -2944,24 +2754,6 @@ msgid "Wrong ID for partner ledger line to expand: %s"
 msgstr ""
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Wrong format for if_other_expr_above/if_other_expr_below formula: %s"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "XLSX"
-msgstr ""
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/line_cell/popover/edit_popover.xml:0
-msgid "Yes"
-msgstr ""
-
-#. module: account_reports
 #. odoo-javascript
 #: code:addons/account_reports/static/src/components/multicurrency_revaluation_report/account_report.xml:0
 msgid "You are using custom exchange rates."
@@ -3038,12 +2830,6 @@ msgstr ""
 #. module: account_reports
 #: model:ir.model.fields.selection,name:account_reports.selection__res_company__account_tax_periodicity__monthly
 msgid "monthly"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "n/a"
 msgstr ""
 
 #. module: account_reports

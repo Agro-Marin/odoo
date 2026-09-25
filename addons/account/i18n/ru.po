@@ -293,12 +293,6 @@ msgid "(Un)Block Payment"
 msgstr "(Раз)Блокировать платеж"
 
 #. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid "(copy)"
-msgstr "(копия)"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
 msgid "(from"
 msgstr "(от"
@@ -2100,14 +2094,6 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid "A line cannot have both children and a groupby value (line '%s')."
-msgstr ""
-"Строка не может одновременно иметь дочерние элементы и значение группировки "
-"(строка '%s')."
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/account_move.py:0
 msgid "A line of this move is using a archived account, you cannot post it."
 msgstr ""
@@ -2135,11 +2121,6 @@ msgid ""
 msgstr ""
 "Платёж по неоплаченному счёту не может быть подтверждён без журнальной "
 "записи."
-
-#. module: account
-#: model:ir.model.constraint,message:account.constraint_account_report_line_code_uniq
-msgid "A report line with the same code already exists."
-msgstr "Строка отчёта с таким же кодом уже существует."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -3189,16 +3170,6 @@ msgid "After"
 msgstr "После"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__aggregation
-msgid "Aggregate Other Formulas"
-msgstr "Агрегировать другие формулы"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__aggregation_formula
-msgid "Aggregation Formula Shortcut"
-msgstr "Сокращение формулы агрегации"
-
-#. module: account
 #: model:account.account,name:account.2_account_account_us_airfare
 msgid "Airfare"
 msgstr "Airfare"
@@ -3840,16 +3811,6 @@ msgid "At Date"
 msgstr "На дату"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__date_scope__to_beginning_of_fiscalyear
-msgid "At the beginning of the fiscal year"
-msgstr "В начале финансового года"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__date_scope__to_beginning_of_period
-msgid "At the beginning of the period"
-msgstr "В начале периода"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_move_send_wizard_form
 #: model_terms:ir.ui.view,arch_db:account_reports.account_report_send_form
 msgid "Attach a file"
@@ -3908,11 +3869,6 @@ msgstr "Журнал аудита"
 #: model:ir.model.fields,field_description:account.field_account_move__audit_trail_message_ids
 msgid "Audit Trail Messages"
 msgstr "Сообщения журнала аудита"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_expression__auditable
-msgid "Auditable"
-msgstr "Проверяемый"
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__res_company__fiscalyear_last_month__8
@@ -4619,12 +4575,6 @@ msgid "Bills to receive"
 msgstr "Счета к получению"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_column__blank_if_zero
-#: model:ir.model.fields,field_description:account.field_account_report_expression__blank_if_zero
-msgid "Blank if Zero"
-msgstr "Пусто, если ноль"
-
-#. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_invoice_report__payment_state__blocked
 #: model:ir.model.fields.selection,name:account.selection__account_move__payment_state__blocked
 #: model:ir.model.fields.selection,name:account.selection__account_move__status_in_payment__blocked
@@ -4636,12 +4586,6 @@ msgstr "Заблокировано"
 #: model:ir.model.fields,field_description:account.field_account_move_send_wizard__body_has_template_value
 msgid "Body content is the same as the template"
 msgstr "Содержание тела письма совпадает с шаблоном"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__boolean
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__boolean
-msgid "Boolean"
-msgstr "Логический"
 
 #. module: account
 #. odoo-javascript
@@ -4688,16 +4632,6 @@ msgstr "Business licenses and permits that your company must pay to operate"
 #: model:account.account,description:account.2_account_account_us_local_tax
 msgid "Business or income taxes owed to local or municipal governments"
 msgstr "Business or income taxes owed to local or municipal governments"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__foldable
-msgid ""
-"By default, we always unfold the lines that can be. If this is checked, the "
-"line won't be unfolded by default, and a folding button will be displayed."
-msgstr ""
-"По умолчанию мы всегда разворачиваем строки, которые можно развернуть. Если "
-"этот флажок установлен, строка не будет разворачиваться по умолчанию, и "
-"будет отображаться кнопка сворачивания."
 
 #. module: account
 #. odoo-python
@@ -4849,15 +4783,6 @@ msgid ""
 msgstr ""
 "Не удаётся сгенерировать неиспользуемый код журнала. Измените название "
 "журнала %s."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid ""
-"Cannot get aggregation details from a line not using 'aggregation' engine"
-msgstr ""
-"Нельзя получить детали агрегации из строки, не использующей механизм "
-"'aggregation'"
 
 #. module: account
 #. odoo-python
@@ -5212,11 +5137,6 @@ msgid "Checks"
 msgstr "Чеки"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__children_ids
-msgid "Child Lines"
-msgstr "Дочерние строки"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_tax__children_tax_ids
 #: model_terms:ir.ui.view,arch_db:account.view_tax_form
 msgid "Children Taxes"
@@ -5341,17 +5261,6 @@ msgstr "Индекс цвета"
 #: model_terms:ir.ui.view,arch_db:account_reports.account_report_form
 msgid "Columns"
 msgstr "Колонки"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__groupby
-#: model:ir.model.fields,help:account.field_account_report_line__user_groupby
-msgid ""
-"Comma-separated list of fields from account.move.line (Journal Item). When "
-"set, this line will generate sublines grouped by those keys."
-msgstr ""
-"Список полей из account.move.line (элемент журнала), разделённый запятыми. "
-"При установке этой строки будут созданы подстроки, сгруппированные по этим "
-"ключам."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__commercial_partner_id
@@ -5528,11 +5437,6 @@ msgstr "Compensation paid to employees and workers employed by the company"
 #: model:account.account,description:account.2_account_account_us_general_subcontracting
 msgid "Compensation to external workers and consultants for services"
 msgstr "Compensation to external workers and consultants for services"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__use_sections
-msgid "Composite Report"
-msgstr "Составной отчёт"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_report_expression__engine
@@ -5813,11 +5717,6 @@ msgid "Country Group"
 msgstr "Группа стран"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__availability_condition__country
-msgid "Country Matches"
-msgstr "Совпадение страны"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__partner_country_name
 #: model:ir.model.fields,field_description:account.field_res_partner_bank_account__partner_country_name
 msgid "Country Name"
@@ -5946,15 +5845,6 @@ msgstr "Создать новый налог"
 #: model_terms:ir.actions.act_window,help:account.action_tax_group
 msgid "Create a new tax group"
 msgstr "Создать новую налоговую группу"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report__use_sections
-msgid ""
-"Create a structured report with multiple sections for convenient navigation "
-"and simultaneous printing."
-msgstr ""
-"Создайте структурированный отчёт с несколькими разделами для удобной "
-"навигации и одновременной печати."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_move_in_invoice
@@ -6424,16 +6314,6 @@ msgid "Current Year Earnings"
 msgstr "Доходы текущего года"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_column__custom_audit_action_id
-msgid "Custom Audit Action"
-msgstr "Пользовательское действие аудита"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__custom
-msgid "Custom Python Function"
-msgstr "Пользовательская функция Python"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_payment_register__custom_user_amount
 msgid "Custom User Amount"
 msgstr "Пользовательская сумма"
@@ -6649,11 +6529,6 @@ msgstr ""
 " все записи в журнале до конца периода будут переупорядочены."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__filter_date_range
-msgid "Date Range"
-msgstr "Диапазон дат"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_report_expression__date_scope
 msgid "Date Scope"
 msgstr "Область дат"
@@ -6678,12 +6553,6 @@ msgstr "Дата:"
 #: model_terms:ir.ui.view,arch_db:account_reports.return_creation_wizard_form
 msgid "Dates"
 msgstr "Даты"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__datetime
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__datetime
-msgid "Datetime"
-msgstr "Дата и время"
 
 #. module: account
 #: code:addons/account_reports/static/src/components/aged_partner_balance/filter_aging.xml:0
@@ -7529,11 +7398,6 @@ msgid "Domain"
 msgstr "Домен"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__domain_formula
-msgid "Domain Formula Shortcut"
-msgstr "Сокращение формулы домена"
-
-#. module: account
 #: model:account.fiscal.position,name:account.1_template_generic_domestic_fiscal_position
 #: model:account.fiscal.position,name:account.2_account_fiscal_position_us_domestic
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_filter
@@ -8283,34 +8147,9 @@ msgid "Export ZIP"
 msgstr ""
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_column__expression_label
-msgid "Expression Label"
-msgstr "Метка выражения"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__expression_ids
-msgid "Expressions"
-msgstr "Выражения"
-
-#. module: account
-#: model:ir.model.constraint,message:account.constraint_account_report_expression_domain_engine_subformula_required
-msgid "Expressions using 'domain' engine should all have a subformula."
-msgstr "Выражения с механизмом 'domain' должны иметь подформулу."
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__external_formula
-msgid "External Formula Shortcut"
-msgstr "Ярлык внешней формулы"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement__reference
 msgid "External Reference"
 msgstr "Внешняя ссылка"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__external
-msgid "External Value"
-msgstr "Внешнее значение"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_send_wizard__extra_edi_checkboxes
@@ -8398,12 +8237,6 @@ msgstr "Поле"
 #: model_terms:ir.ui.view,arch_db:account.view_message_tree_audit_log_search
 msgid "Field Value"
 msgstr "Значение поля"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_column__figure_type
-#: model:ir.model.fields,field_description:account.field_account_report_expression__figure_type
-msgid "Figure Type"
-msgstr "Тип значения"
 
 #. module: account
 #. odoo-javascript
@@ -8589,20 +8422,9 @@ msgid "Flights or expenses related to air travel by plane"
 msgstr "Flights or expenses related to air travel by plane"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__float
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__float
-msgid "Float"
-msgstr "Плавающий"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__amount
 msgid "Float Amount"
 msgstr "Дробная сумма"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__foldable
-msgid "Foldable"
-msgstr "Сворачиваемый"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.portal_my_home_invoice
@@ -8783,12 +8605,6 @@ msgid "Foreign tax account receivable (%s)"
 msgstr "Дебиторская задолженность по иностранному налогу (%s)"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_expression__formula
-#: code:addons/account_reports/static/src/components/account_report/line/popover/debug_popover.xml:0
-msgid "Formula"
-msgstr "Формула"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_report_expression__carryover_target
 msgid ""
 "Formula in the form line_code.expression_label. This allows setting the "
@@ -8853,16 +8669,6 @@ msgstr "За прошлый финансовый год"
 #: model:ir.model.fields.selection,name:account.selection__account_report_expression__date_scope__previous_return_period
 msgid "From previous return period"
 msgstr ""
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__date_scope__from_fiscalyear
-msgid "From the start of the fiscal year"
-msgstr "С начала финансового года"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__date_scope__from_beginning
-msgid "From the very start"
-msgstr "С самого начала"
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all_supp
@@ -9085,24 +8891,9 @@ msgid "Group payments into a single batch to ease the reconciliation process"
 msgstr "Группируйте платежи в одну партию для упрощения процесса сверки"
 
 #. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid ""
-"Groupby feature isn't supported by '%(engine)s' engine. Please remove the "
-"groupby value on '%(report_line)s'"
-msgstr ""
-"Функция группировки не поддерживается механизмом '%(engine)s'. Удалите "
-"значение группировки в '%(report_line)s'"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_merge_wizard_line__grouping_key
 msgid "Grouping Key"
 msgstr "Ключ группировки"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__filter_growth_comparison
-msgid "Growth Comparison"
-msgstr "Сравнение роста"
 
 #. module: account
 #: model:ir.model,name:account.model_ir_http
@@ -9257,17 +9048,6 @@ msgid "Hide Writeoff Section"
 msgstr "Скрыть раздел списания"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__hide_if_zero
-msgid "Hide if Zero"
-msgstr "Скрыть, если ноль"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__filter_hide_0_lines
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Hide lines at 0"
-msgstr "Скрыть строки с нулем"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_secure_entries_wizard__max_hash_date
 msgid ""
 "Highest Date such that all posted journal entries prior to (including) the "
@@ -9288,11 +9068,6 @@ msgstr "Наибольший номер"
 #: model:ir.model.fields,field_description:account.field_account_move__highlight_send_button
 msgid "Highlight Send Button"
 msgstr ""
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__horizontal_split_side
-msgid "Horizontal Split Side"
-msgstr "Сторона горизонтального разделения"
 
 #. module: account
 #: model:account.account,description:account.2_account_account_us_hotels
@@ -9848,23 +9623,6 @@ msgid "In payment"
 msgstr "В оплате"
 
 #. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid ""
-"In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
-"Failed to parse the cross report id or xml_id.\n"
-msgstr ""
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid ""
-"In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
-"The format of the cross report expression is invalid. \n"
-"Expected: cross_report(<report_id>|<xml_id>)Example:  cross_report(my_module.my_report) or cross_report(123)"
-msgstr ""
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_tax_search
 #: model_terms:ir.ui.view,arch_db:account_reports.view_account_report_search
 msgid "Inactive"
@@ -10020,18 +9778,6 @@ msgstr ""
 "employees injured on the job"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__integer
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__integer
-msgid "Integer"
-msgstr "Целое число"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__integer_rounding
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Integer Rounding"
-msgstr "Округление до целого"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_res_company__transfer_account_id
 msgid "Inter-Banks Transfer Account"
 msgstr "Счёт межбанковских переводов"
@@ -10103,28 +9849,6 @@ msgstr ""
 "account_codes"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__aggregation_formula
-msgid ""
-"Internal field to shorten expression_ids creation for the aggregation engine"
-msgstr ""
-"Внутреннее поле для упрощения создания expression_ids для механизма "
-"агрегации"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__domain_formula
-msgid ""
-"Internal field to shorten expression_ids creation for the domain engine"
-msgstr ""
-"Внутреннее поле для упрощения создания expression_ids для механизма домена"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__external_formula
-msgid ""
-"Internal field to shorten expression_ids creation for the external engine"
-msgstr ""
-"Внутреннее поле для упрощения создания expression_ids для внешнего механизма"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_report_line__tax_tags_formula
 msgid ""
 "Internal field to shorten expression_ids creation for the tax_tags engine"
@@ -10180,13 +9904,6 @@ msgstr ""
 #: code:addons/account/models/company.py:0
 msgid "Invalid fiscal year last day"
 msgstr "Неверный последний день финансового года"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid ""
-"Invalid formula for expression '%(label)s' of line '%(line)s': %(formula)s"
-msgstr ""
 
 #. module: account
 #. odoo-python
@@ -10672,11 +10389,6 @@ msgstr "Есть записи"
 #: model:ir.model.fields,field_description:account_reports.field_account_return_type__message_is_follower
 msgid "Is Follower"
 msgstr "Является подписчиком"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_expression__green_on_positive
-msgid "Is Growth Good when Positive"
-msgstr "Хорош ли рост при положительном значении"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_line__is_imported
@@ -11173,16 +10885,6 @@ msgid "Last Hash"
 msgstr "Последний хеш"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__previous_month
-msgid "Last Month"
-msgstr "Прошлый месяц"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__previous_quarter
-msgid "Last Quarter"
-msgstr "Прошлый квартал"
-
-#. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__previous_return_period
 msgid "Last Return Period"
 msgstr ""
@@ -11323,11 +11025,6 @@ msgid "Last Updated on"
 msgstr "Дата последнего обновления:"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__previous_year
-msgid "Last Year"
-msgstr "Прошлый год"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_move_line__discount_date
 msgid ""
 "Last date at which the discounted amount must be paid in order for the Early"
@@ -11378,11 +11075,6 @@ msgid "Ledger group allows managing multiple accounting standards."
 msgstr ""
 "Группа главной книги позволяет управлять несколькими стандартами "
 "бухгалтерского учёта."
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_line__horizontal_split_side__left
-msgid "Left"
-msgstr "Слева"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.portal_invoice_page
@@ -11439,11 +11131,6 @@ msgid "Let's start!"
 msgstr "Давайте начнём!"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__hierarchy_level
-msgid "Level"
-msgstr "Уровень"
-
-#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/account_type_selection/account_type_selection.js:0
 msgid "Liabilities"
@@ -11469,23 +11156,6 @@ msgstr "Licenses or computer services (like repairs or upgrades)"
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__line_ids
 msgid "Line"
 msgstr "Строка"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid ""
-"Line \"%(line)s\" defines line \"%(parent_line)s\" as its parent, but "
-"appears before it in the report. The parent must always come first."
-msgstr ""
-"Строка \"%(line)s\" определяет строку \"%(parent_line)s\" как родительскую, "
-"но появляется перед ней в отчёте. Родительская строка всегда должна быть "
-"первой."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid "Line \"%s\" defines itself as its parent."
-msgstr "Строка \"%s\" определяет себя как родительскую."
 
 #. module: account
 #: model:account.reconcile.model,name:account.1_reconcile_from_label
@@ -11516,11 +11186,6 @@ msgstr "Ликвидность"
 #: model:account.account,name:account.1_transfer_account_id
 msgid "Liquidity Transfer"
 msgstr "Перевод ликвидности"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__load_more_limit
-msgid "Load More Limit"
-msgstr "Лимит загрузки дополнительных данных"
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_loan_interest_expense
@@ -12076,12 +11741,6 @@ msgstr "Изменить сумму налога"
 #: model:ir.model,name:account_reports.model_ir_module_module
 msgid "Module"
 msgstr "Модуль"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__monetary
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__monetary
-msgid "Monetary"
-msgstr "Денежный"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__money_transfer_service
@@ -12770,11 +12429,6 @@ msgid "Numbers only (202400001)"
 msgstr ""
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__value
-msgid "Numeric Value"
-msgstr "Числовое значение"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "OSS Tax mapping"
 msgstr ""
@@ -12783,11 +12437,6 @@ msgstr ""
 #: model:ir.model.fields.selection,name:account.selection__res_company__fiscalyear_last_month__10
 msgid "October"
 msgstr "Октябрь"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__domain
-msgid "Odoo Domain"
-msgstr "Домен Odoo"
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_bank_statement_tree
@@ -12927,16 +12576,6 @@ msgstr "Онлайн-платежи"
 #: model:ir.model.fields,field_description:account.field_account_report__only_tax_exigible
 msgid "Only Tax Exigible Lines"
 msgstr "Только строки, облагаемые налогом"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid ""
-"Only a report without a root report of its own can be selected as root "
-"report."
-msgstr ""
-"Только отчёт без собственного корневого отчёта может быть выбран как "
-"корневой."
 
 #. module: account
 #. odoo-python
@@ -13110,16 +12749,6 @@ msgstr "Сортировка"
 #: model:ir.model.fields,field_description:account.field_account_move__invoice_origin
 msgid "Origin"
 msgstr "Происхождение"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__carryover_origin_expression_label
-msgid "Origin Expression Label"
-msgstr "Метка исходного выражения"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__carryover_origin_report_line_id
-msgid "Origin Line"
-msgstr "Исходная строка"
 
 #. module: account
 #: model:ir.actions.report,name:account.action_account_original_vendor_bill
@@ -13413,16 +13042,6 @@ msgstr "Парный внутренний перевод платежа"
 #: model:ir.model.fields,field_description:account.field_account_root__parent_id
 msgid "Parent"
 msgstr "Родительский"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__parent_id
-msgid "Parent Line"
-msgstr "Родительская строка"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__report_id
-msgid "Parent Report"
-msgstr "Родительский отчёт"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_line__parent_id
@@ -13893,11 +13512,6 @@ msgid "Period"
 msgstr "Период"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__filter_period_comparison
-msgid "Period Comparison"
-msgstr "Сравнение периодов"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_search_inherit
 msgid "Phishing risk: High"
 msgstr "Риск фишинга: высокий"
@@ -14035,11 +13649,6 @@ msgid "Preferred Payment Method Line"
 msgstr "Строка предпочтительного способа оплаты"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__prefix_groups_threshold
-msgid "Prefix Groups Threshold"
-msgstr "Порог групп префиксов"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_analytic_distribution_model__prefix_placeholder
 msgid "Prefix Placeholder"
 msgstr "Заполнитель префикса"
@@ -14169,11 +13778,6 @@ msgstr "Цены"
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid "Print"
 msgstr "Печать"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__print_on_new_page
-msgid "Print On New Page"
-msgstr "Печать на новой странице"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -14891,11 +14495,6 @@ msgid "Report Line"
 msgstr "Строка отчета"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_expression__report_line_name
-msgid "Report Line Name"
-msgstr "Название строки отчета"
-
-#. module: account
 #: model:ir.ui.menu,name:account.account_report_folder
 #: model:ir.ui.menu,name:account.menu_finance_reports
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -15180,11 +14779,6 @@ msgid "Revoked"
 msgstr "Отозвано"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_line__horizontal_split_side__right
-msgid "Right"
-msgstr "Справа"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__root_id
 msgid "Root"
 msgstr "Корень"
@@ -15447,11 +15041,6 @@ msgid "Search Account Journal"
 msgstr "Поиск журнала учета"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__search_bar
-msgid "Search Bar"
-msgstr "Строка поиска"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_filter
 msgid "Search Fiscal Positions"
 msgstr "Поиск фискальных позиций"
@@ -15505,11 +15094,6 @@ msgstr "Поиск: %s"
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid "Section"
 msgstr "Раздел"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__section_main_report_ids
-msgid "Section Of"
-msgstr "Часть"
 
 #. module: account
 #. odoo-javascript
@@ -15974,15 +15558,6 @@ msgid "Set your company's data for documents header/footer."
 msgstr "Установите данные компании для заголовка/колонтитула документов."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__action_id
-msgid ""
-"Setting this field will turn the line into a link, executing the action when"
-" clicked."
-msgstr ""
-"Установка этого поля превратит строку в ссылку, запускающую действие при "
-"нажатии."
-
-#. module: account
 #: model:ir.actions.act_window,name:account.action_account_config
 #: model:ir.actions.act_window,name:account.action_open_settings
 #: model:ir.ui.menu,name:account.menu_account_config
@@ -16223,11 +15798,6 @@ msgid "Sometimes called BIC or Swift."
 msgstr "Иногда называется BIC или SWIFT."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_column__sortable
-msgid "Sortable"
-msgstr "Сортируемый"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_payment_register__source_currency_id
 msgid "Source Currency"
 msgstr "Исходная валюта"
@@ -16444,23 +16014,6 @@ msgid "Street..."
 msgstr "Улица..."
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__date_scope__strict_range
-msgid "Strictly on the given dates"
-msgstr "Строго на указанные даты"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__string
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__string
-msgid "String"
-msgstr "Строка"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_expression__subformula
-#: code:addons/account_reports/static/src/components/account_report/line/popover/debug_popover.xml:0
-msgid "Subformula"
-msgstr "Подформула"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_send_wizard__subject
 #: model:ir.model.fields,field_description:account_reports.field_account_report_send__mail_subject
 msgid "Subject"
@@ -16555,21 +16108,6 @@ msgid ""
 msgstr ""
 "Теги, которые будут установлены на базовые и налоговые элементы журнала, "
 "созданные для этого продукта."
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__target_report_expression_id
-msgid "Target Expression"
-msgstr "Целевое выражение"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__target_report_expression_label
-msgid "Target Expression Label"
-msgstr "Метка целевого выражения"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__target_report_line_id
-msgid "Target Line"
-msgstr "Целевая строка"
 
 #. module: account
 #: model:account.report.column,name:account.generic_tax_report_account_tax_column_tax
@@ -17212,11 +16750,6 @@ msgid "Test"
 msgstr "Тест"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__text_value
-msgid "Text Value"
-msgstr "Текстовое значение"
-
-#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/document_state/document_state_field.js:0
 #: code:addons/account_reports/static/src/components/account_report/ellipsis/ellipsis.js:0
@@ -17255,16 +16788,6 @@ msgid ""
 "The 'Customer' field is required to validate the invoice.\n"
 "You probably don't want to explain to your auditor that you invoiced an invisible man :)"
 msgstr ""
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid ""
-"The Availability is set to 'Country Matches' but the field Country is not "
-"set."
-msgstr ""
-"Доступность установлена как «Соответствие стране», но поле «Страна» не "
-"заполнено."
 
 #. module: account
 #. odoo-python
@@ -17672,11 +17195,6 @@ msgstr ""
 "стоимости проданных товаров) признается при подтверждении счета клиента."
 
 #. module: account
-#: model:ir.model.constraint,message:account.constraint_account_report_expression_line_label_uniq
-msgid "The expression label must be unique per report line."
-msgstr "Метка выражения должна быть уникальной для каждой строки отчета."
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/account_move.py:0
 msgid ""
@@ -17956,11 +17474,6 @@ msgstr ""
 "account.move или account.move.line."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_report__root_report_id
-msgid "The report this report is a variant of."
-msgstr "Отчет, вариантом которого является этот отчет."
-
-#. module: account
 #. odoo-python
 #: code:addons/account/controllers/terms.py:0
 msgid "The requested page is invalid, or doesn't exist anymore."
@@ -17986,12 +17499,6 @@ msgstr "Остаточная сумма по статье журнала, выр
 #: code:addons/account/models/account_bank_statement.py:0
 msgid "The running balance (%s) doesn't match the specified ending balance."
 msgstr "Текущий баланс (%s) не соответствует указанному конечному балансу."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid "The sections defined on a report cannot have sections themselves."
-msgstr "Разделы, определенные в отчете, не могут содержать вложенные разделы."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.validate_account_move_view
@@ -18325,16 +17832,6 @@ msgid "Thirty one dollar and Five cents"
 msgstr "Тридцать один доллар и пять центов"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__this_month
-msgid "This Month"
-msgstr "Этот месяц"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__this_quarter
-msgid "This Quarter"
-msgstr "Этот квартал"
-
-#. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__this_return_period
 msgid "This Return Period"
 msgstr ""
@@ -18344,11 +17841,6 @@ msgstr ""
 #: code:addons/account/models/account_journal_dashboard.py:0
 msgid "This Week"
 msgstr "Эта неделя"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__this_year
-msgid "This Year"
-msgstr "Этот год"
 
 #. module: account
 #. odoo-python
@@ -18536,13 +18028,6 @@ msgid ""
 "This journal is for self-billing invoices. Invoices will be created using a "
 "different sequence per partner."
 msgstr ""
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__hide_if_zero
-msgid ""
-"This line and its children will be hidden when all of their columns are 0."
-msgstr ""
-"Эта строка и ее дочерние элементы будут скрыты, если все их столбцы равны 0."
 
 #. module: account
 #. odoo-python
@@ -19147,12 +18632,6 @@ msgid "Unemployment Insurance"
 msgstr "Unemployment Insurance"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__filter_unfold_all
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Unfold All"
-msgstr "Развернуть все"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_journal__has_unhashed_entries
 msgid "Unhashed Entries"
 msgstr "Нехэшированные записи"
@@ -19161,11 +18640,6 @@ msgstr "Нехэшированные записи"
 #: model_terms:ir.ui.view,arch_db:account.account_journal_dashboard_kanban_view
 msgid "Unhashed entries"
 msgstr "Нехэшированные записи"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__code
-msgid "Unique identifier for this line."
-msgstr "Уникальный идентификатор для этой строки."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__product_uom_id
@@ -19511,11 +18985,6 @@ msgid "User Fiscalyear Lock Date"
 msgstr "Дата блокировки финансового года пользователем"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__user_groupby
-msgid "User Group By"
-msgstr "Группировка по пользователям"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_res_company__user_hard_lock_date
 msgid "User Hard Lock Date"
 msgstr "Дата жесткой блокировки пользователем"
@@ -19613,11 +19082,6 @@ msgid "Validated entries can only be changed by your accountant."
 msgstr ""
 
 #. module: account
-#: code:addons/account_reports/static/src/components/account_report/line/popover/debug_popover.xml:0
-msgid "Value"
-msgstr "Значение"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_reconcile_model_line__amount_string
 msgid ""
 "Value for the amount of the writeoff line\n"
@@ -19640,11 +19104,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_partial_reconcile__draft_caba_move_vals
 msgid "Values that created the draft cash-basis entry"
 msgstr ""
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__variant_report_ids
-msgid "Variants"
-msgstr "Варианты"
 
 #. module: account
 #: model:account.account,description:account.2_account_account_us_office_supplies
@@ -19886,30 +19345,6 @@ msgid ""
 msgstr ""
 "При публикации внутреннего перевода создается парный платеж. Они связаны "
 "через это поле"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__print_on_new_page
-msgid ""
-"When checked this line and everything after it will be printed on a new "
-"page."
-msgstr ""
-"Если установлен флажок, эта строка и все после нее будут напечатаны на новой"
-" странице."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_column__blank_if_zero
-msgid "When checked, 0 values will not show in this column."
-msgstr ""
-"Если флажок установлен, значения 0 не будут отображаться в этом столбце."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_expression__blank_if_zero
-msgid ""
-"When checked, 0 values will not show when displaying this expression's "
-"value."
-msgstr ""
-"Если флажок установлен, значения 0 не будут отображаться при отображении "
-"значения этого выражения."
 
 #. module: account
 #. odoo-python
@@ -20200,12 +19635,6 @@ msgid ""
 msgstr ""
 "Вы не можете удалить опубликованную статью журнала. Не играйте с вашими "
 "бухгалтерскими записями; сбросьте запись журнала в черновик перед удалением."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid "You can't delete a report that has variants."
-msgstr "Вы не можете удалить отчет, у которого есть варианты."
 
 #. module: account
 #. odoo-python
@@ -20692,12 +20121,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/account/models/account_move_line.py:0
 msgid "You cannot use an archived account."
-msgstr ""
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid "You cannot use cross report on itself"
 msgstr ""
 
 #. module: account
@@ -23414,12 +22837,6 @@ msgstr "\" баланс счета зависит от"
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "%(date_from)s - %(date_to)s"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_journal_report.py:0
 msgid "%(journal)s - %(account)s"
 msgstr "%(journal)s - %(account)s"
@@ -23497,18 +22914,6 @@ msgstr ""
 "нацеленных на банковские выписки."
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "'external' engine does not support groupby, limit nor offset."
-msgstr "движок 'external' не поддерживает groupby, limit и offset."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "(%s lines)"
-msgstr "(%s строк)"
-
-#. module: account_reports
 #: model:account.report.line,name:account_reports.outstanding_receipts
 msgid "(+) Outstanding Receipts"
 msgstr "(+) Неоплаченные поступления"
@@ -23517,12 +22922,6 @@ msgstr "(+) Неоплаченные поступления"
 #: model:account.report.line,name:account_reports.outstanding_payments
 msgid "(-) Outstanding Payments"
 msgstr "(-) Непогашенные платежи"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "(1 line)"
-msgstr "(1 строка)"
 
 #. module: account_reports
 #. odoo-python
@@ -24100,12 +23499,6 @@ msgstr "Вся дебиторская задолженность"
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "All Report Variants"
-msgstr "Все варианты отчетов"
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_return.py:0
 msgid "All checks and approvers have been reset"
 msgstr ""
@@ -24173,24 +23566,6 @@ msgstr ""
 #: code:addons/account_reports/models/account_journal_report.py:0
 msgid "Amount in currency: %s"
 msgstr "Сумма в валюте: %s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Amounts in Lakhs"
-msgstr "Суммы в лакхах"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Amounts in Millions"
-msgstr "Суммы в миллионах"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Amounts in Thousands"
-msgstr "Суммы в тысячах"
 
 #. module: account_reports
 #. odoo-python
@@ -24320,18 +23695,6 @@ msgstr "Архив"
 #: code:addons/account_reports/static/src/views/accrual_list_view.xml:0
 msgid "As of"
 msgstr "По состоянию на"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "As of %s"
-msgstr "По состоянию на %s"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Ascending"
-msgstr "По возрастанию"
 
 #. module: account_reports
 #: model:account.return.check.template,name:account_reports.account_return_check_template_audit_assets_listing
@@ -24885,12 +24248,6 @@ msgstr ""
 "предоставленными клиентом. Проанализируйте расхождения."
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-msgid "Comparison"
-msgstr "Сравнение"
-
-#. module: account_reports
 #: model:account.return.check.template,description:account_reports.account_return_check_template_review_of_guaranteed
 msgid ""
 "Compile a complete list of all guarantees received or granted (pledges, "
@@ -24970,16 +24327,6 @@ msgid "Contacts"
 msgstr "Контакты"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Could not expand term %(term)s while evaluating formula "
-"%(unexpanded_formula)s"
-msgstr ""
-"Не удалось расширить термин %(term)s при оценке формулы "
-"%(unexpanded_formula)s"
-
-#. module: account_reports
 #: model:ir.actions.server,name:account_reports.action_create_composite_report_list
 msgid "Create Composite Report"
 msgstr "Создать комплексный отчет"
@@ -25000,20 +24347,9 @@ msgstr ""
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Currency Code"
-msgstr "Код валюты"
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_multicurrency_revaluation_report.py:0
 msgid "Currency Rates (%s)"
 msgstr "Курсы валют (%s)"
-
-#. module: account_reports
-#: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filters
-msgid "Currency:"
-msgstr "Валюта:"
 
 #. module: account_reports
 #: model:account.report.column,name:account_reports.deferred_expense_current
@@ -25030,23 +24366,6 @@ msgstr "Нераспределенная прибыль текущего год�
 #: model:account.report.line,name:account_reports.account_financial_report_executivesummary_ca_to_l0
 msgid "Current assets to liabilities"
 msgstr "Коэффициент текущей ликвидности"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_date.xml:0
-msgid "Custom Dates"
-msgstr "Пользовательские даты"
-
-#. module: account_reports
-#: model:ir.model.fields,field_description:account_reports.field_account_report__custom_handler_model_id
-msgid "Custom Handler Model"
-msgstr "Пользовательская модель обработчика"
-
-#. module: account_reports
-#: model:ir.model.fields,field_description:account_reports.field_account_report__custom_handler_model_name
-msgid "Custom Handler Model Name"
-msgstr "Имя модели пользовательского обработчика"
 
 #. module: account_reports
 #. odoo-python
@@ -25096,12 +24415,6 @@ msgstr "С"
 #: model:ir.model.fields,field_description:account_reports.field_account_return_creation_wizard__date_to
 msgid "Date To"
 msgstr "Дата до"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Date cannot be empty"
-msgstr "Дата не может быть пустой"
 
 #. module: account_reports
 #: model:ir.model.fields,help:account_reports.field_account_report_annotation__date
@@ -25201,12 +24514,6 @@ msgid "Delay units"
 msgstr "Единицы задержки"
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Descending"
-msgstr "По убыванию"
-
-#. module: account_reports
 #: model:ir.model.fields,help:account_reports.field_account_return_type__states_workflow
 msgid "Determines the workflow of the return."
 msgstr ""
@@ -25216,11 +24523,6 @@ msgstr ""
 #: code:addons/account_reports/models/account_return.py:0
 msgid "Difference from rounding taxes"
 msgstr "Разница из-за округления налогов"
-
-#. module: account_reports
-#: model:ir.model.fields,field_description:account_reports.field_account_report_line__display_custom_groupby_warning
-msgid "Display Custom Groupby Warning"
-msgstr "Отображение пользовательского предупреждения о группировке"
 
 #. module: account_reports
 #. odoo-javascript
@@ -25236,14 +24538,6 @@ msgstr ""
 #. module: account_reports
 #: model:account.return.check.template,name:account_reports.account_return_check_template_dividend_payment_verification
 msgid "Dividend payment verification"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Division by zero occurred while evaluating Expression: %(line_name)s > "
-"%(label)s."
 msgstr ""
 
 #. module: account_reports
@@ -25356,16 +24650,6 @@ msgid "Earnings Allocation"
 msgstr ""
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Editing a manual report line is not allowed when multiple companies are "
-"selected."
-msgstr ""
-"Редактирование строки ручного отчета не допускается, если выбрано несколько "
-"компаний."
-
-#. module: account_reports
 #: model:account.return.check.template,name:account_reports.account_return_check_template_eligibility_tax_reductions_and_credits
 msgid "Eligibility for tax reductions and credits"
 msgstr ""
@@ -25392,40 +24676,10 @@ msgid "Enable Sections"
 msgstr "Включить разделы"
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_variant.xml:0
-msgid "Enable more ..."
-msgstr "Включите больше ..."
-
-#. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_trial_balance_report.py:0
 msgid "End Balance"
 msgstr "Конечный баланс"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "End of Month"
-msgstr "Конец месяца"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "End of Quarter"
-msgstr "Конец квартала"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "End of Year"
-msgstr "Конец года"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/line/popover/debug_popover.xml:0
-msgid "Engine"
-msgstr "Двигатель"
 
 #. module: account_reports
 #: model:account.return.check.template,description:account_reports.account_return_check_template_vat_rate_compliance
@@ -25602,18 +24856,6 @@ msgstr "Выражение"
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 msgid ""
-"Expression labelled '%(label)s' of line '%(line)s' is being overwritten when"
-" computing the current report. Make sure the cross-report aggregations of "
-"this report only reference terms belonging to other reports."
-msgstr ""
-"Выражение с меткой '%(label)s' из строки '%(line)s' перезаписывается при "
-"вычислении текущего отчета. Убедитесь, что межотчетные агрегации этого "
-"отчета ссылаются только на термины, принадлежащие другим отчетам."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
 "Field %s does not exist on account.move.line, and is not supported by this "
 "report's custom handler."
 msgstr ""
@@ -25641,16 +24883,6 @@ msgid ""
 msgstr ""
 "Поле %s из account.move.line не имеет функции поиска и не может "
 "использоваться в выражении groupby."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Field 'Custom Handler Model' can only reference records inheriting from "
-"[%s]."
-msgstr ""
-"Поле 'Custom Handler Model' может ссылаться только на записи, наследующие от"
-" [%s]."
 
 #. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_report_file_download_error_wizard__file_content
@@ -25969,11 +25201,6 @@ msgid "Horizontal group rule for reports"
 msgstr "Правило горизонтальных групп для отчетов"
 
 #. module: account_reports
-#: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filters
-msgid "Horizontal:"
-msgstr "Горизонтально:"
-
-#. module: account_reports
 #: model_terms:ir.ui.view,arch_db:account_reports.res_config_settings_view_form
 msgid "How often tax returns have to be made"
 msgstr "Как часто нужно подавать налоговые декларации"
@@ -26044,12 +25271,6 @@ msgstr "Затронутые налоговые сетки"
 
 #. module: account_reports
 #. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "In %s"
-msgstr "В %s"
-
-#. module: account_reports
-#. odoo-javascript
 #: code:addons/account_reports/static/src/components/account_return/widgets/account_return_dashboard_list.js:0
 msgid "In %s days"
 msgstr "Через %s дней"
@@ -26105,26 +25326,6 @@ msgstr "Несогласованные выписки"
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Inconsistent data: more than one external value at the same date for a "
-"'most_recent' external line."
-msgstr ""
-"Несогласованные данные: более одного внешнего значения на одну и ту же дату "
-"для внешней строки 'most_recent'."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Inconsistent report_id in options dictionary. Options says "
-"%(options_report)s; report is %(report)s."
-msgstr ""
-"Несоответствующий report_id в словаре опций. В опциях указано "
-"%(options_report)s, в отчете - %(report)s."
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_general_ledger.py:0
 #: code:addons/account_reports/models/account_report.py:0
 #: code:addons/account_reports/models/account_trial_balance_report.py:0
@@ -26169,32 +25370,6 @@ msgstr "Внутриобщинные налоги начисляются на"
 #: code:addons/account_reports/models/account_return.py:0
 msgid "Invalid code"
 msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Invalid domain formula in expression \"%(expression)s\" of line "
-"\"%(line)s\": %(formula)s"
-msgstr ""
-"Недопустимая формула области в выражении «%(expression)s» строки «%(line)s»:"
-" %(formula)s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Invalid method “%s”"
-msgstr "Недопустимый метод «%s»"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Invalid subformula in expression \"%(expression)s\" of line \"%(line)s\": "
-"%(subformula)s"
-msgstr ""
-"Недопустимая подформула в выражении «%(expression)s» строки «%(line)s»: "
-"%(subformula)s"
 
 #. module: account_reports
 #. odoo-python
@@ -26378,28 +25553,6 @@ msgid "Less Other Expenses"
 msgstr "За вычетом прочих расходов"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Line '%(child)s' is configured to appear before its parent '%(parent)s'. "
-"This is not allowed."
-msgstr ""
-"Строка «%(child)s» настроена на отображение перед родительской строкой "
-"«%(parent)s». Это недопустимо."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Load more..."
-msgstr "Загрузить больше..."
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/account_report.xml:0
-msgid "Loading..."
-msgstr "Загрузка..."
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return__date_lock
 msgid "Lock Date"
 msgstr ""
@@ -26455,12 +25608,6 @@ msgid "Manual value"
 msgstr "Ручное значение"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Manual values"
-msgstr "Ручные значения"
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return__manually_created
 msgid "Manually Created"
 msgstr "Создано вручную"
@@ -26490,12 +25637,6 @@ msgstr ""
 #: model:ir.model.fields,help:account_reports.field_account_tax_unit__company_ids
 msgid "Members of this unit"
 msgstr "Члены этого подразделения"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Method '%(method_name)s' must start with the '%(prefix)s' prefix."
-msgstr "Метод '%(method_name)s' должен начинаться с префикса '%(prefix)s'."
 
 #. module: account_reports
 #: model:account.return.check.template,name:account_reports.account_return_check_template_minimum_share_capital_compliance
@@ -26529,12 +25670,6 @@ msgstr ""
 "Отсутствие данных по компании (например, ИНН или страна) может привести к "
 "ошибкам в отчетах, включая применение неверной ставки НДС или некорректное "
 "освобождение операций."
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Month"
-msgstr "Месяц"
 
 #. module: account_reports
 #: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filters
@@ -26610,12 +25745,6 @@ msgid "Next State"
 msgstr ""
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-msgid "No Comparison"
-msgstr "Без сравнения"
-
-#. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 msgid "No Journal"
@@ -26643,12 +25772,6 @@ msgstr ""
 #: code:addons/account_reports/wizard/multicurrency_revaluation.py:0
 msgid "No adjustment needed"
 msgstr "Регулировка не требуется"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/account_report.xml:0
-msgid "No data to display !"
-msgstr "Нет данных для отображения!"
 
 #. module: account_reports
 #. odoo-python
@@ -26693,12 +25816,6 @@ msgstr ""
 #: code:addons/account_reports/models/account_deferred_reports.py:0
 msgid "Not Started"
 msgstr "Не начался"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Number of periods cannot be smaller than 1"
-msgstr "Количество периодов не может быть меньше 1"
 
 #. module: account_reports
 #: model:account.report.line,name:account_reports.account_financial_report_off_sheet
@@ -26846,11 +25963,6 @@ msgid "Options"
 msgstr "Опции"
 
 #. module: account_reports
-#: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filter_extra_options_template
-msgid "Options:"
-msgstr "Опции:"
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return_creation_wizard__other
 #: model:ir.model.fields.selection,name:account_reports.selection__account_return_check_template__cycle__other
 msgid "Others"
@@ -26884,12 +25996,6 @@ msgid "Overrides the default action based on the model and domain."
 msgstr ""
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "PDF"
-msgstr "PDF"
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_reports_export_wizard__report_id
 msgid "Parent Report Id"
 msgstr "Идентификатор родительского отчета"
@@ -26904,12 +26010,6 @@ msgstr "Родительский волшебник"
 #: model:ir.model.fields,field_description:account_reports.field_qr_code_payment_wizard__bank_account_id
 msgid "Partner Bank"
 msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Partner Categories"
-msgstr "Категории Партнеров"
 
 #. module: account_reports
 #: model:ir.model,name:account_reports.model_account_partner_ledger_report_handler
@@ -26931,11 +26031,6 @@ msgid "Partner is good"
 msgstr "Партнер хороший"
 
 #. module: account_reports
-#: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filters
-msgid "Partners Categories:"
-msgstr "Категории партнеров:"
-
-#. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_return.py:0
 msgid "Partners in Wrong Country"
@@ -26952,11 +26047,6 @@ msgstr "Партнеры с дублирующимися ИНН"
 #: code:addons/account_reports/models/account_return.py:0
 msgid "Partners without VAT"
 msgstr ""
-
-#. module: account_reports
-#: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filters
-msgid "Partners:"
-msgstr "Партнеры:"
 
 #. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return__resolved_check_count
@@ -27036,18 +26126,6 @@ msgid "Period Events"
 msgstr ""
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Period Total"
-msgstr ""
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-msgid "Period order"
-msgstr "Порядок периодов"
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return_type__deadline_periodicity
 #: model:ir.model.fields,field_description:account_reports.field_res_config_settings__account_return_periodicity
 #: model:ir.model.fields,help:account_reports.field_account_financial_year_op__account_return_periodicity
@@ -27063,12 +26141,6 @@ msgstr "Периодичность"
 #: model:ir.model.fields,field_description:account_reports.field_account_financial_year_op__account_return_periodicity
 msgid "Periodicity in month"
 msgstr "Периодичность в месяц"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Periods"
-msgstr "Периоды"
 
 #. module: account_reports
 #. odoo-javascript
@@ -27160,30 +26232,6 @@ msgstr ""
 "стоимость приобретения, капитал, прибыль и дивиденды."
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-msgid "Previous Period"
-msgstr "Прошлый период"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-msgid "Previous Periods"
-msgstr "Предыдущие периоды"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-msgid "Previous Year"
-msgstr "Предыдущий год"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-msgid "Previous Years"
-msgstr "Предыдущие годы"
-
-#. module: account_reports
 #: model:account.report.line,name:account_reports.account_financial_report_previous_years_earnings
 msgid "Previous Years Earnings"
 msgstr ""
@@ -27229,12 +26277,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account_reports.field_qr_code_payment_wizard__qr_code
 msgid "Qr Code"
 msgstr ""
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Quarter"
-msgstr "Квартал"
 
 #. module: account_reports
 #. odoo-javascript
@@ -27333,24 +26375,10 @@ msgid "Report Options"
 msgstr "Параметры отчета"
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/warnings.xml:0
-msgid ""
-"Report is being loaded in the background. Presented data were cached and may"
-" not be accurate."
-msgstr ""
-
-#. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 msgid "Report lines mentioning the account code"
 msgstr "Строки отчета, в которых упоминается код счета"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_variant.xml:0
-msgid "Report:"
-msgstr "Отчёт:"
 
 #. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_report_horizontal_group__report_ids
@@ -27612,21 +26640,9 @@ msgid "Rules"
 msgstr "Правила"
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-msgid "Same Period Last Year"
-msgstr "Тот же период прошлого года"
-
-#. module: account_reports
 #: model:ir.model,name:account_reports.model_mail_scheduled_message
 msgid "Scheduled Message"
 msgstr "Запланированное сообщение"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/search_bar/search_bar.xml:0
-msgid "Search..."
-msgstr "Поиск..."
 
 #. module: account_reports
 #: model:ir.model.fields.selection,name:account_reports.selection__account_return_type__deadline_periodicity__semester
@@ -27781,13 +26797,6 @@ msgid "Some partners"
 msgstr ""
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_date.xml:0
-msgid "Specific Date"
-msgstr "Конкретная дата"
-
-#. module: account_reports
 #: model:ir.model.fields,help:account_reports.field_res_company__account_representative_id
 msgid ""
 "Specify an Accounting Firm that will act as a representative when exporting "
@@ -27795,12 +26804,6 @@ msgid ""
 msgstr ""
 "Укажите бухгалтерскую фирму, которая будет выступать в качестве "
 "представителя при экспорте отчетов."
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Split Horizontally"
-msgstr "Разделить по горизонтали"
 
 #. module: account_reports
 #: model:ir.actions.act_window,name:account_reports.action_create_account_audit
@@ -28139,12 +27142,6 @@ msgid "There are no reports to compare."
 msgstr ""
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/account_report.xml:0
-msgid "There is no data to display for the given filters."
-msgstr "Для заданных фильтров нет данных для отображения."
-
-#. module: account_reports
 #: model:account.return.check.template,description:account_reports.account_return_check_template_audit_empty_suspense_accounts
 msgid ""
 "These accounts must be cleared regularly, as they represent unallocated or "
@@ -28239,12 +27236,6 @@ msgid "This option hides lines with a value of 0"
 msgstr "Этот параметр скрывает строки со значением 0"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "This report already has a menuitem."
-msgstr "В этом отчете уже есть пункт меню."
-
-#. module: account_reports
 #. odoo-javascript
 #: code:addons/account_reports/static/src/components/tax_report/warnings.xml:0
 msgid ""
@@ -28282,12 +27273,6 @@ msgstr ""
 #. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
-msgid "This subformula references an unknown expression: %s"
-msgstr "Подформула ссылается на неизвестное выражение: %s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
 msgid ""
 "This tag is reported in a line of the report but is not linked to any "
 "account of the Chart of Accounts"
@@ -28310,12 +27295,6 @@ msgstr "К выполнению"
 #: code:addons/account_reports/static/src/components/account_return/widgets/account_return_dashboard_list.js:0
 msgid "Tomorrow"
 msgstr "Завтра"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Total %s"
-msgstr "Итого %s"
 
 #. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return__total_amount_to_pay
@@ -28382,38 +27361,6 @@ msgid "Triangular"
 msgstr "Треугольность"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Trying to dispatch an action on a report not compatible with the provided "
-"options."
-msgstr ""
-"Попытка отправить действие для отчета, не совместимого с предоставленными "
-"параметрами."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Trying to expand a group for a line which was not generated by a report "
-"line: %s"
-msgstr ""
-"Попытка расширить группу для строки, которая не была создана строкой отчета:"
-" %s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Trying to expand a line without an expansion function."
-msgstr "Попытка расширить строку без функции расширения."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Trying to expand groupby results on lines without a groupby value."
-msgstr "Попытка расширить результаты groupby на строки без значения groupby."
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return__type_external_id
 msgid "Type External"
 msgstr ""
@@ -28426,34 +27373,10 @@ msgstr "Разархивировать"
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Undefined"
-msgstr "Не определено"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Unknown"
-msgstr "Неизвестно"
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_partner_ledger.py:0
 #: code:addons/account_reports/models/account_sales_report.py:0
 msgid "Unknown Partner"
 msgstr "Неизвестный партнер"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Unknown bound criterium: %s"
-msgstr "Неизвестный связанный критерий: %s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Unknown date scope: %s"
-msgstr "Неизвестная дата охвата: %s"
 
 #. module: account_reports
 #: model:ir.ui.menu,name:account_reports.menu_action_account_report_multicurrency_revaluation
@@ -28659,36 +27582,9 @@ msgstr ""
 "расширить: %s"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "Wrong format for if_other_expr_above/if_other_expr_below formula: %s"
-msgstr ""
-"Неправильный формат формулы if_other_expr_above/if_other_expr_below: %s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "XLSX"
-msgstr "XLSX"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-msgid "Year"
-msgstr "Год"
-
-#. module: account_reports
 #: model:account.return.check.template,name:account_reports.account_return_check_template_year_end_revenue_cutoff_analysis
 msgid "Year-end revenue cutoff analysis"
 msgstr ""
-
-#. module: account_reports
-#. odoo-javascript
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#: code:addons/account_reports/static/src/components/account_report/line_cell/popover/edit_popover.xml:0
-msgid "Yes"
-msgstr "Да"
 
 #. module: account_reports
 #. odoo-javascript
@@ -28895,12 +27791,6 @@ msgid "n must be a positive integer."
 msgstr ""
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "n/a"
-msgstr "н/д"
-
-#. module: account_reports
 #. odoo-javascript
 #: code:addons/account_reports/static/src/components/sales_report/warnings.xml:0
 msgid "partners"
@@ -28911,12 +27801,6 @@ msgstr "партнеры"
 #: code:addons/account_reports/static/src/components/account_report/warnings.xml:0
 msgid "prior or included in this period."
 msgstr "предшествующих или включенных в этот период."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "report.%(file_extension)s"
-msgstr ""
 
 #. module: account_reports
 #. odoo-python

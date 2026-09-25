@@ -1,0 +1,2007 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* report_formula
+#
+#
+# Translated by:
+# Deepvision - info@deepvision.uz | +998 77-093-0007
+# Amon Olimov - amon.bars@gmail.com
+# Jonibek Yorqulov - j.yorqulov@deepvision.uz
+# Mirzohidkhon Ulugkhujaev ulugkhujayevmirzohidxon@gmail.com
+#
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2025-10-18 14:56+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: uz\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+msgid "%(date_from)s - %(date_to)s"
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+#, fuzzy
+msgid "%s is not a numeric value"
+msgstr "%s son qiymati emas"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+#, fuzzy
+msgid "'external' engine does not support groupby, limit nor offset."
+msgstr ""
+"'Tashqi' mexanizm guruh bo‘yicha ajratish, cheklash yoki siljitish "
+"imkoniyatlarini qo‘llab-quvvatlamaydi."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#, fuzzy
+msgid "(%s lines)"
+msgstr "(%s qator)"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#, fuzzy
+msgid "(1 line)"
+msgstr "(1 qator)"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+#, fuzzy
+msgid "(copy)"
+msgstr "(nusxa)"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+#, fuzzy
+msgid "A line cannot have both children and a groupby value (line '%s')."
+msgstr ""
+"Satrda ham bolalar, ham guruhlashtirish qiymati bo‘lishi mumkin emas ('%s' "
+"satri)."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid ""
+"A report line id segment cannot contain %(tilde)s or %(delimiter)s: "
+"%(segment)s"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.constraint,message:report_formula.constraint_report_formula_line_code_uniq
+#, fuzzy
+msgid "A report line with the same code already exists."
+msgstr "Xuddi shu kodli hisobot satri allaqachon mavjud."
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__filter_date
+msgid ""
+"A report whose figures do not depend on a period hides the date filter."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#, fuzzy
+msgid "Account Name"
+msgstr "Hisob nomi"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__action_id
+#, fuzzy
+msgid "Action"
+msgstr "Harakat"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__active
+#, fuzzy
+msgid "Active"
+msgstr "Faol"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__engine__aggregation
+#, fuzzy
+msgid "Aggregate Other Formulas"
+msgstr "Boshqa formulalarni jamlash"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__aggregation_formula
+#, fuzzy
+msgid "Aggregation Formula Shortcut"
+msgstr "Agregatlash formulasi qisqartmasi"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#, fuzzy
+msgid "All"
+msgstr "Barchasi"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+#, fuzzy
+msgid "All Report Variants"
+msgstr "Barcha hisobot variantlari"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__availability_condition__always
+#, fuzzy
+msgid "Always"
+msgstr "Har doim"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+#, fuzzy
+msgid "Amounts in Lakhs"
+msgstr "Lakhlardagi miqdorlar"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+#, fuzzy
+msgid "Amounts in Millions"
+msgstr "Millionlardagi miqdorlar"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+#, fuzzy
+msgid "Amounts in Thousands"
+msgstr "Minglardagi miqdorlar"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/header/header.xml:0
+msgid "Analytic coverage"
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+#, fuzzy
+msgid "As of %s"
+msgstr "%s holatiga ko‘ra"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "Ascending"
+msgstr "O‘suvchi tartibda"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__date_scope__to_beginning_of_fiscalyear
+#, fuzzy
+msgid "At the beginning of the fiscal year"
+msgstr "Moliyaviy yil boshida"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__date_scope__to_beginning_of_period
+#, fuzzy
+msgid "At the beginning of the period"
+msgstr "Davr boshida"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__auditable
+#, fuzzy
+msgid "Auditable"
+msgstr "Tekshiriladigan"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__availability_condition
+#, fuzzy
+msgid "Availability"
+msgstr "Mavjudlik"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__blank_if_zero
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__blank_if_zero
+#, fuzzy
+msgid "Blank if Zero"
+msgstr "Nol bo‘lsa bo‘sh"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__boolean
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__boolean
+#, fuzzy
+msgid "Boolean"
+msgstr "Mantiqiy"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__foldable
+#, fuzzy
+msgid ""
+"By default, we always unfold the lines that can be. If this is checked, the "
+"line won't be unfolded by default, and a folding button will be displayed."
+msgstr ""
+"Odatda, imkoni bo‘lgan barcha qatorlar avtomatik ochiladi. Agar bu bandni "
+"belgilasangiz, qator avtomatik ochilmaydi va qatorni ochish tugmasi "
+"ko‘rsatiladi."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+#, fuzzy
+msgid ""
+"Cannot get aggregation details from a line not using 'aggregation' engine"
+msgstr ""
+"\"Agregatsiya\" mexanizmidan foydalanmagan qatordan agregatsiya "
+"tafsilotlarini olish mumkin emas"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__children_ids
+#, fuzzy
+msgid "Child Lines"
+msgstr "Qism qatorlari"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__code
+#, fuzzy
+msgid "Code"
+msgstr "Kod"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_optional_columns.xml:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__column_ids
+#, fuzzy
+msgid "Columns"
+msgstr "Ustunlar"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__groupby
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__user_groupby
+#, fuzzy
+msgid ""
+"Comma-separated list of fields from account.move.line (Journal Item). When "
+"set, this line will generate sublines grouped by those keys."
+msgstr ""
+"Account.move.line (Jurnal elementi)dan vergul bilan ajratilgan maydonlar "
+"ro‘yxati. Belgilanganda, bu qator shu kalitlar bo‘yicha guruhlangan "
+"qatorchalarni yaratadi."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#, fuzzy
+msgid "Companies"
+msgstr "Kompaniyalar"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__company_id
+#, fuzzy
+msgid "Company"
+msgstr "Kompaniya"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#, fuzzy
+msgid "Company Currency"
+msgstr "Kompaniya valyutasi"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#, fuzzy
+msgid "Comparison"
+msgstr "Taqqoslash"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__use_sections
+#, fuzzy
+msgid "Composite Report"
+msgstr "Murakkab hisobot"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__engine
+#, fuzzy
+msgid "Computation Engine"
+msgstr "Hisoblash moduli"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+#, fuzzy
+msgid ""
+"Could not expand term %(term)s while evaluating formula "
+"%(unexpanded_formula)s"
+msgstr ""
+"%(unexpanded_formula)s formulasini baholashda %(term)s atamasi "
+"kengaytirilmadi"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__country_id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__report_country_id
+#, fuzzy
+msgid "Country"
+msgstr "Mamlakat"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__availability_condition__country
+#, fuzzy
+msgid "Country Matches"
+msgstr "Mamlakat mosliklarї"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__use_sections
+#, fuzzy
+msgid ""
+"Create a structured report with multiple sections for convenient navigation "
+"and simultaneous printing."
+msgstr ""
+"Qulay navigatsiya va bir vaqtning o‘zida chop etish uchun ko‘p bo‘limli "
+"tuzilgan hisobot yaratish."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__create_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__create_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__create_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__create_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__create_uid
+#, fuzzy
+msgid "Created by"
+msgstr "Yaratuvchi"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__create_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__create_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__create_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__create_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__create_date
+#, fuzzy
+msgid "Created on"
+msgstr "Yaratilgan sana"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#, fuzzy
+msgid "Currency Code"
+msgstr "Valyuta kodi"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.pdf_export_filters
+#, fuzzy
+msgid "Currency:"
+msgstr "Valyuta:"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__custom_audit_action_id
+#, fuzzy
+msgid "Custom Audit Action"
+msgstr "Maxsus audit harakati"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_date.xml:0
+#, fuzzy
+msgid "Custom Dates"
+msgstr "Maxsus sanalar"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__custom_handler_model_id
+#, fuzzy
+msgid "Custom Handler Model"
+msgstr "Maxsus ishlov berish modeli"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__custom_handler_model_name
+#, fuzzy
+msgid "Custom Handler Model Name"
+msgstr "Maxsus ishlov berish modeli nomi"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__engine__custom
+#, fuzzy
+msgid "Custom Python Function"
+msgstr "Maxsus Python funksiyasi"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Cyclic aggregation: %(expressions)s cannot be computed, because its formula "
+"%(formula)s references expressions that reference it back."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__date
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__date
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__date
+#, fuzzy
+msgid "Date"
+msgstr "Sana"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_date
+msgid "Date Filter"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_date_range
+#, fuzzy
+msgid "Date Range"
+msgstr "Sana oralig‘i"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__date_scope
+#, fuzzy
+msgid "Date Scope"
+msgstr "Sana doirasi"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "Date cannot be empty"
+msgstr "Sana bo‘sh bo‘lishi mumkin emas"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__source_date_field
+msgid ""
+"Date field of the source model the report's period filters on. Empty: "
+"'date'."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__datetime
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__datetime
+#, fuzzy
+msgid "Datetime"
+msgstr "Sana va vaqt"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__default_opening_date_filter
+#, fuzzy
+msgid "Default Opening"
+msgstr "Standart ochilish"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "Descending"
+msgstr "Kamayuvchi"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__display_custom_groupby_warning
+#, fuzzy
+msgid "Display Custom Groupby Warning"
+msgstr "Maxsus guruhlash bo‘yicha ogohlantirishni ko‘rsatish"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_ir_actions_account_report_download__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_custom_handler__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__display_name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__display_name
+#, fuzzy
+msgid "Display Name"
+msgstr "Ko‘rsatiladigan nom"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Division by zero occurred while evaluating Expression: %(line_name)s > "
+"%(label)s."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__domain_formula
+#, fuzzy
+msgid "Domain Formula Shortcut"
+msgstr "Domen formulasi yorlig‘i"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__integer_rounding__down
+#, fuzzy
+msgid "Down"
+msgstr "Pastga"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+#, fuzzy
+msgid ""
+"Editing a manual report line is not allowed when multiple companies are "
+"selected."
+msgstr ""
+"Bir nechta kompaniya tanlanganda qo‘lda kiritilgan hisobot satrini "
+"tahrirlashga ruxsat berilmaydi"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_variant.xml:0
+#, fuzzy
+msgid "Enable more ..."
+msgstr "Ko‘proq imkoniyatlarni yoqish..."
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__filter_hide_0_lines__by_default
+#, fuzzy
+msgid "Enabled by Default"
+msgstr "Standart holatda yoqilgan"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "End of Month"
+msgstr "Oy oxiri"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "End of Quarter"
+msgstr "Chorak oxiri"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "End of Year"
+msgstr "Yil oxiri"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line/popover/debug_popover.xml:0
+#, fuzzy
+msgid "Engine"
+msgstr "Dvigatel"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__expression_label
+#, fuzzy
+msgid "Expression Label"
+msgstr "Ifoda yorlig‘i"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+#, fuzzy
+msgid ""
+"Expression labelled '%(label)s' of line '%(line)s' is being overwritten when"
+" computing the current report. Make sure the cross-report aggregations of "
+"this report only reference terms belonging to other reports."
+msgstr ""
+"'%(line)s' satrining '%(label)s' deb belgilangan ifodasi joriy hisobotni "
+"hisoblashda qayta yozilmoqda. Ushbu hisobotning kross-hisobot agregatlari "
+"faqat boshqa hisobotlarga tegishli atamalarni o‘z ichiga olishiga ishonch "
+"hosil qiling."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__expression_ids
+#, fuzzy
+msgid "Expressions"
+msgstr "Iboralar"
+
+#. module: report_formula
+#: model:ir.model.constraint,message:report_formula.constraint_report_formula_expression_domain_engine_subformula_required
+#, fuzzy
+msgid "Expressions using 'domain' engine should all have a subformula."
+msgstr ""
+"'Domen' vositasidan foydalanilgan barcha iboralar ichki formulaga ega "
+"bo‘lishi shart"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__external_formula
+#, fuzzy
+msgid "External Formula Shortcut"
+msgstr "Tashqi formula yorliq"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__engine__external
+#, fuzzy
+msgid "External Value"
+msgstr "Tashqi qiymat"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Field %(field)s does not exist on %(model)s, and is not supported by this "
+"report's custom handler."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid "Field %(field)s does not exist on %(model)s."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid "Field %(field)s of %(model)s cannot be used in a groupby expression."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Field %(field)s of %(model)s is not searchable and can therefore not be used"
+" in a groupby expression."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+#, fuzzy
+msgid ""
+"Field 'Custom Handler Model' can only reference records inheriting from "
+"[%s]."
+msgstr ""
+"'Maxsus ishlov beruvchi modeli' maydoni faqat [%s] dan meros qilib olingan "
+"yozuvlarga murojaat qilishi mumkin."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__figure_type
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__figure_type
+#, fuzzy
+msgid "Figure Type"
+msgstr "Raqam turi"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#, fuzzy
+msgid "Filters"
+msgstr "Filtrlar"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__float
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__float
+#, fuzzy
+msgid "Float"
+msgstr "Suzuvchi"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__foldable
+#, fuzzy
+msgid "Foldable"
+msgstr "Buklanuvchan"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line/popover/debug_popover.xml:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__formula
+#, fuzzy
+msgid "Formula"
+msgstr "Formula"
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula
+msgid "Formula Report"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula_column
+msgid "Formula Report Column"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula_custom_handler
+msgid "Formula Report Custom Handler"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula_expression
+msgid "Formula Report Expression"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula_external_value
+msgid "Formula Report External Value"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_report_formula_line
+msgid "Formula Report Line"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__date_scope__from_fiscalyear
+#, fuzzy
+msgid "From the start of the fiscal year"
+msgstr "Moliyaviy yil boshidan"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__date_scope__from_beginning
+#, fuzzy
+msgid "From the very start"
+msgstr "Eng boshidan"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__groupby
+#, fuzzy
+msgid "Group By"
+msgstr "Guruhlash"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+#, fuzzy
+msgid ""
+"Groupby feature isn't supported by '%(engine)s' engine. Please remove the "
+"groupby value on '%(report_line)s'"
+msgstr ""
+"'%(engine)s' tizimida guruhlash funksiyasi qo‘llab-quvvatlanmaydi. Iltimos, "
+"'%(report_line)s' qatoridagi guruhlash qiymatini olib tashlang"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_growth_comparison
+#, fuzzy
+msgid "Growth Comparison"
+msgstr "O‘sish taqqoslamasi"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__hide_if_zero
+#, fuzzy
+msgid "Hide if Zero"
+msgstr "Nol bo‘lsa yashirish"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_hide_0_lines
+#, fuzzy
+msgid "Hide lines at 0"
+msgstr "0 qiymatli satrlarni yashirish"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#, fuzzy
+msgid "Horizontal Group"
+msgstr "Gorizontal guruh"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__horizontal_split_side
+#, fuzzy
+msgid "Horizontal Split Side"
+msgstr "Gorizontal bo‘linish tomoni"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.pdf_export_filters
+#, fuzzy
+msgid "Horizontal:"
+msgstr "Gorizontal:"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_ir_actions_account_report_download__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_custom_handler__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__id
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__id
+#, fuzzy
+msgid "ID"
+msgstr "ID"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "In %s"
+msgstr "%s ichida"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+#, fuzzy
+msgid ""
+"In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
+"Failed to parse the cross report id or xml_id.\n"
+msgstr ""
+"'%(report_name)s' hisobotida, '%(line_name)s' satrida, '%(label)s' yorlig‘i "
+"bilan, kross hisobot identifikatori yoki xml_id tahlil qilib bo‘lmadi."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+#, fuzzy
+msgid ""
+"In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
+"The format of the cross report expression is invalid. \n"
+"Expected: cross_report(<report_id>|<xml_id>)Example:  cross_report(my_module.my_report) or cross_report(123)"
+msgstr ""
+"'%(report_name)s' hisobotida, '%(line_name)s' satrida, '%(label)s' yorlig‘i "
+"bilan, kross hisobot ifodasining formati noto‘g‘ri.  Kutilgan format: "
+"cross_report(<report_id>|<xml_id>). Misol: cross_report(my_module.my_report)"
+" yoki cross_report(123)"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+#, fuzzy
+msgid ""
+"Inconsistent data: more than one external value at the same date for a "
+"'most_recent' external line."
+msgstr ""
+"Nomuvofiq ma'lumotlar: \"eng so‘nggi\" tashqi qator uchun bir xil sanada "
+"bittadan ortiq tashqi qiymat mavjud"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#, fuzzy
+msgid ""
+"Inconsistent report_id in options dictionary. Options says "
+"%(options_report)s; report is %(report)s."
+msgstr ""
+"Variantlar lug‘atidagi report_id mos kelmaydi. Variantlar %(options_report)s"
+" ni ko‘rsatmoqda; hisobot esa %(report)s"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__integer
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__integer
+#, fuzzy
+msgid "Integer"
+msgstr "Butun son"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__integer_rounding
+#, fuzzy
+msgid "Integer Rounding"
+msgstr "Butun sonli yaxlitlash"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__aggregation_formula
+#, fuzzy
+msgid ""
+"Internal field to shorten expression_ids creation for the aggregation engine"
+msgstr ""
+"Agregatsiya tizimi uchun expression_ids yaratishni soddalashtirish uchun "
+"ichki maydon"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__domain_formula
+#, fuzzy
+msgid ""
+"Internal field to shorten expression_ids creation for the domain engine"
+msgstr ""
+"Domen tizimi uchun expression_ids yaratishni soddalashtirish uchun ichki "
+"maydon"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__external_formula
+#, fuzzy
+msgid ""
+"Internal field to shorten expression_ids creation for the external engine"
+msgstr ""
+"Tashqi mexanizm uchun expression_ids yaratishni qisqartiruvchi ichki maydon"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Invalid bound subformula: %(subformula)s. Expected if_above(CUR(amount)), "
+"if_below(CUR(amount)) or if_between(CUR(amount), CUR(amount)), with CUR an "
+"upper-case currency code."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid ""
+"Invalid domain formula '%(formula)s' on report line '%(line)s'. Expected the"
+" form 'sum(<domain>)' (optionally '-sum(<domain>)')."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+#, fuzzy
+msgid ""
+"Invalid domain formula in expression \"%(expression)s\" of line "
+"\"%(line)s\": %(formula)s"
+msgstr ""
+"\"%(line)s\" qatorining \"%(expression)s\" ifodasidagi domen formulasi "
+"noto‘g‘ri: %(formula)s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+msgid ""
+"Invalid formula for expression '%(label)s' of line '%(line)s': %(formula)s"
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#, fuzzy
+msgid "Invalid method “%s”"
+msgstr "\"%s\" usuli noto‘g‘ri"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid ""
+"Invalid rounding subformula: %(subformula)s. Expected round(decimal_places) "
+"or round(decimal_places, ROUNDING-METHOD), with a method among HALF-UP, "
+"HALF-DOWN, HALF-EVEN, UP, DOWN."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+#, fuzzy
+msgid ""
+"Invalid subformula in expression \"%(expression)s\" of line \"%(line)s\": "
+"%(subformula)s"
+msgstr ""
+"\"%(line)s\" qatorining \"%(expression)s\" ifodasidagi qism formula "
+"noto‘g‘ri: %(subformula)s"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__green_on_positive
+#, fuzzy
+msgid "Is Growth Good when Positive"
+msgstr "Ijobiy bo‘lganda o‘sish yaxshimi"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line/popover/debug_popover.xml:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__label
+#, fuzzy
+msgid "Label"
+msgstr "Nom"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__previous_month
+#, fuzzy
+msgid "Last Month"
+msgstr "O‘tgan oy"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__previous_quarter
+#, fuzzy
+msgid "Last Quarter"
+msgstr "O‘tgan chorak"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__write_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__write_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__write_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__write_uid
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__write_uid
+#, fuzzy
+msgid "Last Updated by"
+msgstr "Oxirgi yangilovchi"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__write_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__write_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__write_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__write_date
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__write_date
+#, fuzzy
+msgid "Last Updated on"
+msgstr "Oxirgi yangilangan sana"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__previous_year
+#, fuzzy
+msgid "Last Year"
+msgstr "O‘tgan yil"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_line__horizontal_split_side__left
+#, fuzzy
+msgid "Left"
+msgstr "Chap"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__hierarchy_level
+#, fuzzy
+msgid "Level"
+msgstr "Daraja"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid ""
+"Line \"%(line)s\" belongs to report \"%(report)s\" but its parent "
+"\"%(parent)s\" belongs to \"%(parent_report)s\". A line and its parent must "
+"be in the same report."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+#, fuzzy
+msgid ""
+"Line \"%(line)s\" defines line \"%(parent_line)s\" as its parent, but "
+"appears before it in the report. The parent must always come first."
+msgstr ""
+"\"%(line)s\" satri \"%(parent_line)s\" satrini o‘zining asosiy satri "
+"sifatida belgilaydi, ammo hisobotda undan oldin keladi. Asosiy satr har doim"
+" birinchi bo‘lishi kerak."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+#, fuzzy
+msgid "Line \"%s\" defines itself as its parent."
+msgstr "\"%s\" satri o‘zini o‘zining asosiy satri sifatida belgilaydi"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#, fuzzy
+msgid ""
+"Line '%(child)s' is configured to appear before its parent '%(parent)s'. "
+"This is not allowed."
+msgstr ""
+"'%(child)s' qatori o‘zining asosiy '%(parent)s' qatoridan oldin "
+"ko‘rsatilishi uchun sozlangan. Bu ruxsat etilmaydi."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__line_ids
+#, fuzzy
+msgid "Lines"
+msgstr "Satrlar"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__load_more_limit
+#, fuzzy
+msgid "Load More Limit"
+msgstr "Ko‘proq yuklash chegarasi"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#, fuzzy
+msgid "Load more..."
+msgstr "Ko‘proq yuklash..."
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/account_report.xml:0
+#, fuzzy
+msgid "Loading..."
+msgstr "Yuklanmoqda..."
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.company_information
+#, fuzzy
+msgid "Logo"
+msgstr "Logotip"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid "Malformed report line id: %(line_id)s"
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+msgid ""
+"Malformed report line id: %(line_id)s. %(value)s is not a valid %(model)s "
+"id."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+#, fuzzy
+msgid "Manual value"
+msgstr "Qo‘lda kiritilgan qiymat"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+#, fuzzy
+msgid "Manual values"
+msgstr "Qo‘lda kiritilgan qiymatlar"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#, fuzzy
+msgid "Method '%(method_name)s' must start with the '%(prefix)s' prefix."
+msgstr ""
+"'%(method_name)s' metodi '%(prefix)s' prefiksi bilan boshlanishi shart."
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__monetary
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__monetary
+#, fuzzy
+msgid "Monetary"
+msgstr "Moliyaviy"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "Month"
+msgstr "Oy"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__name
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__name
+#, fuzzy
+msgid "Name"
+msgstr "Nomi"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__integer_rounding__half-up
+#, fuzzy
+msgid "Nearest"
+msgstr "Eng yaqin"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__filter_hide_0_lines__never
+#, fuzzy
+msgid "Never"
+msgstr "Hech qachon"
+
+#. module: report_formula
+#. odoo-javascript
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#: code:addons/report_formula/static/src/components/account_report/line_cell/popover/edit_popover.xml:0
+#, fuzzy
+msgid "No"
+msgstr "Yo‘q"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#, fuzzy
+msgid "No Comparison"
+msgstr "Taqqoslash yo‘q"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/account_report.xml:0
+#, fuzzy
+msgid "No data to display !"
+msgstr "Ko‘rsatish uchun ma'lumot yo‘q"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "None"
+msgstr "Yo‘q"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "Number of periods cannot be smaller than 1"
+msgstr "Davrlar soni 1 dan kam bo‘lishi mumkin emas"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__value
+#, fuzzy
+msgid "Numeric Value"
+msgstr "Raqamli qiymat"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__source_measure_field
+msgid "Numeric field of the source model a 'domain' expression sums."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__engine__domain
+#, fuzzy
+msgid "Odoo Domain"
+msgstr "Odoo domeni"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "Odoo Warning"
+msgstr "Odoo ogohlantirishi"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+#, fuzzy
+msgid ""
+"Only a report without a root report of its own can be selected as root "
+"report."
+msgstr ""
+"Faqat o‘zining asosiy hisoboti bo‘lmagan hisobotni asosiy hisobot sifatida "
+"tanlash mumkin."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__optional
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__filter_hide_0_lines__optional
+#, fuzzy
+msgid "Optional"
+msgstr "Ixtiyoriy"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__optional_hidden
+msgid "Optional, Hidden by Default"
+msgstr ""
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_extra_options.xml:0
+#, fuzzy
+msgid "Options"
+msgstr "Parametrlar"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.pdf_export_filter_extra_options_template
+#, fuzzy
+msgid "Options:"
+msgstr "Variantlar:"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__carryover_origin_expression_label
+#, fuzzy
+msgid "Origin Expression Label"
+msgstr "Kelib chiqish ifodasi yorlig‘i"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__carryover_origin_report_line_id
+#, fuzzy
+msgid "Origin Line"
+msgstr "Kelib chiqish qatori"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+#, fuzzy
+msgid "PDF"
+msgstr "PDF"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__parent_id
+#, fuzzy
+msgid "Parent Line"
+msgstr "Asosiy qator"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__report_id
+#, fuzzy
+msgid "Parent Report"
+msgstr "Asosiy hisobot"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#, fuzzy
+msgid "Partner Categories"
+msgstr "Hamkor toifalari"
+
+#. module: report_formula
+#. odoo-javascript
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_partner.xml:0
+#, fuzzy
+msgid "Partners"
+msgstr "Hamkorlar"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.pdf_export_filters
+#, fuzzy
+msgid "Partners Categories:"
+msgstr "Hamkorlar toifalari:"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.pdf_export_filters
+#, fuzzy
+msgid "Partners:"
+msgstr "Hamkorlar:"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__percentage
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__percentage
+#, fuzzy
+msgid "Percentage"
+msgstr "Foiz"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "Period"
+msgstr "Davr"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_period_comparison
+#, fuzzy
+msgid "Period Comparison"
+msgstr "Davrlarni taqqoslash"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+#, fuzzy
+msgid "Period Total"
+msgstr "Davr jami"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#, fuzzy
+msgid "Period order"
+msgstr "Davrlar tartibi"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "Periods"
+msgstr "Davrlar"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line_cell/popover/edit_popover.xml:0
+#, fuzzy
+msgid "Post"
+msgstr "Jo‘natish"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__prefix_groups_threshold
+#, fuzzy
+msgid "Prefix Groups Threshold"
+msgstr "Prefiks guruhlari chegarasi"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#, fuzzy
+msgid "Previous Period"
+msgstr "O‘tgan davr"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#, fuzzy
+msgid "Previous Periods"
+msgstr "O‘tgan davrlar"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#, fuzzy
+msgid "Previous Year"
+msgstr "O‘tgan yil"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#, fuzzy
+msgid "Previous Years"
+msgstr "O‘tgan yillar"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__print_on_new_page
+#, fuzzy
+msgid "Print On New Page"
+msgstr "Yangi sahifada chop etish"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "Quarter"
+msgstr "Chorak"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__report_id
+#, fuzzy
+msgid "Report"
+msgstr "Hisobot"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid ""
+"Report \"%(report)s\" is the root report of %(count)s other report(s), so it"
+" cannot become a variant itself."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid ""
+"Report '%(report)s' has no source model, so it can neither evaluate a "
+"'domain' expression nor group its lines."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid ""
+"Report '%(report)s' names the source model '%(model)s', which does not "
+"exist."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+msgid "Report '%(report)s': '%(field)s' is not a field of '%(model)s'."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__report_line_id
+#, fuzzy
+msgid "Report Line"
+msgstr "Hisobot satri"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__report_line_name
+#, fuzzy
+msgid "Report Line Name"
+msgstr "Hisobot satri nomi"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/warnings.xml:0
+msgid ""
+"Report is being loaded in the background. Presented data were cached and may"
+" not be accurate."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid "Report lines cannot form a recursive parent hierarchy."
+msgstr ""
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_variant.xml:0
+#, fuzzy
+msgid "Report:"
+msgstr "Hisobot:"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_line__horizontal_split_side__right
+#, fuzzy
+msgid "Right"
+msgstr "O‘ng"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__root_report_id
+#, fuzzy
+msgid "Root Report"
+msgstr "Asosiy hisobot"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#, fuzzy
+msgid "Same Period Last Year"
+msgstr "O‘tgan yilning shu davri"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__search_bar
+#, fuzzy
+msgid "Search Bar"
+msgstr "Qidiruv paneli"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/search_bar/search_bar.xml:0
+#, fuzzy
+msgid "Search..."
+msgstr "Qidirish..."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__section_main_report_ids
+#, fuzzy
+msgid "Section Of"
+msgstr "Bo‘limi"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__section_report_ids
+#, fuzzy
+msgid "Sections"
+msgstr "Bo‘limlar"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__sequence
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__sequence
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__sequence
+#, fuzzy
+msgid "Sequence"
+msgstr "Ketma-ketlik"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__action_id
+#, fuzzy
+msgid ""
+"Setting this field will turn the line into a link, executing the action when"
+" clicked."
+msgstr ""
+"Bu maydonni o‘rnatish qatorni havolaga aylantiradi va bosilganda amal "
+"bajariladi."
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_column__sortable
+#, fuzzy
+msgid "Sortable"
+msgstr "Saralash mumkin"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__source_date_field
+msgid "Source Date Field"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__source_measure_field
+msgid "Source Measure Field"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__source_model
+msgid "Source Model"
+msgstr ""
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_date.xml:0
+#, fuzzy
+msgid "Specific Date"
+msgstr "Aniq sana"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "Split Horizontally"
+msgstr "Gorizontal bo‘lish"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__date_scope__strict_range
+#, fuzzy
+msgid "Strictly on the given dates"
+msgstr "Faqat belgilangan sanalarda"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_column__figure_type__string
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula_expression__figure_type__string
+#, fuzzy
+msgid "String"
+msgstr "Satr"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line/popover/debug_popover.xml:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_expression__subformula
+#, fuzzy
+msgid "Subformula"
+msgstr "Kichik formula"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_partner.xml:0
+#, fuzzy
+msgid "Tags"
+msgstr "Teglar"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__target_report_expression_id
+#, fuzzy
+msgid "Target Expression"
+msgstr "Maqsadli ifoda"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__target_report_expression_label
+#, fuzzy
+msgid "Target Expression Label"
+msgstr "Maqsadli ifoda yorlig‘i"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__target_report_line_id
+#, fuzzy
+msgid "Target Line"
+msgstr "Maqsad chizig‘i"
+
+#. module: report_formula
+#: model_terms:ir.ui.view,arch_db:report_formula.company_information
+#, fuzzy
+msgid "Tax ID:"
+msgstr "Soliq ID raqami:"
+
+#. module: report_formula
+#: model:ir.model,name:report_formula.model_ir_actions_account_report_download
+msgid "Technical model for report downloads"
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__source_model
+msgid ""
+"Technical name of the model the report's 'domain' expressions search and its"
+" lines group by. Empty: the module that owns the report decides."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_external_value__text_value
+#, fuzzy
+msgid "Text Value"
+msgstr "Matn qiymati"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/ellipsis/ellipsis.js:0
+#, fuzzy
+msgid "Text copied"
+msgstr "Matn nusxalandi"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+#, fuzzy
+msgid ""
+"The Availability is set to 'Country Matches' but the field Country is not "
+"set."
+msgstr ""
+"Mavjudlik \"Mamlakat mos kelishi\" deb belgilangan, lekin Mamlakat maydoni "
+"to‘ldirilmagan."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+msgid ""
+"The code of line \"%(line)s\" is \"%(code)s\". A code is what an aggregation"
+" formula and a carryover target name a line by, so it cannot contain a dot, "
+"a bracket, whitespace or an operator."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.constraint,message:report_formula.constraint_report_formula_expression_line_label_uniq
+#, fuzzy
+msgid "The expression label must be unique per report line."
+msgstr "Ifoda yorlig‘i hisobot satri uchun noyob bo‘lishi kerak."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+msgid ""
+"The label of expression \"%(label)s\" on line \"%(line)s\" is the second "
+"half of an aggregation term, so it cannot contain a dot, a bracket, "
+"whitespace or an operator."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula__root_report_id
+#, fuzzy
+msgid "The report this report is a variant of."
+msgstr "Bu hisobot boshqa hisobotning varianti hisoblanadi."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+#, fuzzy
+msgid "The sections defined on a report cannot have sections themselves."
+msgstr ""
+"Hisobotda belgilangan bo‘limlar o‘z ichiga boshqa bo‘limlarni ola olmaydi."
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/account_report.xml:0
+#, fuzzy
+msgid "There is no data to display for the given filters."
+msgstr "Berilgan filtrlar bo‘yicha ko‘rsatish uchun ma'lumot yo‘q."
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__this_month
+#, fuzzy
+msgid "This Month"
+msgstr "Shu oy"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__this_quarter
+#, fuzzy
+msgid "This Quarter"
+msgstr "Shu chorak"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__this_year
+#, fuzzy
+msgid "This Year"
+msgstr "Shu yil"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__hide_if_zero
+#, fuzzy
+msgid ""
+"This line and its children will be hidden when all of their columns are 0."
+msgstr ""
+"Bu qator va uning pastki qatorlari barcha ustunlari 0 bo‘lganda yashiriladi."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+#, fuzzy
+msgid "This report already has a menuitem."
+msgstr "Bu hisobot allaqachon menyu bandiga ega."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+#, fuzzy
+msgid "This subformula references an unknown expression: %s"
+msgstr "Bu qism formula noma'lum ifodaga havola qiladi: %s"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_date.xml:0
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__default_opening_date_filter__today
+#, fuzzy
+msgid "Today"
+msgstr "Bugun"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#, fuzzy
+msgid "Total %s"
+msgstr "Jami %s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+#, fuzzy
+msgid ""
+"Trying to dispatch an action on a report not compatible with the provided "
+"options."
+msgstr ""
+"Taqdim etilgan parametrlarga mos kelmaydigan hisobot bo‘yicha amal "
+"bajarishga urinish."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+msgid ""
+"Trying to dispatch an action on a report unrelated to the provided sections "
+"source."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#, fuzzy
+msgid ""
+"Trying to expand a group for a line which was not generated by a report "
+"line: %s"
+msgstr ""
+"Hisobot qatori tomonidan yaratilmagan satr uchun guruhni kengaytirishga "
+"urinish: %s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#, fuzzy
+msgid "Trying to expand a line without an expansion function."
+msgstr "Kengaytirish funksiyasisiz satrni yoyishga urinish."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+#, fuzzy
+msgid "Trying to expand groupby results on lines without a groupby value."
+msgstr ""
+"Guruhlashtirish qiymati bo‘lmagan satrlarda guruhlashtirish natijalarini "
+"kengaytirishga urinish."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+#, fuzzy
+msgid "Undefined"
+msgstr "Aniqlanmagan"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__filter_unfold_all
+#, fuzzy
+msgid "Unfold All"
+msgstr "Hammasini yoyish"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__code
+#, fuzzy
+msgid "Unique identifier for this line."
+msgstr "Ushbu satr uchun noyob identifikator."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_line.py:0
+#, fuzzy
+msgid "Unknown"
+msgstr "Noma'lum"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+#, fuzzy
+msgid "Unknown bound criterium: %s"
+msgstr "Noma'lum bog‘langan mezon: %s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+msgid "Unknown currency code in bound subformula %(subformula)s: %(codes)s."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+#, fuzzy
+msgid "Unknown date scope: %s"
+msgstr "Noma'lum sana oralig‘i: %s"
+
+#. module: report_formula
+#: model:ir.model.fields.selection,name:report_formula.selection__report_formula__integer_rounding__up
+#, fuzzy
+msgid "Up"
+msgstr "Yuqoriga"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula_line__user_groupby
+#, fuzzy
+msgid "User Group By"
+msgstr "Foydalanuvchi guruhi bo‘yicha"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/line/popover/debug_popover.xml:0
+#, fuzzy
+msgid "Value"
+msgstr "Qiymat"
+
+#. module: report_formula
+#: model:ir.model.fields,field_description:report_formula.field_report_formula__variant_report_ids
+#, fuzzy
+msgid "Variants"
+msgstr "Variantlar"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_actions.py:0
+#, fuzzy
+msgid "View Partner"
+msgstr "Hamkorni ko‘rish"
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_line__print_on_new_page
+#, fuzzy
+msgid ""
+"When checked this line and everything after it will be printed on a new "
+"page."
+msgstr ""
+"Ushbu qator belgilanganda, u va undan keyingi barcha ma'lumotlar yangi "
+"sahifada chop etiladi."
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_column__blank_if_zero
+#, fuzzy
+msgid "When checked, 0 values will not show in this column."
+msgstr "Belgilanganda, 0 qiymatlari ushbu ustunda ko‘rsatilmaydi."
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_expression__blank_if_zero
+#, fuzzy
+msgid ""
+"When checked, 0 values will not show when displaying this expression's "
+"value."
+msgstr ""
+"Belgilanganda, ushbu ifodaning qiymatini ko‘rsatishda 0 qiymatlari aks "
+"ettirilmaydi."
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_column__optional_hidden
+msgid "When checked, an optional column starts out switched off."
+msgstr ""
+
+#. module: report_formula
+#: model:ir.model.fields,help:report_formula.field_report_formula_column__optional
+msgid "When checked, the reader can switch this column off from the report."
+msgstr ""
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression_eval.py:0
+#, fuzzy
+msgid "Wrong format for if_other_expr_above/if_other_expr_below formula: %s"
+msgstr ""
+"If_other_expr_above/if_other_expr_below formulasining noto‘g‘ri formati: %s"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_options.py:0
+#, fuzzy
+msgid "XLSX"
+msgstr "XLSX"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filters.js:0
+#, fuzzy
+msgid "Year"
+msgstr "Yil"
+
+#. module: report_formula
+#. odoo-javascript
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#: code:addons/report_formula/static/src/components/account_report/line_cell/popover/edit_popover.xml:0
+#, fuzzy
+msgid "Yes"
+msgstr "Ha"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report.py:0
+#, fuzzy
+msgid "You can't delete a report that has variants."
+msgstr "Variantlarga ega hisobotni o‘chira olmaysiz."
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_expression.py:0
+#, fuzzy
+msgid "You cannot use cross report on itself"
+msgstr "Hisobotni o‘ziga nisbatan qo‘llay olmaysiz"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_lines.py:0
+#, fuzzy
+msgid "n/a"
+msgstr "mavjud emas"
+
+#. module: report_formula
+#. odoo-python
+#: code:addons/report_formula/models/account_report_export.py:0
+#, fuzzy
+msgid "report.%(file_extension)s"
+msgstr "hisobot.%(file_extension)s"
+
+#. module: report_formula
+#. odoo-javascript
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_comparison.xml:0
+#: code:addons/report_formula/static/src/components/account_report/filters/filter_date.xml:0
+#, fuzzy
+msgid "to"
+msgstr "ga"

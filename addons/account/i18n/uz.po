@@ -329,13 +329,6 @@ msgid "(Un)Block Payment"
 msgstr "To‘lovni (Bloklamoq/Blokdan chiqarmoq)"
 
 #. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid "(copy)"
-msgstr "(nusxa)"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
 #, fuzzy
 msgid "(from"
@@ -2294,15 +2287,6 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid "A line cannot have both children and a groupby value (line '%s')."
-msgstr ""
-"Satrda ham bolalar, ham guruhlashtirish qiymati bo‘lishi mumkin emas ('%s' "
-"satri)."
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/account_move.py:0
 #, fuzzy
 msgid "A line of this move is using a archived account, you cannot post it."
@@ -2336,12 +2320,6 @@ msgid ""
 msgstr ""
 "To‘lanmagan hisobvarag‘i bor to‘lov jurnal yozuvisiz tasdiqlanishi mumkin "
 "emas."
-
-#. module: account
-#: model:ir.model.constraint,message:account.constraint_account_report_line_code_uniq
-#, fuzzy
-msgid "A report line with the same code already exists."
-msgstr "Xuddi shu kodli hisobot satri allaqachon mavjud."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -3559,18 +3537,6 @@ msgid "After"
 msgstr "Keyin"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__aggregation
-#, fuzzy
-msgid "Aggregate Other Formulas"
-msgstr "Boshqa formulalarni jamlash"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__aggregation_formula
-#, fuzzy
-msgid "Aggregation Formula Shortcut"
-msgstr "Agregatlash formulasi qisqartmasi"
-
-#. module: account
 #: model:account.account,name:account.2_account_account_us_airfare
 #, fuzzy
 msgid "Airfare"
@@ -4323,18 +4289,6 @@ msgid "At Date"
 msgstr "Sana bo‘yicha"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__date_scope__to_beginning_of_fiscalyear
-#, fuzzy
-msgid "At the beginning of the fiscal year"
-msgstr "Moliyaviy yil boshida"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__date_scope__to_beginning_of_period
-#, fuzzy
-msgid "At the beginning of the period"
-msgstr "Davr boshida"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_move_send_wizard_form
 #: model_terms:ir.ui.view,arch_db:account_reports.account_report_send_form
 #, fuzzy
@@ -4400,12 +4354,6 @@ msgstr "Audit yo‘li"
 #, fuzzy
 msgid "Audit Trail Messages"
 msgstr "Audit yo‘li xabarlari"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_expression__auditable
-#, fuzzy
-msgid "Auditable"
-msgstr "Tekshiriladigan"
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__res_company__fiscalyear_last_month__8
@@ -5213,13 +5161,6 @@ msgid "Bills to receive"
 msgstr "Olinadigan hisob-kitoblar"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_column__blank_if_zero
-#: model:ir.model.fields,field_description:account.field_account_report_expression__blank_if_zero
-#, fuzzy
-msgid "Blank if Zero"
-msgstr "Nol bo‘lsa bo‘sh"
-
-#. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_invoice_report__payment_state__blocked
 #: model:ir.model.fields.selection,name:account.selection__account_move__payment_state__blocked
 #: model:ir.model.fields.selection,name:account.selection__account_move__status_in_payment__blocked
@@ -5233,13 +5174,6 @@ msgstr "Bloklangan"
 #, fuzzy
 msgid "Body content is the same as the template"
 msgstr "Matn mazmuni andoza bilan bir xil"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__boolean
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__boolean
-#, fuzzy
-msgid "Boolean"
-msgstr "Mantiqiy"
 
 #. module: account
 #. odoo-javascript
@@ -5299,17 +5233,6 @@ msgid "Business or income taxes owed to local or municipal governments"
 msgstr ""
 "Mahalliy yoki shahar hokimliklariga to‘lanadigan biznes yoki daromad "
 "soliqlari"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__foldable
-#, fuzzy
-msgid ""
-"By default, we always unfold the lines that can be. If this is checked, the "
-"line won't be unfolded by default, and a folding button will be displayed."
-msgstr ""
-"Odatda, imkoni bo‘lgan barcha qatorlar avtomatik ochiladi. Agar bu bandni "
-"belgilasangiz, qator avtomatik ochilmaydi va qatorni ochish tugmasi "
-"ko‘rsatiladi."
 
 #. module: account
 #. odoo-python
@@ -5489,16 +5412,6 @@ msgid ""
 msgstr ""
 "Foydalanilmagan jurnal kodini yaratib bo‘lmadi. Iltimos, %s jurnalining "
 "nomini o‘zgartiring."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Cannot get aggregation details from a line not using 'aggregation' engine"
-msgstr ""
-"\"Agregatsiya\" mexanizmidan foydalanmagan qatordan agregatsiya "
-"tafsilotlarini olish mumkin emas"
 
 #. module: account
 #. odoo-python
@@ -5902,12 +5815,6 @@ msgid "Checks"
 msgstr "Cheklar"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__children_ids
-#, fuzzy
-msgid "Child Lines"
-msgstr "Qism qatorlari"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_tax__children_tax_ids
 #: model_terms:ir.ui.view,arch_db:account.view_tax_form
 #, fuzzy
@@ -6054,18 +5961,6 @@ msgstr "Rang indeksi"
 #, fuzzy
 msgid "Columns"
 msgstr "Ustunlar"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__groupby
-#: model:ir.model.fields,help:account.field_account_report_line__user_groupby
-#, fuzzy
-msgid ""
-"Comma-separated list of fields from account.move.line (Journal Item). When "
-"set, this line will generate sublines grouped by those keys."
-msgstr ""
-"Account.move.line (Jurnal elementi)dan vergul bilan ajratilgan maydonlar "
-"ro‘yxati. Belgilanganda, bu qator shu kalitlar bo‘yicha guruhlangan "
-"qatorchalarni yaratadi."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__commercial_partner_id
@@ -6265,12 +6160,6 @@ msgstr ""
 #, fuzzy
 msgid "Compensation to external workers and consultants for services"
 msgstr "Tashqi xodimlar va maslahatchilarga xizmatlar uchun to‘lovlar"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__use_sections
-#, fuzzy
-msgid "Composite Report"
-msgstr "Murakkab hisobot"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_report_expression__engine
@@ -6600,12 +6489,6 @@ msgid "Country Group"
 msgstr "Mamlakatlar guruhi"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__availability_condition__country
-#, fuzzy
-msgid "Country Matches"
-msgstr "Mamlakat mosliklarї"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__partner_country_name
 #: model:ir.model.fields,field_description:account.field_res_partner_bank_account__partner_country_name
 #, fuzzy
@@ -6757,16 +6640,6 @@ msgstr "Yangi soliq yaratish"
 #, fuzzy
 msgid "Create a new tax group"
 msgstr "Yangi soliq guruhini yaratish"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report__use_sections
-#, fuzzy
-msgid ""
-"Create a structured report with multiple sections for convenient navigation "
-"and simultaneous printing."
-msgstr ""
-"Qulay navigatsiya va bir vaqtning o‘zida chop etish uchun ko‘p bo‘limli "
-"tuzilgan hisobot yaratish."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_move_in_invoice
@@ -7286,18 +7159,6 @@ msgid "Current Year Earnings"
 msgstr "Joriy yil daromadlari"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_column__custom_audit_action_id
-#, fuzzy
-msgid "Custom Audit Action"
-msgstr "Maxsus audit harakati"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__custom
-#, fuzzy
-msgid "Custom Python Function"
-msgstr "Maxsus Python funksiyasi"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_payment_register__custom_user_amount
 #, fuzzy
 msgid "Custom User Amount"
@@ -7549,12 +7410,6 @@ msgstr ""
 "qayta tartiblanadi."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__filter_date_range
-#, fuzzy
-msgid "Date Range"
-msgstr "Sana oralig‘i"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_report_expression__date_scope
 #, fuzzy
 msgid "Date Scope"
@@ -7583,13 +7438,6 @@ msgstr "Sana:"
 #, fuzzy
 msgid "Dates"
 msgstr "Sanalar"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__datetime
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__datetime
-#, fuzzy
-msgid "Datetime"
-msgstr "Sana va vaqt"
 
 #. module: account
 #: code:addons/account_reports/static/src/components/aged_partner_balance/filter_aging.xml:0
@@ -8555,12 +8403,6 @@ msgid "Domain"
 msgstr "Domen"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__domain_formula
-#, fuzzy
-msgid "Domain Formula Shortcut"
-msgstr "Domen formulasi yorlig‘i"
-
-#. module: account
 #: model:account.fiscal.position,name:account.1_template_generic_domestic_fiscal_position
 #: model:account.fiscal.position,name:account.2_account_fiscal_position_us_domestic
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_filter
@@ -9442,42 +9284,10 @@ msgid "Export ZIP"
 msgstr ""
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_column__expression_label
-#, fuzzy
-msgid "Expression Label"
-msgstr "Ifoda yorlig‘i"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__expression_ids
-#, fuzzy
-msgid "Expressions"
-msgstr "Iboralar"
-
-#. module: account
-#: model:ir.model.constraint,message:account.constraint_account_report_expression_domain_engine_subformula_required
-#, fuzzy
-msgid "Expressions using 'domain' engine should all have a subformula."
-msgstr ""
-"'Domen' vositasidan foydalanilgan barcha iboralar ichki formulaga ega "
-"bo‘lishi shart"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__external_formula
-#, fuzzy
-msgid "External Formula Shortcut"
-msgstr "Tashqi formula yorliq"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement__reference
 #, fuzzy
 msgid "External Reference"
 msgstr "Tashqi havola"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__external
-#, fuzzy
-msgid "External Value"
-msgstr "Tashqi qiymat"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_send_wizard__extra_edi_checkboxes
@@ -9580,13 +9390,6 @@ msgstr "Maydon"
 #, fuzzy
 msgid "Field Value"
 msgstr "Maydon qiymati"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_column__figure_type
-#: model:ir.model.fields,field_description:account.field_account_report_expression__figure_type
-#, fuzzy
-msgid "Figure Type"
-msgstr "Raqam turi"
 
 #. module: account
 #. odoo-javascript
@@ -9802,23 +9605,10 @@ msgid "Flights or expenses related to air travel by plane"
 msgstr "Samolyotda havo sayohati bilan bog‘liq parvozlar yoki xarajatlar"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__float
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__float
-#, fuzzy
-msgid "Float"
-msgstr "Suzuvchi"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__amount
 #, fuzzy
 msgid "Float Amount"
 msgstr "Suzuvchi miqdor"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__foldable
-#, fuzzy
-msgid "Foldable"
-msgstr "Buklanuvchan"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.portal_my_home_invoice
@@ -10029,13 +9819,6 @@ msgid "Foreign tax account receivable (%s)"
 msgstr "Olinadigan xorijiy soliq hisobi (%s)"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_expression__formula
-#: code:addons/account_reports/static/src/components/account_report/line/popover/debug_popover.xml:0
-#, fuzzy
-msgid "Formula"
-msgstr "Formula"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_report_expression__carryover_target
 #, fuzzy
 msgid ""
@@ -10112,18 +9895,6 @@ msgstr "O‘tgan moliyaviy yildan"
 #, fuzzy
 msgid "From previous return period"
 msgstr "Avvalgi hisobot davridan"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__date_scope__from_fiscalyear
-#, fuzzy
-msgid "From the start of the fiscal year"
-msgstr "Moliyaviy yil boshidan"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__date_scope__from_beginning
-#, fuzzy
-msgid "From the very start"
-msgstr "Eng boshidan"
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all_supp
@@ -10387,27 +10158,10 @@ msgstr ""
 "to‘plamga guruhlash"
 
 #. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Groupby feature isn't supported by '%(engine)s' engine. Please remove the "
-"groupby value on '%(report_line)s'"
-msgstr ""
-"'%(engine)s' tizimida guruhlash funksiyasi qo‘llab-quvvatlanmaydi. Iltimos, "
-"'%(report_line)s' qatoridagi guruhlash qiymatini olib tashlang"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_merge_wizard_line__grouping_key
 #, fuzzy
 msgid "Grouping Key"
 msgstr "Guruhlash kaliti"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__filter_growth_comparison
-#, fuzzy
-msgid "Growth Comparison"
-msgstr "O‘sish taqqoslamasi"
 
 #. module: account
 #: model:ir.model,name:account.model_ir_http
@@ -10586,19 +10340,6 @@ msgid "Hide Writeoff Section"
 msgstr "Hisobdan chiqarish bo‘limini yashirish"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__hide_if_zero
-#, fuzzy
-msgid "Hide if Zero"
-msgstr "Nol bo‘lsa yashirish"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__filter_hide_0_lines
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Hide lines at 0"
-msgstr "0 qiymatli satrlarni yashirish"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_secure_entries_wizard__max_hash_date
 #, fuzzy
 msgid ""
@@ -10623,12 +10364,6 @@ msgstr "Eng yuqori nom"
 #, fuzzy
 msgid "Highlight Send Button"
 msgstr "Yuborish tugmasini ajratib ko‘rsatish"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__horizontal_split_side
-#, fuzzy
-msgid "Horizontal Split Side"
-msgstr "Gorizontal bo‘linish tomoni"
 
 #. module: account
 #: model:account.account,description:account.2_account_account_us_hotels
@@ -11253,31 +10988,6 @@ msgid "In payment"
 msgstr "To‘lovda"
 
 #. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid ""
-"In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
-"Failed to parse the cross report id or xml_id.\n"
-msgstr ""
-"'%(report_name)s' hisobotida, '%(line_name)s' satrida, '%(label)s' yorlig‘i "
-"bilan, kross hisobot identifikatori yoki xml_id tahlil qilib bo‘lmadi."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid ""
-"In report '%(report_name)s', on line '%(line_name)s', with label '%(label)s',\n"
-"The format of the cross report expression is invalid. \n"
-"Expected: cross_report(<report_id>|<xml_id>)Example:  cross_report(my_module.my_report) or cross_report(123)"
-msgstr ""
-"'%(report_name)s' hisobotida, '%(line_name)s' satrida, '%(label)s' yorlig‘i "
-"bilan, kross hisobot ifodasining formati noto‘g‘ri.  Kutilgan format: "
-"cross_report(<report_id>|<xml_id>). Misol: cross_report(my_module.my_report)"
-" yoki cross_report(123)"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_tax_search
 #: model_terms:ir.ui.view,arch_db:account_reports.view_account_report_search
 #, fuzzy
@@ -11459,20 +11169,6 @@ msgstr ""
 " qoplash uchun sug‘urta mukofotlari"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__integer
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__integer
-#, fuzzy
-msgid "Integer"
-msgstr "Butun son"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__integer_rounding
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Integer Rounding"
-msgstr "Butun sonli yaxlitlash"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_res_company__transfer_account_id
 #, fuzzy
 msgid "Inter-Banks Transfer Account"
@@ -11555,32 +11251,6 @@ msgstr ""
 "ichki maydon"
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__aggregation_formula
-#, fuzzy
-msgid ""
-"Internal field to shorten expression_ids creation for the aggregation engine"
-msgstr ""
-"Agregatsiya tizimi uchun expression_ids yaratishni soddalashtirish uchun "
-"ichki maydon"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__domain_formula
-#, fuzzy
-msgid ""
-"Internal field to shorten expression_ids creation for the domain engine"
-msgstr ""
-"Domen tizimi uchun expression_ids yaratishni soddalashtirish uchun ichki "
-"maydon"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__external_formula
-#, fuzzy
-msgid ""
-"Internal field to shorten expression_ids creation for the external engine"
-msgstr ""
-"Tashqi mexanizm uchun expression_ids yaratishni qisqartiruvchi ichki maydon"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_report_line__tax_tags_formula
 #, fuzzy
 msgid ""
@@ -11646,13 +11316,6 @@ msgstr "Noto‘g‘ri bayonot(lar)"
 #, fuzzy
 msgid "Invalid fiscal year last day"
 msgstr "Moliyaviy yilning oxirgi kuni noto‘g‘ri"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-msgid ""
-"Invalid formula for expression '%(label)s' of line '%(line)s': %(formula)s"
-msgstr ""
 
 #. module: account
 #. odoo-python
@@ -12206,12 +11869,6 @@ msgstr "Yozuvlar"
 #, fuzzy
 msgid "Is Follower"
 msgstr "Kuzatuvchi"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_expression__green_on_positive
-#, fuzzy
-msgid "Is Growth Good when Positive"
-msgstr "Ijobiy bo‘lganda o‘sish yaxshimi"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_line__is_imported
@@ -12778,18 +12435,6 @@ msgid "Last Hash"
 msgstr "Oxirgi xesh"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__previous_month
-#, fuzzy
-msgid "Last Month"
-msgstr "O‘tgan oy"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__previous_quarter
-#, fuzzy
-msgid "Last Quarter"
-msgstr "O‘tgan chorak"
-
-#. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__previous_return_period
 #, fuzzy
 msgid "Last Return Period"
@@ -12934,12 +12579,6 @@ msgid "Last Updated on"
 msgstr "Oxirgi yangilangan sana"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__previous_year
-#, fuzzy
-msgid "Last Year"
-msgstr "O‘tgan yil"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_move_line__discount_date
 #, fuzzy
 msgid ""
@@ -12998,12 +12637,6 @@ msgid "Ledger group allows managing multiple accounting standards."
 msgstr ""
 "Bosh daftar guruhi bir nechta buxgalteriya standartlarini boshqarish "
 "imkonini beradi"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_line__horizontal_split_side__left
-#, fuzzy
-msgid "Left"
-msgstr "Chap"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.portal_invoice_page
@@ -13068,12 +12701,6 @@ msgid "Let's start!"
 msgstr "Keling, boshlaymiz!"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__hierarchy_level
-#, fuzzy
-msgid "Level"
-msgstr "Daraja"
-
-#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/account_type_selection/account_type_selection.js:0
 #, fuzzy
@@ -13105,25 +12732,6 @@ msgstr ""
 #, fuzzy
 msgid "Line"
 msgstr "Satr"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Line \"%(line)s\" defines line \"%(parent_line)s\" as its parent, but "
-"appears before it in the report. The parent must always come first."
-msgstr ""
-"\"%(line)s\" satri \"%(parent_line)s\" satrini o‘zining asosiy satri "
-"sifatida belgilaydi, ammo hisobotda undan oldin keladi. Asosiy satr har doim"
-" birinchi bo‘lishi kerak."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid "Line \"%s\" defines itself as its parent."
-msgstr "\"%s\" satri o‘zini o‘zining asosiy satri sifatida belgilaydi"
 
 #. module: account
 #: model:account.reconcile.model,name:account.1_reconcile_from_label
@@ -13159,12 +12767,6 @@ msgstr "Likvidlik"
 #, fuzzy
 msgid "Liquidity Transfer"
 msgstr "Likvidlik o‘tkazmasi"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__load_more_limit
-#, fuzzy
-msgid "Load More Limit"
-msgstr "Ko‘proq yuklash chegarasi"
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_loan_interest_expense
@@ -13825,13 +13427,6 @@ msgstr "Soliq miqdorini o‘zgartirish"
 #, fuzzy
 msgid "Module"
 msgstr "Modul"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__monetary
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__monetary
-#, fuzzy
-msgid "Monetary"
-msgstr "Moliyaviy"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__money_transfer_service
@@ -14614,12 +14209,6 @@ msgid "Numbers only (202400001)"
 msgstr "Faqat raqamlar (202400001)"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__value
-#, fuzzy
-msgid "Numeric Value"
-msgstr "Raqamli qiymat"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 #, fuzzy
 msgid "OSS Tax mapping"
@@ -14630,12 +14219,6 @@ msgstr "OSS soliq xaritasi"
 #, fuzzy
 msgid "October"
 msgstr "Oktyabr"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__domain
-#, fuzzy
-msgid "Odoo Domain"
-msgstr "Odoo domeni"
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_bank_statement_tree
@@ -14803,17 +14386,6 @@ msgstr "Onlayn to‘lovlar"
 #, fuzzy
 msgid "Only Tax Exigible Lines"
 msgstr "Faqat soliqqa tortiladigan qatorlar"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Only a report without a root report of its own can be selected as root "
-"report."
-msgstr ""
-"Faqat o‘zining asosiy hisoboti bo‘lmagan hisobotni asosiy hisobot sifatida "
-"tanlash mumkin."
 
 #. module: account
 #. odoo-python
@@ -15021,18 +14593,6 @@ msgstr "Tartiblash"
 #, fuzzy
 msgid "Origin"
 msgstr "Kelib chiqish"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__carryover_origin_expression_label
-#, fuzzy
-msgid "Origin Expression Label"
-msgstr "Kelib chiqish ifodasi yorlig‘i"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__carryover_origin_report_line_id
-#, fuzzy
-msgid "Origin Line"
-msgstr "Kelib chiqish qatori"
 
 #. module: account
 #: model:ir.actions.report,name:account.action_account_original_vendor_bill
@@ -15379,18 +14939,6 @@ msgstr "Juftlashtirilgan ichki o‘tkazma to‘lovi"
 #, fuzzy
 msgid "Parent"
 msgstr "Asosiy"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__parent_id
-#, fuzzy
-msgid "Parent Line"
-msgstr "Asosiy qator"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__report_id
-#, fuzzy
-msgid "Parent Report"
-msgstr "Asosiy hisobot"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_line__parent_id
@@ -15932,12 +15480,6 @@ msgid "Period"
 msgstr "Davr"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__filter_period_comparison
-#, fuzzy
-msgid "Period Comparison"
-msgstr "Davrlarni taqqoslash"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_search_inherit
 #, fuzzy
 msgid "Phishing risk: High"
@@ -16103,12 +15645,6 @@ msgid "Preferred Payment Method Line"
 msgstr "Afzal ko‘rilgan to‘lov usuli satri"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__prefix_groups_threshold
-#, fuzzy
-msgid "Prefix Groups Threshold"
-msgstr "Prefiks guruhlari chegarasi"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_analytic_distribution_model__prefix_placeholder
 #, fuzzy
 msgid "Prefix Placeholder"
@@ -16261,12 +15797,6 @@ msgstr "Narxlar"
 #, fuzzy
 msgid "Print"
 msgstr "Chop etish"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__print_on_new_page
-#, fuzzy
-msgid "Print On New Page"
-msgstr "Yangi sahifada chop etish"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -17108,12 +16638,6 @@ msgid "Report Line"
 msgstr "Hisobot satri"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_expression__report_line_name
-#, fuzzy
-msgid "Report Line Name"
-msgstr "Hisobot satri nomi"
-
-#. module: account
 #: model:ir.ui.menu,name:account.account_report_folder
 #: model:ir.ui.menu,name:account.menu_finance_reports
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -17443,12 +16967,6 @@ msgid "Revoked"
 msgstr "Bekor qilingan"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_line__horizontal_split_side__right
-#, fuzzy
-msgid "Right"
-msgstr "O‘ng"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__root_id
 #, fuzzy
 msgid "Root"
@@ -17757,12 +17275,6 @@ msgid "Search Account Journal"
 msgstr "Hisob jurnalini qidirish"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__search_bar
-#, fuzzy
-msgid "Search Bar"
-msgstr "Qidiruv paneli"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_filter
 #, fuzzy
 msgid "Search Fiscal Positions"
@@ -17826,12 +17338,6 @@ msgstr "Qidirish: %s"
 #, fuzzy
 msgid "Section"
 msgstr "Bo‘lim"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__section_main_report_ids
-#, fuzzy
-msgid "Section Of"
-msgstr "Bo‘limi"
 
 #. module: account
 #. odoo-javascript
@@ -18386,16 +17892,6 @@ msgstr ""
 "Hujjat sarlavhasi/pastki qismi uchun kompaniyangiz ma'lumotlarini o‘rnating."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__action_id
-#, fuzzy
-msgid ""
-"Setting this field will turn the line into a link, executing the action when"
-" clicked."
-msgstr ""
-"Bu maydonni o‘rnatish qatorni havolaga aylantiradi va bosilganda amal "
-"bajariladi."
-
-#. module: account
 #: model:ir.actions.act_window,name:account.action_account_config
 #: model:ir.actions.act_window,name:account.action_open_settings
 #: model:ir.ui.menu,name:account.menu_account_config
@@ -18675,12 +18171,6 @@ msgid "Sometimes called BIC or Swift."
 msgstr "Ba'zan BIC yoki Swift deb ataladi."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_column__sortable
-#, fuzzy
-msgid "Sortable"
-msgstr "Saralash mumkin"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_payment_register__source_currency_id
 #, fuzzy
 msgid "Source Currency"
@@ -18926,26 +18416,6 @@ msgid "Street..."
 msgstr "Ko‘cha..."
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__date_scope__strict_range
-#, fuzzy
-msgid "Strictly on the given dates"
-msgstr "Faqat belgilangan sanalarda"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report_column__figure_type__string
-#: model:ir.model.fields.selection,name:account.selection__account_report_expression__figure_type__string
-#, fuzzy
-msgid "String"
-msgstr "Satr"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_expression__subformula
-#: code:addons/account_reports/static/src/components/account_report/line/popover/debug_popover.xml:0
-#, fuzzy
-msgid "Subformula"
-msgstr "Kichik formula"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_move_send_wizard__subject
 #: model:ir.model.fields,field_description:account_reports.field_account_report_send__mail_subject
 #, fuzzy
@@ -19054,24 +18524,6 @@ msgid ""
 msgstr ""
 "Ushbu mahsulot uchun yaratilgan asosiy va soliq jurnali moddalari uchun "
 "belgilanadigan teglar."
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__target_report_expression_id
-#, fuzzy
-msgid "Target Expression"
-msgstr "Maqsadli ifoda"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__target_report_expression_label
-#, fuzzy
-msgid "Target Expression Label"
-msgstr "Maqsadli ifoda yorlig‘i"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__target_report_line_id
-#, fuzzy
-msgid "Target Line"
-msgstr "Maqsad chizig‘i"
 
 #. module: account
 #: model:account.report.column,name:account.generic_tax_report_account_tax_column_tax
@@ -19812,12 +19264,6 @@ msgid "Test"
 msgstr "Sinov"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_external_value__text_value
-#, fuzzy
-msgid "Text Value"
-msgstr "Matn qiymati"
-
-#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/document_state/document_state_field.js:0
 #: code:addons/account_reports/static/src/components/account_report/ellipsis/ellipsis.js:0
@@ -19868,17 +19314,6 @@ msgstr ""
 "Hisob-fakturani tasdiqlash uchun \"Mijoz\" maydoni to‘ldirilishi shart. "
 "Auditoringizga ko‘rinmas odamga hisob-faktura yozganingizni tushuntirishni "
 "xohlamasangiz kerak :)"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid ""
-"The Availability is set to 'Country Matches' but the field Country is not "
-"set."
-msgstr ""
-"Mavjudlik \"Mamlakat mos kelishi\" deb belgilangan, lekin Mamlakat maydoni "
-"to‘ldirilmagan."
 
 #. module: account
 #. odoo-python
@@ -20341,12 +19776,6 @@ msgstr ""
 "tannarxi hisobi) mijoz hisob-fakturasi tasdiqlanganda tan olinadi."
 
 #. module: account
-#: model:ir.model.constraint,message:account.constraint_account_report_expression_line_label_uniq
-#, fuzzy
-msgid "The expression label must be unique per report line."
-msgstr "Ifoda yorlig‘i hisobot satri uchun noyob bo‘lishi kerak."
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/account_move.py:0
 #, fuzzy
@@ -20670,12 +20099,6 @@ msgstr ""
 "yozuvlarida chaqirilishi kerak."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_report__root_report_id
-#, fuzzy
-msgid "The report this report is a variant of."
-msgstr "Bu hisobot boshqa hisobotning varianti hisoblanadi."
-
-#. module: account
 #. odoo-python
 #: code:addons/account/controllers/terms.py:0
 #, fuzzy
@@ -20705,14 +20128,6 @@ msgstr "Jurnal moddasidagi qoldiq summa kompaniya valyutasida ifodalangan."
 #, fuzzy
 msgid "The running balance (%s) doesn't match the specified ending balance."
 msgstr "Joriy balans (%s) belgilangan yakuniy balansga mos kelmaydi."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid "The sections defined on a report cannot have sections themselves."
-msgstr ""
-"Hisobotda belgilangan bo‘limlar o‘z ichiga boshqa bo‘limlarni ola olmaydi."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.validate_account_move_view
@@ -21088,18 +20503,6 @@ msgid "Thirty one dollar and Five cents"
 msgstr "O‘ttiz bir dollar-u besh sent"
 
 #. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__this_month
-#, fuzzy
-msgid "This Month"
-msgstr "Shu oy"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__this_quarter
-#, fuzzy
-msgid "This Quarter"
-msgstr "Shu chorak"
-
-#. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__this_return_period
 #, fuzzy
 msgid "This Return Period"
@@ -21111,12 +20514,6 @@ msgstr "Ushbu qaytarish davri"
 #, fuzzy
 msgid "This Week"
 msgstr "Shu hafta"
-
-#. module: account
-#: model:ir.model.fields.selection,name:account.selection__account_report__default_opening_date_filter__this_year
-#, fuzzy
-msgid "This Year"
-msgstr "Shu yil"
 
 #. module: account
 #. odoo-python
@@ -21334,14 +20731,6 @@ msgid ""
 msgstr ""
 "Ushbu jurnal o‘z-o‘zini hisob-kitob qilish uchun mo‘ljallangan. Hisob-"
 "fakturalar har bir hamkor uchun alohida ketma-ketlikda yaratiladi."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__hide_if_zero
-#, fuzzy
-msgid ""
-"This line and its children will be hidden when all of their columns are 0."
-msgstr ""
-"Bu qator va uning pastki qatorlari barcha ustunlari 0 bo‘lganda yashiriladi."
 
 #. module: account
 #. odoo-python
@@ -22052,13 +21441,6 @@ msgid "Unemployment Insurance"
 msgstr "Ishsizlik sug‘urtasi"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__filter_unfold_all
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Unfold All"
-msgstr "Hammasini yoyish"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_journal__has_unhashed_entries
 #, fuzzy
 msgid "Unhashed Entries"
@@ -22069,12 +21451,6 @@ msgstr "Xeshlanmagan yozuvlar"
 #, fuzzy
 msgid "Unhashed entries"
 msgstr "Xeshlanmagan yozuvlar"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__code
-#, fuzzy
-msgid "Unique identifier for this line."
-msgstr "Ushbu satr uchun noyob identifikator."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__product_uom_id
@@ -22479,12 +21855,6 @@ msgid "User Fiscalyear Lock Date"
 msgstr "Foydalanuvchining moliyaviy yil qulfi sanasi"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_report_line__user_groupby
-#, fuzzy
-msgid "User Group By"
-msgstr "Foydalanuvchi guruhi bo‘yicha"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_res_company__user_hard_lock_date
 #, fuzzy
 msgid "User Hard Lock Date"
@@ -22599,12 +21969,6 @@ msgid "Validated entries can only be changed by your accountant."
 msgstr "Tasdiqlangan yozuvlarni faqat hisobchingiz o‘zgartirishi mumkin."
 
 #. module: account
-#: code:addons/account_reports/static/src/components/account_report/line/popover/debug_popover.xml:0
-#, fuzzy
-msgid "Value"
-msgstr "Qiymat"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_reconcile_model_line__amount_string
 #, fuzzy
 msgid ""
@@ -22628,12 +21992,6 @@ msgstr ""
 #, fuzzy
 msgid "Values that created the draft cash-basis entry"
 msgstr "Naqd pul asosidagi loyiha yozuvini yaratgan qiymatlar"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_report__variant_report_ids
-#, fuzzy
-msgid "Variants"
-msgstr "Variantlar"
 
 #. module: account
 #: model:account.account,description:account.2_account_account_us_office_supplies
@@ -22906,32 +22264,6 @@ msgid ""
 msgstr ""
 "Ichki o‘tkazma amalga oshirilganda, juft to‘lov yaratiladi. Ular ushbu "
 "maydon orqali o‘zaro bog‘lanadi"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_line__print_on_new_page
-#, fuzzy
-msgid ""
-"When checked this line and everything after it will be printed on a new "
-"page."
-msgstr ""
-"Ushbu qator belgilanganda, u va undan keyingi barcha ma'lumotlar yangi "
-"sahifada chop etiladi."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_column__blank_if_zero
-#, fuzzy
-msgid "When checked, 0 values will not show in this column."
-msgstr "Belgilanganda, 0 qiymatlari ushbu ustunda ko‘rsatilmaydi."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_report_expression__blank_if_zero
-#, fuzzy
-msgid ""
-"When checked, 0 values will not show when displaying this expression's "
-"value."
-msgstr ""
-"Belgilanganda, ushbu ifodaning qiymatini ko‘rsatishda 0 qiymatlari aks "
-"ettirilmaydi."
 
 #. module: account
 #. odoo-python
@@ -23263,13 +22595,6 @@ msgid ""
 "You can't delete a posted journal item. Don’t play games with your "
 "accounting records; reset the journal entry to draft before deleting it."
 msgstr ""
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid "You can't delete a report that has variants."
-msgstr "Variantlarga ega hisobotni o‘chira olmaysiz."
 
 #. module: account
 #. odoo-python
@@ -23808,13 +23133,6 @@ msgstr ""
 #, fuzzy
 msgid "You cannot use an archived account."
 msgstr "Arxivlangan hisobdan foydalanishingiz mumkin emas."
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/account_report.py:0
-#, fuzzy
-msgid "You cannot use cross report on itself"
-msgstr "Hisobotni o‘ziga nisbatan qo‘llay olmaysiz"
 
 #. module: account
 #. odoo-python
@@ -26824,12 +26142,6 @@ msgstr "Hisob qoldig‘iga ta'sir etadigan omillar"
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid "%(date_from)s - %(date_to)s"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_journal_report.py:0
 #, fuzzy
 msgid "%(journal)s - %(account)s"
@@ -26913,22 +26225,6 @@ msgstr ""
 "tegishli hisobot qatorlari uchun mavjud."
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "'external' engine does not support groupby, limit nor offset."
-msgstr ""
-"'Tashqi' mexanizm guruh bo‘yicha ajratish, cheklash yoki siljitish "
-"imkoniyatlarini qo‘llab-quvvatlamaydi."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "(%s lines)"
-msgstr "(%s qator)"
-
-#. module: account_reports
 #: model:account.report.line,name:account_reports.outstanding_receipts
 #, fuzzy
 msgid "(+) Outstanding Receipts"
@@ -26939,13 +26235,6 @@ msgstr "(+) To‘lanmagan kvitansiyalar"
 #, fuzzy
 msgid "(-) Outstanding Payments"
 msgstr "(-) To‘lanmagan qarzlar"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "(1 line)"
-msgstr "(1 qator)"
 
 #. module: account_reports
 #. odoo-python
@@ -27607,13 +26896,6 @@ msgstr "Barcha olinadigan"
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "All Report Variants"
-msgstr "Barcha hisobot variantlari"
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_return.py:0
 #, fuzzy
 msgid "All checks and approvers have been reset"
@@ -27690,27 +26972,6 @@ msgstr "To‘lanadigan summa valyutasi"
 #, fuzzy
 msgid "Amount in currency: %s"
 msgstr "Valyutadagi miqdor: %s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Amounts in Lakhs"
-msgstr "Lakhlardagi miqdorlar"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Amounts in Millions"
-msgstr "Millionlardagi miqdorlar"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Amounts in Thousands"
-msgstr "Minglardagi miqdorlar"
 
 #. module: account_reports
 #. odoo-python
@@ -27858,20 +27119,6 @@ msgstr "Arxivlash"
 #: code:addons/account_reports/static/src/views/accrual_list_view.xml:0
 msgid "As of"
 msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "As of %s"
-msgstr "%s holatiga ko‘ra"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Ascending"
-msgstr "O‘suvchi tartibda"
 
 #. module: account_reports
 #: model:account.return.check.template,name:account_reports.account_return_check_template_audit_assets_listing
@@ -28513,13 +27760,6 @@ msgstr ""
 "o‘rganing va tushuntiring."
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#, fuzzy
-msgid "Comparison"
-msgstr "Taqqoslash"
-
-#. module: account_reports
 #: model:account.return.check.template,description:account_reports.account_return_check_template_review_of_guaranteed
 #, fuzzy
 msgid ""
@@ -28615,17 +27855,6 @@ msgid "Contacts"
 msgstr "Kontaktlar"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Could not expand term %(term)s while evaluating formula "
-"%(unexpanded_formula)s"
-msgstr ""
-"%(unexpanded_formula)s formulasini baholashda %(term)s atamasi "
-"kengaytirilmadi"
-
-#. module: account_reports
 #: model:ir.actions.server,name:account_reports.action_create_composite_report_list
 #, fuzzy
 msgid "Create Composite Report"
@@ -28649,23 +27878,10 @@ msgstr ""
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Currency Code"
-msgstr "Valyuta kodi"
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_multicurrency_revaluation_report.py:0
 #, fuzzy
 msgid "Currency Rates (%s)"
 msgstr "Valyuta kurslari (%s)"
-
-#. module: account_reports
-#: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filters
-#, fuzzy
-msgid "Currency:"
-msgstr "Valyuta:"
 
 #. module: account_reports
 #: model:account.report.column,name:account_reports.deferred_expense_current
@@ -28685,26 +27901,6 @@ msgstr "Joriy yil taqsimlanmagan daromad"
 #, fuzzy
 msgid "Current assets to liabilities"
 msgstr "Joriy aktivlarning majburiyatlarga nisbati"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_date.xml:0
-#, fuzzy
-msgid "Custom Dates"
-msgstr "Maxsus sanalar"
-
-#. module: account_reports
-#: model:ir.model.fields,field_description:account_reports.field_account_report__custom_handler_model_id
-#, fuzzy
-msgid "Custom Handler Model"
-msgstr "Maxsus ishlov berish modeli"
-
-#. module: account_reports
-#: model:ir.model.fields,field_description:account_reports.field_account_report__custom_handler_model_name
-#, fuzzy
-msgid "Custom Handler Model Name"
-msgstr "Maxsus ishlov berish modeli nomi"
 
 #. module: account_reports
 #. odoo-python
@@ -28761,13 +27957,6 @@ msgstr "Boshlanish sanasi"
 #, fuzzy
 msgid "Date To"
 msgstr "Tugash sanasi"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Date cannot be empty"
-msgstr "Sana bo‘sh bo‘lishi mumkin emas"
 
 #. module: account_reports
 #: model:ir.model.fields,help:account_reports.field_account_report_annotation__date
@@ -28883,13 +28072,6 @@ msgid "Delay units"
 msgstr "Kechikish birliklari"
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Descending"
-msgstr "Kamayuvchi"
-
-#. module: account_reports
 #: model:ir.model.fields,help:account_reports.field_account_return_type__states_workflow
 #, fuzzy
 msgid "Determines the workflow of the return."
@@ -28901,12 +28083,6 @@ msgstr "Qaytarishning ish jarayonini belgilaydi"
 #, fuzzy
 msgid "Difference from rounding taxes"
 msgstr "Soliqlarni yaxlitlashdan farq"
-
-#. module: account_reports
-#: model:ir.model.fields,field_description:account_reports.field_account_report_line__display_custom_groupby_warning
-#, fuzzy
-msgid "Display Custom Groupby Warning"
-msgstr "Maxsus guruhlash bo‘yicha ogohlantirishni ko‘rsatish"
 
 #. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_report_send__display_mail_composer
@@ -28929,14 +28105,6 @@ msgstr ""
 #. module: account_reports
 #: model:account.return.check.template,name:account_reports.account_return_check_template_dividend_payment_verification
 msgid "Dividend payment verification"
-msgstr ""
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-msgid ""
-"Division by zero occurred while evaluating Expression: %(line_name)s > "
-"%(label)s."
 msgstr ""
 
 #. module: account_reports
@@ -29066,17 +28234,6 @@ msgid "Earnings Allocation"
 msgstr "Daromadlarni taqsimlash"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Editing a manual report line is not allowed when multiple companies are "
-"selected."
-msgstr ""
-"Bir nechta kompaniya tanlanganda qo‘lda kiritilgan hisobot satrini "
-"tahrirlashga ruxsat berilmaydi"
-
-#. module: account_reports
 #: model:account.return.check.template,name:account_reports.account_return_check_template_eligibility_tax_reductions_and_credits
 msgid "Eligibility for tax reductions and credits"
 msgstr ""
@@ -29125,46 +28282,11 @@ msgid "Enable Send Mail"
 msgstr "Xat yuborish funksiyasini yoqish"
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_variant.xml:0
-#, fuzzy
-msgid "Enable more ..."
-msgstr "Ko‘proq imkoniyatlarni yoqish..."
-
-#. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_trial_balance_report.py:0
 #, fuzzy
 msgid "End Balance"
 msgstr "Yakuniy qoldiq"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "End of Month"
-msgstr "Oy oxiri"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "End of Quarter"
-msgstr "Chorak oxiri"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "End of Year"
-msgstr "Yil oxiri"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/line/popover/debug_popover.xml:0
-#, fuzzy
-msgid "Engine"
-msgstr "Dvigatel"
 
 #. module: account_reports
 #: model:account.return.check.template,description:account_reports.account_return_check_template_vat_rate_compliance
@@ -29366,20 +28488,6 @@ msgstr "Ifoda"
 #: code:addons/account_reports/models/account_report.py:0
 #, fuzzy
 msgid ""
-"Expression labelled '%(label)s' of line '%(line)s' is being overwritten when"
-" computing the current report. Make sure the cross-report aggregations of "
-"this report only reference terms belonging to other reports."
-msgstr ""
-"'%(line)s' satrining '%(label)s' deb belgilangan ifodasi joriy hisobotni "
-"hisoblashda qayta yozilmoqda. Ushbu hisobotning kross-hisobot agregatlari "
-"faqat boshqa hisobotlarga tegishli atamalarni o‘z ichiga olishiga ishonch "
-"hosil qiling."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid ""
 "Field %s does not exist on account.move.line, and is not supported by this "
 "report's custom handler."
 msgstr ""
@@ -29412,17 +28520,6 @@ msgid ""
 msgstr ""
 "account.move.line jadvalining %s maydoni qidiruv uchun mos emas, shu sababli"
 " uni guruhlar bo‘yicha ifodada ishlatib bo‘lmaydi."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Field 'Custom Handler Model' can only reference records inheriting from "
-"[%s]."
-msgstr ""
-"'Maxsus ishlov beruvchi modeli' maydoni faqat [%s] dan meros qilib olingan "
-"yozuvlarga murojaat qilishi mumkin."
 
 #. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_report_file_download_error_wizard__file_content
@@ -29792,12 +28889,6 @@ msgid "Horizontal group rule for reports"
 msgstr "Hisobotlar uchun gorizontal guruh qoidasi"
 
 #. module: account_reports
-#: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filters
-#, fuzzy
-msgid "Horizontal:"
-msgstr "Gorizontal:"
-
-#. module: account_reports
 #: model_terms:ir.ui.view,arch_db:account_reports.res_config_settings_view_form
 #, fuzzy
 msgid "How often tax returns have to be made"
@@ -29883,13 +28974,6 @@ msgstr "Ta'sir etilgan soliq jadvallari"
 
 #. module: account_reports
 #. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "In %s"
-msgstr "%s ichida"
-
-#. module: account_reports
-#. odoo-javascript
 #: code:addons/account_reports/static/src/components/account_return/widgets/account_return_dashboard_list.js:0
 #, fuzzy
 msgid "In %s days"
@@ -29954,28 +29038,6 @@ msgstr "Nomuvofiq bayonotlar"
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Inconsistent data: more than one external value at the same date for a "
-"'most_recent' external line."
-msgstr ""
-"Nomuvofiq ma'lumotlar: \"eng so‘nggi\" tashqi qator uchun bir xil sanada "
-"bittadan ortiq tashqi qiymat mavjud"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Inconsistent report_id in options dictionary. Options says "
-"%(options_report)s; report is %(report)s."
-msgstr ""
-"Variantlar lug‘atidagi report_id mos kelmaydi. Variantlar %(options_report)s"
-" ni ko‘rsatmoqda; hisobot esa %(report)s"
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_general_ledger.py:0
 #: code:addons/account_reports/models/account_report.py:0
 #: code:addons/account_reports/models/account_trial_balance_report.py:0
@@ -30022,35 +29084,6 @@ msgstr "Hamjamiyat ichidagi soliqlar quyidagilarga qo‘llaniladi"
 #, fuzzy
 msgid "Invalid code"
 msgstr "Noto‘g‘ri kod"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Invalid domain formula in expression \"%(expression)s\" of line "
-"\"%(line)s\": %(formula)s"
-msgstr ""
-"\"%(line)s\" qatorining \"%(expression)s\" ifodasidagi domen formulasi "
-"noto‘g‘ri: %(formula)s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Invalid method “%s”"
-msgstr "\"%s\" usuli noto‘g‘ri"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Invalid subformula in expression \"%(expression)s\" of line \"%(line)s\": "
-"%(subformula)s"
-msgstr ""
-"\"%(line)s\" qatorining \"%(expression)s\" ifodasidagi qism formula "
-"noto‘g‘ri: %(subformula)s"
 
 #. module: account_reports
 #. odoo-python
@@ -30271,31 +29304,6 @@ msgid "Less Other Expenses"
 msgstr "Boshqa xarajatlar"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Line '%(child)s' is configured to appear before its parent '%(parent)s'. "
-"This is not allowed."
-msgstr ""
-"'%(child)s' qatori o‘zining asosiy '%(parent)s' qatoridan oldin "
-"ko‘rsatilishi uchun sozlangan. Bu ruxsat etilmaydi."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Load more..."
-msgstr "Ko‘proq yuklash..."
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/account_report.xml:0
-#, fuzzy
-msgid "Loading..."
-msgstr "Yuklanmoqda..."
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return__date_lock
 #, fuzzy
 msgid "Lock Date"
@@ -30361,13 +29369,6 @@ msgid "Manual value"
 msgstr "Qo‘lda kiritilgan qiymat"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Manual values"
-msgstr "Qo‘lda kiritilgan qiymatlar"
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return__manually_created
 #, fuzzy
 msgid "Manually Created"
@@ -30403,14 +29404,6 @@ msgstr "Bozorbop qimmatli qog‘ozlar tahlili"
 #, fuzzy
 msgid "Members of this unit"
 msgstr "Ushbu bo‘lim a'zolari"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Method '%(method_name)s' must start with the '%(prefix)s' prefix."
-msgstr ""
-"'%(method_name)s' metodi '%(prefix)s' prefiksi bilan boshlanishi shart."
 
 #. module: account_reports
 #: model:account.return.check.template,name:account_reports.account_return_check_template_minimum_share_capital_compliance
@@ -30453,13 +29446,6 @@ msgstr ""
 #, fuzzy
 msgid "Mode"
 msgstr "Rejim"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Month"
-msgstr "Oy"
 
 #. module: account_reports
 #: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filters
@@ -30547,13 +29533,6 @@ msgid "Next State"
 msgstr "Keyingi holat"
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#, fuzzy
-msgid "No Comparison"
-msgstr "Taqqoslash yo‘q"
-
-#. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 #, fuzzy
@@ -30585,13 +29564,6 @@ msgstr "Kompaniyangizga bog‘liq QQS raqami yo‘q. Iltimos, uni belgilang."
 #, fuzzy
 msgid "No adjustment needed"
 msgstr "Tuzatish talab qilinmaydi"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/account_report.xml:0
-#, fuzzy
-msgid "No data to display !"
-msgstr "Ko‘rsatish uchun ma'lumot yo‘q"
 
 #. module: account_reports
 #. odoo-python
@@ -30643,13 +29615,6 @@ msgstr "Qaytarilmaydigan QQS: yalpi hisob"
 #, fuzzy
 msgid "Not Started"
 msgstr "Boshlanmagan"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Number of periods cannot be smaller than 1"
-msgstr "Davrlar soni 1 dan kam bo‘lishi mumkin emas"
 
 #. module: account_reports
 #: model:account.report.line,name:account_reports.account_financial_report_off_sheet
@@ -30821,12 +29786,6 @@ msgid "Options"
 msgstr "Parametrlar"
 
 #. module: account_reports
-#: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filter_extra_options_template
-#, fuzzy
-msgid "Options:"
-msgstr "Variantlar:"
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return_creation_wizard__other
 #: model:ir.model.fields.selection,name:account_reports.selection__account_return_check_template__cycle__other
 #, fuzzy
@@ -30866,13 +29825,6 @@ msgid "Overrides the default action based on the model and domain."
 msgstr "Model va domen asosidagi standart harakatni bekor qiladi"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "PDF"
-msgstr "PDF"
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_reports_export_wizard__report_id
 #, fuzzy
 msgid "Parent Report Id"
@@ -30890,13 +29842,6 @@ msgstr "Ota-ona ustasi"
 #, fuzzy
 msgid "Partner Bank"
 msgstr "Hamkor banki"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Partner Categories"
-msgstr "Hamkor toifalari"
 
 #. module: account_reports
 #: model:ir.model,name:account_reports.model_account_partner_ledger_report_handler
@@ -30921,12 +29866,6 @@ msgid "Partner is good"
 msgstr "Hamkor yaxshi"
 
 #. module: account_reports
-#: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filters
-#, fuzzy
-msgid "Partners Categories:"
-msgstr "Hamkorlar toifalari:"
-
-#. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_return.py:0
 #, fuzzy
@@ -30946,12 +29885,6 @@ msgstr "Takroriy QQS raqamlariga ega hamkorlar"
 #, fuzzy
 msgid "Partners without VAT"
 msgstr "QQSsiz hamkorlar"
-
-#. module: account_reports
-#: model_terms:ir.ui.view,arch_db:account_reports.pdf_export_filters
-#, fuzzy
-msgid "Partners:"
-msgstr "Hamkorlar:"
 
 #. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return__resolved_check_count
@@ -31052,20 +29985,6 @@ msgid "Period Events"
 msgstr "Davr hodisalari"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Period Total"
-msgstr "Davr jami"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#, fuzzy
-msgid "Period order"
-msgstr "Davrlar tartibi"
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return_type__deadline_periodicity
 #: model:ir.model.fields,field_description:account_reports.field_res_config_settings__account_return_periodicity
 #: model:ir.model.fields,help:account_reports.field_account_financial_year_op__account_return_periodicity
@@ -31083,13 +30002,6 @@ msgstr "Davriylik"
 #, fuzzy
 msgid "Periodicity in month"
 msgstr "Oylik davriylik"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Periods"
-msgstr "Davrlar"
 
 #. module: account_reports
 #. odoo-javascript
@@ -31197,34 +30109,6 @@ msgstr ""
 "olgan qisqacha ma'lumotnoma tayyorlang."
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#, fuzzy
-msgid "Previous Period"
-msgstr "O‘tgan davr"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#, fuzzy
-msgid "Previous Periods"
-msgstr "O‘tgan davrlar"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#, fuzzy
-msgid "Previous Year"
-msgstr "O‘tgan yil"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#, fuzzy
-msgid "Previous Years"
-msgstr "O‘tgan yillar"
-
-#. module: account_reports
 #: model:account.report.line,name:account_reports.account_financial_report_previous_years_earnings
 msgid "Previous Years Earnings"
 msgstr ""
@@ -31277,13 +30161,6 @@ msgstr "Qiymatning pasayishi uchun zaxira"
 #, fuzzy
 msgid "Qr Code"
 msgstr "QR kod"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Quarter"
-msgstr "Chorak"
 
 #. module: account_reports
 #. odoo-javascript
@@ -31410,26 +30287,11 @@ msgid "Report Options"
 msgstr "Hisobot parametrlari"
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/warnings.xml:0
-msgid ""
-"Report is being loaded in the background. Presented data were cached and may"
-" not be accurate."
-msgstr ""
-
-#. module: account_reports
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 #, fuzzy
 msgid "Report lines mentioning the account code"
 msgstr "Hisob raqami ko‘rsatilgan hisobot satrlari"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_variant.xml:0
-#, fuzzy
-msgid "Report:"
-msgstr "Hisobot:"
 
 #. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_report_horizontal_group__report_ids
@@ -31733,24 +30595,10 @@ msgid "Rules"
 msgstr "Qoidalar"
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#, fuzzy
-msgid "Same Period Last Year"
-msgstr "O‘tgan yilning shu davri"
-
-#. module: account_reports
 #: model:ir.model,name:account_reports.model_mail_scheduled_message
 #, fuzzy
 msgid "Scheduled Message"
 msgstr "Rejalashtirilgan xabar"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/search_bar/search_bar.xml:0
-#, fuzzy
-msgid "Search..."
-msgstr "Qidirish..."
 
 #. module: account_reports
 #: model:ir.model.fields.selection,name:account_reports.selection__account_return_type__deadline_periodicity__semester
@@ -31945,14 +30793,6 @@ msgid "Some partners"
 msgstr "Ayrim hamkorlar"
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_comparison.xml:0
-#: code:addons/account_reports/static/src/components/account_report/filters/filter_date.xml:0
-#, fuzzy
-msgid "Specific Date"
-msgstr "Aniq sana"
-
-#. module: account_reports
 #: model:ir.model.fields,help:account_reports.field_res_company__account_representative_id
 #, fuzzy
 msgid ""
@@ -31961,13 +30801,6 @@ msgid ""
 msgstr ""
 "Hisobotlarni eksport qilishda vakil sifatida harakat qiladigan buxgalteriya "
 "firmasini ko‘rsating"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Split Horizontally"
-msgstr "Gorizontal bo‘lish"
 
 #. module: account_reports
 #: model:ir.actions.act_window,name:account_reports.action_create_account_audit
@@ -32367,13 +31200,6 @@ msgid "There are no reports to compare."
 msgstr "Taqqoslash uchun hech qanday hisobot yo‘q."
 
 #. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/account_report.xml:0
-#, fuzzy
-msgid "There is no data to display for the given filters."
-msgstr "Berilgan filtrlar bo‘yicha ko‘rsatish uchun ma'lumot yo‘q."
-
-#. module: account_reports
 #: model:account.return.check.template,description:account_reports.account_return_check_template_audit_empty_suspense_accounts
 #, fuzzy
 msgid ""
@@ -32483,13 +31309,6 @@ msgid "This option hides lines with a value of 0"
 msgstr "Bu parametr qiymati 0 bo‘lgan qatorlarni yashiradi."
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "This report already has a menuitem."
-msgstr "Bu hisobot allaqachon menyu bandiga ega."
-
-#. module: account_reports
 #. odoo-javascript
 #: code:addons/account_reports/static/src/components/tax_report/warnings.xml:0
 #, fuzzy
@@ -32534,13 +31353,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/account_reports/models/account_report.py:0
 #, fuzzy
-msgid "This subformula references an unknown expression: %s"
-msgstr "Bu qism formula noma'lum ifodaga havola qiladi: %s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
 msgid ""
 "This tag is reported in a line of the report but is not linked to any "
 "account of the Chart of Accounts"
@@ -32566,13 +31378,6 @@ msgstr "Bajarish kerak"
 #, fuzzy
 msgid "Tomorrow"
 msgstr "Ertaga"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Total %s"
-msgstr "Jami %s"
 
 #. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return__total_amount_to_pay
@@ -32650,44 +31455,6 @@ msgid "Triangular"
 msgstr "Uchburchakli"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Trying to dispatch an action on a report not compatible with the provided "
-"options."
-msgstr ""
-"Taqdim etilgan parametrlarga mos kelmaydigan hisobot bo‘yicha amal "
-"bajarishga urinish."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid ""
-"Trying to expand a group for a line which was not generated by a report "
-"line: %s"
-msgstr ""
-"Hisobot qatori tomonidan yaratilmagan satr uchun guruhni kengaytirishga "
-"urinish: %s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Trying to expand a line without an expansion function."
-msgstr "Kengaytirish funksiyasisiz satrni yoyishga urinish."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Trying to expand groupby results on lines without a groupby value."
-msgstr ""
-"Guruhlashtirish qiymati bo‘lmagan satrlarda guruhlashtirish natijalarini "
-"kengaytirishga urinish."
-
-#. module: account_reports
 #: model:ir.model.fields,field_description:account_reports.field_account_return__type_external_id
 #, fuzzy
 msgid "Type External"
@@ -32702,39 +31469,11 @@ msgstr "Arxivdan chiqarish"
 
 #. module: account_reports
 #. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Undefined"
-msgstr "Aniqlanmagan"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Unknown"
-msgstr "Noma'lum"
-
-#. module: account_reports
-#. odoo-python
 #: code:addons/account_reports/models/account_partner_ledger.py:0
 #: code:addons/account_reports/models/account_sales_report.py:0
 #, fuzzy
 msgid "Unknown Partner"
 msgstr "Noma'lum hamkor"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Unknown bound criterium: %s"
-msgstr "Noma'lum bog‘langan mezon: %s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Unknown date scope: %s"
-msgstr "Noma'lum sana oralig‘i: %s"
 
 #. module: account_reports
 #: model:ir.ui.menu,name:account_reports.menu_action_account_report_multicurrency_revaluation
@@ -32967,41 +31706,10 @@ msgstr ""
 "Kengaytirish uchun hamkor jurnali qatorining noto‘g‘ri identifikatori: %s"
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "Wrong format for if_other_expr_above/if_other_expr_below formula: %s"
-msgstr ""
-"If_other_expr_above/if_other_expr_below formulasining noto‘g‘ri formati: %s"
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "XLSX"
-msgstr "XLSX"
-
-#. module: account_reports
-#. odoo-javascript
-#: code:addons/account_reports/static/src/components/account_report/filters/filters.js:0
-#, fuzzy
-msgid "Year"
-msgstr "Yil"
-
-#. module: account_reports
 #: model:account.return.check.template,name:account_reports.account_return_check_template_year_end_revenue_cutoff_analysis
 #, fuzzy
 msgid "Year-end revenue cutoff analysis"
 msgstr "Yil oxiri daromad chegarasi tahlili"
-
-#. module: account_reports
-#. odoo-javascript
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#: code:addons/account_reports/static/src/components/account_report/line_cell/popover/edit_popover.xml:0
-#, fuzzy
-msgid "Yes"
-msgstr "Ha"
 
 #. module: account_reports
 #. odoo-javascript
@@ -33236,13 +31944,6 @@ msgid "n must be a positive integer."
 msgstr ""
 
 #. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "n/a"
-msgstr "mavjud emas"
-
-#. module: account_reports
 #. odoo-javascript
 #: code:addons/account_reports/static/src/components/sales_report/warnings.xml:0
 #, fuzzy
@@ -33255,13 +31956,6 @@ msgstr "hamkorlar"
 #, fuzzy
 msgid "prior or included in this period."
 msgstr "oldingi yoki ushbu davrga kiritilgan."
-
-#. module: account_reports
-#. odoo-python
-#: code:addons/account_reports/models/account_report.py:0
-#, fuzzy
-msgid "report.%(file_extension)s"
-msgstr "hisobot.%(file_extension)s"
 
 #. module: account_reports
 #. odoo-python
