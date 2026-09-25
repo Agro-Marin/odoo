@@ -147,7 +147,7 @@ Four properties make it safe to run against a shared tree:
 
 1. **Reversible exactly.** Every inserted line carries a `// trace-stamp`
    trailing comment; `--revert` removes lines carrying it and nothing else. An
-   apply/revert cycle over `addons/web/static/src` returns all 881 files
+   apply/revert cycle over `addons/web/static/src` returns all 882 files
    byte-identical.
 2. **Idempotent.** A second `--apply` stamps 0 lines.
 3. **Lint-clean on arrival — and `--fix` must NOT be run.** A stamped tree
@@ -195,7 +195,7 @@ module has.**
 |---|---|---|
 | `asset` js | 19 | N events across 20 kinds — cache hits, bundle fetches, import-map injections. **Not bundles.** |
 | `asset` boot | 6 | N boot phases reached, of 6 possible |
-| `asset` env | 5 | N env/service-wave milestones |
+| `asset` env | 5 | N env/service-wave milestones, across `env.js` and `core/service_container.js` |
 | `asset` templates | 2 | N compile-or-register events; roughly per template, but the two are summed |
 | `asset` registry | 1 | N category opens — one site, so the count IS the thing |
 

@@ -81,7 +81,9 @@ export async function makeMockEnv(partialEnv, options) {
     }
 
     const env = makeEnv();
-    Object.assign(env, partialEnv, createDebugContext(/** @type {any} */ (env)));
+    const { services, ...rest } = partialEnv || {};
+    Object.assign(env, rest, createDebugContext(/** @type {any} */ (env)));
+    Object.assign(env.services, services);
 
     registerDebugInfo("env", env);
 

@@ -19,10 +19,11 @@ import {
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
+import { _resetCascadeWarningCache } from "@web/core/service_container";
 import {
-    _resetCascadeWarningCache,
     makeEnv,
     mountComponent,
+    serviceContainerOf,
     startMissingServices,
     startServices,
 } from "@web/env";
@@ -66,7 +67,7 @@ function captureConsole(method) {
 /** @returns {{ env: any, started: Promise<void> }} */
 function startEnv() {
     const env = makeEnv();
-    after(() => env.disposeServiceRegistryListener?.());
+    after(() => serviceContainerOf(env).stopListening());
     return { env, started: startServices(env) };
 }
 
@@ -236,7 +237,7 @@ test(`can start two independant asynchronous services in parallel`, async () => 
 
 test(`startServices: skips services with unreachable deps and warns (no throw)`, async () => {
     const env = makeEnv();
-    after(() => env.disposeServiceRegistryListener?.());
+    after(() => serviceContainerOf(env).stopListening());
     registerService("b", ["a"], () => "b");
 
     const warnings = [];
@@ -263,7 +264,7 @@ test(`startServices: skips services with unreachable deps and warns (no throw)`,
 test(`startMissingServices: starts late-registered services without a registry listener`, async () => {
     const env = makeEnv();
     await startServices(env);
-    env.disposeServiceRegistryListener();
+    serviceContainerOf(env).stopListening();
     registerService("provider", [], () => "p");
     registerService("consumer", ["provider"], (_env, deps) => `${deps.provider}-c`);
     expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({});
@@ -284,7 +285,7 @@ test(`startMissingServices: starts late-registered services without a registry l
 test(`a queued startup pass runs even if the in-flight pass rejects`, async () => {
     const errors = captureConsole("error");
     const env = makeEnv();
-    after(() => env.disposeServiceRegistryListener?.());
+    after(() => serviceContainerOf(env).stopListening());
     const deferredBoom = new Deferred();
     const enteredBoom = new Deferred();
     let boomStarts = 0;
@@ -312,7 +313,7 @@ test(`a queued startup pass runs even if the in-flight pass rejects`, async () =
 
 test(`startServices: cascade-skips transitive consumers when a dep is missing`, async () => {
     const env = makeEnv();
-    after(() => env.disposeServiceRegistryListener?.());
+    after(() => serviceContainerOf(env).stopListening());
     registerService("c", ["b"], () => "c");
     registerService("b", ["a"], () => "b");
 
@@ -331,7 +332,7 @@ test(`startServices: cascade-skips transitive consumers when a dep is missing`, 
 
 test(`registry UPDATE while missing-dep leftovers exist starts the new service (no false circular throw)`, async () => {
     const env = makeEnv();
-    after(() => env.disposeServiceRegistryListener?.());
+    after(() => serviceContainerOf(env).stopListening());
     registerService("b", ["a"], () => "b");
 
     const warnings = [];
@@ -354,7 +355,7 @@ test(`registry UPDATE while missing-dep leftovers exist starts the new service (
 
 test(`startServices: still throws on genuine circular dependency`, async () => {
     const env = makeEnv();
-    after(() => env.disposeServiceRegistryListener?.());
+    after(() => serviceContainerOf(env).stopListening());
     registerService("x", ["y"], () => "x");
     registerService("y", ["x"], () => "y");
 
@@ -412,9 +413,9 @@ test(`cascade-skip warning: deduped across startServices calls with the same sha
     registerService("dedup_b", ["dedup_a"], () => "dedup_b");
 
     const env1 = makeEnv();
-    after(() => env1.disposeServiceRegistryListener?.());
+    after(() => serviceContainerOf(env1).stopListening());
     const env2 = makeEnv();
-    after(() => env2.disposeServiceRegistryListener?.());
+    after(() => serviceContainerOf(env2).stopListening());
 
     const warns = await captureWarns(async () => {
         await startServices(env1);
@@ -428,13 +429,13 @@ test(`cascade-skip warning: re-fires when the shape changes`, async () => {
     registerService("shape_b", ["shape_a"], () => "shape_b");
 
     const env1 = makeEnv();
-    after(() => env1.disposeServiceRegistryListener?.());
+    after(() => serviceContainerOf(env1).stopListening());
     const warns = await captureWarns(async () => {
         await startServices(env1);
 
         registerService("shape_d", ["shape_c"], () => "shape_d");
         const env2 = makeEnv();
-        after(() => env2.disposeServiceRegistryListener?.());
+        after(() => serviceContainerOf(env2).stopListening());
         await startServices(env2);
     });
     expect(warns.length).toBe(2);
@@ -444,7 +445,7 @@ test(`cascade-skip warning: re-fires when the shape changes`, async () => {
 
 test(`startServices: waits for all synchronous code before attempting to start services`, async () => {
     const env = makeEnv();
-    after(() => env.disposeServiceRegistryListener?.());
+    after(() => serviceContainerOf(env).stopListening());
     registerService("b", ["a"], () => "b");
 
     const serviceStartingPromise = startServices(env);
@@ -468,7 +469,7 @@ test(`mountComponent creates an env and sets the application as root when no env
     const app = await mountComponent(Root, getFixture());
     after(() => {
         delete odoo.__WOWL_DEBUG__;
-        app.env.disposeServiceRegistryListener?.();
+        serviceContainerOf(app.env).stopListening();
     });
     const { env } = app;
     expect(/** @type {Record<string, unknown>} */ (env.services)).toEqual({
@@ -488,7 +489,7 @@ test(`mountComponent uses the env when provided and doesn't start the services`,
     const env = makeEnv();
     expect.verifySteps([]);
     await startServices(env);
-    after(() => env.disposeServiceRegistryListener?.());
+    after(() => serviceContainerOf(env).stopListening());
     expect.verifySteps(["starting myService"]);
 
     class Root extends Component {
@@ -514,7 +515,7 @@ test(`mountComponent: can pass props to the root component`, async () => {
     });
     after(() => {
         delete odoo.__WOWL_DEBUG__;
-        app.env.disposeServiceRegistryListener?.();
+        serviceContainerOf(app.env).stopListening();
     });
     expect(getFixture()).toHaveText("text from props");
 });

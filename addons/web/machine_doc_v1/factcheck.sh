@@ -1850,7 +1850,7 @@ assert_eq "the interaction suite settles boot before resetting the sink" \
 OBS_SITES_JS=$(grep -c 'log(' "$WEB/static/src/core/assets.js")
 OBS_SITES_TPL=$(grep -c 'log(' "$WEB/static/src/core/templates.js")
 OBS_SITES_REG=$(grep -c 'log(' "$WEB/static/src/core/registry.js")
-OBS_SITES_ENV=$(grep -c 'log(' "$WEB/static/src/env.js")
+OBS_SITES_ENV=$(cat "$WEB/static/src/env.js" "$WEB/static/src/core/service_container.js" | grep -c 'log(')
 OBS_SITES_BOOT=$(grep -c 'log(' "$WEB/static/src/boot/start.js")
 assert_doc_cites "OBSERVABILITY cites assets.js's call-site count" \
     "$OBS_SITES_JS" '\| .asset. js \| %s \|' OBSERVABILITY.md
@@ -1858,7 +1858,7 @@ assert_doc_cites "OBSERVABILITY cites templates.js's call-site count" \
     "$OBS_SITES_TPL" '\| .asset. templates \| %s \|' OBSERVABILITY.md
 assert_doc_cites "OBSERVABILITY cites registry.js's call-site count" \
     "$OBS_SITES_REG" '\| .asset. registry \| %s \|' OBSERVABILITY.md
-assert_doc_cites "OBSERVABILITY cites env.js's call-site count" \
+assert_doc_cites "OBSERVABILITY cites the env key's call sites (env.js + core/service_container.js)" \
     "$OBS_SITES_ENV" '\| .asset. env \| %s \|' OBSERVABILITY.md
 assert_doc_cites "OBSERVABILITY cites boot/start.js's call-site count" \
     "$OBS_SITES_BOOT" '\| .asset. boot \| %s \|' OBSERVABILITY.md
@@ -1866,7 +1866,7 @@ assert_doc_cites "OBSERVABILITY cites boot/start.js's call-site count" \
 # The campaign namespaces must keep one category per EVENT KIND, which is what
 # makes their counts readable without the source open.
 assert_eq "service exposes distinct start/started categories" \
-    "$(grep -c 'serviceLog("start"\|serviceLog("started"' "$WEB/static/src/env.js")" "2"
+    "$(grep -c 'serviceLog("start"\|serviceLog("started"' "$WEB/static/src/core/service_container.js")" "2"
 assert_eq "view exposes distinct load/loadViews categories" \
     "$(grep -c 'viewLog("load"\|viewLog("loadViews"' "$WEB/static/src/views/view.js")" "2"
 

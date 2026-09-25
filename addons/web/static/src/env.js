@@ -4,18 +4,11 @@
 import { App, Component, EventBus } from "@odoo/owl";
 import { isCtrlOrCmdKey } from "@web/core/browser/hotkeys";
 import { makeLogger } from "@web/core/debug/debug_logger";
-import { reportJsError } from "@web/core/errors/error_beacon";
 import { AppEvent } from "@web/core/events";
-import { registry } from "@web/core/registry";
+import { ServiceContainer } from "@web/core/service_container";
 import { getTemplate } from "@web/core/templates";
 import { appTranslateFn } from "@web/core/translation";
-import { componentLog, makeAssetLog, serviceLog } from "@web/core/utils/asset_log";
-import { deferUntilBundlesSettled } from "@web/core/utils/bundle_transaction";
-import {
-    createWaveResolver,
-    findDependencyCycle,
-} from "@web/core/utils/dependency_graph";
-import { SERVICES_METADATA } from "@web/core/utils/hooks";
+import { componentLog, makeAssetLog } from "@web/core/utils/asset_log";
 import { session } from "@web/session";
 
 const log = makeAssetLog("env");
@@ -47,7 +40,7 @@ export function makeEnv() {
     const prom = new Promise((resolve) => {
         bus.addEventListener(AppEvent.SERVICES_LOADED, resolve, { once: true });
     });
-    return /** @type {any} */ ({
+    const env = /** @type {any} */ ({
         bus,
         isReady: prom,
         services: {},
@@ -56,317 +49,50 @@ export function makeEnv() {
             throw new Error("UI service not initialized!");
         },
         destroy() {
-            this.disposeServiceRegistryListener?.();
-            for (const [name, service] of Object.entries(this.services)) {
-                try {
-                    /** @type {any} */ (service)?.destroy?.();
-                } catch (error) {
-                    console.error(`[env] service "${name}" destroy() failed:`, error);
-                }
-            }
+            serviceContainerOf(env).destroy();
         },
     });
+    containersByServices.set(env.services, new ServiceContainer(env));
+    return env;
 }
 
-const serviceRegistry = registry.category("services");
-
-serviceRegistry.addValidation({
-    start: Function,
-    dependencies: { type: Array, element: String, optional: true },
-    async: {
-        type: [{ type: Array, element: String }, { value: true }],
-        optional: true,
-    },
-    "*": true,
-});
-
-serviceRegistry.addEventListener("UPDATE", (ev) => {
-    if (!odoo.debug) {
-        return;
-    }
-    const { operation, key, value } = /** @type {any} */ (ev).detail;
-    if (operation !== "add" || !value?.dependencies?.length) {
-        return;
-    }
-    Promise.resolve().then(() => {
-        const missing = value.dependencies.filter(
-            (/** @type {string} */ dep) => !serviceRegistry.contains(dep),
-        );
-        if (missing.length) {
-            console.warn(
-                `[registry] Service "${key}" declares missing ` +
-                    `dependencies at registration time: ` +
-                    `${missing.join(", ")}. ` +
-                    `If a later module registers these deps, env.js will ` +
-                    `start the service normally at startServices time.  ` +
-                    `If a dep name is a typo or the providing module is ` +
-                    `never loaded, the service will be silently skipped ` +
-                    `(see the cascade-skip block in _startServices).`,
-            );
-        }
-    });
-});
-
-/** @type {Set<string>} */
-const _seenCascadeWarnings = new Set();
-
-export function _resetCascadeWarningCache() {
-    _seenCascadeWarnings.clear();
-}
+/** @type {WeakMap<object, ServiceContainer>} */
+const containersByServices = new WeakMap();
 
 /**
- * @param {OdooEnv} env
- * @returns {Promise<void>}
+ * @param {Record<string, any>} env
+ * @returns {ServiceContainer}
  */
-export async function startServices(env) {
-    log("startServices: registry size=", serviceRegistry.getEntries().length);
-    await Promise.resolve();
-
-    const runStartupPass = async () => {
-        try {
-            await _startServices(env, new Map());
-        } catch (error) {
-            console.error(
-                "[env] service startup pass (registry UPDATE) failed:",
-                error,
-            );
-        }
-    };
-    const onRegistryUpdate = async (ev) => {
-        await Promise.resolve();
-        const { operation } = ev.detail;
-        if (operation === "delete") {
-            return;
-        }
-        if (deferUntilBundlesSettled(runStartupPass)) {
-            return;
-        }
-        await runStartupPass();
-    };
-    env.disposeServiceRegistryListener?.();
-    serviceRegistry.addEventListener("UPDATE", onRegistryUpdate);
-    env.disposeServiceRegistryListener = () => {
-        serviceRegistry.removeEventListener("UPDATE", onRegistryUpdate);
-    };
-    await _startServices(env, new Map());
-}
-
-/**
- * @param {OdooEnv} env
- * @returns {Promise<void>}
- */
-export async function startMissingServices(env) {
-    await Promise.resolve();
-    await _startServices(env, new Map());
-}
-
-/**
- * @param {OdooEnv} env
- * @param {Map<string, any>} toStart
- */
-async function _startServices(env, toStart) {
-    if (env._startServicesPromise) {
-        return env._startServicesPromise
-            .catch(() => {})
-            .then(() => _startServices(env, toStart));
-    }
-    const services = env.services;
-    for (const [name, service] of serviceRegistry.getEntries()) {
-        if (!(name in services)) {
-            const namedService = Object.assign(Object.create(service), {
-                name,
-            });
-            toStart.set(name, namedService);
+export function serviceContainerOf(env) {
+    for (
+        let services = env.services;
+        services;
+        services = Object.getPrototypeOf(services)
+    ) {
+        const container = containersByServices.get(services);
+        if (container) {
+            return container;
         }
     }
-
-    const resolver = createWaveResolver({
-        isLoaded: (dep) => dep in services,
-    });
-
-    /** @param {string} name */
-    function _trackService(name) {
-        const service = toStart.get(name);
-        if (!service) {
-            return;
-        }
-        resolver.track(name, service.dependencies || []);
-    }
-
-    for (const name of toStart.keys()) {
-        _trackService(name);
-    }
-
-    let _wave = 0;
-    /**
-     * @param {string} name
-     * @param {"sync" | "async"} mode
-     * @param {unknown} error
-     */
-    function _reportServiceFailure(name, mode, error) {
-        serviceLog("failed", name, mode);
-        reportJsError({
-            kind: "service_start",
-            message: `service "${name}" failed to start (${mode})`,
-            stack: /** @type {any} */ (error)?.stack
-                ? String(/** @type {any} */ (error).stack)
-                : "",
-            cause: error,
-        });
-    }
-
-    async function start() {
-        for (const name of toStart.keys()) {
-            _trackService(name);
-        }
-
-        const proms = [];
-        const waveStarted = [];
-        while (resolver.hasReady()) {
-            const name = /** @type {string} */ (resolver.shift());
-            if (name in services) {
-                continue;
-            }
-            const service = toStart.get(name);
-            if (!service) {
-                continue;
-            }
-            toStart.delete(name);
-            resolver.untrack(name);
-            const entries = (service.dependencies || []).map((dep) => [
-                dep,
-                services[dep],
-            ]);
-            const dependencies = Object.fromEntries(entries);
-            let value;
-            const endStart = debugLog.perf(`service ${name}`);
-            try {
-                value = service.start(env, dependencies);
-            } catch (error) {
-                console.error(`[env] service "${name}" failed to start (sync):`, error);
-                _reportServiceFailure(name, "sync", error);
-                continue;
-            }
-            if ("async" in service) {
-                SERVICES_METADATA[name] = service.async;
-            }
-            waveStarted.push(name);
-            serviceLog("start", name, service.dependencies || []);
-            proms.push(
-                Promise.resolve(value).then(
-                    (val) => {
-                        services[name] = val ?? null;
-                        endStart({ dependencies: service.dependencies || [] });
-                        serviceLog("started", name);
-                        resolver.propagate(name);
-                    },
-                    (error) => {
-                        console.error(
-                            `[env] service "${name}" failed to start (async):`,
-                            error,
-                        );
-                        endStart({ failed: true });
-                        _reportServiceFailure(name, "async", error);
-                    },
-                ),
-            );
-        }
-        if (waveStarted.length) {
-            debugLog.pipeline("services wave", () => ({
-                wave: _wave + 1,
-                started: waveStarted,
-            }));
-            log(
-                `services wave ${++_wave} started (${waveStarted.length}):`,
-                waveStarted,
-            );
-        }
-        await Promise.all(proms);
-        if (proms.length) {
-            return start();
-        }
-    }
-    env._startServicesPromise = start().finally(() => {
-        env._startServicesPromise = null;
-    });
-    await env._startServicesPromise;
-    if (toStart.size) {
-        const missingDeps = new Set();
-        for (const service of toStart.values()) {
-            for (const dependency of service.dependencies || []) {
-                if (!(dependency in services) && !toStart.has(dependency)) {
-                    missingDeps.add(dependency);
-                }
-            }
-        }
-        if (missingDeps.size) {
-            const skipped = [];
-            let changed = true;
-            while (changed) {
-                changed = false;
-                for (const [name, service] of toStart) {
-                    const hasMissingDep = (service.dependencies || []).some(
-                        (dep) => !(dep in services) && !toStart.has(dep),
-                    );
-                    if (hasMissingDep) {
-                        toStart.delete(name);
-                        skipped.push(name);
-                        changed = true;
-                    }
-                }
-            }
-            if (skipped.length) {
-                const dedupKey =
-                    [...skipped].sort().join(",") +
-                    "|" +
-                    [...missingDeps].sort().join(",");
-                if (!_seenCascadeWarnings.has(dedupKey)) {
-                    _seenCascadeWarnings.add(dedupKey);
-                    console.warn(
-                        `[env] Skipped ${skipped.length} service(s) with ` +
-                            `unreachable dependencies: ${skipped.join(", ")}. ` +
-                            `Missing: ${[...missingDeps].sort().join(", ")}. ` +
-                            `(Fires for any lazy-loaded bundle — test OR ` +
-                            `production — whose provider has not been ` +
-                            `evaluated yet. If the provider arrives later the ` +
-                            `next startServices pass recovers it; if it never ` +
-                            `arrives, consumers see env.services.<name> === ` +
-                            `undefined at the use site. Callers that ` +
-                            `lazy-load a production bundle and read its ` +
-                            `services synchronously should await ` +
-                            `startMissingServices(env) after loadBundle. ` +
-                            `Deduped per (skipped, missing) combination; ` +
-                            `identical skips stay silent.)`,
-                    );
-                }
-            }
-        }
-        if (toStart.size) {
-            const depGraph = new Map();
-            for (const [name, service] of toStart) {
-                depGraph.set(name, service.dependencies || []);
-            }
-            const cycle = findDependencyCycle(depGraph);
-            if (cycle) {
-                throw new Error(
-                    `Circular service dependency detected: ${cycle.join(" \u2192 ")}`,
-                );
-            }
-            console.warn(
-                `[env] ${toStart.size} service(s) left unstarted with no ` +
-                    `dependency cycle: ${[...toStart.keys()].join(", ")}. ` +
-                    `A registry update raced this startup pass; the next ` +
-                    `startServices/startMissingServices pass will start them.`,
-            );
-        }
-    }
-    log(
-        "startServices: done — started=",
-        Object.keys(services).length,
-        "waves=",
-        _wave,
+    throw new Error(
+        "This env's services were not made by makeEnv(): it has no service container",
     );
-    env.bus.trigger(AppEvent.SERVICES_LOADED);
+}
+
+/**
+ * @param {OdooEnv} env
+ * @returns {Promise<void>}
+ */
+export function startServices(env) {
+    return serviceContainerOf(env).start();
+}
+
+/**
+ * @param {OdooEnv} env
+ * @returns {Promise<void>}
+ */
+export function startMissingServices(env) {
+    return serviceContainerOf(env).startMissing();
 }
 
 export const customDirectives = {
