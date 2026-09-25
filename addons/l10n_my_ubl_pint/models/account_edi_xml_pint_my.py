@@ -50,6 +50,19 @@ class AccountEdiXmlPint_My(models.AbstractModel):
 
         return grouping_key
 
+    def _ubl_add_tax_totals_nodes(self, vals):
+        # a tax-free invoice has no tax category (see the grouping key above),
+        # yet PINT-MY still requires its total tax amount
+        super()._ubl_add_tax_totals_nodes(vals)
+        nodes = vals["document_node"]["cac:TaxTotal"]
+        if not nodes:
+            nodes.append(
+                self._ubl_get_tax_total_node(
+                    vals,
+                    {"currency": vals["currency_id"], "amount": 0.0, "subtotals": {}},
+                )
+            )
+
     def _get_customization_id(self, process_type="billing"):
         if process_type == "billing":
             return "urn:peppol:pint:billing-1@my-1"
