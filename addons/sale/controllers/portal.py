@@ -6,8 +6,8 @@ from odoo.fields import Command
 from odoo.http import request
 from odoo.libs.debug_log import DebugLog
 
-from odoo.addons.base_order.controllers.portal import OrderPortalMixin
 from odoo.addons.payment.controllers import portal as payment_portal
+from odoo.addons.trade.controllers.portal import OrderPortalMixin
 
 _debug = DebugLog(__name__)
 

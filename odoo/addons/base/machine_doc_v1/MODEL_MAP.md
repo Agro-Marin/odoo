@@ -1989,7 +1989,7 @@ and not cancelled is not deleted. `action_confirm` and `action_cancel` run their
 check registries (`_get_confirm_validation_methods`, `_get_cancel_validation_methods`)
 before writing; `action_draft`, `action_lock` and `action_unlock` write directly.
 
-Adopters: `mixin.order` (base_order), `maintenance.order` through
+Adopters: `mixin.order` (trade), `maintenance.order` through
 `mixin.approval.lifecycle` (approval).
 
 ### models/mixin_color.py

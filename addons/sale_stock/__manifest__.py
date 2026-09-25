@@ -21,7 +21,7 @@ Preferences
     "depends": [
         "stock_account",
         "sale",
-        "base_order_stock",
+        "trade_stock",
     ],
     "data": [
         "security/ir.access.csv",

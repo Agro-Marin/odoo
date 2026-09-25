@@ -13,7 +13,7 @@ models (via ``_inherit``) to add accounting-specific fields and methods such as
 journal accounts, tax tags, exigibility, and CABA handling.
 
 Modules that need tax computation without the full accounting stack (e.g.
-``base_order``, ``sale``, ``purchase``) can depend on ``tax`` directly.
+``trade``, ``sale``, ``purchase``) can depend on ``tax`` directly.
 
 Models:
 -------

@@ -315,7 +315,7 @@ class SaleOrder(models.Model):
             "price_unit": price_unit,
             # `product_qty`, the writable quantity: `product_uom_qty` is computed
             # from it and discards anything written here (see
-            # base_order/models/order_line_amount_mixin.py).
+            # trade/models/order_line_amount_mixin.py).
             "product_qty": 1,
             "product_id": carrier.product_id.id,
             "tax_ids": [Command.set(taxes_ids)],

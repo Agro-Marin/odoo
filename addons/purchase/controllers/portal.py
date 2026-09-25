@@ -6,8 +6,8 @@ from odoo.exceptions import AccessError, MissingError
 from odoo.http import request
 from odoo.tools.image import image_process
 
-from odoo.addons.base_order.controllers.portal import OrderPortalMixin
 from odoo.addons.portal.controllers import portal
+from odoo.addons.trade.controllers.portal import OrderPortalMixin
 
 
 class CustomerPortal(portal.CustomerPortal, OrderPortalMixin):

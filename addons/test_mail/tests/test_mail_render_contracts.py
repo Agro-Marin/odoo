@@ -107,7 +107,7 @@ class TestRenderLangContract(common.MailCommon):
         """`self.env[False]` raised `KeyError: False`.
 
         `mail.template.model_id` is not required, and every caller subscripts
-        the result on the next expression — `account`, `calendar`, `base_order`,
+        the result on the next expression — `account`, `calendar`, `trade`,
         `hr_recruitment` and `website_slides` all do — so a template saved
         without a model answered a KeyError to "which language?".
         """

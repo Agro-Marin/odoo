@@ -9,7 +9,7 @@
     "depends": [
         "stock_account",
         "purchase",
-        "base_order_stock",
+        "trade_stock",
     ],
     "data": [
         "security/ir.access.csv",

@@ -90,7 +90,7 @@
             "@barcodes_gs1_nomenclature/*": ["addons/barcodes_gs1_nomenclature/static/src/*"],
             "@base_import/*": ["addons/base_import/static/src/*"],
             "@base_import_module/*": ["addons/base_import_module/static/src/*"],
-            "@base_order/*": ["addons/base_order/static/src/*"],
+            "@trade/*": ["addons/trade/static/src/*"],
             "@board/*": ["addons/board/static/src/*"],
             "@bus/*": ["addons/bus/static/src/*"],
             "@calendar/*": ["addons/calendar/static/src/*"],

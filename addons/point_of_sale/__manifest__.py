@@ -8,7 +8,7 @@
     "website": "https://www.odoo.com/app/point-of-sale-shop",
     "license": "LGPL-3",
     "depends": [
-        "base_order",
+        "trade",
         "credential",
         "resource",
         "stock_account",

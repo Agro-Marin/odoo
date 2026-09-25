@@ -387,7 +387,7 @@ class UomUom(models.Model):
     #   not in the compute — `_assert_transferred_uom_convertible` (re-runs
     #   the compute under the `uom_reconcile_strict` context) and
     #   `_assert_invoiced_uom_convertible` (checks the conversions without
-    #   recomputing), both in `base_order`.
+    #   recomputing), both in `trade`.
     # Anything that creates or sizes a real record (moves, MOs, order lines,
     # valuation/COGS) stays on the strict base method. The opt-out is forced:
     # a caller-passed `raise_if_failure` is discarded.

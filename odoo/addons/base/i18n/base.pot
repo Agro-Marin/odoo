@@ -3156,7 +3156,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_order
+#: model:ir.module.module,description:base.module_trade
 msgid ""
 "\n"
 "Base Order Management\n"
@@ -3199,7 +3199,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_base_order_stock
+#: model:ir.module.module,description:base.module_trade_stock
 msgid ""
 "\n"
 "Base Order Stock Integration\n"
@@ -9453,7 +9453,7 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_base_order_stock
+#: model:ir.module.module,description:base.module_test_trade_stock
 msgid ""
 "\n"
 "Test - Base Order Stock\n"
@@ -22192,17 +22192,17 @@ msgid "Base Object"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_order
+#: model:ir.module.module,shortdesc:base.module_trade
 msgid "Base Order Management"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_base_order_stock
+#: model:ir.module.module,shortdesc:base.module_trade_stock
 msgid "Base Order Stock Integration"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_order
+#: model:ir.module.module,shortdesc:base.module_test_trade
 msgid "Base Order Test"
 msgstr ""
 
@@ -24704,7 +24704,7 @@ msgid "Concrete consumer of mixin.date.range.search, for its tests"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_order_stock
+#: model:ir.module.module,summary:base.module_test_trade_stock
 msgid "Concrete consumer of mixin.order.line.stock, for its tests"
 msgstr ""
 
@@ -24719,7 +24719,7 @@ msgid "Concrete records the html_editor field converters run against"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_order
+#: model:ir.module.module,summary:base.module_test_trade
 msgid "Concrete test models exercising base_order mixins"
 msgstr ""
 
@@ -30283,7 +30283,7 @@ msgid "Foundation mixin for OAuth2-authenticated mail servers"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_base_order
+#: model:ir.module.module,summary:base.module_trade
 msgid "Foundation mixins for sale and purchase order types"
 msgstr ""
 
@@ -46511,7 +46511,7 @@ msgid "Stock enterprise"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_base_order_stock
+#: model:ir.module.module,summary:base.module_trade_stock
 msgid "Stock/delivery tracking mixins for order types"
 msgstr ""
 
@@ -47313,7 +47313,7 @@ msgid "Test - Base Automation"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_order_stock
+#: model:ir.module.module,shortdesc:base.module_test_trade_stock
 msgid "Test - Base Order Stock"
 msgstr ""
 

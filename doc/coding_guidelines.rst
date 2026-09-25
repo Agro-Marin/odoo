@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 7.3
+:Version: 7.4
 :Date: 2026-09-24
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -660,8 +660,8 @@ and about its dependencies, and nothing checks either claim.
   (``account_chart`` would promise ``account.chart.template``, which lives in
   ``account``), and not with a prefix family: ``payment_*`` are providers;
   ``base_*`` and ``mixin_*`` are framework modules that depend only on
-  framework modules, so a business module never takes them (``base_order``
-  breaks this today).
+  framework modules, so a business module never takes them: the order kernel
+  was ``base_order`` until it became ``trade``.
 * **An application's companion takes the application's module name**:
   ``sale_team``, ``purchase_team``, ``stock_team``, ``mrp_team``.
 
@@ -5231,7 +5231,7 @@ Order lines: ``product_qty`` and ``product_uom_qty`` swapped meanings
 
 On ``sale.order.line`` and ``purchase.order.line`` each name carries the
 *other's* upstream meaning. ``mixin.order.line.amount``
-(``addons/base_order/models/mixin_order_line_amount.py``) defines them:
+(``addons/trade/models/mixin_order_line_amount.py``) defines them:
 
 .. list-table::
    :header-rows: 1
@@ -5417,6 +5417,10 @@ collisions, so an eighth fails and so does a renumbering.
    * - Version
      - Date
      - Summary
+   * - 7.4
+     - 2026-09-24
+     - §1.5: the prefix-family example no longer names a live violation --
+       ``base_order`` is ``trade``.
    * - 7.3
      - 2026-09-24
      - §1.5 (new): module naming -- base-first extensions and bridges, a
