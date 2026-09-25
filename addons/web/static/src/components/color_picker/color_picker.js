@@ -1,13 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { CustomColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
 import {
     DEFAULT_COLORS,
     DEFAULT_GRAYSCALES,
     DEFAULT_THEME_COLOR_VARS,
 } from "@web/core/colors/colors";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 export { DEFAULT_COLORS, DEFAULT_THEME_COLOR_VARS } from "@web/core/colors/colors";
 import { colorScheme } from "@web/core/color_scheme";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -129,7 +130,7 @@ export class ColorPicker extends Component {
             showGradientPicker: false,
         });
         this.updateFromApplied();
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.positionBus?.trigger("update");
             },
@@ -407,7 +408,7 @@ export function useColorPicker(refName, props, options = {}) {
         }
     }
 
-    useEffect(
+    useLayoutEffect(
         (el) => {
             if (!el) {
                 return;

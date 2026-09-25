@@ -5,13 +5,13 @@ import {
     Component,
     onWillDestroy,
     onWillUpdateProps,
-    useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const log = makeLogger("web.components.notebook");
 
@@ -59,13 +59,13 @@ export class Notebook extends Component {
         this.selectActivePage(this.props.defaultPage, true);
         this.keepLastPageTransition = new KeepLast({ rejectSuperseded: true });
         onWillDestroy(() => this.keepLastPageTransition.cancel());
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.props.onPageUpdate(this.state.currentPage);
             },
             () => [this.state.currentPage],
         );
-        useEffect(
+        useLayoutEffect(
             (pane) => {
                 pane?.classList.add("show");
             },

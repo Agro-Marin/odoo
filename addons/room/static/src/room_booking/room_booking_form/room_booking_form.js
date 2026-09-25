@@ -1,7 +1,8 @@
 /** @odoo-module native */
 import { scrollTo } from "@web/core/utils/dom/scrolling";
 
-import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import * as luxon from "luxon";
 
 export class RoomBookingForm extends Component {
@@ -60,7 +61,7 @@ export class RoomBookingForm extends Component {
         /**
          * Show the selected start or the "8am" slot at the top of the scheduler when changing day
          */
-        useEffect(
+        useLayoutEffect(
             () => {
                 const slot = this.root.el.querySelector(
                     `#slot${

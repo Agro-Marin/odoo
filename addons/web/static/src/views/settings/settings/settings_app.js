@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useSettingsSearchContext } from "@web/views/settings/settings_search_context";
 
 export class SettingsApp extends Component {
@@ -20,7 +21,7 @@ export class SettingsApp extends Component {
             search: this.settingsContext.searchState,
         });
         this.settingsAppRef = useRef("settingsApp");
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.settingsAppRef.el) {
                     const force =

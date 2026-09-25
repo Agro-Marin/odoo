@@ -35,6 +35,7 @@ no web client still serves it.
             "web/static/src/core/utils/reactive.js",
             "web/static/src/core/browser/browser.js",
             "web/static/src/core/utils/timing.js",
+            "web/static/src/core/utils/layout_effect.js",
             "web/static/src/core/template_inheritance.js",
             "web/static/src/core/templates.js",
             "web/static/src/core/registry.js",

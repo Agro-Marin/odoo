@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
 import { exprToBoolean } from "@web/core/utils/format/strings";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { patch } from "@web/core/utils/patch";
 import { useDebounced } from "@web/core/utils/timing";
 import {
@@ -25,7 +25,7 @@ const onchangeOnKeydownMixin = () => ({
                 this.triggerOnChange.bind(this),
                 this.props.keydownDebounceDelay,
             );
-            useEffect(
+            useLayoutEffect(
                 /** @param {HTMLElement|null} el */
                 (el) => {
                     if (el) {

@@ -1,8 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillDestroy, useEffect, useRef } from "@odoo/owl";
+import { Component, onWillDestroy, useRef } from "@odoo/owl";
 import { mergeClasses } from "@web/core/utils/dom/classname";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class Offcanvas extends Component {
     static template = "web.Offcanvas";
@@ -47,7 +48,7 @@ export class Offcanvas extends Component {
             );
         }
 
-        useEffect(
+        useLayoutEffect(
             (open) => {
                 const el = this.panelRef.el;
                 if (!el) {
@@ -73,7 +74,7 @@ export class Offcanvas extends Component {
                 this.props.onClose?.();
             }
         };
-        useEffect(
+        useLayoutEffect(
             () => {
                 const el = this.panelRef.el;
                 el?.addEventListener("toggle", onToggle);

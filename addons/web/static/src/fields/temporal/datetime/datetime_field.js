@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useRef, useState } from "@odoo/owl";
+import { useRef, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { formatFieldDate, formatFieldDateTime } from "@web/core/formatters";
 import {
@@ -16,6 +16,7 @@ import { _t } from "@web/core/translation";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 import { pick } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
@@ -143,13 +144,13 @@ export class DateTimeField extends FieldComponent {
         this.setupFocusRestore();
 
         this.setFieldDirty = useFieldDirtySignal();
-        useEffect(() => this.triggerIsDirty());
+        useLayoutEffect(() => this.triggerIsDirty());
 
         this.futureWarningMsg = _t("This date is in the future");
     }
 
     setupFocusRestore() {
-        useEffect(
+        useLayoutEffect(
             () => {
                 [this.startDate, this.endDate].forEach((ref, index) => {
                     const fieldAttr = ref.el?.getAttribute("data-field");

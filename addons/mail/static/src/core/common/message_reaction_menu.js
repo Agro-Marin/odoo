@@ -1,16 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 import { onExternalClick } from "@mail/utils/common/hooks";
-import {
-    Component,
-    onMounted,
-    useEffect,
-    useExternalListener,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onMounted, useExternalListener, useRef, useState } from "@odoo/owl";
 import { loadEmoji } from "@web/components/emoji_picker";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { Dialog } from "@web/ui/dialog";
 export class MessageReactionMenu extends Component {
     static props = ["close", "message", "initialReaction?"];
@@ -29,7 +23,7 @@ export class MessageReactionMenu extends Component {
         });
         useExternalListener(document, "keydown", this.onKeydown);
         onExternalClick("root", () => this.props.close());
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.props.message.reactions.length === 0) {
                     this.props.close();

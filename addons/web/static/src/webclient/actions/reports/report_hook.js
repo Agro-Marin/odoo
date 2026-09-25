@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useEnv } from "@odoo/owl";
+import { useEnv } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 /**
  * @param {{ el: HTMLElement | null }} ref
@@ -9,7 +10,7 @@ import { useEffect, useEnv } from "@odoo/owl";
  */
 export function useEnrichWithActionLinks(ref, selector = null) {
     const env = useEnv();
-    useEffect(
+    useLayoutEffect(
         (element) => {
             if (!element) {
                 return;

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onError, onMounted, onRendered, status, useEffect, useState } from "@odoo/owl";
+import { onError, onMounted, onRendered, status, useState } from "@odoo/owl";
 import { usePushStateBeforeReload, useSetupAction } from "@web/core/action_hook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { useDebugCategory } from "@web/core/debug/debug_context";
@@ -12,6 +12,7 @@ import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { createElement } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { effect } from "@web/core/utils/reactive";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { Field } from "@web/fields/field";
@@ -290,7 +291,7 @@ export class FormController extends ViewController {
 
         const { disableAutofocus } = this.archInfo;
         if (!disableAutofocus) {
-            useEffect(
+            useLayoutEffect(
                 (isInEdition) => {
                     if (
                         !isInEdition &&

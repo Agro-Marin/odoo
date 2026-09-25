@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { Component, EventBus, markup, useEffect, useState } from "@odoo/owl";
+import { Component, EventBus, markup, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { sprintf } from "@web/core/utils/format/strings";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const log = makeLogger("website.component.website_loader");
 
@@ -59,7 +60,7 @@ export class WebsiteLoader extends Component {
         this.currentWaitingMessage = useState({ ...defaultMessages[0] });
         this.featuresInstallInfo = { nbInstalled: 0, total: undefined };
 
-        useEffect(
+        useLayoutEffect(
             (selectedFeatures) => {
                 if (this.state.showWaitingMessages) {
                     const messagesToDisplay = [...defaultMessages];
@@ -91,7 +92,7 @@ export class WebsiteLoader extends Component {
             () => [this.state.selectedFeatures],
         );
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.state.showWaitingMessages) {
                     let msgIndex = 0;
@@ -112,7 +113,7 @@ export class WebsiteLoader extends Component {
             () => [this.waitingMessages.length],
         );
 
-        useEffect(
+        useLayoutEffect(
             (isVisible) => {
                 if (isVisible) {
                     log.lifecycle("visible: beforeunload guard attached");

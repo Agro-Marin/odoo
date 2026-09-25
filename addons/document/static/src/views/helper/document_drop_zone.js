@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useService } from "@web/core/utils/hooks";
 import { useSearchModel } from "@web/search/search_model";
 import { useDocumentContext } from "@document/document_context";
@@ -16,7 +17,7 @@ export class DocumentsDropZone extends Component {
             topOffset: 0,
         });
         this.documentService = useService("document.document");
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (!el) {
                     return;

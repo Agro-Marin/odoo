@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { Component, onMounted, onWillUnmount, useEffect, useState } from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { OrderReceipt } from "@point_of_sale/app/screens/receipt_screen/receipt/order_receipt";
 import { PrintingFailurePopup } from "@pos_self_order/app/components/printing_failure_popup/printing_failure_popup";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { cookie } from "@web/core/browser/cookie";
 import { rpc } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 export class ConfirmationPage extends Component {
     static template = "pos_self_order.ConfirmationPage";
     static props = ["orderAccessToken", "screenMode"];
@@ -28,7 +29,7 @@ export class ConfirmationPage extends Component {
                 }, 30000);
             }
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (!this.confirmedOrder) {
                     return;

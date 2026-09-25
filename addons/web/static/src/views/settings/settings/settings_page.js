@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useSettingsSearchContext } from "@web/views/settings/settings_search_context";
 export class SettingsPage extends Component {
     static template = "web.SettingsPage";
@@ -60,7 +61,7 @@ export class SettingsPage extends Component {
         this.settingsRef = useRef("settings");
         this.settingsTabRef = useRef("settings_tab");
         this.scrollMap = Object.create(null);
-        useEffect(
+        useLayoutEffect(
             (settingsEl, currentTab) => {
                 if (!settingsEl) {
                     return;

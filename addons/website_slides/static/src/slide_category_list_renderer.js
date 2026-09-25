@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { ListRenderer } from "@web/views/list";
 
 export class SlideCategoryListRenderer extends ListRenderer {
@@ -12,7 +12,7 @@ export class SlideCategoryListRenderer extends ListRenderer {
         this.discriminant = "is_category";
         this.titleField = "name";
 
-        useEffect(
+        useLayoutEffect(
             (table) => {
                 if (table) {
                     table.classList.add("o_section_list_view");

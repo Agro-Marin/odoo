@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { RECORD_COLOR_NAMES } from "@web/core/colors/colors";
 import { useClickAway } from "@web/core/utils/dom/click_away";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 export class ColorList extends Component {
     static COLORS = RECORD_COLOR_NAMES;
     static template = "web.ColorList";
@@ -38,7 +39,7 @@ export class ColorList extends Component {
             getContentEl: () => this.colorlistRef.el,
         });
         let hasRun = false;
-        useEffect(
+        useLayoutEffect(
             (isExpanded) => {
                 const expandedByUser = isExpanded && hasRun;
                 hasRun = true;

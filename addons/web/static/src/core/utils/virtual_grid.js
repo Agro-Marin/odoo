@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { markRaw, toRaw, useEffect, useExternalListener, useState } from "@odoo/owl";
+import { markRaw, toRaw, useExternalListener, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { pick, shallowEqual } from "@web/core/utils/collections/objects";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 /**
@@ -161,7 +162,7 @@ export function useVirtualGrid({
         }
         throttledCompute();
     };
-    useEffect(
+    useLayoutEffect(
         (el) => {
             el?.addEventListener("scroll", scrollListener);
             return () => el?.removeEventListener("scroll", scrollListener);

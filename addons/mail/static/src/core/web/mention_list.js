@@ -3,9 +3,10 @@
 import { NavigableList } from "@mail/core/common/navigable_list";
 import { mapSuggestionsToOptions } from "@mail/core/common/suggestion_hook";
 import { makeSequential } from "@mail/utils/common/misc";
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 export class MentionList extends Component {
     static template = "mail.MentionList";
     static components = { NavigableList };
@@ -32,7 +33,7 @@ export class MentionList extends Component {
         this.sequential = makeSequential();
         this.ref = useAutofocus({ mobile: true });
 
-        useEffect(
+        useLayoutEffect(
             /**
              * @param {string} term
              * @param {string} delimiter

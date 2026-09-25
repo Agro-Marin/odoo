@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { PagerEvent } from "@web/core/events";
 import { clamp } from "@web/core/utils/format/numbers";
 import { useAutofocus, useEventBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const log = makeLogger("web.components.pager");
 
@@ -41,7 +42,7 @@ export class Pager extends Component {
         });
         this.inputRef = useAutofocus();
         let firstMount = true;
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (!firstMount && this.ui.isSmall) {
                     this.bus.trigger(PagerEvent.UPDATED, {

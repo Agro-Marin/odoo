@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Registry } from "@odoo/o-spreadsheet";
-import { Component, onWillStart, useEffect, useState } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { SpreadsheetComponent } from "@spreadsheet/actions/spreadsheet_component";
 import { SpreadsheetShareButton } from "@spreadsheet/components/share_button/share_button";
 import { useSpreadsheetPrint } from "@spreadsheet/hooks";
@@ -11,6 +11,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { useSearchBarToggler } from "@web/search/search_bar/search_bar_toggler";
 import { standardActionServiceProps } from "@web/webclient/actions";
@@ -60,11 +61,11 @@ export class SpreadsheetDashboardAction extends Component {
                 this.openDashboard(activeDashboardId);
             }
         });
-        useEffect(
+        useLayoutEffect(
             () => router.pushState({ dashboard_id: this.activeDashboardId }),
             () => [this.activeDashboardId],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 const dashboard = this.loader.getActiveDashboard();
                 if (dashboard && dashboard.status === Status.Loaded) {

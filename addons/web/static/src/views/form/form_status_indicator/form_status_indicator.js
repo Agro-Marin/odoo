@@ -1,8 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useFieldIsDirty } from "@web/views/form/field_is_dirty_hook";
 
 export class FormStatusIndicator extends Component {
@@ -25,7 +26,7 @@ export class FormStatusIndicator extends Component {
             ? useState(this.props.coordinator)
             : null;
         this.saveButton = useRef("save");
-        useEffect(
+        useLayoutEffect(
             (disabled) => {
                 if (!this.saveButton.el) {
                     return;

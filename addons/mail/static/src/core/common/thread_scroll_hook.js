@@ -3,14 +3,9 @@
 import { Record } from "@mail/core/common/record";
 import { useVisible } from "@mail/utils/common/hooks";
 import { awaitScrollEnd } from "@mail/utils/common/misc";
-import {
-    onWillDestroy,
-    onWillPatch,
-    onWillUpdateProps,
-    toRaw,
-    useEffect,
-} from "@odoo/owl";
+import { onWillDestroy, onWillPatch, onWillUpdateProps, toRaw } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const log = makeLogger("mail.thread.scroll");
 
@@ -377,7 +372,7 @@ export function useThreadScroll(options) {
             scrollTop: scroll.el.scrollTop,
         };
     });
-    useEffect(scroll.applyScroll, () => {
+    useLayoutEffect(scroll.applyScroll, () => {
         const thread = options.getThread();
         return [
             thread,
@@ -396,7 +391,7 @@ export function useThreadScroll(options) {
     // `onResize` takes there are free, and a scrollable that outgrows the window
     // while its messages are still loading is seen the frame it happens
     const resizeObserver = new ResizeObserver(() => options.onResize());
-    useEffect(
+    useLayoutEffect(
         /** @param {HTMLElement|null} el */
         (el) => {
             if (el) {
@@ -409,7 +404,7 @@ export function useThreadScroll(options) {
     // observed once loaded: the first callback after `observe()` applies the saved
     // scroll position after layout, and every later resize keeps it
     const scrollObserver = new ResizeObserver(() => scroll.applyScroll());
-    useEffect(
+    useLayoutEffect(
         /**
          * @param {HTMLElement|null} el
          * @param {boolean} mountedAndLoaded

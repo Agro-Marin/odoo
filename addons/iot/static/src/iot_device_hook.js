@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { DeviceController } from "@iot/device_controller";
-import { useEffect } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 /**
  * Use this hook to be able to interact with an iot device.
@@ -45,7 +45,7 @@ export const useIotDevice = ({
         iotDevice.removeListener();
     };
 
-    useEffect(
+    useLayoutEffect(
         (iotIp, identifier) => {
             if (iotIp && identifier) {
                 iotDevice = new DeviceController(iotLongpolling, {

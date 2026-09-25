@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { isIOS } from "@web/core/browser/feature_detection";
 import { localization } from "@web/core/l10n/localization";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 function onKeydown(/** @type {KeyboardEvent} */ ev) {
     const decimalPoint = localization.decimalPoint;
     const target = /** @type {HTMLInputElement} */ (ev.target);
@@ -41,7 +42,7 @@ export function useNumpadDecimal() {
             onFocus(ev);
         }
     };
-    useEffect(
+    useLayoutEffect(
         (el) => {
             if (!el) {
                 return;

@@ -1,7 +1,8 @@
 /** @odoo-module native */
 import { Chatter } from "@mail/chatter/web_portal/chatter";
-import { useEffect, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { patch } from "@web/core/utils/patch";
 
 const log = makeLogger("portal.chatter.position");
@@ -10,7 +11,7 @@ patch(Chatter.prototype, {
     setup() {
         super.setup(...arguments);
         this.topRef = useRef("top");
-        useEffect(
+        useLayoutEffect(
             (topEl) => {
                 if (!topEl) {
                     return;

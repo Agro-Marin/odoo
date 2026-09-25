@@ -2,10 +2,10 @@
 /** @odoo-module native */
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { MessagingMenuQuickSearch } from "@mail/core/web/messaging_menu_quick_search";
-import { useEffect } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { patch } from "@web/core/utils/patch";
 
 const log = makeLogger("mail.messaging_menu");
@@ -21,7 +21,7 @@ patch(MessagingMenu.prototype, {
         Object.assign(this.state, {
             searchOpen: false,
         });
-        useEffect(
+        useLayoutEffect(
             /** @param {string} searchTerm */
             (searchTerm) => {
                 if (!searchTerm) {
@@ -32,7 +32,7 @@ patch(MessagingMenu.prototype, {
             },
             () => [this.store.discuss.searchTerm],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (!this.dropdown.isOpen) {
                     this.state.activeIndex = null;

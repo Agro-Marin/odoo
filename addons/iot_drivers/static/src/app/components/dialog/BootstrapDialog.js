@@ -1,6 +1,12 @@
 /** @odoo-module native */
 
-import { Component, useEffect, useRef, xml } from "/web/static/lib/owl/owl.es.js";
+import {
+    Component,
+    onMounted,
+    onWillUnmount,
+    useRef,
+    xml,
+} from "/web/static/lib/owl/owl.es.js";
 
 export class BootstrapDialog extends Component {
     static props = {
@@ -15,42 +21,27 @@ export class BootstrapDialog extends Component {
     setup() {
         this.dialog = useRef("dialog");
 
-        useEffect(
-            () => {
-                if (!this.dialog || !this.dialog.el) {
-                    return;
-                }
-
-                if (this.props.onOpen) {
-                    this.dialog.el.addEventListener("show.bs.modal", this.props.onOpen);
-                }
-
-                if (this.props.onClose) {
-                    this.dialog.el.addEventListener(
-                        "hide.bs.modal",
-                        this.props.onClose,
-                    );
-                }
-
-                return () => {
-                    this.dialog.el.removeEventListener(
-                        "show.bs.modal",
-                        this.props.onOpen,
-                    );
-                    this.dialog.el.removeEventListener(
-                        "hide.bs.modal",
-                        this.props.onClose,
-                    );
-                };
-            },
-            () => [this.dialog],
-        );
+        onMounted(() => {
+            if (!this.dialog.el) {
+                return;
+            }
+            if (this.props.onOpen) {
+                this.dialog.el.addEventListener("show.bs.modal", this.props.onOpen);
+            }
+            if (this.props.onClose) {
+                this.dialog.el.addEventListener("hide.bs.modal", this.props.onClose);
+            }
+        });
+        onWillUnmount(() => {
+            this.dialog.el?.removeEventListener("show.bs.modal", this.props.onOpen);
+            this.dialog.el?.removeEventListener("hide.bs.modal", this.props.onClose);
+        });
     }
 
     static template = xml`
     <t t-translation="off">
         <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" t-att-data-bs-target="'#'+this.props.identifier" t-out="this.props.btnName" />
-        <div t-ref="dialog" t-att-id="this.props.identifier" class="modal modal-dialog-scrollable fade" t-att-class="{'modal-lg': props.isLarge}" tabindex="-1" aria-hidden="true">
+        <div t-ref="dialog" t-att-id="this.props.identifier" class="modal modal-dialog-scrollable fade" t-att-class="{'modal-lg': this.props.isLarge}" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">

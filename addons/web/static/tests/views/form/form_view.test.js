@@ -29,7 +29,6 @@ import {
     onWillStart,
     onWillUpdateProps,
     reactive,
-    useEffect,
     useRef,
     useState,
     xml,
@@ -66,6 +65,7 @@ import { makeErrorFromResponse } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { config as transitionConfig } from "@web/core/transition";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { redirect } from "@web/core/utils/urls";
 import { CharField } from "@web/fields/basic/char/char_field";
 import { IntegerField } from "@web/fields/basic/integer/integer_field";
@@ -9861,7 +9861,7 @@ test(`basic support for widgets: onchange update`, async () => {
             this.state = useState({
                 dataToDisplay: this.props.record.data.foo,
             });
-            useEffect(() => {
+            useLayoutEffect(() => {
                 this.state.dataToDisplay = this.props.record.data.foo + "!";
             });
         }

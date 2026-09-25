@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, useEffect } from "@odoo/owl";
+import { Component } from "@odoo/owl";
 import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
@@ -7,6 +7,7 @@ import { x2ManyCommands } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useComputed } from "@web/core/utils/computed";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { CharField } from "@web/fields/basic/char/char_field";
 import { ListTextField, TextField } from "@web/fields/basic/text/text_field";
 import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many";
@@ -86,7 +87,7 @@ export class SectionAndNoteListRenderer extends ListRenderer {
             (track) => buildParentSectionMap(track(this.props.list).records, track),
             () => [this.props.list],
         );
-        useEffect(
+        useLayoutEffect(
             (editedRecord) => this.focusToName(editedRecord),
             () => [this.editedRecord],
         );

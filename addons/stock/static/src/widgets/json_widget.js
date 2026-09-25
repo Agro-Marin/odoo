@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
+import { Component, onWillStart, useRef } from "@odoo/owl";
 import { readJsonField } from "@stock/utils/json_field";
 import { getColor } from "@web/core/colors/colors";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class JsonPopOver extends Component {
@@ -41,7 +42,7 @@ export class ReplenishmentGraphWidget extends JsonPopOver {
             await loadChartJS();
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.renderChart();
                 return () => {

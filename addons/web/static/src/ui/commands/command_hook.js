@@ -1,9 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect } from "@odoo/owl";
 import { useActiveElementScope } from "@web/core/utils/active_element_scope";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 /** @import { CommandOptions } from "@web/ui/commands/command_service" */
 
@@ -15,7 +15,7 @@ import { useService } from "@web/core/utils/hooks";
 export function useCommand(name, action, options = {}) {
     const commandService = useService("command");
     const scope = useActiveElementScope();
-    useEffect(
+    useLayoutEffect(
         () => commandService.add(name, action, { scope, ...options }),
         () => [],
     );

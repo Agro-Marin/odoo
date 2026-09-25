@@ -3,8 +3,9 @@
 import { Gif } from "@mail/core/common/gif";
 import { LinkPreviewConfirmDelete } from "@mail/core/common/link_preview_confirm_delete";
 import { useMailContext } from "@mail/utils/common/mail_context";
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 /**
  * @typedef {Object} Props
  * @property {import("models").LinkPreview} linkPreview
@@ -25,7 +26,7 @@ export class LinkPreview extends Component {
         this.dialogService = useService("dialog");
         this.state = useState({ startVideo: false, videoLoaded: false });
         this.videoRef = useRef("video");
-        useEffect(
+        useLayoutEffect(
             /** @param {HTMLVideoElement|null} el */
             (el) => {
                 if (!el) {

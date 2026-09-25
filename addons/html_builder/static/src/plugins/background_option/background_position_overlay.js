@@ -6,10 +6,10 @@ import {
     onMounted,
     onWillStart,
     onWillUnmount,
-    useEffect,
     useExternalListener,
     useRef,
 } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class BackgroundPositionOverlay extends Component {
     static template = "html_builder.BackgroundPositionOverlay";
@@ -91,7 +91,7 @@ export class BackgroundPositionOverlay extends Component {
             this.targetContainerEl.classList.add("o_we_background_positioning");
         });
 
-        useEffect(() => {
+        useLayoutEffect(() => {
             // The dragger lives in the edited document, so its Bootstrap must come from that
             // realm (see `bootstrap_realm`). A realm that ships no edit bundle yields
             // undefined: drop the hint rather than throw.

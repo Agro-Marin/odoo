@@ -7,10 +7,11 @@ import {
 } from "@mail/discuss/call/common/call_actions";
 import { AvatarStack } from "@mail/discuss/core/common/avatar_stack";
 import { useHover } from "@mail/utils/common/hooks";
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 /**
  * @typedef {Object} Props
  * @property {import("models").Thread} thread
@@ -37,7 +38,7 @@ export class DiscussSidebarCallParticipants extends Component {
         this.floating = useDropdownState();
         this.CALL_ICON_DEAFEN = CALL_ICON_DEAFEN;
         this.CALL_ICON_MUTED = CALL_ICON_MUTED;
-        useEffect(
+        useLayoutEffect(
             /**
              * @param {import("models").RtcSession|undefined} selfSession
              * @param {boolean} compact

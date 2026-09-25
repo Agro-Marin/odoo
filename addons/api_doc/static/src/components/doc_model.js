@@ -5,7 +5,8 @@ import { DocTable, TABLE_TYPES } from "@api_doc/components/doc_table";
 import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { getCrudMethodsExamples } from "@api_doc/utils/doc_model_utils";
 import { useDocUI } from "@api_doc/utils/doc_ui_store";
-import { Component, markup, onPatched, useEffect, useState } from "@odoo/owl";
+import { Component, markup, onPatched, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const TYPE_COLORS = {
     "text-success": ["integer", "char", "boolean", "selection", "float"],
@@ -73,7 +74,7 @@ export class DocModel extends Component {
         this.modelStore = useState(this.docContext.modelStore);
         this.update();
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.update();
             },

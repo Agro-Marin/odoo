@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { uuid } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 export class PropertyDefinitionSelection extends Component {
     static template = "web.PropertyDefinitionSelection";
     static props = {
@@ -27,7 +28,7 @@ export class PropertyDefinitionSelection extends Component {
         this.propertyDefinitionSelectionRef = useRef("propertyDefinitionSelection");
         this.addButtonRef = useRef("addButton");
 
-        useEffect(() => {
+        useLayoutEffect(() => {
             if (!this.state.newOption) {
                 return;
             }

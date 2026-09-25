@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, useExternalListener, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
@@ -11,7 +12,7 @@ class ActionsOne2ManyField extends Component {
         this.root = useRef("root");
 
         this.state = useState({ hiddenActionsCount: 0 });
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.adapt();
             },

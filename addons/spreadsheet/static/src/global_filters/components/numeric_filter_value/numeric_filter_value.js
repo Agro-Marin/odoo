@@ -1,8 +1,9 @@
 /** @odoo-module native */
 /** @ts-check */
 
-import { Component, useEffect, useRef } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { parseFloat } from "@web/core/parsers";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
 
 export class NumericFilterValue extends Component {
@@ -22,7 +23,7 @@ export class NumericFilterValue extends Component {
         // user is halfway through typing. We push the value in ourselves, and
         // never over a box that has the focus -- same shape as `useInputField`
         // in `web/static/src/fields/input_field_hook.js`.
-        useEffect(
+        useLayoutEffect(
             (el, value) => {
                 if (!el || el === document.activeElement) {
                     return;

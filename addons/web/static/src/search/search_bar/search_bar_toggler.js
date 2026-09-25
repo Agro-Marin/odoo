@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useDebounced } from "@web/core/utils/timing";
 class SearchBarToggler extends Component {
     static template = "web.SearchBar.Toggler";
@@ -35,7 +36,7 @@ export function useSearchBarToggler() {
     }
 
     const onResize = useDebounced(updateState, 200);
-    useEffect(
+    useLayoutEffect(
         () => {
             browser.addEventListener("resize", onResize);
             return () => browser.removeEventListener("resize", onResize);

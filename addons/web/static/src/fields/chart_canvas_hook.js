@@ -1,8 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillStart, useEffect, useRef } from "@odoo/owl";
+import { onWillStart, useRef } from "@odoo/owl";
 import { loadChartJS } from "@web/core/lib/chartjs";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 /**
  * @param {() => unknown[]} dependencies
@@ -14,7 +15,7 @@ export function useChartCanvas(component, dependencies) {
 
     onWillStart(() => loadChartJS());
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         component.renderChart();
         return () => {
             if (component.chart) {

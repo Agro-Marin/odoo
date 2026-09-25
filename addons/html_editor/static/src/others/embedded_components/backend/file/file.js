@@ -7,7 +7,8 @@ import {
     useEmbeddedState,
 } from "@html_editor/others/embedded_component_utils";
 import { ReadonlyEmbeddedFileComponent } from "@html_editor/others/embedded_components/core/file/readonly_file";
-import { useEffect, useRef, useState } from "@odoo/owl";
+import { useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class EmbeddedFileComponent extends ReadonlyEmbeddedFileComponent {
     static template = "html_editor.EmbeddedFile";
@@ -21,7 +22,7 @@ export class EmbeddedFileComponent extends ReadonlyEmbeddedFileComponent {
             editFileName: false,
         });
         this.nameInput = useRef("nameInput");
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.localState.editFileName) {
                     this.nameInput.el.focus();

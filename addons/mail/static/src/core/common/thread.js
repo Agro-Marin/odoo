@@ -18,7 +18,6 @@ import {
     onWillUpdateProps,
     reactive,
     toRaw,
-    useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -28,6 +27,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { Transition } from "@web/core/transition";
 import { measure, mutate } from "@web/core/utils/dom/layout_batch";
 import { useBus, useEventBus, useRefListener, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 import { NotificationMessage } from "./notification_message.js";
@@ -103,7 +103,7 @@ export class Thread extends Component {
         this.refByMessageId = reactive(new Map(), () => {
             this.scrollToHighlighted();
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.scrollToHighlighted();
             },
@@ -151,7 +151,7 @@ export class Thread extends Component {
         });
     }
     _setupMessageEffects() {
-        useEffect(
+        useLayoutEffect(
             /** @param {number} focus */
             (focus) => {
                 if (focus && this.state.mountedAndLoaded) {
@@ -163,17 +163,17 @@ export class Thread extends Component {
                 this.state.mountedAndLoaded,
             ],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.computeJumpPresentPosition();
             },
             () => [this.jumpPresentRef.el, this.state.showJumpPresent],
         );
-        useEffect(
+        useLayoutEffect(
             () => this.updateShowJumpPresent(),
             () => [this.props.thread.loadNewer],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.props.jumpPresent !== this.lastJumpPresent) {
                     this.jumpToPresent({ immediate: true });
@@ -181,7 +181,7 @@ export class Thread extends Component {
             },
             () => [this.props.jumpPresent],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.props.thread.highlightMessage && this.state.mountedAndLoaded) {
                     log.logic("highlightMessage from thread", () => ({
@@ -197,7 +197,7 @@ export class Thread extends Component {
             },
             () => [this.props.thread.highlightMessage, this.state.mountedAndLoaded],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (!this.state.mountedAndLoaded) {
                     return;
@@ -222,14 +222,14 @@ export class Thread extends Component {
         });
     }
     _setupJumpEffects() {
-        useEffect(
+        useLayoutEffect(
             /** @param {boolean} isLoaded */
             (isLoaded) => {
                 this.state.mountedAndLoaded = isLoaded;
             },
             () => [this.props.thread.isLoaded, this.state.resetCount],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (!this.props.jumpToNewMessage) {
                     return;

@@ -3,7 +3,6 @@ import { provideEditorOverlayContext } from "@html_editor/core/editor_overlay_co
 import {
     Component,
     onWillDestroy,
-    useEffect,
     useExternalListener,
     useRef,
     useState,
@@ -11,6 +10,7 @@ import {
 } from "@odoo/owl";
 import { usePosition } from "@web/core/position/position_hook";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useOverlayScope } from "@web/ui/overlay/overlay_container";
 import { useActiveElement } from "@web/ui/ui_service";
 
@@ -72,7 +72,7 @@ export class EditorOverlay extends Component {
             const resizeObserver = new ResizeObserver(() => {
                 position.unlock();
             });
-            useEffect(
+            useLayoutEffect(
                 (root) => {
                     resizeObserver.observe(root);
                     return () => {

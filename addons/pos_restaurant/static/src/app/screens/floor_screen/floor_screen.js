@@ -4,7 +4,6 @@ import {
     onMounted,
     onPatched,
     onWillUnmount,
-    useEffect,
     useExternalListener,
     useRef,
     useState,
@@ -32,6 +31,7 @@ import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { debounce } from "@web/core/utils/timing";
 import { getDataURLFromFile } from "@web/core/utils/urls";
 import { AlertDialog } from "@web/ui/dialog";
@@ -274,7 +274,7 @@ export class FloorScreen extends Component {
             this.saveCurrentFloorScrollPosition();
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.computeFloorSize();
             },

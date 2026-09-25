@@ -1,7 +1,8 @@
 /** @odoo-module native */
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { standardWidgetProps } from "@web/views/widgets";
 
 export class SurveyQuestionTriggerWidget extends Component {
@@ -17,7 +18,7 @@ export class SurveyQuestionTriggerWidget extends Component {
             surveyIconWarning: false,
             triggerTooltip: "",
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (
                     this.button?.el &&

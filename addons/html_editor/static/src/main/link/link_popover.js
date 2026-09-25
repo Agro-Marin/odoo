@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox";
 import { useColorPicker } from "@web/components/color_picker";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { session } from "@web/session";
 
 import { cleanZWChars, deduceURLfromText } from "./utils.js";
@@ -239,7 +240,7 @@ export class LinkPopover extends Component {
                 ? "url"
                 : "label",
         );
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (el) {
                     el.focus();

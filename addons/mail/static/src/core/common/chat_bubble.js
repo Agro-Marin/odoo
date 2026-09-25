@@ -5,10 +5,11 @@ import { ImStatus } from "@mail/core/common/im_status";
 import { baseImStatus } from "@mail/core/common/presence_status";
 import { useHover } from "@mail/utils/common/hooks";
 import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useBus, useChildRef, useEventBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { usePopover } from "@web/ui/popover";
 
 const log = makeLogger("mail.chat_hub");
@@ -74,7 +75,7 @@ export class ChatBubble extends Component {
         });
         this.rootRef = useRef("root");
         this.state = useState({ bouncing: false });
-        useEffect(
+        useLayoutEffect(
             /** @param {number|undefined} importantCounter */
             (importantCounter) => {
                 this.state.bouncing = Boolean(importantCounter);

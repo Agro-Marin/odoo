@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { Component, useEffect, useExternalListener, useState } from "@odoo/owl";
+import { Component, useExternalListener, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 const log = makeLogger("pos.screen.ticket.search");
 /**
  * @prop {{
@@ -41,7 +42,7 @@ export class SearchBar extends Component {
             selectedFilter:
                 this.props.config.defaultFilter || this.filterOptionsList[0],
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.state.selectedFilter =
                     this.props.config.defaultFilter || this.filterOptionsList[0];

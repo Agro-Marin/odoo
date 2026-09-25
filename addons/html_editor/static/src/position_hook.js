@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { ancestors } from "@html_editor/utils/dom_traversal";
-import { useEffect } from "@odoo/owl";
 import { couldBeScrollableX, couldBeScrollableY } from "@web/core/utils/dom/scrolling";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { throttleForAnimation } from "@web/core/utils/timing";
 
 export function usePositionHook(containerRef, document, callback) {
@@ -14,7 +14,7 @@ export function usePositionHook(containerRef, document, callback) {
             target.removeEventListener(eventName, onLayoutGeometryChange, capture),
         );
     };
-    useEffect(
+    useLayoutEffect(
         () => {
             if (containerRef.el) {
                 resizeObserver.observe(document.body);

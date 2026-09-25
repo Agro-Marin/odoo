@@ -1,7 +1,8 @@
 /** @odoo-module native */
 import { LocationList } from "@delivery/js/location_selector/location_list/location_list";
 import { MapContainer } from "@delivery/js/location_selector/map_container/map_container";
-import { Component, onMounted, onWillUnmount, useEffect, useState } from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { browser } from "@web/core/browser/browser";
 import { Dialog } from "@web/ui/dialog";
 import { _t } from "@web/core/translation";
@@ -54,7 +55,7 @@ export class LocationSelectorDialog extends Component {
         );
 
         // Fetch new locations when the zip code is updated.
-        useEffect(
+        useLayoutEffect(
             (zipCode) => {
                 this._updateLocations(zipCode);
                 return () => {

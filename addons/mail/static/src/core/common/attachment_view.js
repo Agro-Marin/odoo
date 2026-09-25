@@ -5,7 +5,6 @@ import {
     onMounted,
     onWillUnmount,
     onWillUpdateProps,
-    useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -13,6 +12,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { deepEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useProps } from "@web/core/utils/owl_bridge";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 
@@ -32,7 +32,7 @@ class AbstractAttachmentView extends Component {
             /** @type {import("models").Thread|undefined} */
             thread: undefined,
         });
-        useEffect(
+        useLayoutEffect(
             /** @param {HTMLIFrameElement|null} el */
             (el) => {
                 if (el) {

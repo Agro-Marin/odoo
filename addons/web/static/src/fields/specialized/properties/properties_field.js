@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillStart, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
+import { onWillStart, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { ModelEvent } from "@web/core/events";
@@ -10,6 +10,7 @@ import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { exprToBoolean, uuid } from "@web/core/utils/format/strings";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
@@ -127,7 +128,7 @@ export class PropertiesField extends FieldComponent {
             await this._recomputeEditMode();
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (
                     this.props.readonly ||
@@ -154,7 +155,7 @@ export class PropertiesField extends FieldComponent {
     }
 
     setupPopoverPlacement() {
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.openPropertyDefinition) {
                     const propertyName = this.openPropertyDefinition;
@@ -169,7 +170,7 @@ export class PropertiesField extends FieldComponent {
             () => [this.openPropertyDefinition],
         );
 
-        useEffect(() => this._movePopoverIfNeeded());
+        useLayoutEffect(() => this._movePopoverIfNeeded());
     }
 
     /** @returns {object} */

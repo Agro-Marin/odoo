@@ -3,10 +3,11 @@ import { useEditorOverlayContext } from "@html_editor/core/editor_overlay_contex
 import { useDropdownAutoVisibility } from "@html_editor/dropdown_autovisibility_hook";
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
-import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
 import { colorScheme } from "@web/core/color_scheme";
 import { useChildRef } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useDebounced } from "@web/core/utils/timing";
 
 const MAX_FONT_SIZE = 144;
@@ -97,7 +98,7 @@ export class FontSizeSelector extends Component {
             }
             iframeEl.addEventListener("load", initFontSizeInput);
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.fontSizeInput) {
                     this.fontSizeInput.value = this.state.displayName;
@@ -105,7 +106,7 @@ export class FontSizeSelector extends Component {
             },
             () => [this.state.displayName],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.fontSizeInput) {
                     if (this.dropdown.isOpen) {

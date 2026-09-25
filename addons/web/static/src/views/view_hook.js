@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useEnv, useSubEnv } from "@odoo/owl";
+import { useEnv, useSubEnv } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { browser } from "@web/core/browser/browser";
 import { SearchModelEvent } from "@web/core/events";
@@ -10,6 +10,7 @@ import { rpc } from "@web/core/network/rpc";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { orderByToString } from "@web/core/utils/order_by";
 import { DynamicList } from "@web/model/relational_model/dynamic_list";
 import {
@@ -112,7 +113,7 @@ export function useActionLinks({ resModel, reload }) {
 export function useBounceButton(containerRef, shouldBounce) {
     let timeout;
     const ui = useService("ui");
-    useEffect(
+    useLayoutEffect(
         (containerEl) => {
             if (!containerEl) {
                 return;

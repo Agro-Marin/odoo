@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 import { Action, ACTION_TAGS, UseActions } from "@mail/core/common/action";
-import { toRaw, useEffect, useRef, useState } from "@odoo/owl";
+import { toRaw, useRef, useState } from "@odoo/owl";
 import { useEmojiPicker } from "@web/components/emoji_picker";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 export const composerActionsRegistry = registry.category("mail.composer/actions");
 
 /** @typedef {import("@odoo/owl").Component} Component */
@@ -97,7 +98,7 @@ registerComposerAction("send-message", {
     /** @param {ActionParams} params */
     setup: ({ owner }) => {
         owner.sendMessageState = useState({ active: false });
-        useEffect(
+        useLayoutEffect(
             () => {
                 owner.sendMessageState.active = !owner.isSendButtonDisabled;
             },

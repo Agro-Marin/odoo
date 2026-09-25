@@ -6,7 +6,6 @@ import {
     onWillDestroy,
     useChildSubEnv,
     useComponent,
-    useEffect,
     useEnv,
     useRef,
     useState,
@@ -15,6 +14,7 @@ import { reportUncaught } from "@web/core/errors/error_utils";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { ErrorHandler } from "@web/core/utils/components";
 import { useServices } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { rootIdOf } from "@web/ui/overlay/root_id";
 import { serviceBackedItems } from "@web/ui/service_backed_items";
 
@@ -152,14 +152,14 @@ export class OverlayContainer extends Component {
         this.containerRoots = useState(this.service?.containerRoots ?? new Map());
         provideOverlayItems([]);
         if (!this.props.rootId) {
-            useEffect(
+            useLayoutEffect(
                 () => {
                     this.state.rootId = rootIdOf(this.root.el);
                 },
                 () => [this.root.el],
             );
         }
-        useEffect(
+        useLayoutEffect(
             (rootId) => this.service?.registerContainer(rootId),
             () => [this.state.rootId],
         );

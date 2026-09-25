@@ -1,9 +1,9 @@
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
 import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { patch } from "@web/core/utils/patch";
 import { NavBar } from "@web/webclient/navbar/navbar";
 import { UserMenu } from "@web/webclient/user_menu/user_menu";
@@ -36,7 +36,7 @@ patch(NavBar.prototype, {
             this.render(true);
             adaptCounter++;
         };
-        useEffect(
+        useLayoutEffect(
             (adaptCounter) => {
                 if (adaptCounter > 0) {
                     log.logic("NavBar adapt after content update", { adaptCounter });

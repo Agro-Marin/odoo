@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillStart, onWillUnmount, useEffect, useRef } from "@odoo/owl";
+import { Component, onWillStart, onWillUnmount, useRef } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useAction } from "@web/core/action_port";
@@ -11,6 +11,7 @@ import { Chart, loadChartJS } from "@web/core/lib/chartjs";
 import { _t } from "@web/core/translation";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { renderToMarkup } from "@web/core/utils/render";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { useViewConfig } from "@web/core/view_config_hooks";
@@ -65,7 +66,7 @@ export class GraphRenderer extends Component {
             await loadChartJS();
         });
 
-        useEffect(
+        useLayoutEffect(
             () => this.renderChart(),
             () => [this.model.data, this.model.metaData],
         );

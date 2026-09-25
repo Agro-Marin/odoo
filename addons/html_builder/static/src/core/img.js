@@ -4,12 +4,12 @@ import {
     Component,
     onWillStart,
     onWillUpdateProps,
-    useEffect,
     useRef,
     useState,
     xml,
 } from "@odoo/owl";
 import { Cache } from "@web/core/utils/collections/cache";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const svgCache = new Cache(async (src) => {
     let text;
@@ -74,7 +74,7 @@ export class Img extends Component {
                 await this.handleImgLoad(nextProps.src);
             }
         });
-        useEffect(
+        useLayoutEffect(
             (imgLoaded) => {
                 if (
                     imgLoaded &&

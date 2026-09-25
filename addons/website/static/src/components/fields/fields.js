@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { Component, useEffect, useRef } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { debounce } from "@web/core/utils/timing";
 import { UrlField, urlField } from "@web/fields/basic/url/url_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -27,7 +28,7 @@ class PageUrlField extends UrlField {
         this.serverUrl = `${window.location.origin}/`;
         this.inputRef = useRef("input");
 
-        useEffect(
+        useLayoutEffect(
             (inputEl) => {
                 if (inputEl) {
                     const originalValue = inputEl.value;

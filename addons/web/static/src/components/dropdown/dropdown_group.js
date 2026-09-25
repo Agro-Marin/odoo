@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useChildSubEnv, useEffect, useEnv, xml } from "@odoo/owl";
+import { Component, useChildSubEnv, useEnv, xml } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 /** @type {Map<any, { group: Set<any>, count: number }>} */
 const GROUPS = new Map();
@@ -103,7 +104,7 @@ export class DropdownGroup extends Component {
     setup() {
         const membership = new DropdownGroupMembership();
         provideDropdownGroupMembership(membership);
-        useEffect(
+        useLayoutEffect(
             (groupId) => {
                 membership.moveTo(groupId ? acquireGroup(groupId) : new Set());
                 return () => {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useOwnedActiveElement } from "@web/core/utils/active_element_scope";
@@ -12,6 +12,7 @@ import {
     isFocusable,
 } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { describeNode } from "@web/ui/describe_node";
 
 const log = makeLogger("web.ui.focus");
@@ -65,7 +66,7 @@ export function useActiveElement(refName) {
     const ref = useRef(refName);
     const scope = useOwnedActiveElement();
 
-    useEffect(
+    useLayoutEffect(
         (el) => {
             if (el) {
                 const [firstTabableEl] = getFirstAndLastTabableElements(el);

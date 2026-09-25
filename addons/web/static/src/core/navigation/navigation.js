@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillDestroy, reactive, useEffect, useRef } from "@odoo/owl";
+import { onWillDestroy, reactive, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { deepMerge } from "@web/core/utils/collections/objects";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { getActiveElement } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { throttleForAnimation } from "@web/core/utils/timing";
 export const ACTIVE_ELEMENT_CLASS = "focus";
 
@@ -750,7 +751,7 @@ export function useNavigation(containerRef, options = {}) {
             browser.addEventListener("focus", onFocus, true);
         }
     };
-    useEffect(
+    useLayoutEffect(
         (containerEl) => navigator.observe(containerEl),
         () => [/** @type {any} */ (containerRef).el],
     );

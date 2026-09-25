@@ -10,7 +10,6 @@ import {
     onWillStart,
     onWillUnmount,
     reactive,
-    useEffect,
     useEnv,
     useExternalListener,
     useRef,
@@ -27,6 +26,7 @@ import { Deferred } from "@web/core/utils/concurrency";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useAutofocus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 /**
@@ -283,7 +283,7 @@ export class EmojiPicker extends Component {
                 this.props.storeScroll.set(this.gridRef.el.scrollTop);
             }
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 this._emojiMatrix = null;
             },
@@ -309,7 +309,7 @@ export class EmojiPicker extends Component {
                 this.shouldScrollElem = getElement;
             }
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.searchTerm !== this.lastSearchTerm) {
                     this.state.activeEmojiIndex = 0;
@@ -333,7 +333,7 @@ export class EmojiPicker extends Component {
     }
 
     setupKeyboardFollow() {
-        useEffect(
+        useLayoutEffect(
             () => {
                 const gridEl = this.gridRef.el;
                 if (!gridEl) {
@@ -893,7 +893,7 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
     }
 
     const toggler = () => toggle(isMobileOS() ? undefined : ref);
-    useEffect(
+    useLayoutEffect(
         (el) => {
             if (!el) {
                 return;

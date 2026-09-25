@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, useEffect, useRef } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { CenteredIcon } from "@point_of_sale/app/components/centered_icon/centered_icon";
 import { Orderline } from "@point_of_sale/app/components/orderline/orderline";
 import { provideChildPosContext } from "@point_of_sale/app/pos_context";
@@ -8,6 +8,7 @@ import { formatCurrency } from "@web/core/currency";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 import { groupOrderlines } from "./orderline_groups.js";
 const log = makeLogger("pos.component.order_display");
@@ -33,7 +34,7 @@ export class OrderDisplay extends Component {
         provideChildPosContext({
             orderlineGroupOf: (line) => this.groupOfLine.get(line.uuid),
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.scrollableRef.el
                     ?.querySelector(".orderline.selected")

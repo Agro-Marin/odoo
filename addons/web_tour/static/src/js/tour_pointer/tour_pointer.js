@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { usePosition } from "@web/core/position/position_hook";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 /**
  * @typedef {import("./tour_pointer_state").TourPointerState} TourPointerState
@@ -83,7 +84,7 @@ export class TourPointer extends Component {
         let lastOpenState = this.isOpen;
         let lastAnchor;
         let [anchorX, anchorY] = [0, 0];
-        useEffect(() => {
+        useLayoutEffect(() => {
             const { el: pointer } = rootRef;
             const { el: zone } = zoneRef;
             if (pointer) {

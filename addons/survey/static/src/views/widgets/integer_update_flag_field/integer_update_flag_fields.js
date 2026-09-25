@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { useEffect, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { ParseError } from "@web/core/parse_error";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { IntegerField, integerField } from "@web/fields/basic/integer/integer_field";
 
 /**
@@ -43,7 +44,7 @@ export class IntegerUpdateFlagField extends IntegerField {
                 [this.props.flagFieldName]: value !== this.props.referenceValue,
             });
         };
-        useEffect(
+        useLayoutEffect(
             (inputEl) => {
                 if (inputEl) {
                     inputEl.addEventListener("change", onChange);

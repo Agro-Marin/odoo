@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { Component, useEffect, useRef, xml } from "@odoo/owl";
+import { Component, useRef, xml } from "@odoo/owl";
 import { useIsChildLarger } from "@point_of_sale/app/hooks/hooks";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { Dialog } from "@web/ui/dialog";
 const log = makeLogger("pos.component.list_container");
 class ListContainerDialog extends Component {
@@ -60,7 +61,7 @@ export class ListContainer extends Component {
         this.ui = useService("ui");
         this.dialog = useService("dialog");
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.sizing.reload();
                 log.logic("items changed: resized", () => ({

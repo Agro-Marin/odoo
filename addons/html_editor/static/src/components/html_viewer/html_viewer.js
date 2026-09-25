@@ -11,13 +11,13 @@ import {
     onWillStart,
     onWillUnmount,
     onWillUpdateProps,
-    useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
 import { getBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
 import { memoize } from "@web/core/utils/functions";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class HtmlViewer extends Component {
     static template = "html_editor.HtmlViewer";
@@ -67,7 +67,7 @@ export class HtmlViewer extends Component {
             });
         } else {
             this.readonlyElementRef = useRef("readonlyContent");
-            useEffect(
+            useLayoutEffect(
                 () => {
                     this.processReadonlyContent(this.readonlyElementRef.el);
                 },
@@ -95,7 +95,7 @@ export class HtmlViewer extends Component {
                 }
                 return result;
             });
-            useEffect(
+            useLayoutEffect(
                 () => {
                     if (this.readonlyElementRef?.el) {
                         this.mountComponents();

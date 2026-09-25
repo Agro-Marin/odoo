@@ -4,12 +4,13 @@
 import { MailAttachmentDropzone } from "@mail/core/common/mail_attachment_dropzone";
 import { getComposerTargetThreads } from "@mail/core/web/composer_target_threads";
 import { provideMailContext } from "@mail/utils/common/mail_context";
-import { EventBus, toRaw, useEffect, useRef } from "@odoo/owl";
+import { EventBus, toRaw, useRef } from "@odoo/owl";
 import { useCustomDropzone } from "@web/components/dropzone";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useX2ManyCrud } from "@web/fields/relational/x2many_crud";
 import { formView } from "@web/views/form";
 
@@ -57,7 +58,7 @@ export class MailComposerFormRenderer extends formView.Renderer {
         return getComposerTargetThreads(this.mailStore, this.props.record);
     }
     _setupReplyAllFocus() {
-        useEffect(
+        useLayoutEffect(
             /**
              * @param {boolean} isInEdition
              * @param {HTMLElement|null} el

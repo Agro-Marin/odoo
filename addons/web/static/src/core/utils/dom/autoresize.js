@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 /**
  * @param {{ el: HTMLInputElement | HTMLTextAreaElement | null }} ref
@@ -11,7 +11,7 @@ export function useAutoresize(ref, options = {}) {
     let wasProgrammaticallyResized = false;
     /** @type {((programmaticResize?: boolean) => void) | null} */
     let resize = null;
-    useEffect(
+    useLayoutEffect(
         (el) => {
             if (el) {
                 resize = (programmaticResize = false) => {
@@ -49,7 +49,7 @@ export function useAutoresize(ref, options = {}) {
         },
         () => [ref.el],
     );
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (resize) {
             resize(true);
         }

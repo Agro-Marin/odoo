@@ -1,6 +1,5 @@
 /** @odoo-module native */
 import { LinkPopover } from "@html_editor/main/link/link_popover";
-import { useEffect } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -8,6 +7,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useChildRef } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { patch } from "@web/core/utils/patch";
 import { session } from "@web/session";
 import { loadAnchors } from "@website/js/utils";
@@ -48,7 +48,7 @@ patch(LinkPopover.prototype, {
         super.setup();
         useLifecycleLog(log);
         this.urlRef = useChildRef();
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (
                     el &&

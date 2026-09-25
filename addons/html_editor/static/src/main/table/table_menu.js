@@ -1,14 +1,9 @@
 /** @odoo-module native */
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import {
-    Component,
-    onMounted,
-    useEffect,
-    useExternalListener,
-    useRef,
-} from "@odoo/owl";
+import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class TableMenu extends Component {
     static template = "html_editor.TableMenu";
@@ -41,7 +36,7 @@ export class TableMenu extends Component {
         onMounted(() => {
             this.overlayEl = this.dropdownRef.el;
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.props.type === "column") {
                     this.isFirst = this.props.target.cellIndex === 0;

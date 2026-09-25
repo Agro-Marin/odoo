@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { getCurrency } from "@web/core/currency";
 import { formatMonetary } from "@web/core/formatters";
 import { parseMonetary } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { nbsp } from "@web/core/utils/format/strings";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { registerField } from "@web/fields/_registry";
 import {
     enableFormattingOption,
@@ -43,7 +44,7 @@ export class MonetaryField extends NumericInputFieldBase {
         super.setup();
         this.nbsp = nbsp;
         this.ghostRef = useRef("ghostValue");
-        useEffect(() => this.syncGhostValue());
+        useLayoutEffect(() => this.syncGhostValue());
     }
 
     syncGhostValue() {

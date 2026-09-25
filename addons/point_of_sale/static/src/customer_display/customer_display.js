@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { Component, useEffect, useRef, whenReady } from "@odoo/owl";
+import { Component, useRef, whenReady } from "@odoo/owl";
 import { OdooLogo } from "@point_of_sale/app/components/odoo_logo/odoo_logo";
 import { useSingleDialog } from "@point_of_sale/customer_display/utils";
 import { TagsList } from "@web/components/tags_list";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { mountComponent } from "@web/env";
 import { session } from "@web/session";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
@@ -27,13 +28,13 @@ export class CustomerDisplay extends Component {
         const singleDialog = useSingleDialog();
 
         this.scrollableRef = useRef("scrollable");
-        useEffect(() => {
+        useLayoutEffect(() => {
             this.scrollableRef.el
                 ?.querySelector(".orderline.selected")
                 ?.scrollIntoView({ behavior: "smooth", block: "start" });
         });
 
-        useEffect(
+        useLayoutEffect(
             (qrPaymentData) => {
                 log.logic("qrPaymentData changed", () => ({
                     show: Boolean(qrPaymentData),

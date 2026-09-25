@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { CustomFieldCard } from "@sale_pdf_quote_builder/js/custom_content_kanban_like_widget/custom_field_card/custom_field_card";
 import { x2ManyCommands } from "@web/core/network";
 import { registry } from "@web/core/registry";
@@ -21,14 +22,14 @@ export class CustomContentKanbanLikeWidget extends Component {
             footers: {},
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.updateState();
             },
             () => [this.props.record.data.sale_order_template_id],
         );
 
-        useEffect(
+        useLayoutEffect(
             (saleOrderState) => {
                 if (saleOrderState === "sale") {
                     this.props.readonly = true;

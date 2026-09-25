@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillDestroy, useEffect, useRef } from "@odoo/owl";
+import { Component, onWillDestroy, useRef } from "@odoo/owl";
 import { prefersReducedMotion } from "@web/core/browser/feature_detection";
 import { mergeClasses } from "@web/core/utils/dom/classname";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class Collapse extends Component {
     static template = "web.Collapse";
@@ -28,7 +29,7 @@ export class Collapse extends Component {
     setup() {
         this.contentRef = useRef("content");
 
-        useEffect(
+        useLayoutEffect(
             (open) => {
                 this.setOpen(open, this.hasRendered);
                 this.hasRendered = true;

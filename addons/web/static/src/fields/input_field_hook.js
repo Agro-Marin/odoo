@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { ParseError } from "@web/core/parse_error";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useProps } from "@web/core/utils/owl_bridge";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { useFieldFlush } from "@web/fields/hooks/debounced_field_commit";
@@ -135,7 +136,7 @@ function bindInputListeners(ctx) {
         }
     };
 
-    useEffect(
+    useLayoutEffect(
         (inputEl) => {
             if (inputEl) {
                 inputEl.addEventListener("input", onInput);
@@ -185,7 +186,7 @@ export function useInputField(params) {
 
     bindInputListeners(ctx);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const value = params.getValue();
         const el = inputRef.el;
         if (!el || ctx.edit.isDirty || props.record.isFieldInvalid(fieldName)) {

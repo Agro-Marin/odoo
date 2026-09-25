@@ -11,13 +11,14 @@ import {
 } from "@mail/views/web/fields/html_mail_field/convert_inline";
 import { MassMailingIframe } from "@mass_mailing/iframe/mass_mailing_iframe";
 import { ThemeSelector } from "@mass_mailing/themes/theme_selector/theme_selector";
-import { onWillUpdateProps, status, toRaw, useEffect, useRef } from "@odoo/owl";
+import { onWillUpdateProps, status, toRaw, useRef } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
 import { useDebugMode } from "@web/core/debug/debug_context";
 import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
 import { Deferred } from "@web/core/utils/concurrency";
 import { useChildRef, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { effect } from "@web/core/utils/reactive";
 import { batched } from "@web/core/utils/timing";
 
@@ -108,7 +109,7 @@ export class MassMailingHtmlField extends HtmlField {
             [this.state],
         );
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (!this.codeViewRef.el) {
                     return;

@@ -12,7 +12,8 @@ import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { omit } from "@web/core/utils/collections/objects";
 import { prepareStaticActionMenuItems } from "@web/views/view_utils";
-import { onWillDestroy, useEffect, useRef, useState } from "@odoo/owl";
+import { onWillDestroy, useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useSearchModel } from "@web/search/search_model";
 
 export const DocumentsControllerMixin = (component) =>
@@ -51,7 +52,7 @@ export const DocumentsControllerMixin = (component) =>
                 }
             });
 
-            useEffect(() => this.openInitialPreview());
+            useLayoutEffect(() => this.openInitialPreview());
         }
 
         get hasSelectedRecords() {

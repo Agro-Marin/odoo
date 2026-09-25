@@ -5,7 +5,6 @@ import {
     onMounted,
     onWillStart,
     reactive,
-    useEffect,
     useEnv,
     useExternalListener,
     useRef,
@@ -26,6 +25,7 @@ import { delay } from "@web/core/utils/concurrency";
 import { mixCssColors } from "@web/core/utils/format/colors";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { fuzzyLevenshteinLookup } from "@web/core/utils/search";
 import { getDataURLFromFile, redirect } from "@web/core/utils/urls";
 import { standardActionServiceProps } from "@web/webclient/actions";
@@ -176,7 +176,7 @@ export class DescriptionScreen extends Component {
 
         onMounted(() => this.onMounted());
 
-        useEffect(
+        useLayoutEffect(
             (selectedType, selectedIndustry) => {
                 if (selectedType && !selectedIndustry) {
                     this.industrySelection.el?.querySelector("input")?.focus();
@@ -190,7 +190,7 @@ export class DescriptionScreen extends Component {
 
         this.typeDropdown = useDropdownState();
         this.purposeDropdown = useDropdownState();
-        useEffect(
+        useLayoutEffect(
             (selectedType) => {
                 if (selectedType) {
                     this.typeDropdown.close();
@@ -200,7 +200,7 @@ export class DescriptionScreen extends Component {
             },
             () => [this.state.selectedType],
         );
-        useEffect(
+        useLayoutEffect(
             (selectedPurpose) => {
                 if (selectedPurpose) {
                     this.purposeDropdown.close();
@@ -701,7 +701,7 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
             this.blockUiDuringImageLoading(this.state.themes, this.themeSVGPreviews);
         });
 
-        useEffect(
+        useLayoutEffect(
             () =>
                 this.blockUiDuringImageLoading(
                     this.state.extraThemes,

@@ -2,8 +2,8 @@
 /** @odoo-module native */
 import { Discuss } from "@mail/core/public_web/discuss";
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
-import { useEffect } from "@odoo/owl";
 import { _t } from "@web/core/translation";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { patch } from "@web/core/utils/patch";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
@@ -14,7 +14,7 @@ patch(Discuss.prototype, {
         super.setup();
         this.config = useViewConfig();
         this.prevInboxCounter = this.store.inbox.counter;
-        useEffect(
+        useLayoutEffect(
             /** @param {string|undefined} threadName */
             (threadName) => {
                 if (threadName) {
@@ -23,7 +23,7 @@ patch(Discuss.prototype, {
             },
             () => [this.thread?.displayName],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (
                     this.thread?.id === "inbox" &&

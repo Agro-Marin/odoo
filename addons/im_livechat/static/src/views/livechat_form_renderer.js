@@ -1,7 +1,8 @@
 /** @odoo-module native */
 import { Discuss } from "@mail/core/public_web/discuss";
-import { onWillStart, onWillUpdateProps, useEffect, useState } from "@odoo/owl";
+import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { FormRenderer } from "@web/views/form";
 
 export class LivechatSessionFormRenderer extends FormRenderer {
@@ -15,7 +16,7 @@ export class LivechatSessionFormRenderer extends FormRenderer {
         super.setup();
         this.action = useService("action");
         this.store = useState(useService("mail.store"));
-        useEffect(
+        useLayoutEffect(
             (thread) => {
                 if (thread) {
                     thread.shadowedBySelf++;

@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { ConfirmationDialog } from "@web/ui/dialog";
 
 const log = makeLogger("portal.input_dialog");
@@ -26,7 +26,7 @@ export class InputConfirmationDialog extends ConfirmationDialog {
                 this.confirm();
             }
         };
-        useEffect(
+        useLayoutEffect(
             (inputEl) => {
                 this.inputEl = inputEl;
                 if (this.inputEl) {

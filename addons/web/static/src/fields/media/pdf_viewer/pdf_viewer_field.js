@@ -1,17 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    onWillDestroy,
-    onWillUpdateProps,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { onWillDestroy, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { FileUploader } from "@web/core/file_upload/file_handler";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 import { url } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
@@ -54,7 +49,7 @@ export class PdfViewerField extends FieldComponent {
             }
         });
         onWillDestroy(() => this.setObjectUrl(""));
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (el) {
                     hidePDFJSButtons(el, {

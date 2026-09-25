@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { onMounted, useEffect, useRef, useState } from "@odoo/owl";
+import { onMounted, useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { Dialog } from "@web/ui/dialog";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 
@@ -42,7 +43,7 @@ export class ProductImageViewer extends Dialog {
             this.updateImage();
         });
 
-        useEffect(
+        useLayoutEffect(
             (document) => {
                 const onGlobalClick = this.onGlobalClick.bind(this);
                 document.addEventListener("click", onGlobalClick);

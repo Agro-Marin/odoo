@@ -1,8 +1,8 @@
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const log = makeLogger("website.component.autocomplete_with_pages");
 
@@ -16,7 +16,7 @@ export class AutoCompleteWithPages extends AutoComplete {
     setup() {
         super.setup();
         useLifecycleLog(log);
-        useEffect(
+        useLayoutEffect(
             (input, inputRef) => {
                 log.lifecycle("target input listeners attached", () => ({
                     synced: Boolean(inputRef),

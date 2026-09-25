@@ -1,17 +1,11 @@
 /** @odoo-module native */
-import {
-    Component,
-    onMounted,
-    onWillUnmount,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { CategoryListPopup } from "@pos_self_order/app/components/category_list_popup/category_list_popup";
 import { OrderWidget } from "@pos_self_order/app/components/order_widget/order_widget";
 import { ProductNameWidget } from "@pos_self_order/app/components/product_name_widget/product_name_widget";
 import { useSelfOrder } from "@pos_self_order/app/services/self_order_service";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 import { useCategoryScrollSpy } from "../../utils/category_scrollspy_hook.js";
 import { scrollItemIntoViewX } from "../../utils/scroll.js";
@@ -74,7 +68,7 @@ export class ProductListPage extends Component {
         useHorizontalScrollShadow(this.categoryListRef, useRef("category_container"));
         useDraggableScroll(this.subCategoryListRef);
 
-        useEffect(
+        useLayoutEffect(
             (lines) => {
                 this.state.quantityByProductTmplId = lines
                     .filter((line) => !line.combo_parent_id)

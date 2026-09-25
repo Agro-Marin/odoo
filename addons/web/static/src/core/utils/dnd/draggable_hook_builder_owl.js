@@ -1,14 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillUnmount, reactive, useEffect, useExternalListener } from "@odoo/owl";
+import { onWillUnmount, reactive, useExternalListener } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 import { makeNativeDraggableHook } from "./draggable_hook_builder.js";
 
 export const OWL_SETUP_HOOKS = Object.freeze({
     addListener: useExternalListener,
-    setup: useEffect,
+    setup: useLayoutEffect,
     teardown: onWillUnmount,
     throttle: useThrottleForAnimation,
     wrapState: reactive,

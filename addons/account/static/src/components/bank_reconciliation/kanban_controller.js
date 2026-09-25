@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { onWillDestroy, useEffect } from "@odoo/owl";
+import { onWillDestroy } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { user } from "@web/core/user";
 import { provideEventBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { makeActiveField } from "@web/model/relational_model";
 import { KanbanController } from "@web/views/kanban";
 
@@ -72,7 +73,7 @@ export class BankRecKanbanController extends KanbanController {
             bypassEditableProtection: true,
             withOverlay: () => this.rootRef.el.querySelector(".bank-chatter-btn"),
         });
-        useEffect(() => {
+        useLayoutEffect(() => {
             user.updateContext({ from_bank_reco: true });
         });
         onWillDestroy(() => {

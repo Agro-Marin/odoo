@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { Component, reactive, useEffect, useState, xml } from "@odoo/owl";
+import { Component, reactive, useState, xml } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { usePositionBus } from "@web/core/position/position_hook";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const log = makeLogger("website.builder.option.stacking_component");
 
@@ -43,7 +44,7 @@ export class StackingComponent extends Component {
         this.positionBus = usePositionBus();
         useLifecycleLog(log);
         this.stack = useState(this.props.stackState.stack);
-        useEffect(
+        useLayoutEffect(
             () => {
                 log.pipeline("StackingComponent position update", () => ({
                     depth: this.stack.length,

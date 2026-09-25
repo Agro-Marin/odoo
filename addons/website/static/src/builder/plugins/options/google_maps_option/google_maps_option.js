@@ -1,9 +1,10 @@
 /** @odoo-module native */
 import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BaseOptionComponent } from "@html_builder/core/utils";
-import { onMounted, onWillDestroy, useEffect, useRef, useState } from "@odoo/owl";
+import { onMounted, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const log = makeLogger("website.builder.option.google_maps_option");
 
@@ -31,7 +32,7 @@ export class GoogleMapsOption extends BaseOptionComponent {
             formattedAddress:
                 this.builderContext.getEditingElement().dataset.pinAddress || "",
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.builderContext.getEditingElement().dataset.pinAddress =
                     this.state.formattedAddress;

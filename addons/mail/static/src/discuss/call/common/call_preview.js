@@ -11,17 +11,11 @@ import {
 import { CallPermissionDialog } from "@mail/discuss/call/common/call_permission_dialog";
 import { useOnChange } from "@mail/utils/common/hooks";
 import { closeStream } from "@mail/utils/common/misc";
-import {
-    Component,
-    onWillDestroy,
-    status,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onWillDestroy, status, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const log = makeLogger("mail.rtc.preview");
 /**
@@ -53,7 +47,7 @@ export class CallPreview extends Component {
         this.videoRef = useRef("video");
     }
     _setupPreviewEffect() {
-        useEffect(
+        useLayoutEffect(
             /**
              * @param {HTMLVideoElement|null} videoEl
              * @param {HTMLAudioElement|null} audioEl
@@ -133,7 +127,7 @@ export class CallPreview extends Component {
                 closeStream(this.state.blurStream);
                 this.state.blurManager?.close();
             });
-            useEffect(
+            useLayoutEffect(
                 /** @param {number} activateCamera */
                 (activateCamera) => {
                     if (activateCamera > 0 && !this.state.videoStream) {
@@ -142,7 +136,7 @@ export class CallPreview extends Component {
                 },
                 () => [this.props.activateCamera],
             );
-            useEffect(
+            useLayoutEffect(
                 /** @param {number} activateMicrophone */
                 (activateMicrophone) => {
                     if (activateMicrophone > 0 && !this.state.audioStream) {

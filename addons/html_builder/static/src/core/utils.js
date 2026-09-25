@@ -12,12 +12,12 @@ import {
     onWillUpdateProps,
     reactive,
     toRaw,
-    useEffect,
     useEnv,
     useRef,
     useState,
 } from "@odoo/owl";
 import { useBus, useIsDestroyed } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useProps } from "@web/core/utils/owl_bridge";
 import { effect } from "@web/core/utils/reactive";
 import { useDebounced } from "@web/core/utils/timing";
@@ -883,7 +883,7 @@ export function useVisibilityObserver(contentName, callback) {
     };
 
     const observer = new MutationObserver(applyVisibility);
-    useEffect(
+    useLayoutEffect(
         (contentEl) => {
             if (!contentEl) {
                 return;

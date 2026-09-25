@@ -1,17 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    EventBus,
-    onWillDestroy,
-    useChildSubEnv,
-    useEffect,
-    useEnv,
-    useRef,
-} from "@odoo/owl";
+import { EventBus, onWillDestroy, useChildSubEnv, useEnv, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { reposition } from "@web/core/position/utils";
 import { omit } from "@web/core/utils/collections/objects";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 /** @import { ComputePositionOptions, PositioningSolution } from "@web/core/position/utils" */
@@ -104,7 +98,7 @@ export function usePosition(refName, getTarget, options = {}) {
         providePositionBus(bus);
     }
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         bus.trigger("update");
     });
 
@@ -116,7 +110,7 @@ export function usePosition(refName, getTarget, options = {}) {
             }
             throttledUpdate();
         };
-        useEffect(
+        useLayoutEffect(
             (targetDocument) => {
                 if (!targetDocument) {
                     return;

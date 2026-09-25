@@ -1,13 +1,6 @@
 /** @odoo-module native */
 import { isAbsoluteURLInCurrentDomain } from "@html_editor/utils/url";
-import {
-    Component,
-    onWillStart,
-    reactive,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onWillStart, reactive, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
@@ -16,6 +9,7 @@ import { KeepLast } from "@web/core/utils/concurrency";
 import { useNestedSortable } from "@web/core/utils/dnd";
 import { isEmail } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { effect } from "@web/core/utils/reactive";
 import { useDebounced } from "@web/core/utils/timing";
 import { AddPageDialog } from "@website/components/dialog/add_page_dialog";
@@ -107,7 +101,7 @@ export class MenuDialog extends Component {
         const debouncedUpdatePageNotFound = useDebounced(updatePageNotFound, 500);
         effect(({ url }) => debouncedUpdatePageNotFound(url), [this.state]);
 
-        useEffect(
+        useLayoutEffect(
             (input) => {
                 if (!input) {
                     log.logic("MenuDialog no url input: skip autocomplete");

@@ -2,10 +2,11 @@
 /** @odoo-module native */
 import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
-import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { useNavigation } from "@web/core/navigation/navigation";
 import { usePosition } from "@web/core/position/position_hook";
 import { getComponentElement } from "@web/core/utils/components";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 export class CallDropdown extends Component {
     static template = "discuss.CallDropdown";
     static props = {
@@ -50,7 +51,7 @@ export class CallDropdown extends Component {
             },
         });
         this.handleClick = this.handleClick.bind(this);
-        useEffect(
+        useLayoutEffect(
             /** @param {HTMLElement|null} triggerEl */
             (triggerEl) => {
                 if (triggerEl) {

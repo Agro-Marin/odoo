@@ -1,16 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    Component,
-    onWillDestroy,
-    onWillUpdateProps,
-    useEffect,
-    useState,
-    xml,
-} from "@odoo/owl";
+import { Component, onWillDestroy, onWillUpdateProps, useState, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useIsMounted } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 export const config = {
     disabled: false,
 };
@@ -34,7 +28,7 @@ export function useTransition(options) {
         stage: initialVisibility ? "enter" : "leave",
     });
     let onNextPatch = null;
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (onNextPatch) {
             onNextPatch();
             onNextPatch = null;

@@ -11,7 +11,6 @@ import {
     onWillUnmount,
     onWillUpdateProps,
     toRaw,
-    useEffect,
     useRef,
     useState,
     xml,
@@ -22,6 +21,7 @@ import { _t } from "@web/core/translation";
 import { Deferred, delay } from "@web/core/utils/concurrency";
 import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useProps } from "@web/core/utils/owl_bridge";
 import { useOverlayScope } from "@web/ui/overlay/overlay_container";
 
@@ -340,7 +340,7 @@ export function useHover(
     onWillUnmount(clearTimers);
     bindHoverListeners(targets, onmouseenter, onmouseleave);
     if (stateObserver) {
-        useEffect(
+        useLayoutEffect(
             /** @param {any} open */ (open) => {
                 if ((lastHoveredTarget && !lastHoveredTarget.ref.el) || !open) {
                     setHover(false);
@@ -421,7 +421,7 @@ export function useVisible(refName, cb, { ready = true } = {}) {
             setValue(entries.at(-1).isIntersecting);
         },
     );
-    useEffect(
+    useLayoutEffect(
         /**
          * @param {HTMLElement|null} el
          * @param {boolean} ready
@@ -672,7 +672,7 @@ export function useSelection({
 export function useDiscussSystray(dropdownState) {
     const ui = useService("ui");
     if (dropdownState) {
-        useEffect(
+        useLayoutEffect(
             /** @param {boolean} isOpen */
             (isOpen) => {
                 if (isOpen) {

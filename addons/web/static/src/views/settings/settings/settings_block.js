@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { normalizedMatch } from "@web/core/l10n/utils";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { HighlightText } from "@web/views/settings/highlight_text/highlight_text";
 import {
     provideChildSettingsSearchContext,
@@ -58,7 +59,7 @@ export class SettingsBlock extends Component {
         this.settingsContainerRef = useRef("settingsContainer");
         this.settingsContainerTitleRef = useRef("settingsContainerTitle");
         this.settingsContainerTipRef = useRef("settingsContainerTip");
-        useEffect(
+        useLayoutEffect(
             () => {
                 const container = this.settingsContainerRef.el;
                 if (!container) {

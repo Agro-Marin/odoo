@@ -7,7 +7,6 @@ import {
     onWillDestroy,
     onWillRender,
     reactive,
-    useEffect,
     useRef,
 } from "@odoo/owl";
 import { DateTimePicker } from "@web/components/datetime/datetime_picker";
@@ -25,6 +24,7 @@ import {
 import { registry } from "@web/core/registry";
 import { ensureArray, zip, zipWith } from "@web/core/utils/collections/arrays";
 import { shallowEqual } from "@web/core/utils/collections/objects";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { makePopover } from "@web/ui/popover/popover_hook";
 
 const log = makeLogger("web.components.datetime_picker.controller");
@@ -713,7 +713,7 @@ export class DateTimePickerService {
 
             onWillRender(controller.computeBasePickerProps);
 
-            useEffect(controller.enable, controller.getInputs);
+            useLayoutEffect(controller.enable, controller.getInputs);
 
             onPatched(controller.focusIfNeeded);
         } else if (typeof params.target === "string") {

@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillDestroy, useEffect, useExternalListener } from "@odoo/owl";
+import { onWillDestroy, useExternalListener } from "@odoo/owl";
 import { Dropzone } from "@web/components/dropzone/dropzone";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 /**
  * @param {DragEvent} ev
@@ -97,7 +98,7 @@ export function useCustomDropzone(
         updateDropzone();
     }
 
-    useEffect(
+    useLayoutEffect(
         (el) => {
             hasTarget = !!el;
             updateDropzone();

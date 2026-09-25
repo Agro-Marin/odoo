@@ -3,7 +3,8 @@ import { _t } from "@web/core/translation";
 import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
 import { useBus, useRefListener, useService, useEventBus } from "@web/core/utils/hooks";
-import { onWillStart, useRef, useEffect, useState } from "@odoo/owl";
+import { onWillStart, useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useViewConfig } from "@web/core/view_config_hooks";
 
 registry.category("share_target_apps").add("hr_expense", "expenses");
@@ -20,7 +21,7 @@ export const ExpenseDocumentDropZone = (T) =>
             });
             this.root = useRef("root");
 
-            useEffect(
+            useLayoutEffect(
                 (el) => {
                     if (!el) {
                         return;

@@ -1,6 +1,7 @@
 /** @odoo-module native */
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { debounce } from "@web/core/utils/timing";
 
 export class LivechatButton extends Component {
@@ -21,7 +22,7 @@ export class LivechatButton extends Component {
         );
         this.ref = useRef("button");
         this.state = useState({ animateNotification: this.isShown });
-        useEffect(
+        useLayoutEffect(
             (isShown, rootNodeClassList) => {
                 if (isShown && rootNodeClassList) {
                     rootNodeClassList.add("o-livechat-LivechatButton-isVisible");

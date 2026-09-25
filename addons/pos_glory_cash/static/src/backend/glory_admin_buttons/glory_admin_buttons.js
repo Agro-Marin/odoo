@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 import { downloadFile } from "@web/core/network";
@@ -29,7 +30,7 @@ export class GloryAdminButtons extends Component {
             resetInProgress: false,
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 const { glory_websocket_address, glory_username, glory_password } =
                     this.props.record.data;

@@ -1,12 +1,13 @@
 /** @odoo-module native */
-import { useEffect, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export function useDropdownAutoVisibility(overlayState, popoverRef) {
     if (!overlayState) {
         return;
     }
     const state = useState(overlayState);
-    useEffect(
+    useLayoutEffect(
         () => {
             if (popoverRef.el) {
                 if (!state.isOverlayVisible) {

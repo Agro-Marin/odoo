@@ -4,11 +4,11 @@
 import {
     onMounted,
     useChildSubEnv,
-    useEffect,
     useEnv,
     useExternalListener,
     useSubEnv,
 } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useProps } from "@web/core/utils/owl_bridge";
 
 export const scrollSymbol = Symbol("scroll");
@@ -71,7 +71,7 @@ export function usePushStateBeforeReload() {
  */
 export function useCallbackRecorder(callbackRecorder, callback) {
     const owner = {};
-    useEffect(
+    useLayoutEffect(
         () => {
             callbackRecorder.add(owner, callback);
             return () => callbackRecorder.remove(owner);

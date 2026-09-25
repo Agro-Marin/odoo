@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { ConfirmationDialog, Dialog } from "@web/ui/dialog";
 
 const log = makeLogger("website.builder.option.add_font_dialog");
@@ -16,7 +17,7 @@ class GoogleFontAutoComplete extends AutoComplete {
         useLifecycleLog(log);
         this.inputRef = useRef("input");
         this.sourcesListRef = useRef("sourcesList");
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 el.setAttribute("id", "google_font");
             },

@@ -1,6 +1,6 @@
 // @ts-check
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { ListRenderer } from "@web/views/list";
 
 /**
@@ -16,7 +16,7 @@ export class SectionListRenderer extends ListRenderer {
 
         this.titleField = "display_name";
 
-        useEffect(
+        useLayoutEffect(
             (table) => {
                 if (table) {
                     table.classList.add("o_section_list_view");

@@ -11,7 +11,6 @@ import {
     onWillStart,
     onWillUnmount,
     status,
-    useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -39,6 +38,7 @@ import {
     useOptionalService,
     useService,
 } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { effect } from "@web/core/utils/reactive";
 import { renderToElement } from "@web/core/utils/render";
 import { redirect } from "@web/core/utils/urls";
@@ -216,7 +216,7 @@ export class WebsiteBuilderClientAction extends Component {
             },
             [this.state],
         );
-        useEffect(
+        useLayoutEffect(
             (isEditing) => {
                 log.lifecycle("isEditing effect", { isEditing });
                 document

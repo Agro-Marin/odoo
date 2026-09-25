@@ -1,10 +1,11 @@
 /** @odoo-module native */
 /** @ts-check */
 
-import { Component, onWillStart, onWillUpdateProps, useEffect } from "@odoo/owl";
+import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete";
 import { TagsList } from "@web/components/tags_list";
 import { useChildRef, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class SelectionFilterValue extends Component {
     static template = "spreadsheet.SelectionFilterValue";
@@ -24,7 +25,7 @@ export class SelectionFilterValue extends Component {
 
     setup() {
         this.inputRef = useChildRef();
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.inputRef.el) {
                     // Prevent the user from typing free-text by setting the maxlength to 0

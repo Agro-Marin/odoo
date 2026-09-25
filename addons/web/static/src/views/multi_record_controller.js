@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onMounted, onWillStart, useEffect } from "@odoo/owl";
+import { onMounted, onWillStart } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { user } from "@web/core/user";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { provideViewModel } from "@web/model/model";
 import { usePager } from "@web/search/pager_hook";
 import { useViewButtons } from "@web/views/view_button/view_button_hook";
@@ -137,7 +138,7 @@ export class MultiRecordController extends ViewController {
             reload: () => this.model.load(),
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.onSelectionChanged();
             },

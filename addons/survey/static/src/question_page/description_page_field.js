@@ -1,7 +1,8 @@
 /** @odoo-module native */
-import { useEffect, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { useSurveyContext } from "@survey/survey_context";
 import { registry } from "@web/core/registry";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 
 class DescriptionPageField extends CharField {
@@ -10,7 +11,7 @@ class DescriptionPageField extends CharField {
         super.setup();
         this.surveyContext = useSurveyContext();
         const inputRef = useRef("input");
-        useEffect(
+        useLayoutEffect(
             (input) => {
                 if (input) {
                     input.classList.add("col");

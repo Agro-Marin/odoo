@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, onWillDestroy, status, useEffect, useState } from "@odoo/owl";
+import { Component, onWillDestroy, status, useState } from "@odoo/owl";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { PartnerLine } from "@point_of_sale/app/screens/partner_list/partner_line/partner_line";
@@ -9,6 +9,7 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { normalize } from "@web/core/l10n/utils";
 import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog";
 const log = makeLogger("pos.screen.partner_list");
@@ -57,7 +58,7 @@ export class PartnerList extends Component {
         this.onScroll = debounce(this.onScroll.bind(this), 200);
         onWillDestroy(() => this.onScroll.cancel());
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 const content = this.modalRef.el?.querySelector(".modal-body");
                 if (!content) {

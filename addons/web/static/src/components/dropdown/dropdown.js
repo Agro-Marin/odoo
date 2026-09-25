@@ -9,7 +9,6 @@ import {
     onWillUpdateProps,
     reactive,
     status,
-    useEffect,
     xml,
 } from "@odoo/owl";
 import { useDropdownGroup } from "@web/components/dropdown/_behaviours/dropdown_group_hook";
@@ -24,6 +23,7 @@ import { getComponentElement } from "@web/core/utils/components";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { effect } from "@web/core/utils/reactive";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { utils } from "@web/ui/viewport";
@@ -230,13 +230,13 @@ export class Dropdown extends Component {
     }
 
     setupTargetBinding() {
-        useEffect(
+        useLayoutEffect(
             (target) => this.setTargetElement(target),
             () => [this.target],
         );
 
         this._menuClassNames = [];
-        useEffect(
+        useLayoutEffect(
             (menuEl) => {
                 if (menuEl) {
                     this.syncMenuClass(menuEl);

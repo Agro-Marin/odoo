@@ -1,7 +1,8 @@
 /** @odoo-module native */
-import { onWillUnmount, reactive, useEffect, useExternalListener } from "@odoo/owl";
+import { onWillUnmount, reactive, useExternalListener } from "@odoo/owl";
 import { pick } from "@web/core/utils/collections/objects";
 import { makeNativeDraggableHook } from "@web/core/utils/dnd";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 const hookParams = {
@@ -128,7 +129,7 @@ const hookParams = {
 export function useCalendarTaskToPlanDraggable(params) {
     const setupHooks = {
         addListener: useExternalListener,
-        setup: useEffect,
+        setup: useLayoutEffect,
         teardown: onWillUnmount,
         throttle: useThrottleForAnimation,
         wrapState: reactive,

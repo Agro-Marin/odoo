@@ -3,12 +3,13 @@
 import { Gif } from "@mail/core/common/gif";
 import { useOnBottomScrolled } from "@mail/utils/common/hooks";
 import { makeSequential } from "@mail/utils/common/misc";
-import { Component, onWillStart, useEffect, useState } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { PICKER_PROPS, usePicker } from "@web/components/emoji_picker";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { user } from "@web/core/user";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useDebounced } from "@web/core/utils/timing";
 
 const log = makeLogger("mail.gif_picker");
@@ -117,7 +118,7 @@ export class GifPicker extends Component {
                 this.loadFavorites();
             });
         }
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.props.state?.picker !== this.props.PICKERS?.GIF) {
                     return;

@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
-import { onWillUpdateProps, toRaw, useEffect, useRef, useState } from "@odoo/owl";
+import { onWillUpdateProps, toRaw, useRef, useState } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { usePopover } from "@web/ui/popover";
 
 import { RecipientsInputTagsListPopover } from "./recipients_input_tags_list_popover.js";
@@ -32,7 +33,7 @@ export class RecipientsInputTagsList extends TagsList {
                 }
             },
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.state.tagToUpdate && this.tagToUpdateRef.el) {
                     this.updateTag();

@@ -2,7 +2,6 @@
 import { stores } from "@odoo/o-spreadsheet";
 import {
     useChildSubEnv,
-    useEffect,
     useEnv,
     useExternalListener,
     useState,
@@ -11,6 +10,7 @@ import {
 import { loadBundle } from "@web/core/assets";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { ConfirmationDialog } from "@web/ui/dialog";
 
 const { useStore, useStoreProvider, NotificationStore, GridRenderer } = stores;
@@ -60,7 +60,7 @@ export function useSpreadsheetPrint(model) {
     );
     useExternalListener(window, "afterprint", afterPrint);
 
-    useEffect(
+    useLayoutEffect(
         () => {
             if (printState.active) {
                 window.print();

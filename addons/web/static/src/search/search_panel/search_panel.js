@@ -7,7 +7,6 @@ import {
     onWillUnmount,
     onWillUpdateProps,
     reactive,
-    useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -19,6 +18,7 @@ import { SearchModelEvent } from "@web/core/events";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { uniqueId } from "@web/core/utils/functions";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { useWebContext } from "@web/core/web_context_hooks";
 import { useSearchModel } from "@web/search/search_model";
@@ -84,7 +84,7 @@ export class SearchPanel extends Component {
             this.state.searchModelUpdates++;
         });
 
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (el && this.hasImportedState) {
                     el.style["min-width"] = this.width;

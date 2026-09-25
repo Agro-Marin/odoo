@@ -19,7 +19,7 @@ import {
 } from "@mail/utils/common/local_storage";
 import { useMailContext } from "@mail/utils/common/mail_context";
 import { assignGetter, isDragSourceExternalFile } from "@mail/utils/common/misc";
-import { status, useEffect } from "@odoo/owl";
+import { status } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { useCustomDropzone } from "@web/components/dropzone";
 import { browser } from "@web/core/browser/browser";
@@ -29,6 +29,7 @@ import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 
 const log = makeLogger("mail.chatter");
@@ -165,7 +166,7 @@ export class WebChatter extends Chatter {
         );
     }
     _setupChatterEffects() {
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (!this.state.thread) {
                     return;
@@ -187,7 +188,7 @@ export class WebChatter extends Chatter {
             },
             () => [this.state.thread, this.state.thread?.isLoadingAttachments],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (
                     this.state.thread &&
@@ -199,7 +200,7 @@ export class WebChatter extends Chatter {
             },
             () => [this.state.thread?.status, this.attachments.length],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.state.aside = this.props.isChatterAside;
             },

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, toRaw, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, toRaw, useRef, useState } from "@odoo/owl";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -11,6 +11,7 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { Time } from "@web/core/l10n/time";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
@@ -96,7 +97,7 @@ export class MultiSelectionButtons extends Component {
         this.addButtonRef = useRef("addButton");
 
         const rootRef = useRef("root");
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (!el) {
                     return;

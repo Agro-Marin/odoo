@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hook";
 import { browser } from "@web/core/browser/browser";
 import { Transition } from "@web/core/transition";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { EmbeddedActions } from "@web/search/embedded_actions_bar/embedded_actions";
 import { EmbeddedActionsDropdown } from "@web/search/embedded_actions_bar/embedded_actions_dropdown";
 
@@ -34,7 +35,7 @@ export class EmbeddedActionsBar extends Component {
             embeddedInfos: this.props.embeddedActions.embeddedInfos,
         });
 
-        useEffect(
+        useLayoutEffect(
             (showEmbedded) => {
                 const timer = browser.setTimeout(() => {
                     if (

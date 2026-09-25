@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { Component, onWillStart, useEffect, useState } from "@odoo/owl";
+import { Component, onWillStart, useState } from "@odoo/owl";
 import { router } from "@web/core/browser/router";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { Layout } from "@web/search/layout";
 import { standardActionServiceProps } from "@web/webclient/actions";
 
@@ -50,7 +51,7 @@ export class ViewHierarchy extends Component {
             }));
         });
 
-        useEffect(
+        useLayoutEffect(
             (searchFoundElem) => {
                 if (searchFoundElem) {
                     searchFoundElem.scrollIntoView({

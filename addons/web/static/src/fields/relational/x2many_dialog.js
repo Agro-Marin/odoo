@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useEnv, useState } from "@odoo/owl";
+import { Component, useEnv, useState } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { makeContext } from "@web/core/context";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
@@ -17,6 +17,7 @@ import {
     useOwnedDialogs,
     useService,
 } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useProps } from "@web/core/utils/owl_bridge";
 import { provideViewConfig } from "@web/core/view_config_hooks";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
@@ -101,7 +102,7 @@ export class X2ManyFieldDialog extends Component {
 
         const { autofocusFieldIds, disableAutofocus } = this.archInfo;
         if (!disableAutofocus) {
-            useEffect(
+            useLayoutEffect(
                 (isInEdition) => {
                     let elementToFocus;
                     if (isInEdition) {

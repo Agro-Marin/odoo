@@ -4,7 +4,6 @@
 import {
     Component,
     onWillUpdateProps,
-    useEffect,
     useExternalListener,
     useRef,
     useState,
@@ -14,6 +13,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { download } from "@web/core/network/download";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
@@ -110,7 +110,7 @@ export class FileViewer extends Component {
             this.updateZoomerStyle(),
         );
         onWillUpdateProps((nextProps) => this.onFilesUpdated(nextProps.files));
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (el) {
                     hidePDFJSButtons(this.iframeViewerPdfRef.el, {

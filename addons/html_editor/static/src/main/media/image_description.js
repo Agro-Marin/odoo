@@ -1,7 +1,8 @@
 /** @odoo-module native */
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
-import { Component, useEffect, useRef } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { Dialog } from "@web/ui/dialog";
 
 export class ImageDescription extends Component {
@@ -34,7 +35,7 @@ export class ImageDescriptionPopover extends Component {
             tooltip: this.props.tooltip,
         };
         this.inputRef = useRef("description");
-        useEffect(
+        useLayoutEffect(
             (el) => el?.focus(),
             () => [this.inputRef.el],
         );

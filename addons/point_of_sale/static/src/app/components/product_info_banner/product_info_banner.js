@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { Component, onWillUnmount, useEffect, useState } from "@odoo/owl";
+import { Component, onWillUnmount, useState } from "@odoo/owl";
 import { AccordionItem } from "@point_of_sale/app/components/accordion_item/accordion_item";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { debounce } from "@web/core/utils/timing";
 const log = makeLogger("pos.component.product_info_banner");
 export class ProductInfoBanner extends Component {
@@ -68,7 +69,7 @@ export class ProductInfoBanner extends Component {
             }
         }, 500);
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.props.productTemplate) {
                     debouncedFetchStocks(

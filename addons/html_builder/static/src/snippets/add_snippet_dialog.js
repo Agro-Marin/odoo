@@ -1,18 +1,12 @@
 /** @odoo-module native */
-import {
-    Component,
-    onMounted,
-    onWillUnmount,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { loadBundle, loadCSS } from "@web/core/assets";
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { colorScheme } from "@web/core/color_scheme";
 import { localization } from "@web/core/l10n/localization";
 import { useChildRef } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { Dialog } from "@web/ui/dialog";
 import { getFirstAndLastTabableElements } from "@web/ui/ui_service";
 
@@ -98,7 +92,7 @@ export class AddSnippetDialog extends Component {
             this.state.showIframe = true;
         });
 
-        useEffect(() => {
+        useLayoutEffect(() => {
             if (
                 !this.props.snippetModel.hasCustomGroup &&
                 this.state.groupSelected === "custom"

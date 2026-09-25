@@ -74,6 +74,7 @@ REMOVED_IN_OWL3 = {
     "owl_on_will_render": re.compile(r"(?<![\w.$])onWillRender\s*\("),
     "owl_this_render": re.compile(r"\bthis\.render\s*\("),
     "owl_use_component": re.compile(r"(?<![\w.$])useComponent\s*\("),
+    "owl_use_effect": re.compile(r"(?<![\w.$])useEffect\s*\("),
     "owl_env_services": re.compile(r"\bthis\.env\.services\b"),
 }
 
@@ -237,6 +238,15 @@ class TestOwl3Api(lint_case.LintCase):
             "useComponent()",
             "A hook takes what it needs as arguments or reads it through its "
             "own hooks; OWL 3 has no useComponent",
+        )
+
+    def test_no_use_effect(self):
+        self._assert_removed(
+            "owl_use_effect",
+            "useEffect()",
+            "Call useLayoutEffect from @web/core/utils/layout_effect, OWL 2's "
+            "dependency-array effect built on onMounted / onPatched; OWL 3's "
+            "useEffect takes no dependencies and re-runs on every reactive read",
         )
 
     def test_no_env_dialog_context(self):

@@ -6,7 +6,7 @@ import { CHAT_HUB_COMPACT_LS } from "@mail/core/common/chat_hub_model";
 import { ChatWindow } from "@mail/core/common/chat_window";
 import { useHover, useMovable } from "@mail/utils/common/hooks";
 import { removeLocalStorageItem } from "@mail/utils/common/local_storage";
-import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
@@ -15,6 +15,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 import { ChatBubble } from "./chat_bubble.js";
 const log = makeLogger("mail.chat_hub");
@@ -53,7 +54,7 @@ export class ChatHub extends Component {
         });
         this.onResize();
         useExternalListener(browser, "resize", this.onResize);
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (
                     this.chatHub.folded.length &&

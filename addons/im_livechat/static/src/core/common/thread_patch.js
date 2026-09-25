@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Thread } from "@mail/core/common/thread";
-import { useEffect } from "@odoo/owl";
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { patch } from "@web/core/utils/patch";
 
 const { DateTime } = luxon;
@@ -13,7 +13,7 @@ patch(Thread.prototype, {
         super.setup(...arguments);
         this.IM_STATUS_DELAY = 1500;
         Object.assign(this.state, { isVisitorOffline: false });
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (!this.props.thread.livechatVisitorMember?.im_status) {
                     return;

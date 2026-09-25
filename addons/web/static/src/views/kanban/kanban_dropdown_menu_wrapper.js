@@ -1,8 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useRef } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { useDropdownCloser } from "@web/components/dropdown/dropdown_hook";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class KanbanDropdownMenuWrapper extends Component {
     static template = "web.KanbanDropdownMenuWrapper";
@@ -18,7 +19,7 @@ export class KanbanDropdownMenuWrapper extends Component {
     setup() {
         this.dropdownControl = useDropdownCloser();
         this.rootRef = useRef("rootRef");
-        useEffect(() => {
+        useLayoutEffect(() => {
             const dropdownEls = /** @type {HTMLElement[]} */ ([
                 ...(this.rootRef.el?.querySelectorAll(".dropdown-item") ?? []),
             ]);

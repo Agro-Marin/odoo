@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { KanbanRenderer } from "@web/views/kanban";
 
 import { DateTime } from "luxon";
@@ -18,7 +18,7 @@ export class AccountReturnBaseKanbanRenderer extends KanbanRenderer {
             this.allowedCategories = options.allowed_categories;
         }
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.runAllReturnChecks();
             },

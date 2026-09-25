@@ -5,7 +5,6 @@ import {
     Component,
     onWillDestroy,
     onWillUpdateProps,
-    useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -22,6 +21,7 @@ import { _t } from "@web/core/translation";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { uuid } from "@web/core/utils/format/strings";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 
 import { PropertyDefinitionSelection } from "./property_definition_selection.js";
@@ -112,7 +112,7 @@ export class PropertyDefinition extends Component {
             return this._syncStateWithProps(newProps.propertyDefinition);
         });
 
-        useEffect((event) => {
+        useLayoutEffect((event) => {
             if (this.labelFocused) {
                 return;
             }

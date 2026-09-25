@@ -9,7 +9,6 @@ import {
     Component,
     onMounted,
     onWillUnmount,
-    useEffect,
     useExternalListener,
     useRef,
 } from "@odoo/owl";
@@ -17,6 +16,7 @@ import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useViewConfig } from "@web/core/view_config_hooks";
 const log = makeLogger("mail.discuss");
 
@@ -71,7 +71,7 @@ export class Discuss extends Component {
             { capture: true },
         );
         if (this.store.inPublicPage) {
-            useEffect(
+            useLayoutEffect(
                 /**
                  * @param {import("models").Thread|undefined} thread
                  * @param {boolean} isSmall

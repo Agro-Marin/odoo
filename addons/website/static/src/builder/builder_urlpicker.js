@@ -2,10 +2,10 @@
 import { useBuilderContext } from "@html_builder/core/builder_context";
 import { BuilderUrlPicker } from "@html_builder/core/building_blocks/builder_urlpicker";
 import { Plugin } from "@html_editor/plugin";
-import { useEffect } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { autocompleteWithPages } from "@website/js/utils";
 
 const log = makeLogger("website.builder.plugin.url_picker_plugin");
@@ -16,7 +16,7 @@ export class WebsiteUrlPicker extends BuilderUrlPicker {
         this.builderContext = useBuilderContext();
         useLifecycleLog(log);
 
-        useEffect(
+        useLayoutEffect(
             (inputEl) => {
                 if (!inputEl) {
                     return;

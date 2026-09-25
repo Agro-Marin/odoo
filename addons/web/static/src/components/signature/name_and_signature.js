@@ -1,14 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    Component,
-    onWillDestroy,
-    onWillStart,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onWillDestroy, onWillStart, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { isMobileOS } from "@web/core/browser/feature_detection";
@@ -18,6 +11,7 @@ import { rpc } from "@web/core/network/rpc";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
 import { useAutofocus } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { renderToString } from "@web/core/utils/render";
 import { getDataURLFromFile } from "@web/core/utils/urls";
 
@@ -115,7 +109,7 @@ export class NameAndSignature extends Component {
         this.signNameInputRef = /** @type {any} */ (useRef("signNameInput"));
         this.signInputLoad = /** @type {any} */ (useRef("signInputLoad"));
         useAutofocus({ refName: "signNameInput" });
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (el) {
                     el.click();
@@ -133,7 +127,7 @@ export class NameAndSignature extends Component {
         });
 
         this.signatureRef = /** @type {any} */ (useRef("signature"));
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (!el) {
                     return;

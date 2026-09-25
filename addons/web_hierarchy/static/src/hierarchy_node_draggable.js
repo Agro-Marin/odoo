@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { onWillUnmount, reactive, useEffect, useExternalListener } from "@odoo/owl";
+import { onWillUnmount, reactive, useExternalListener } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { pick } from "@web/core/utils/collections/objects";
 import { makeNativeDraggableHook } from "@web/core/utils/dnd";
@@ -92,7 +93,7 @@ const hookParams = {
 export function useHierarchyNodeDraggable(params) {
     const setupHooks = {
         addListener: useExternalListener,
-        setup: useEffect,
+        setup: useLayoutEffect,
         teardown: onWillUnmount,
         throttle: useThrottleForAnimation,
         wrapState: reactive,

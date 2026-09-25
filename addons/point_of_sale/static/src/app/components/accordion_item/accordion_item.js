@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, onMounted, useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class AccordionItem extends Component {
     static template = "pos_hr.AccordionItem";
@@ -21,7 +22,7 @@ export class AccordionItem extends Component {
         onMounted(() => {
             this.contentHeight = this.calculateFullHeight();
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.contentHeight = this.calculateFullHeight();
             },

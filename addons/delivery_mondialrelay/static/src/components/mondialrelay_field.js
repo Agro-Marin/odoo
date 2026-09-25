@@ -5,7 +5,8 @@ import { loadJS } from "@web/core/assets";
 // temporary for OnNoResultReturned bug
 import { ThirdPartyScriptError } from "@web/core/errors/error_service";
 
-import { Component, useEffect, useRef, useState, xml } from "@odoo/owl";
+import { Component, useRef, useState, xml } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 const errorHandlerRegistry = registry.category("error_handlers");
@@ -28,7 +29,7 @@ export class MondialRelayField extends Component {
         this.state = useState({
             libLoaded: false, // Whether the library is loaded or not
         });
-        useEffect(() => {
+        useLayoutEffect(() => {
             // Do nothing if the record is not of type mondial_relay
             if (!this.enabled || this.state.libLoaded) {
                 return;
@@ -42,7 +43,7 @@ export class MondialRelayField extends Component {
             });
         });
 
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (!el) {
                     return;

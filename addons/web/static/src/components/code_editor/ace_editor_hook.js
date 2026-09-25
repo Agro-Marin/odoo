@@ -1,10 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onMounted, useEffect } from "@odoo/owl";
+import { onMounted } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useIsDestroyed } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const log = makeLogger("web.components.code_editor");
 
@@ -169,24 +170,24 @@ export function useAceEditor(params) {
     const isDestroyed = useIsDestroyed();
     const controller = new AceEditorController(params);
 
-    useEffect(
+    useLayoutEffect(
         (el) => (el ? controller.attach(el) : undefined),
         () => [params.ref.el],
     );
-    useEffect(
+    useLayoutEffect(
         (theme) => controller.applyTheme(theme),
         () => [params.getTheme()],
     );
-    useEffect(
+    useLayoutEffect(
         (readonly, lineNumbers, maxLines) =>
             controller.applyOptions(readonly, lineNumbers, maxLines),
         () => [params.isReadonly(), params.showLineNumbers(), params.getMaxLines()],
     );
-    useEffect(
+    useLayoutEffect(
         (sessionId, mode) => controller.showSession(sessionId, mode),
         () => [params.getSessionId(), params.getMode()],
     );
-    useEffect(
+    useLayoutEffect(
         (sessionId, value) => controller.syncValue(sessionId, value),
         () => [params.getSessionId(), params.getValue()],
     );

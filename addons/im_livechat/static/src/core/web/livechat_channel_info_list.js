@@ -5,11 +5,12 @@ import { ConversationTagEdit } from "@im_livechat/core/web/livechat_conversation
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { prettifyMessageContent } from "@mail/utils/common/format";
 import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
-import { Component, useEffect, useRef } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list";
 import { startUrl } from "@web/core/browser/router";
 import { rpc } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { url } from "@web/core/utils/urls";
 import { usePopover } from "@web/ui/popover";
 
@@ -36,7 +37,7 @@ export class LivechatChannelInfoList extends Component {
         this.tagsContainer = useRef("tagsContainer");
         provideMailContext({ inLivechatInfoPanel: true });
         this.mailContext = useMailContext();
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.props.thread.hasFetchedLivechatSessionData) {
                     return;

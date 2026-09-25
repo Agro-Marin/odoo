@@ -42,7 +42,6 @@ import {
     reactive,
     status,
     toRaw,
-    useEffect,
     useExternalListener,
     useRef,
     useState,
@@ -63,6 +62,7 @@ import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { htmlJoin, isHtmlEmpty, setElementContent } from "@web/core/utils/dom/html";
 import { isEmail } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { rootIdOf } from "@web/ui/overlay/root_id";
 const EDIT_CLICK_TYPE = {
     CANCEL: "cancel",
@@ -217,7 +217,7 @@ export class Composer extends Component {
     }
     _setupEffects() {
         provideChildMailContext({ inComposer: true });
-        useEffect(
+        useLayoutEffect(
             /** @param {number} focus */
             (focus) => {
                 if (focus && this.ref.el) {
@@ -235,7 +235,7 @@ export class Composer extends Component {
                 this.props.placeholder,
             ],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.props.composer.replyToMessage) {
                     this.props.composer.autofocus++;
@@ -243,7 +243,7 @@ export class Composer extends Component {
             },
             () => [this.props.composer.replyToMessage],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 const fakeTextarea = /** @type {HTMLTextAreaElement|null} */ (
                     this.fakeTextarea.el
@@ -262,7 +262,7 @@ export class Composer extends Component {
             },
             () => [this.props.composer.composerText, this.ref.el],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (!this.props.composer.forceCursorMove) {
                     return;

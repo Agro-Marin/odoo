@@ -1,7 +1,8 @@
 /** @odoo-module native */
-import { useEffect, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 const { DateTime } = luxon;
 
 export function useTime() {
@@ -17,7 +18,7 @@ export function useTime() {
         state.day = dateNow.toFormat("cccc");
         state.date = dateNow.toFormat(dateFormat);
     }
-    useEffect(
+    useLayoutEffect(
         () => {
             const interval = setInterval(() => setTime(), 500);
 

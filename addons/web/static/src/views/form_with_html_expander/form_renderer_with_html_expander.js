@@ -1,6 +1,7 @@
 // @ts-check
 /** @odoo-module native */
-import { useEffect, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { SIZES } from "@web/ui/viewport";
 import { FormRenderer } from "@web/views/form";
 
@@ -19,7 +20,7 @@ export class FormRendererWithHtmlExpander extends FormRenderer {
     setup() {
         super.setup();
         const ref = useRef("compiled_view_root");
-        useEffect(
+        useLayoutEffect(
             (el, size) => {
                 if (el && this._canExpandHTMLField(size)) {
                     const descriptionField = el.querySelector(

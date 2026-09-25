@@ -1,8 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect } from "@odoo/owl";
 import { useDropdownGroupMembership } from "@web/components/dropdown/dropdown_group";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 /**
  * @typedef DropdownGroupState
@@ -24,7 +24,7 @@ export function useDropdownGroup(dropdownState) {
     };
 
     if (group.isInGroup) {
-        useEffect(
+        useLayoutEffect(
             () => {
                 membership?.add(dropdownState);
                 return () => membership?.delete(dropdownState);

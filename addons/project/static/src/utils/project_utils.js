@@ -1,6 +1,6 @@
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export const STATUS_COLORS = {
     on_track: 20,
@@ -30,7 +30,7 @@ export function setShowSubtasks(value) {
 
 /** @param {{ el: HTMLElement | null }} rootRef */
 export function useFocusTitle(rootRef) {
-    useEffect(
+    useLayoutEffect(
         (el) => {
             el?.querySelector("#name_0")?.focus();
         },

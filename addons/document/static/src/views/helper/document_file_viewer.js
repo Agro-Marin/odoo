@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { DocumentsFileViewer } from "@document/attachments/document_file_viewer";
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useService } from "@web/core/utils/hooks";
 import { useDocumentContext } from "@document/document_context";
 
@@ -21,7 +22,7 @@ export class DocumentsFileViewerHost extends Component {
         this.state = useState({ topOffset: 0 });
 
         const onKeydown = this.onIframeKeydown.bind(this);
-        useEffect(
+        useLayoutEffect(
             (iframe) => {
                 if (!iframe) {
                     return;
@@ -39,7 +40,7 @@ export class DocumentsFileViewerHost extends Component {
             },
             () => [this.root.el && this.root.el.querySelector("iframe")],
         );
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (!el) {
                     return;

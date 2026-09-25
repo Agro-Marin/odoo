@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { AccountReportChatter } from "@account/components/mail/chatter";
-import { useEffect, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { useDebugMode } from "@web/core/debug/debug_context";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { ListRenderer } from "@web/views/list";
 
 import { useAuditBalanceListChatterService } from "./account_audit_balance_list_chatter_service.js";
@@ -23,7 +24,7 @@ export class AccountAuditBalanceListRenderer extends ListRenderer {
 
         this.chatterRef = useRef("AuditChatter");
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.props.list.editedRecord) {
                     this.chatterService.openChatter(

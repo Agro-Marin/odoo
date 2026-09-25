@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useRef, useState } from "@odoo/owl";
+import { useRef, useState } from "@odoo/owl";
 import { useActionCallbackRecorders } from "@web/core/action_hook";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useViewButtonContext } from "@web/core/view_button_context_hooks";
 import { formView } from "@web/views/form/form_view";
 import { provideSettingsSearchContext } from "@web/views/settings/settings_search_context";
@@ -33,7 +34,7 @@ export class SettingsFormController extends formView.Controller {
         this.rootRef = useRef("root");
         this.canCreate = false;
         provideSettingsSearchContext({ searchState: this.searchState });
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.searchState.value) {
                     this.state.displayNoContent = !this.rootRef.el.querySelector(
@@ -45,7 +46,7 @@ export class SettingsFormController extends formView.Controller {
             },
             () => [this.searchState.value],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.actionCallbacks.__getLocalState__) {
                     this.actionCallbacks.__getLocalState__.remove(this);

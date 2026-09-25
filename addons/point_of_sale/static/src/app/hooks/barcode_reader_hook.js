@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useComponentName } from "@web/core/utils/owl_bridge";
 const log = makeLogger("pos.barcode.hook");
 export function useBarcodeReader(callbackMap, exclusive = false) {
@@ -14,7 +14,7 @@ export function useBarcodeReader(callbackMap, exclusive = false) {
         reader: Boolean(barcodeReader),
     }));
     if (barcodeReader) {
-        useEffect(
+        useLayoutEffect(
             () => barcodeReader.register(callbackMap, exclusive),
             () => [],
         );

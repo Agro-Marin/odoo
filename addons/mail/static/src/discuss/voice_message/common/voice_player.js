@@ -5,13 +5,13 @@ import {
     onMounted,
     onWillUnmount,
     status,
-    useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { url } from "@web/core/utils/urls";
 
 const log = makeLogger("mail.voice.player");
@@ -76,7 +76,7 @@ export class VoicePlayer extends Component {
             repeat: false,
             visualTime: "-- : --",
         });
-        useEffect(
+        useLayoutEffect(
             /** @param {boolean} playing */
             (playing) => {
                 if (playing) {
@@ -85,7 +85,7 @@ export class VoicePlayer extends Component {
             },
             () => [this.state.playing],
         );
-        useEffect(
+        useLayoutEffect(
             /** @param {boolean} uploading */
             (uploading) => {
                 if (uploading) {

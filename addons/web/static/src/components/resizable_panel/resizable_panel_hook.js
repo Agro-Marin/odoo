@@ -4,11 +4,11 @@
 import {
     onWillUnmount,
     onWillUpdateProps,
-    useEffect,
     useExternalListener,
     useRef,
 } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useProps } from "@web/core/utils/owl_bridge";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
@@ -232,7 +232,7 @@ export function useResizable({
         useThrottleForAnimation(() => controller.onWindowResize()),
     );
 
-    useEffect(
+    useLayoutEffect(
         (el) => (el ? controller.attach(el) : undefined),
         () => [handleRef.el],
     );

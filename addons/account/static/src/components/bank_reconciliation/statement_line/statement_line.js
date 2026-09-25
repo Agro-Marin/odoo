@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { onWillStart, useEffect, useRef, useState } from "@odoo/owl";
+import { onWillStart, useRef, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatMonetary } from "@web/core/formatters";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useViewModel } from "@web/model/model";
 import { KanbanRecord } from "@web/views/kanban";
 
@@ -47,7 +48,7 @@ export class BankRecStatementLine extends KanbanRecord {
         onWillStart(async () => {
             this.userCanReview = await user.hasGroup("account.group_account_user");
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 this._updateLinesState();
             },

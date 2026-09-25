@@ -4,7 +4,8 @@ import { ActionContainer } from "@web/webclient/actions";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { provideDebugContext } from "@web/core/debug/debug_context";
 import { session } from "@web/session";
-import { Component, useEffect, useExternalListener } from "@odoo/owl";
+import { Component, useExternalListener } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class SubcontractingPortalWebClient extends Component {
     static components = { ActionContainer, MainComponentsContainer };
@@ -14,7 +15,7 @@ export class SubcontractingPortalWebClient extends Component {
         window.parent.document.body.style.margin = "0";
         this.actionService = useService("action");
         provideDebugContext({ categories: ["default"] });
-        useEffect(
+        useLayoutEffect(
             () => {
                 this._showView();
             },

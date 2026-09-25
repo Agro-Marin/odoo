@@ -1,10 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useRef } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isIOS } from "@web/core/browser/feature_detection";
 import { clamp } from "@web/core/utils/format/numbers";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const AREA_KEYS = ["x", "y", "width", "height"];
 
@@ -35,7 +36,7 @@ export class CropOverlay extends Component {
 
     setup() {
         this.cropContainerRef = /** @type {any} */ (useRef("crop-container"));
-        useEffect(
+        useLayoutEffect(
             (el, isReady) => {
                 if (!el || !isReady) {
                     this.hasInitialPosition = false;

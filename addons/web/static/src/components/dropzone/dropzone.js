@@ -1,7 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 export class Dropzone extends Component {
@@ -21,7 +22,7 @@ export class Dropzone extends Component {
         this.state = useState({
             isDraggingInside: false,
         });
-        useEffect(
+        useLayoutEffect(
             () => this.updatePosition(),
             () => [this.props.ref.el, this.root.el],
         );

@@ -1,7 +1,8 @@
 /** @odoo-module native */
 import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { simplifyString } from "@api_doc/utils/doc_model_search";
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class DocSidebar extends Component {
     static template = "api_doc.DocSidebar";
@@ -18,7 +19,7 @@ export class DocSidebar extends Component {
             searchValue: "",
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.containerRef.el
                     ?.querySelector(":scope .o_active")

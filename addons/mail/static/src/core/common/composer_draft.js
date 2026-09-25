@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
-import { Component, onMounted, useEffect, useExternalListener } from "@odoo/owl";
+import { Component, onMounted, useExternalListener } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { isHtmlEmpty, isMarkup } from "@web/core/utils/dom/html";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useDebounced } from "@web/core/utils/timing";
 import { usePopover } from "@web/ui/popover";
 
@@ -111,7 +112,7 @@ export function useComposerDraft(comp) {
         execBeforeUnmount: true,
     });
     useExternalListener(window, "beforeunload", () => comp.saveContent());
-    useEffect(
+    useLayoutEffect(
         () => {
             saveContentDebounced();
         },
@@ -128,7 +129,7 @@ export function useComposerDraft(comp) {
         position: "top-end",
         class: "dropdown-menu bg-view overflow-visible o-rounded-bubble mx-1",
     });
-    useEffect(
+    useLayoutEffect(
         /**
          * @param {boolean} isFullComposerOpen
          * @param {boolean} restoredFromFullComposer

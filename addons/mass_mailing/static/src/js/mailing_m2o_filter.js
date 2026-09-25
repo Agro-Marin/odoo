@@ -1,10 +1,11 @@
 /** @odoo-module native */
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown";
 import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import {
     buildM2OFieldDescription,
     computeM2OProps,
@@ -18,7 +19,7 @@ import { useViewModel } from "@web/model/model";
 export class MailingFilterDropdown extends Dropdown {
     setup() {
         super.setup();
-        useEffect(
+        useLayoutEffect(
             (inputFilterEl) => {
                 if (inputFilterEl) {
                     inputFilterEl.focus();
@@ -62,7 +63,7 @@ export class FieldMany2OneMailingFilter extends Component {
         this.filter = useState({
             canSaveFilter: false,
         });
-        useEffect(() => this._updateFilterIcons());
+        useLayoutEffect(() => this._updateFilterIcons());
     }
 
     get m2oProps() {

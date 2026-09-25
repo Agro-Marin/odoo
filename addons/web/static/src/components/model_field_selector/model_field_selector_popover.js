@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, onWillStart, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
@@ -9,6 +9,7 @@ import { sortBy } from "@web/core/utils/collections/arrays";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { INPUT_DEBOUNCE_DELAY, useDebounced } from "@web/core/utils/timing";
 
@@ -170,7 +171,7 @@ export class ModelFieldSelectorPopover extends Component {
         });
 
         const rootRef = useRef("root");
-        useEffect(
+        useLayoutEffect(
             () => {
                 const focusedElement = rootRef.el?.querySelector(
                     ".o_model_field_selector_popover_item.active",
@@ -181,7 +182,7 @@ export class ModelFieldSelectorPopover extends Component {
             },
             () => [this.state.page, this.state.page?.focusedFieldName],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.props.showSearchInput) {
                     const searchInput = rootRef.el.querySelector(

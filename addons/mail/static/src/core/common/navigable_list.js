@@ -3,7 +3,7 @@
 import { ImStatus } from "@mail/core/common/im_status";
 import { onExternalClick } from "@mail/utils/common/hooks";
 import { navigateIndex } from "@mail/utils/common/misc";
-import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -11,6 +11,7 @@ import { usePosition } from "@web/core/position/position_hook";
 import { delay } from "@web/core/utils/concurrency";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 const log = makeLogger("mail.navigable_list");
 export class NavigableList extends Component {
@@ -62,11 +63,11 @@ export class NavigableList extends Component {
             position: this.props.position,
         });
         // the root stays in the DOM while closed; do not measure and place it then
-        useEffect(
+        useLayoutEffect(
             (show) => (show ? positioning.unlock() : positioning.lock()),
             () => [this.show],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 const optionsKey = this.props.options
                     .map((option) => this.getOptionKey(option))
@@ -78,7 +79,7 @@ export class NavigableList extends Component {
             },
             () => [this.props.options, this.props.isLoading],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (!this.props.isLoading) {
                     browser.clearTimeout(this.loadingTimeoutId);

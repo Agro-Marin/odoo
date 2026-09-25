@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, useState, useEffect } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { ListRenderer, listView } from "@web/views/list";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
@@ -21,7 +22,7 @@ export class ExtraHoursSummary extends Component {
             remainingExtraHours: 0,
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.updateOvertimeData();
             },

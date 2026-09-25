@@ -1,6 +1,7 @@
 /** @odoo-module native */
-import { useEffect, useEnv, useState } from "@odoo/owl";
+import { useEnv, useState } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 /**
  * Common code between common and year renderer for our calendar.
@@ -13,7 +14,7 @@ export function useAppointmentRendererHook(component, getFcElements) {
      * Display an overlay when using the slots selection mode that
      * encompasses the past time.
      */
-    useEffect(
+    useLayoutEffect(
         (fcEls, calendarMode) => {
             if (calendarMode === "slots-creation") {
                 for (const fcEl of fcEls) {

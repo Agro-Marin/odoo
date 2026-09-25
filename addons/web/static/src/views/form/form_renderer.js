@@ -1,15 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    Component,
-    onMounted,
-    onWillUnmount,
-    useEffect,
-    useRef,
-    useState,
-    xml,
-} from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef, useState, xml } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { Notebook } from "@web/components/notebook/notebook";
 import { hasTouch } from "@web/core/browser/feature_detection";
@@ -19,6 +11,7 @@ import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { mutate } from "@web/core/utils/dom/layout_batch";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { Field } from "@web/fields/field";
 import { provideViewModel } from "@web/model/model";
@@ -91,7 +84,7 @@ export class FormRenderer extends Component {
         const { autofocusFieldIds } = archInfo;
         const rootRef = useRef("compiled_view_root");
         if (this.shouldAutoFocus) {
-            useEffect(
+            useLayoutEffect(
                 (isNew, rootEl) => {
                     if (!rootEl) {
                         return;
@@ -170,7 +163,7 @@ export class FormRenderer extends Component {
 
     setupStickyStatusbar() {
         const sentinel = useRef("stickySentinel");
-        useEffect(
+        useLayoutEffect(
             (el) => {
                 if (!el) {
                     return;

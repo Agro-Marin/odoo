@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
@@ -7,6 +7,7 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { sprintf } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { usePopover } from "@web/ui/popover";
 import { FormController, formView } from "@web/views/form";
@@ -44,7 +45,7 @@ export class PageDependencies extends Component {
             class: "o_page_dependencies",
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.fetchDependencies();
             },

@@ -8,10 +8,11 @@ import {
     generateSpecialMentionElement,
     generateThreadMentionElement,
 } from "@mail/utils/common/format";
-import { status, useEffect, useState } from "@odoo/owl";
+import { status, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { ConnectionAbortedError } from "@web/core/network";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useDebounced } from "@web/core/utils/timing";
 
 const log = makeLogger("mail.suggestion");
@@ -54,7 +55,7 @@ export class UseSuggestion {
             this.fetchSuggestions.bind(this),
             DELAY_FETCH,
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.detect();
             },
@@ -65,7 +66,7 @@ export class UseSuggestion {
                 this.composer.composerHtml,
             ],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.update();
                 if (this.search.position === undefined || !this.search.delimiter) {

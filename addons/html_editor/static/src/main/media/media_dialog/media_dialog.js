@@ -1,9 +1,10 @@
 /** @odoo-module native */
 import { iconClasses } from "@html_editor/utils/dom_info";
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { Notebook } from "@web/components/notebook";
 import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { Dialog } from "@web/ui/dialog";
 
 import { IconSelector } from "./icon_selector.js";
@@ -71,7 +72,7 @@ export class MediaDialog extends Component {
             isSaving: false,
         });
 
-        useEffect(
+        useLayoutEffect(
             (nbSelectedAttachments) => {
                 this.addButtonRef.el.toggleAttribute(
                     "disabled",

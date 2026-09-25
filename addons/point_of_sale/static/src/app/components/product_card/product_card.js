@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 const log = makeLogger("pos.component.product_card");
 
 const STOCK_BADGE_POSITION_CLASSES = {
@@ -43,7 +44,7 @@ export class ProductCard extends Component {
         this.pos = useService("pos");
         this.posStock = useService("pos_stock");
         this.stockQuantities = useState(this.posStock.quantities);
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.pos.config.show_stock_in_pos) {
                     this.posStock.request(this.stockProductIds);

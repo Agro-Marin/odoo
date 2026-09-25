@@ -1,13 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-import { status, useEffect, useState } from "@odoo/owl";
+import { status, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useModelWithSampleData } from "@web/model/model";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
@@ -114,7 +115,7 @@ export class ListController extends MultiRecordController {
             getOrderBy: () => this.model.root.orderBy,
         });
 
-        useEffect(
+        useLayoutEffect(
             (isReady) => {
                 if (isReady) {
                     if (this.ui.isSmall) {

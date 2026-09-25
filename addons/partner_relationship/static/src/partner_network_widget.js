@@ -6,11 +6,11 @@ import {
     onWillStart,
     onWillUnmount,
     onWillUpdateProps,
-    useEffect,
     useExternalListener,
     useRef,
     useState,
 } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -65,7 +65,7 @@ export class PartnerNetwork extends Component {
         });
         this.paper = null;
         this.drawToken = 0;
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.state.status === "ready") {
                     this.draw();

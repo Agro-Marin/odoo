@@ -1,10 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillDestroy, useChildSubEnv, useEffect, useEnv } from "@odoo/owl";
+import { onWillDestroy, useChildSubEnv, useEnv } from "@odoo/owl";
 import { DropdownEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { effect } from "@web/core/utils/reactive";
 const DROPDOWN_NESTING = Symbol("dropdownNesting");
 
@@ -104,7 +105,7 @@ export function useDropdownNesting(state) {
 
     const uiService = useService("ui");
     current.activeEl = /** @type {any} */ (uiService.activeElement);
-    useEffect(
+    useLayoutEffect(
         () => {
             queueMicrotask(() => {
                 current.activeEl = /** @type {any} */ (uiService.activeElement);

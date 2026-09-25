@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { onMounted, useEffect } from "@odoo/owl";
+import { onMounted } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
@@ -14,7 +15,7 @@ export class TodoFormControlPanel extends ControlPanel {
         this.bus = useEventBus();
         this.config = useViewConfig();
         this.ui = useService("ui");
-        useEffect(
+        useLayoutEffect(
             (isSmall) => {
                 if (isSmall && !this.state.displayChatter) {
                     this.toggleChatter();

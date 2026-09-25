@@ -3,7 +3,8 @@ import { _t } from "@web/core/translation";
 import { KanbanRecord } from "@web/views/kanban";
 import { FileUploadProgressBar } from "@web/components/file_upload";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { useEffect, useState } from "@odoo/owl";
+import { useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useSearchModel } from "@web/search/search_model";
 
 const CANCEL_GLOBAL_CLICK = ["a", ".dropdown", ".oe_kanban_action"].join(",");
@@ -29,7 +30,7 @@ export class DocumentsKanbanRecord extends KanbanRecord {
         this.thumbnailService = useService("documents_client_thumbnail");
         this.thumbnailService.enqueueRecords([this.props.record]);
         this.contentState = useState({ documentEmailContent: null });
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.fetchDocumentsEmailContent();
             },

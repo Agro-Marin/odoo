@@ -7,7 +7,6 @@ import {
     onMounted,
     onWillStart,
     reactive,
-    useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -20,6 +19,7 @@ import { _t } from "@web/core/translation";
 import { isVisible } from "@web/core/utils/dom/ui";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { autocompleteWithPages, slugify } from "@website/js/utils";
 
 import { WebsiteDialog } from "./dialog.js";
@@ -656,14 +656,14 @@ class TitleDescription extends Component {
             { defaultTitle: this.props.defaultTitle },
         );
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 document.title = this.title;
             },
             () => [this.seoContext.title],
         );
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 const initialTitle = document.title;
                 return () => (document.title = initialTitle);
@@ -756,7 +756,7 @@ export class BrokenLink extends Component {
             checkingLink: false,
         });
 
-        useEffect(
+        useLayoutEffect(
             (input) => {
                 if (!input) {
                     log.logic("BrokenLink no url input: skip autocomplete");

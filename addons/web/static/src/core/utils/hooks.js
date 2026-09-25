@@ -8,7 +8,6 @@ import {
     onWillUnmount,
     toRaw,
     useChildSubEnv,
-    useEffect,
     useEnv,
     useRef,
     useState,
@@ -16,6 +15,7 @@ import {
 } from "@odoo/owl";
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveElement } from "@web/core/utils/dom/ui";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useProps } from "@web/core/utils/owl_bridge";
 
 /** @typedef {{ readonly el: HTMLElement | null; }} Ref */
@@ -44,7 +44,7 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
             uiService.activeElement.contains(rootNode.host)
         );
     }
-    useEffect(
+    useLayoutEffect(
         (el) => {
             if (!mobile && (hasTouch() || isMobileOS())) {
                 return;
@@ -98,7 +98,7 @@ export function useEventBus() {
  * @returns {void}
  */
 export function useBus(bus, eventName, callback) {
-    useEffect(
+    useLayoutEffect(
         () => {
             const listener = /** @type {EventListener} */ (callback);
             bus.addEventListener(eventName, listener);
@@ -288,7 +288,7 @@ export function useSpellCheck({ refName } = {}) {
         /** @type {HTMLElement} */ (ev.target).spellcheck =
             getActiveElement(/** @type {Node} */ (ev.target)) === ev.target;
     }
-    useEffect(
+    useLayoutEffect(
         (el) => {
             /** @type {Element[]} */
             const elements = [];
@@ -426,7 +426,7 @@ export function useRefListener(ref, ...listener) {
     const args = /** @type {[string, EventListenerOrEventListenerObject, ...any[]]} */ (
         listener
     );
-    useEffect(
+    useLayoutEffect(
         (el) => {
             el?.addEventListener(...args);
             return () => el?.removeEventListener(...args);

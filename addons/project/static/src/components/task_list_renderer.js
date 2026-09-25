@@ -1,13 +1,13 @@
 /** @odoo-module native */
-import { useEffect } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { ListRenderer } from "@web/views/list";
 
 export class TaskListRenderer extends ListRenderer {
     setup() {
         super.setup();
         this.dialog = useService("dialog");
-        useEffect(
+        useLayoutEffect(
             (editedRecord) => this.focusName(editedRecord),
             () => [this.editedRecord],
         );

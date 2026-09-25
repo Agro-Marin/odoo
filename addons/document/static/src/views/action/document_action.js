@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { useService } from "@web/core/utils/hooks";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
@@ -26,7 +27,7 @@ export class DocumentsAction extends Component {
         });
         this.ui = useState(useService("ui"));
         this.selectionActions = useState(this.documentService.selectionActions);
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.selectionActions.provider) {
                     const selectionActions = this.selectionActions.provider();

@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onMounted, useEffect } from "@odoo/owl";
+import { onMounted } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { escapeRegExp } from "@web/core/utils/format/strings";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useViewModel } from "@web/model/model";
 export class IrUiViewCodeEditor extends CodeEditor {
     static props = {
@@ -25,7 +26,7 @@ export class IrUiViewCodeEditor extends CodeEditor {
             });
         });
 
-        useEffect(
+        useLayoutEffect(
             (arch, invalid_locators) => {
                 if (arch && invalid_locators) {
                     this.highlightInvalidLocators(arch, invalid_locators);

@@ -7,12 +7,13 @@ import { ImStatus } from "@mail/core/common/im_status";
 import { Thread } from "@mail/core/common/thread";
 import { useThreadActions } from "@mail/core/common/thread_actions";
 import { ThreadIcon } from "@mail/core/common/thread_icon";
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { FileUploader } from "@web/core/file_upload";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 const log = makeLogger("mail.discuss");
 
 export class DiscussContent extends Component {
@@ -41,7 +42,7 @@ export class DiscussContent extends Component {
         this.root = useRef("root");
         this.state = useState({ jumpThreadPresent: 0 });
         this.isDiscussContent = true;
-        useEffect(
+        useLayoutEffect(
             () => this.actionPanelAutoOpenFn(),
             () => [this.thread],
         );

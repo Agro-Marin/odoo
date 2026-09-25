@@ -10,7 +10,6 @@ import {
     setInputFiles,
     waitFor,
 } from "@odoo/hoot-dom";
-import { useEffect } from "@odoo/owl";
 import {
     contains,
     defineActions,
@@ -27,6 +26,7 @@ import {
     toggleActionMenu,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { redirect } from "@web/core/utils/urls";
 
 const FAKE_PREVIEW_HEADERS = ["Foo", "Bar", "Display name"];
@@ -1202,7 +1202,7 @@ describe("Import view", () => {
         patchWithCleanup(ImportDataProgress.prototype, {
             setup() {
                 super.setup();
-                useEffect(
+                useLayoutEffect(
                     () => {
                         if (this.props.importProgress.step === 1) {
                             // Trigger a pause at this step to resume later from the view
@@ -1298,7 +1298,7 @@ describe("Import view", () => {
         patchWithCleanup(ImportDataProgress.prototype, {
             setup() {
                 super.setup();
-                useEffect(
+                useLayoutEffect(
                     () => {
                         if (this.props.importProgress.step === 1) {
                             // Trigger a pause at this step to resume later from the view

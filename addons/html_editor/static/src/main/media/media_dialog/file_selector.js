@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { Component, onWillStart, useEffect, useRef, useState, xml } from "@odoo/owl";
+import { Component, onWillStart, useRef, useState, xml } from "@odoo/owl";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useDebounced } from "@web/core/utils/timing";
 import { ConfirmationDialog, Dialog } from "@web/ui/dialog";
 
@@ -121,7 +122,7 @@ export class FileSelectorControlPanel extends Component {
         this.fileInput = useRef("file-input");
         const urlInputRef = useRef("urlInput");
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.state.showUrlInput) {
                     urlInputRef.el.focus();
@@ -216,7 +217,7 @@ export class FileSelector extends Component {
         this.debouncedOnScroll = useDebounced(this.updateScroll.bind(this), 15);
         this.debouncedScrollUpdate = useDebounced(this.updateScroll.bind(this), 500);
 
-        useEffect(
+        useLayoutEffect(
             (modalEl) => {
                 if (modalEl) {
                     modalEl.addEventListener("scroll", this.debouncedOnScroll);
@@ -228,7 +229,7 @@ export class FileSelector extends Component {
             () => [this.props.modalRef.el?.querySelector("main.modal-body")],
         );
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.loadMoreButtonRef.el.classList.add("o_hide_loading");
                 this.state.canScrollAttachments = false;

@@ -1,8 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { _t } from "@web/core/translation";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -16,7 +17,7 @@ export class IframeWrapperField extends FieldComponent {
     setup() {
         this.iframeRef = useRef("iframe");
 
-        useEffect(
+        useLayoutEffect(
             (value) => {
                 const iframeDoc = /** @type {HTMLIFrameElement} */ (this.iframeRef.el)
                     .contentDocument;

@@ -1,8 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useEffect, useExternalListener, useState } from "@odoo/owl";
+import { Component, useExternalListener, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 /**
  * @typedef Common
  * @property {string} [fadeout='medium']
@@ -43,7 +44,7 @@ export class RainbowMan extends Component {
                 this.props.fadeout
             ] ?? RainbowMan.rainbowFadeouts.medium;
         if (this.delay) {
-            useEffect(
+            useLayoutEffect(
                 () => {
                     const timeout = browser.setTimeout(() => {
                         this.state.isFading = true;

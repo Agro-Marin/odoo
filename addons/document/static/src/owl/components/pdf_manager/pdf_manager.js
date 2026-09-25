@@ -6,7 +6,8 @@ import {
     PdfPageStore,
 } from "@document/owl/components/pdf_manager/pdf_page_store";
 import { PdfPage } from "@document/owl/components/pdf_page/pdf_page";
-import { Component, onWillStart, toRaw, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, onWillStart, toRaw, useRef, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { Dropdown } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
 import { uniqueId } from "@web/core/utils/functions";
@@ -87,7 +88,7 @@ export class PdfManager extends Component {
             await this._loadAssets();
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 const _onOutsideClick = this._onOutsideClick.bind(this);
                 if (this.props.documents.length === 1) {

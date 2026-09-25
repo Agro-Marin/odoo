@@ -1,8 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { ReportController } from "@web/views/report_controller";
 
 export class PivotController extends ReportController {
@@ -11,7 +11,7 @@ export class PivotController extends ReportController {
     setup() {
         super.setup();
         this.ui = useService("ui");
-        useEffect(
+        useLayoutEffect(
             (isReady) => {
                 if (isReady) {
                     this.actionState.setScrollFromState();

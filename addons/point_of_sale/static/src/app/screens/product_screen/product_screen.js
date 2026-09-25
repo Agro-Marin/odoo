@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, onMounted, onWillUnmount, useEffect, useState } from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useState } from "@odoo/owl";
 import { CategorySelector } from "@point_of_sale/app/components/category_selector/category_selector";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import {
@@ -30,6 +30,7 @@ import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { AlertDialog } from "@web/ui/dialog";
 const { DateTime } = luxon;
 
@@ -75,7 +76,7 @@ export class ProductScreen extends Component {
             this.numberBuffer.reset();
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (this.currentOrder?.state !== "draft" && !this.isValidatingOrder) {
                     log.logic("effect: non-draft order, adding new", () => ({

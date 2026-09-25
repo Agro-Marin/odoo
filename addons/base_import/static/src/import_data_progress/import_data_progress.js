@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 export class ImportDataProgress extends Component {
     static template = "ImportDataProgress";
@@ -17,7 +18,7 @@ export class ImportDataProgress extends Component {
             timeLeft: null,
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.updateTimer();
                 return () => {

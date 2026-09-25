@@ -5,7 +5,6 @@ import {
     Component,
     markRaw,
     onWillDestroy,
-    useEffect,
     useExternalListener,
     useRef,
     useState,
@@ -23,6 +22,7 @@ import { Transition } from "@web/core/transition";
 import { _t } from "@web/core/translation";
 import { ErrorHandler } from "@web/core/utils/components";
 import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { debounce } from "@web/core/utils/timing";
 import { usePopover } from "@web/ui/popover";
 import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
@@ -126,7 +126,7 @@ export class NavBar extends Component {
             this.bus.removeEventListener(AppEvent.MENUS_APP_CHANGED, onMenusChanged);
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.adapt();
             },

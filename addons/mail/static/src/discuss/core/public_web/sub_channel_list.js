@@ -6,11 +6,12 @@ import { SubChannelPreview } from "@mail/discuss/core/public_web/sub_channel_pre
 import { useVisible } from "@mail/utils/common/hooks";
 import { useMailContext } from "@mail/utils/common/mail_context";
 import { makeSequential } from "@mail/utils/common/misc";
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { fuzzyLookup } from "@web/core/utils/search";
 
 const log = makeLogger("mail.sub_channel");
@@ -51,7 +52,7 @@ export class SubChannelList extends Component {
                 }
             },
         );
-        useEffect(
+        useLayoutEffect(
             /** @param {string|undefined} searchTerm */
             (searchTerm) => {
                 if (!searchTerm) {

@@ -1,6 +1,7 @@
 /** @odoo-module native */
-import { Component, useEffect, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { useAutofocus } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useDebounced } from "@web/core/utils/timing";
 
 export class SearchMedia extends Component {
@@ -14,7 +15,7 @@ export class SearchMedia extends Component {
             input: this.props.needle || "",
         });
 
-        useEffect(
+        useLayoutEffect(
             (input) => {
                 if (this.hasRendered) {
                     this.debouncedSearch(input);

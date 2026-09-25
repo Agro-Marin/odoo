@@ -1,12 +1,5 @@
 /** @odoo-module native */
-import {
-    Component,
-    onMounted,
-    onWillUnmount,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { PriceFormatter } from "@point_of_sale/app/components/price_formatter/price_formatter";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -14,6 +7,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 const log = makeLogger("pos.screen.feedback");
 export class FeedbackScreen extends Component {
     static template = "point_of_sale.FeedbackScreen";
@@ -40,7 +34,7 @@ export class FeedbackScreen extends Component {
             this.scaleText();
         });
 
-        useEffect(
+        useLayoutEffect(
             () => {
                 const waiter = async () => {
                     let result;

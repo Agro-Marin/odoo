@@ -12,7 +12,6 @@ import {
     onWillDestroy,
     onWillUpdateProps,
     status,
-    useEffect,
     useEnv,
     useRef,
     useState,
@@ -32,6 +31,7 @@ import {
     useService,
     useServices,
 } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { renderToFragment } from "@web/core/utils/render";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
@@ -207,7 +207,7 @@ export class MassMailingIframe extends Component {
             iframeResize();
             sidebarResize();
         });
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.iframeLoaded.then(() => {
                     if (status(this) === "destroyed") {
@@ -222,7 +222,7 @@ export class MassMailingIframe extends Component {
             },
             () => [this.state.showFullscreen],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 this.iframeLoaded.then(() => {
                     if (status(this) === "destroyed") {

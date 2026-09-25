@@ -1,17 +1,11 @@
 /** @odoo-module native */
-import {
-    Component,
-    onMounted,
-    onWillDestroy,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onMounted, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { ConfirmationDialog } from "@web/ui/dialog";
 
 import { downloadPosLogs } from "../pretty_console_log.js";
@@ -61,7 +55,7 @@ export class DebugWidget extends Component {
             }
         });
 
-        useEffect(
+        useLayoutEffect(
             (isOpen) => {
                 if (!isOpen) {
                     return;

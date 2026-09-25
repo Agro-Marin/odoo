@@ -1,10 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { getLastConnectedUsers, setLastConnectedUsers } from "@web/core/user";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { imageUrl } from "@web/core/utils/urls";
 
 export class UserSwitch extends Component {
@@ -32,7 +33,7 @@ export class UserSwitch extends Component {
             }
             this.syncFormDisplay();
         });
-        useEffect(
+        useLayoutEffect(
             (el) => el?.querySelector("button.list-group-item-action")?.focus(),
             () => [this.root.el],
         );

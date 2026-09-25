@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { provideAccountContext } from "@account/account_context";
-import { useEffect } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { KanbanController } from "@web/views/kanban";
 
 export class AccountReturnCheckKanbanController extends KanbanController {
@@ -27,7 +27,7 @@ export class AccountReturnCheckKanbanController extends KanbanController {
         });
 
         let { rendererScrollPositions } = this.props.state || {};
-        useEffect(() => {
+        useLayoutEffect(() => {
             if (rendererScrollPositions) {
                 const renderer = this.rootRef.el.querySelector(
                     ".kanban_return_and_checks_cards",

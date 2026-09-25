@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEffect, useEnv, useSubEnv } from "@odoo/owl";
+import { useEnv, useSubEnv } from "@odoo/owl";
 import { Registry, registry } from "@web/core/registry";
 import { user } from "@web/core/user";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 const debugRegistry = registry.category("debug");
 
 debugRegistry.addValidation((entry) => entry instanceof Registry);
@@ -125,7 +126,7 @@ export function useDebugCategory(category, context = {}) {
     const env = useEnv();
     if (env.debug) {
         const debugContext = useEnvDebugContext();
-        useEffect(
+        useLayoutEffect(
             () => debugContext.activateCategory(category, context),
             () => [],
         );

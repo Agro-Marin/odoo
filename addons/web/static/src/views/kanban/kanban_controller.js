@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { reactive, useEffect, useState } from "@odoo/owl";
+import { reactive, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useModelWithSampleData } from "@web/model/model";
 import {
     addFieldDependencies,
@@ -167,7 +168,7 @@ export class KanbanController extends MultiRecordController {
             beforeLeave: this.beforeLeave.bind(this),
             getLocalState: () => this.getLocalState(),
         });
-        useEffect(
+        useLayoutEffect(
             (isReady) => {
                 if (!isReady) {
                     return;

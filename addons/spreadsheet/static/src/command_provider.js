@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { registries } from "@odoo/o-spreadsheet";
-import { useEffect, useEnv } from "@odoo/owl";
+import { useEnv } from "@odoo/owl";
 import { AUTHORIZED_KEYS, MODIFIERS } from "@web/core/browser/hotkeys";
 import { registry } from "@web/core/registry";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { HotkeyCommandItem } from "@web/ui/commands";
 
 const { topbarMenuRegistry } = registries;
@@ -14,7 +15,7 @@ const commandCategoryRegistry = registry.category("command_categories");
  */
 export function useSpreadsheetCommandPalette() {
     const env = useEnv();
-    useEffect(
+    useLayoutEffect(
         () => {
             setupSpreadsheetCategories(env);
             setupSpreadsheetCommandProvider(env);

@@ -18,7 +18,7 @@ import {
     useMailContext,
 } from "@mail/utils/common/mail_context";
 import { loadCssFromBundle } from "@mail/utils/common/misc";
-import { Component, status, toRaw, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, status, toRaw, useRef, useState } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
@@ -29,6 +29,7 @@ import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { createElementWithContent } from "@web/core/utils/dom/html";
 import { attachShadowRoot } from "@web/core/utils/dom/ui";
 import { useService } from "@web/core/utils/hooks";
+import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { renderToElement } from "@web/core/utils/render";
 import { getOrigin, url } from "@web/core/utils/urls";
 import { rootIdOf } from "@web/ui/overlay/root_id";
@@ -148,7 +149,7 @@ export class Message extends Component {
         });
     }
     _setupMessageEffects() {
-        useEffect(
+        useLayoutEffect(
             () => {
                 const el = this.shadowBody.el;
                 if (el) {
@@ -191,7 +192,7 @@ export class Message extends Component {
                 this.isEditing,
             ],
         );
-        useEffect(
+        useLayoutEffect(
             () => {
                 if (!this.isEditing) {
                     this.prepareMessageBody(this.messageBody.el);
