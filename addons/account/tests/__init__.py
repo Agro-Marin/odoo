@@ -153,3 +153,6 @@ from . import test_kpi_provider_reports
 from . import test_export_mime_type
 from . import test_spreadsheet_agreement
 from . import test_migration_account_config_tax_settings
+from . import test_account_coa
+from . import test_account_copy_and_name
+from . import test_split_code_name

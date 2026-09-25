@@ -242,7 +242,7 @@ class TestAccountCodeMapping(TransactionCase):
             self.assertEqual(m.code, acc.with_company(m.company_id).code)
 
     def test_pack_mapping_id_encoding(self):
-        from odoo.addons.account_coa.models.account_code_mapping import (
+        from odoo.addons.account.models.account_code_mapping import (
             COMPANY_OFFSET,
             _pack_mapping_id,
         )
@@ -253,7 +253,7 @@ class TestAccountCodeMapping(TransactionCase):
         self.assertEqual(vid % COMPANY_OFFSET, company_id)
 
     def test_pack_mapping_id_guards_overflow(self):
-        from odoo.addons.account_coa.models.account_code_mapping import (
+        from odoo.addons.account.models.account_code_mapping import (
             COMPANY_OFFSET,
             _pack_mapping_id,
         )

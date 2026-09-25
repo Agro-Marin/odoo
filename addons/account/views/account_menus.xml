@@ -162,7 +162,7 @@
                 groups="account.group_account_manager">
                 <menuitem
                     id="menu_action_account_form"
-                    action="account_coa.action_account_form"
+                    action="action_account_form"
                     sequence="1"
                     groups="account.group_account_readonly" />
                 <menuitem

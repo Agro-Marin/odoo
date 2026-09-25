@@ -34,7 +34,6 @@ class TestWebBundleSize(TransactionCase):
         {
             "account",
             "account_add_gln",
-            "account_coa",
             "account_edi_ubl_cii",
             "account_payment_provider",
             "analytic",

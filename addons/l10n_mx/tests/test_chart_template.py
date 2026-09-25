@@ -40,9 +40,8 @@ class TestMxChartTemplate(TestMxCommon):
     def test_accounts_carry_their_description(self):
         """The template now explains what each account is for.
 
-        `description` is declared by account_coa (models/account_account.py:32)
-        and reaches l10n_mx because account depends on account_coa. This
-        account already existed; what is new is the text on it.
+        `description` is declared by account.account itself. This account
+        already existed; what is new is the text on it.
         """
         stock_valuation = self._account("115.01.01")
         self.assertTrue(stock_valuation)

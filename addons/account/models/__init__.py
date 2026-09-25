@@ -11,6 +11,8 @@ from . import account_account_tag
 from . import mixin_company_split
 from . import account_group
 from . import account_account
+from . import account_code_mapping
+from . import account_root
 from . import account_journal
 from . import account_lock_exception
 from . import account_tax

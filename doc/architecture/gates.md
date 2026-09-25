@@ -150,7 +150,9 @@ The suites run this way: `base` (less the excluded `TestReportsRendering` and
 `test_mixin_report_sql`, `test_read_group`, `test_access_rights`,
 `hr_work_entry` with `hr_work_entry_holidays`, `hr_holidays`, the three
 `extract` branches, `test_trade` with `test_trade_account`, `approval` with `test_approval`,
-`gateway_ml`, `project_hr`, `exchange`, `date_range`, `account_coa`,
+`gateway_ml`, `project_hr`, `exchange`, `date_range`, `account`'s chart-of-accounts
+classes (`TestAccountCoa`, `TestAccountRoot`, `TestAccountCodeMapping`,
+`TestAccountNameDuplication`, `TestAccountCopyAndName`, `TestSplitCodeName`),
 `test_performance_compare`, `mail`, `test_mail`, `mail_group` and `mail_speech`.
 `rpc`, `mail`, `test_mail`, `mail_group` and `mail_speech` run **with** the HTTP
 server, because their `HttpCase` classes are the only end-to-end coverage of
