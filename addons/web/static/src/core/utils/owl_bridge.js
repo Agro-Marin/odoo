@@ -32,10 +32,22 @@ export function useComponentName() {
 }
 
 /**
+ * @template {string} K
+ * @typedef {K extends keyof HTMLElementEventMap
+ *     ? HTMLElementEventMap[K]
+ *     : K extends keyof WindowEventMap
+ *       ? WindowEventMap[K]
+ *       : K extends keyof DocumentEventMap
+ *         ? DocumentEventMap[K]
+ *         : any} ListenedEvent
+ */
+
+/**
+ * @template {string} K
  * @param {EventTarget} target
- * @param {string} eventName
- * @param {EventListener} handler
- * @param {AddEventListenerOptions} [eventParams]
+ * @param {K} eventName
+ * @param {(ev: ListenedEvent<K>) => unknown} handler
+ * @param {boolean | AddEventListenerOptions} [eventParams]
  */
 export function useListener(target, eventName, handler, eventParams) {
     // OWL 2 twin of OWL 3's useListener: attached at setup, removed on destroy,
@@ -44,7 +56,7 @@ export function useListener(target, eventName, handler, eventParams) {
     const attachedDuring = window.event;
     const listener = (/** @type {Event} */ ev) => {
         if (ev !== attachedDuring) {
-            handler.call(target, ev);
+            handler.call(target, /** @type {ListenedEvent<K>} */ (ev));
         }
     };
     target.addEventListener(eventName, listener, eventParams);
