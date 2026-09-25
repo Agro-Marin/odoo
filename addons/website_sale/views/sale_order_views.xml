@@ -219,6 +219,7 @@
                     name="action_recovery_email_send"
                     type="object"
                     string="Send a Recovery Email"
+                    groups="sale.group_sale_salesman"
                     invisible="not is_abandoned_cart or cart_recovery_email_sent"
                     class="btn-primary"
                     data-hotkey="l" />
@@ -229,6 +230,7 @@
                     id="send_by_email_bis"
                     type="object"
                     string="Send by Email"
+                    groups="sale.group_sale_salesman"
                     invisible="not is_abandoned_cart or cart_recovery_email_sent or state != 'draft'" />
             </button>
             <field name="partner_id" position="attributes">
