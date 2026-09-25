@@ -19,7 +19,7 @@ boundary is `test_lint`'s; the rest are held by review.
 ./gates.sh --fast                              # lint and the two tiers
 ./gates.sh --ref <rev>                         # the same, on a worktree of <rev>
 ./gates.sh --rust --js                         # add the cargo and JS toolchains
-./gates.sh --lint-full                         # add test_lint on a fuller install (scratch DB)
+./gates.sh --lint-full                         # add a fuller install with demo, and test_lint on it (scratch DB)
 ```
 
 `gates.sh` sequences the commands a developer types; it defines no gate of its
@@ -218,7 +218,16 @@ per-module run. With `--test-enable` the loader also records it as an error of
 the run (`OdooTestResult.record_demo_failure`), named in the summary line, so
 the process exits non-zero; production installs keep the warning.
 `ODOO_REQUIRE_DEMO=0` is the explicit opt-out. The suites above run without
-demo, so the check bites only in a `--with-demo` run.
+demo, so the check bites only in a `--with-demo` run, and `--lint-full` is that
+run: `lint_full_scope.sh` installs its module set with demo and fails when any
+installed module is left without it (`ir_module_module.demo`, which a failed
+demo leaves false on the module and on every module depending on it), naming
+the failures from the install logs; `--without-demo` skips both. It reads the
+flag rather than installing with `--test-enable`, because a test run is handed
+the fixed test-run encryption key (`mixin_encryption`'s
+`provide_test_run_key`), and that key hides a demo that needs the credential
+vault: `stock_delivery`'s validated a delivery whose SMS confirmation created
+an IAP account, whose token only a configured key can seal.
 `odoo/modules/tests/test_demo_failure_under_tests.py` and
 `tests/loading/test_demo_failure_exit_code.py` pin it.
 

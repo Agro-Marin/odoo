@@ -60,7 +60,10 @@
                 search="[('picking_id', '=', ref('outgoing_shipment_with_carrier_done'))]" />
             <value eval="{'quantity': 1}" />
         </function>
-        <function model="stock.picking" name="_action_done">
+        <function
+            model="stock.picking"
+            name="_action_done"
+            context="{'skip_sms': True}">
             <value
                 model="stock.picking"
                 eval="[                 ref('outgoing_shipment_with_carrier_done'),             ]" />

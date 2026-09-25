@@ -443,7 +443,7 @@ There is no CI any more; every gate below runs by hand.
 | run | scope |
 |---|---|
 | `odoo-bin --addons-path=odoo/addons,addons -d <db> -i test_lint --test-enable --test-tags /test_lint --stop-after-init --no-http` | the whole module, `--addons-path=odoo/addons,addons`, only `test_lint` installed |
-| `odoo/addons/test_lint/lint_full_scope.sh` (or `./gates.sh --lint-full`) | the whole module on the workspace addons path, over a scratch install of the script's `FULL_SCOPE` modules (odoo, enterprise and agromarin), dropped afterwards; `--keep`/`--db` re-run on one database, `--tags` narrows |
+| `odoo/addons/test_lint/lint_full_scope.sh` (or `./gates.sh --lint-full`) | the whole module on the workspace addons path, over a scratch install of the script's `FULL_SCOPE` modules (odoo, enterprise and agromarin), with demo data, dropped afterwards; a module left without its demo fails the lane; `--keep`/`--db` re-run on one database, `--tags` narrows, `--without-demo` skips the demo |
 
 **A gate that reads the installed registry cannot be graded at the narrow
 scope.** `TestSchemeDuplication` passes there for want of modules to measure;
@@ -455,10 +455,11 @@ read zero at the narrow scope and four on an install with point_of_sale, so run
 the class on a fuller install before trusting it.
 
 **The full-scope lane is what grades the rest.** `lint_full_scope.sh` installs
-`FULL_SCOPE` into a scratch database created through odoo-bin (so `db_template`
-applies), repeats `-i` until the modules it names stop going missing (a single
-`-i` converges on a subgraph and exits 0), runs `/test_lint` with `-u test_lint`
-and drops the database. A `--ref` worktree grades its own addons: the conf's
+`FULL_SCOPE` with demo data into a scratch database created through odoo-bin (so
+`db_template` applies), repeats `-i` until the modules it names stop going
+missing (a single `-i` converges on a subgraph and exits 0), fails when an
+installed module is left without its demo, runs `/test_lint` with
+`-u test_lint` and drops the database. A `--ref` worktree grades its own addons: the conf's
 `odoo/addons` entry is replaced by the checkout's. What only this lane can see:
 `TestFieldDeclarations`, `TestIndex`, `TestLintOverrideSignatures`,
 `OrphanLabelLinter`, `DroppedViewTextLinter`, `TestSchemeDuplication`, `TestDocstring`, the bundle gates

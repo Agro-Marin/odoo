@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # test_lint on a fuller install, where the gates that read the registry or the
-# served bundles can see the modules they judge.
+# served bundles can see the modules they judge. The install loads demo data,
+# and a module left without it fails the lane.
 #
-#   odoo/addons/test_lint/lint_full_scope.sh                  install FULL_SCOPE into a scratch DB, run /test_lint, drop it
+#   odoo/addons/test_lint/lint_full_scope.sh                  install FULL_SCOPE with demo into a scratch DB, run /test_lint, drop it
 #   odoo/addons/test_lint/lint_full_scope.sh --keep           keep the database for a re-run
 #   odoo/addons/test_lint/lint_full_scope.sh --db <name>      use (or create) that database
 #   odoo/addons/test_lint/lint_full_scope.sh --tags <spec>    a narrower --test-tags, e.g. /test_lint:TestFieldDeclarations
 #   odoo/addons/test_lint/lint_full_scope.sh --http-port <n>  the tests' HTTP port (default 8269)
+#   odoo/addons/test_lint/lint_full_scope.sh --without-demo   install without demo data and do not grade it
 set -u
 
-usage() { sed -n '2,10p' "$0"; exit 2; }
+usage() { sed -n '2,12p' "$0"; exit 2; }
 
 # `marin` pulls production's closure (agromarin-addons' meta-module), so the
 # bundle gates judge the system that is served; the other seeds reach modules
@@ -24,13 +26,14 @@ FULL_SCOPE=(
     spreadsheet_dashboard stock_account survey website_sale whatsapp
 )
 
-DB="" KEEP=0 TAGS="/test_lint" PORT=8269
+DB="" KEEP=0 TAGS="/test_lint" PORT=8269 DEMO=1
 while [ $# -gt 0 ]; do
     case "$1" in
         --keep) KEEP=1 ;;
         --db) shift; DB="${1:-}"; [ -n "$DB" ] || usage ;;
         --tags) shift; TAGS="${1:-}"; [ -n "$TAGS" ] || usage ;;
         --http-port) shift; PORT="${1:-}"; [ -n "$PORT" ] || usage ;;
+        --without-demo) DEMO=0 ;;
         -h|--help) usage ;;
         *) echo "unknown option: $1" >&2; usage ;;
     esac
@@ -77,13 +80,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
+DEMO_ARGS=()
+[ "$DEMO" -eq 1 ] && DEMO_ARGS=(--with-demo)
+
 # A single -i converges on a subgraph and exits 0 with modules left
 # uninstalled (CLAUDE.md §8): install until the missing set stops shrinking.
 todo="$(IFS=,; echo "${FULL_SCOPE[*]}")"
 previous=""
 for pass in 1 2 3; do
     echo "install pass $pass: $todo"
-    odoo -i "$todo" --no-http >"$LOGS/$DB.install$pass.log" 2>&1 || {
+    odoo -i "$todo" --no-http "${DEMO_ARGS[@]}" >"$LOGS/$DB.install$pass.log" 2>&1 || {
         echo "install failed, see $LOGS/$DB.install$pass.log" >&2
         exit 1
     }
@@ -95,9 +101,23 @@ for pass in 1 2 3; do
 done
 [ -z "$(missing)" ] || { echo "still not installed: $(missing | paste -sd' ')" >&2; exit 1; }
 
+# An install only warns when a module's demo fails to load, and the modules
+# depending on it then skip theirs; the flag the loader leaves is the verdict.
+demo_rc=0
+if [ "$DEMO" -eq 1 ]; then
+    without="$(psql -U "$USER" -d "$DB" -Atc "SELECT name FROM ir_module_module
+        WHERE state = 'installed' AND NOT demo ORDER BY name")"
+    if [ -n "$without" ]; then
+        echo "installed without demo data: $(echo "$without" | paste -sd' ')" >&2
+        grep -h "demo data failed to install" "$LOGS/$DB".install*.log | sed 's/^.* odoo\./odoo./' >&2
+        demo_rc=1
+    fi
+fi
+
 echo "test_lint $TAGS on $DB ($(psql -U "$USER" -d "$DB" -Atc "SELECT count(*) FROM ir_module_module WHERE state = 'installed'") modules installed)"
 odoo -u test_lint --test-enable --test-tags "$TAGS" --http-port "$PORT" >"$LOGS/$DB.tests.log" 2>&1
 rc=$?
 grep -E " (FAIL|ERROR): |tests when loading" "$LOGS/$DB.tests.log" | sed 's/^.* odoo\./odoo./'
 echo "log: $LOGS/$DB.tests.log"
+[ "$rc" -eq 0 ] && rc=$demo_rc
 exit "$rc"

@@ -7,7 +7,7 @@
 #   ./gates.sh --perf          add statement-count and residual wall-time floors
 #   ./gates.sh --perf-counts   add portable statement-count checks without time limits
 #   ./gates.sh --lint-esm      add test_lint's ESM gates on a narrow install in a scratch database
-#   ./gates.sh --lint-full     add test_lint on a fuller install in a scratch database
+#   ./gates.sh --lint-full     add a fuller install with demo data, and test_lint on it, in a scratch database
 #   ./gates.sh --ref <rev>     run everything on a detached worktree of <rev>
 #
 # The commands are the ones doc/architecture/gates.md and CLAUDE.md §9 give;
