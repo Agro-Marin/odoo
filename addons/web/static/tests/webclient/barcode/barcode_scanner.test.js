@@ -311,6 +311,28 @@ test("the scan loop gives up after five consecutive detector failures", async ()
     expect(attempts).toBe(settled);
 });
 
+test("a frame without a readable code is not a detector failure", async () => {
+    const Detector = /** @type {any} */ (makeZXingBarcodeDetector(ZXing));
+    const detector = new Detector({ formats: ["qr_code"] });
+    const video = document.createElement("video");
+    Object.defineProperty(video, "readyState", { value: 4 });
+    detector.captureBitmap = () => null;
+    for (const NoCode of [
+        ZXing.NotFoundException,
+        ZXing.ChecksumException,
+        ZXing.FormatException,
+    ]) {
+        detector.reader.decodeWithState = () => {
+            throw new NoCode();
+        };
+        expect(await detector.detect(video)).toEqual([]);
+    }
+    detector.reader.decodeWithState = () => {
+        throw new ZXing.IllegalStateException("reader broken");
+    };
+    await expect(detector.detect(video)).rejects.toThrow("reader broken");
+});
+
 test("a successful read clears the failure count", async () => {
     mockBlankCamera();
     let attempts = 0;
@@ -436,8 +458,11 @@ function makeFakeZXing(found) {
             setHints() {}
             decodeWithState() {
                 if (!found) {
-                    const err = new Error("no symbol");
-                    err.name = "NotFoundException";
+                    // As the bundled library throws it: renamed class, intact kind.
+                    const err = Object.assign(new Error("no symbol"), {
+                        name: "NotFoundException2",
+                        getKind: () => "NotFoundException",
+                    });
                     throw err;
                 }
                 return {

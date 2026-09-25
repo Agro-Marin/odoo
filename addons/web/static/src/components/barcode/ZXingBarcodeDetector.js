@@ -3,6 +3,13 @@
 
 const MIN_CROP_SIZE = 16;
 const HAVE_METADATA = 1;
+// What ZXing throws for a frame that holds no readable code: the normal case
+// between two reads, not a failure.
+const NO_CODE_KINDS = new Set([
+    "NotFoundException",
+    "ChecksumException",
+    "FormatException",
+]);
 
 const FORMAT_NAMES = [
     "aztec",
@@ -177,7 +184,9 @@ export class ZXingBarcodeDetector {
                 ZXingBarcodeDetector.toDetectedBarcode(result, this.formats.toName),
             ];
         } catch (err) {
-            if (err.name === "NotFoundException") {
+            // Match the static kind, not err.name: the bundled library renames
+            // its classes, so a NotFoundException is named "NotFoundException2".
+            if (NO_CODE_KINDS.has(err.getKind?.())) {
                 return [];
             }
             throw err;
