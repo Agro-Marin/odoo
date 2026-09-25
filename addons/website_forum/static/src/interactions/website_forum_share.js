@@ -12,7 +12,7 @@ export class WebsiteForumShare extends Interaction {
 
             if (socialData.targetType) {
                 const questionEl = document.querySelector(".o_wforum_question");
-                this.renderAt(
+                const [modalEl] = this.renderAt(
                     "website.social_modal",
                     {
                         target_type: socialData.targetType,
@@ -26,9 +26,7 @@ export class WebsiteForumShare extends Interaction {
                         );
                     },
                 );
-                const bsModal = Modal.getOrCreateInstance(
-                    document.querySelector("#oe_social_share_modal"),
-                );
+                const bsModal = Modal.getOrCreateInstance(modalEl);
                 bsModal.show();
                 this.registerCleanup(() => bsModal.dispose());
             }

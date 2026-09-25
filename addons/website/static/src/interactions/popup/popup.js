@@ -37,12 +37,7 @@ export class Popup extends Interaction {
         this.modalEl = this.el.querySelector(".modal");
         /** @type {import("bootstrap").Modal} */
         this.bsModal = Modal.getOrCreateInstance(this.modalEl);
-        this.registerCleanup(() => {
-            for (const el of [this.bsModal._dialog, this.bsModal._element]) {
-                el?.dispatchEvent(new Event("transitionend"));
-            }
-            this.bsModal.dispose();
-        });
+        this.registerCleanup(() => this.bsModal.dispose());
 
         this.modalShownOnClickEl = this.el.querySelector(
             ".modal[data-display='onClick']",
@@ -135,10 +130,6 @@ export class Popup extends Interaction {
         }
         log.lifecycle("Popup show", () => ({ id: this.el.id }));
         this.bsModal.show();
-        this.registerCleanup(() => {
-            this.modalEl.classList.remove("show");
-            this.bsModal._hideModal();
-        });
     }
 
     /**

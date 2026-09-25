@@ -47,12 +47,7 @@ export class ModalRegistration extends Interaction {
         });
 
         formModal.show();
-        this.registerCleanup(() => {
-            this.el.addEventListener("hidden.bs.modal", () => formModal.dispose(), {
-                once: true,
-            });
-            formModal.hide();
-        });
+        this.registerCleanup(() => formModal.dispose());
     }
 
     _addTurnstile(form) {

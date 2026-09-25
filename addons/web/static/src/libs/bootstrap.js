@@ -122,6 +122,50 @@ Tooltip.prototype.dispose = function (
     return bsTooltipDispose.apply(this, args);
 };
 
+const bsModalHideModal = Modal.prototype._hideModal;
+Modal.prototype._hideModal = function () {
+    this._isShown = false;
+    return bsModalHideModal.call(this);
+};
+
+/**
+ * @param {any} modal
+ */
+function endModalTransitions(modal) {
+    // the dialog twice: a static-backdrop bounce chains a second transition on it
+    for (const getEl of [
+        () => modal._backdrop._element,
+        () => modal._dialog,
+        () => modal._dialog,
+        () => modal._element,
+        () => modal._backdrop._element,
+    ]) {
+        if (!modal._element) {
+            return;
+        }
+        getEl()?.dispatchEvent(new Event("transitionend"));
+    }
+}
+
+const bsModalDispose = Modal.prototype.dispose;
+Modal.prototype.dispose = function () {
+    if (!this._element) {
+        return;
+    }
+    this._showElement = () => {};
+    endModalTransitions(this);
+    if (this._element && this._isShown) {
+        this._focustrap.deactivate();
+        this._element.classList.remove("show");
+        this._hideModal();
+        endModalTransitions(this);
+    }
+    if (!this._element) {
+        return;
+    }
+    return bsModalDispose.call(this);
+};
+
 /**
  * @returns {false}
  */

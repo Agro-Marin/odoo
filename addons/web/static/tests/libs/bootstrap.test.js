@@ -561,6 +561,82 @@ describe("Modal", () => {
     });
 });
 
+describe("Modal.dispose", () => {
+    const FADE_MODAL_HTML = `<div class="modal fade"><div class="modal-dialog"><div class="modal-content">m</div></div></div>`;
+
+    function mountModal() {
+        const el = mount(FADE_MODAL_HTML);
+        for (const event of ["hide", "hidden"]) {
+            el.addEventListener(`${event}.bs.modal`, () => expect.step(event));
+        }
+        return { el, modal: new Modal(el) };
+    }
+
+    function expectPageUnlocked(el) {
+        expect(".modal-backdrop").toHaveCount(0);
+        expect(document.body).not.toHaveClass("modal-open");
+        expect(document.body.style.overflow).toBe("");
+        expect(el.style.display).toBe("none");
+        expect(Modal.getInstance(el)).toBe(null);
+    }
+
+    test("during the show transition leaves no callback on the disposed instance", async () => {
+        const { el, modal } = mountModal();
+        modal.show();
+        modal.dispose();
+        await runAllTimers();
+        expectPageUnlocked(el);
+        expect.verifySteps(["hidden"]);
+    });
+
+    test("of a shown modal closes it without a vetoable hide", async () => {
+        const { el, modal } = mountModal();
+        modal.show();
+        await runAllTimers();
+        expect(el).toHaveClass("show");
+        el.addEventListener("hide.bs.modal", (ev) => ev.preventDefault());
+        modal.dispose();
+        await runAllTimers();
+        expectPageUnlocked(el);
+        expect.verifySteps(["hidden"]);
+    });
+
+    test("during the hide transition completes the hide once", async () => {
+        const { el, modal } = mountModal();
+        modal.show();
+        await runAllTimers();
+        modal.hide();
+        modal.dispose();
+        await runAllTimers();
+        expectPageUnlocked(el);
+        expect.verifySteps(["hide", "hidden"]);
+    });
+
+    test("after a direct _hideModal fires hidden once", async () => {
+        const { el, modal } = mountModal();
+        modal.show();
+        await runAllTimers();
+        el.classList.remove("show");
+        modal._hideModal();
+        modal.dispose();
+        await runAllTimers();
+        expectPageUnlocked(el);
+        expect.verifySteps(["hidden"]);
+    });
+
+    test("from a hidden handler, and twice, is a no-op", async () => {
+        const { el, modal } = mountModal();
+        el.addEventListener("hidden.bs.modal", () => modal.dispose());
+        modal.show();
+        await runAllTimers();
+        modal.dispose();
+        modal.dispose();
+        await runAllTimers();
+        expectPageUnlocked(el);
+        expect.verifySteps(["hidden"]);
+    });
+});
+
 describe("patched Bootstrap internals still exist", () => {
     test("the pinned version is the one the patches were written against", async () => {
         expect(Modal.VERSION).toBe("5.3.8");
@@ -582,11 +658,23 @@ describe("patched Bootstrap internals still exist", () => {
         expect(Tooltip.Default.allowList["*"]).toBeInstanceOf(Array);
     });
 
-    test("Modal is re-exported unpatched", async () => {
+    test("the Modal hooks the patches build on are present", async () => {
         expect(Object.hasOwn(Modal.prototype, "show")).toBe(true);
-        for (const name of ["_resetAdjustments", "_adjustDialog"]) {
+        for (const name of [
+            "_resetAdjustments",
+            "_adjustDialog",
+            "_showElement",
+            "_hideModal",
+            "dispose",
+        ]) {
             expect(typeof Modal.prototype[name]).toBe("function");
         }
+        const modal = new Modal(mount(MODAL_HTML));
+        for (const name of ["_backdrop", "_dialog", "_focustrap", "_isShown"]) {
+            expect(name in modal).toBe(true);
+        }
+        expect("_element" in modal._backdrop).toBe(true);
+        modal.dispose();
     });
 
     test("every Bootstrap component the bundle defines is re-exported", async () => {
