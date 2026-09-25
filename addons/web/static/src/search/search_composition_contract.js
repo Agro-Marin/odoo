@@ -72,7 +72,6 @@ export const SEARCH_FAVORITES_REQUIRES = [
 /** @type {string[]} */
 export const SEARCH_FAVORITES_SHARED_STATE = [
     "_enrichedSearchItems",
-    "env",
     "globalContext",
     "irFilters",
     "nextGroupId",
@@ -81,6 +80,7 @@ export const SEARCH_FAVORITES_SHARED_STATE = [
     "query",
     "resModel",
     "searchItems",
+    "searchScope",
     "searchViewFields",
 ];
 
@@ -108,11 +108,11 @@ export const SEARCH_SPLIT_DOMAIN_SHARED_STATE = [
     "DomainSelectorDialog",
     "defaultGroupBy",
     "dialog",
-    "env",
     "getDefaultDomain",
     "query",
     "resModel",
     "searchItems",
+    "searchScope",
     "searchViewFields",
     "treeProcessor",
 ];

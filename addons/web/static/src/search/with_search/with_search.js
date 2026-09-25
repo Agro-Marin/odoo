@@ -64,7 +64,7 @@ export class WithSearch extends Component {
 
         const SearchModelClass = this.props.SearchModel || SearchModel;
         this.searchModel = new SearchModelClass(
-            this.env,
+            SearchModelClass.useSearchScope(),
             {
                 orm: useService("orm"),
                 view: useService("view"),

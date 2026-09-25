@@ -102,7 +102,7 @@ const DOUBLES = {
         },
         /** @type {any[] | null} */
         _enrichedSearchItems: null,
-        env: {},
+        searchScope: { config: {}, debug: "", callbackRecorders: {} },
         orm: {},
         irFilters: [],
     }),
@@ -171,7 +171,7 @@ const DOUBLES = {
         deactivateGroup: () => {},
         updateSearchViewItemsProperty: () => {},
         defaultGroupBy: undefined,
-        env: {},
+        searchScope: { config: {}, debug: "", callbackRecorders: {} },
         treeProcessor: {},
         DomainSelectorDialog: class {},
         dialog: {},

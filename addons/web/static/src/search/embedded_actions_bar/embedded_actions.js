@@ -1,13 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-import { reactive, useEnv } from "@odoo/owl";
+import { reactive } from "@odoo/owl";
 import { useAction } from "@web/core/action_port";
 import { makeContext } from "@web/core/context";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useSearchModel } from "@web/core/search_model_hooks";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { ConfirmationDialog } from "@web/ui/dialog";
 
 const log = makeLogger("web.search.embedded");
@@ -209,15 +211,16 @@ export class EmbeddedActionsConfigHandler {
 export class EmbeddedActions {
     /**
      * @param {object} params
-     * @param {import("@web/env").OdooEnv} params.env
+     * @param {Record<string, any>} params.config
+     * @param {import("@web/search/search_model").SearchModel | undefined} params.searchModel
      * @param {import("services").ServiceFactories["orm"]} params.orm
      * @param {import("services").ServiceFactories["notification"]} params.notification
      * @param {import("services").ServiceFactories["dialog"]} params.dialog
      * @param {import("@web/core/action_port").ActionPort} params.action
      */
-    constructor({ env, orm, notification, dialog, action }) {
-        this.env = env;
-        const config = /** @type {NonNullable<typeof env.config>} */ (env.config);
+    constructor({ config, searchModel, orm, notification, dialog, action }) {
+        this.config = config;
+        this.searchModel = searchModel;
         this.orm = orm;
         this.notificationService = notification;
         this.dialogService = dialog;
@@ -230,7 +233,7 @@ export class EmbeddedActions {
             this.defaultEmbeddedActions = [
                 {
                     id: false,
-                    name: env.config?.actionName,
+                    name: config.actionName,
                     parent_action_id,
                     parent_res_model,
                     action_id: parent_action_id,
@@ -245,7 +248,7 @@ export class EmbeddedActions {
             config.parentActionId ||
             relationId(config.embeddedActions?.[0]?.parent_action_id) ||
             "";
-        const currentActiveId = env.searchModel?.globalContext.active_id || false;
+        const currentActiveId = searchModel?.globalContext.active_id || false;
         this.configHandler = new EmbeddedActionsConfigHandler(
             parentActionId,
             currentActiveId,
@@ -284,7 +287,7 @@ export class EmbeddedActions {
 
     /** @returns {EmbeddedAction} */
     get currentEmbeddedAction() {
-        const { currentEmbeddedActionId } = this.env.config ?? {};
+        const { currentEmbeddedActionId } = this.config;
         return (
             this.defaultEmbeddedActions?.find(
                 ({ id }) => id === currentEmbeddedActionId,
@@ -297,7 +300,7 @@ export class EmbeddedActions {
      * @returns {Record<string, any>}
      */
     _actionContext(action) {
-        const { active_id, active_model } = this.env.searchModel.globalContext;
+        const { active_id, active_model } = this.searchModel.globalContext;
         return {
             ...(action.context ? makeContext([action.context]) : {}),
             active_id,
@@ -419,7 +422,7 @@ export class EmbeddedActions {
 
     /** @returns {Record<string, any>} */
     _newActionValues() {
-        const actionConfig = /** @type {any} */ (this.env.config);
+        const actionConfig = this.config;
         const { newActionName, newActionIsShared, currentEmbeddedAction } =
             this.embeddedInfos;
         const {
@@ -435,7 +438,7 @@ export class EmbeddedActions {
         const values = {
             parent_action_id: relationId(parent_action_id),
             parent_res_model,
-            parent_res_id: this.env.searchModel.globalContext.active_id,
+            parent_res_id: this.searchModel.globalContext.active_id,
             user_id: newActionIsShared ? false : user.userId,
             is_deletable: true,
             default_view_mode: actionConfig.viewType,
@@ -465,7 +468,7 @@ export class EmbeddedActions {
             values,
         ]);
         const description = `${newActionName}`;
-        await this.env.searchModel.createNewFavorite({
+        await this.searchModel.createNewFavorite({
             description,
             isDefault: true,
             isShared: newActionIsShared,
@@ -629,13 +632,13 @@ export class EmbeddedActions {
 
 /** @returns {EmbeddedActions | null} */
 export function useEmbeddedActions() {
-    const componentEnv = useEnv();
-    const env = /** @type {import("@web/env").OdooEnv} */ (componentEnv);
-    if (!(env.config?.embeddedActions?.length > 0)) {
+    const config = useViewConfig();
+    if (!(config?.embeddedActions?.length > 0)) {
         return null;
     }
     return new EmbeddedActions({
-        env,
+        config,
+        searchModel: useSearchModel(),
         orm: useService("orm"),
         notification: useService("notification"),
         dialog: useService("dialog"),

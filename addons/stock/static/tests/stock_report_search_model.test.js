@@ -33,7 +33,10 @@ beforeEach(async () => {
 });
 
 function makeSearchModel(context = {}) {
-    const model = new StockReportSearchModel(env, { orm: env.services.orm });
+    const model = new StockReportSearchModel(
+        { config: env.config, debug: env.debug, callbackRecorders: env },
+        { orm: env.services.orm },
+    );
     model._context = context;
     return model;
 }

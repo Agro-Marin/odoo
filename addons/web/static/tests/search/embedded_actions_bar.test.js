@@ -448,12 +448,10 @@ describe("EmbeddedActions.saveNewAction", () => {
             configHandler: { setEmbeddedActionsConfig: async () => true },
             _validateNewActionName: EmbeddedActions.prototype._validateNewActionName,
             _newActionValues: EmbeddedActions.prototype._newActionValues,
-            env: {
-                config: { viewType: "list", actionId: 999 },
-                searchModel: {
-                    globalContext: { active_id: 5 },
-                    createNewFavorite: async () => 1,
-                },
+            config: { viewType: "list", actionId: 999 },
+            searchModel: {
+                globalContext: { active_id: 5 },
+                createNewFavorite: async () => 1,
             },
             _notifications: notifications,
         };

@@ -36,7 +36,7 @@ function makeSearchModel(tree, overrides = {}) {
         resModel: "partner",
         isDebugMode: false,
         defaultGroupBy: undefined,
-        env: { config: { viewType: "list" } },
+        searchScope: { config: { viewType: "list" }, debug: "", callbackRecorders: {} },
         treeProcessor: {
             treeFromDomain: async () => tree,
             getDomainTreeDescription: async () => "desc",

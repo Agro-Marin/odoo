@@ -108,7 +108,7 @@ export const SearchSplitDomainMixin = (Base) =>
             if (!activeItemGroupBys.length) {
                 return [];
             }
-            if (this.defaultGroupBy && this.env.config.viewType === "kanban") {
+            if (this.defaultGroupBy && this.searchScope.config.viewType === "kanban") {
                 const currentGroupBy = this._getGroupBy({ fallbackOnDefault: false });
                 if (
                     JSON.stringify(currentGroupBy) ===

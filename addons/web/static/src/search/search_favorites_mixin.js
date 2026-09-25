@@ -74,9 +74,15 @@ export const SearchFavoritesMixin = (Base) =>
         /** @param {Record<string, any>} [params] */
         _getIrFilterDescription(params = {}) {
             const { description, isDefault, isShared, embeddedActionId } = params;
-            const fns = actionContextCallbacks(this.env, "__getContext__");
+            const fns = actionContextCallbacks(
+                this.searchScope.callbackRecorders,
+                "__getContext__",
+            );
             const localContext = Object.assign({}, ...fns.map((fn) => fn()));
-            const gs = actionContextCallbacks(this.env, "__getOrderBy__");
+            const gs = actionContextCallbacks(
+                this.searchScope.callbackRecorders,
+                "__getOrderBy__",
+            );
             let localOrderBy;
             if (gs.length) {
                 localOrderBy = gs.flatMap((g) => g());
@@ -98,7 +104,7 @@ export const SearchFavoritesMixin = (Base) =>
                 getGroupBy: () => this._getGroupBy(),
                 getOrderBy: () => this._getOrderBy(),
                 globalContext: this.globalContext,
-                actionId: this.env.config.actionId,
+                actionId: this.searchScope.config.actionId,
                 resModel: this.resModel,
             });
         }

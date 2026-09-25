@@ -2,12 +2,15 @@
 /** @odoo-module native */
 
 import { EventBus, toRaw } from "@odoo/owl";
+import { useActionCallbackRecorders } from "@web/core/action_hook";
 import { makeContext } from "@web/core/context";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { SearchModelEvent } from "@web/core/events";
 import { DateTime } from "@web/core/l10n/luxon";
 import { user } from "@web/core/user";
 import { Mutex } from "@web/core/utils/concurrency";
+import { useViewConfig } from "@web/core/view_config_hooks";
 
 import {
     DEFAULT_VIEWS_WITH_SEARCH_PANEL,
@@ -95,13 +98,21 @@ export {
 
 const log = makeLogger("web.search");
 
+/**
+ * @typedef {{
+ *     config: Record<string, any>,
+ *     debug: string,
+ *     callbackRecorders: Record<string, any>,
+ * }} SearchScope
+ */
+
 export class SearchModel extends SearchQueryMixin(
     SearchSplitDomainMixin(
         SearchFavoritesMixin(SearchPropertiesMixin(SearchPanelMixin(EventBus))),
     ),
 ) {
-    /** @type {import("@web/env").OdooEnv & { config: Record<string, any> }} */
-    env;
+    /** @type {SearchScope} */
+    searchScope;
 
     /** @type {string} */
     resModel;
@@ -137,14 +148,23 @@ export class SearchModel extends SearchQueryMixin(
     _pendingNotification = false;
     _pendingTrigger = false;
 
+    /** @returns {SearchScope} */
+    static useSearchScope() {
+        return {
+            config: useViewConfig(),
+            debug: useDebugMode(),
+            callbackRecorders: useActionCallbackRecorders(),
+        };
+    }
+
     /**
-     * @param {import("@web/env").OdooEnv} env
+     * @param {SearchScope} searchScope
      * @param {Record<string, any>} services
      * @param {Record<string, any>} [args]
      */
-    constructor(env, services, args) {
+    constructor(searchScope, services, args) {
         super();
-        this.env = /** @type {any} */ (env);
+        this.searchScope = searchScope;
         this.setup(services, args);
     }
 
@@ -260,8 +280,8 @@ export class SearchModel extends SearchQueryMixin(
                     views: [[searchViewId, "search"]],
                 },
                 {
-                    actionId: this.env.config.actionId,
-                    embeddedActionId: this.env.config.currentEmbeddedActionId,
+                    actionId: this.searchScope.config.actionId,
+                    embeddedActionId: this.searchScope.config.currentEmbeddedActionId,
                     loadIrFilters: loadIrFilters || false,
                 },
             );
@@ -504,7 +524,7 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     get isDebugMode() {
-        return !!this.env.debug;
+        return !!this.searchScope.debug;
     }
 
     /** @returns {import("./search_state").SearchModelState} */
@@ -655,7 +675,7 @@ export class SearchModel extends SearchQueryMixin(
      */
     _getDisplay(display = {}) {
         const { viewTypes } = this.searchPanelInfo;
-        const { viewType } = this.env.config;
+        const { viewType } = this.searchScope.config;
         return {
             controlPanel: "controlPanel" in display ? display.controlPanel : {},
             searchPanel: Boolean(
@@ -704,7 +724,7 @@ export class SearchModel extends SearchQueryMixin(
             globalGroupBy: this.globalGroupBy,
             defaultGroupBy: this.defaultGroupBy,
             searchViewFields: this.searchViewFields,
-            viewType: this.env.config.viewType,
+            viewType: this.searchScope.config.viewType,
         });
     }
 
