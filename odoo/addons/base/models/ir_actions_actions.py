@@ -427,7 +427,14 @@ class IrActionsActions(models.Model):
     @api.model
     @tools.ormcache(cache="stable")
     def _get_fields_read_by_menus(self) -> frozenset[str]:
-        return frozenset(("path", *self._get_fields_naming_target_model()))
+        groups = self._get_field_groups()
+        return frozenset(
+            (
+                "path",
+                *self._get_fields_naming_target_model(),
+                *([groups] if groups else []),
+            )
+        )
 
     @api.model
     def _get_fields_naming_target_model(self) -> frozenset[str]:

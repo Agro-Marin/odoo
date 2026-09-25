@@ -10,21 +10,25 @@ from odoo.libs.debug_log import DebugLog
 from odoo.tools import TransactionMemo, config, frozendict
 from odoo.tools.view_ir import from_arch, from_string
 
-from .ir_ui_view import _xpath_descendant_field
+from .ir_ui_view import _xpath_descendant_field, _xpath_groups_key, _xpath_model_access
 
 if TYPE_CHECKING:
     from lxml.etree import _Element
 
 _logger = logging.getLogger(__name__)
 _debug = DebugLog(__name__)
+# the context keys the combined arch reads (`ir.ui.view._compute_arch`,
+# `_combine_tree`): each is part of the cache key of a view
+_ARCH_CONTEXT_KEYS = (
+    "edit_translations",
+    "check_translations",
+    "read_arch_from_file",
+    "inherit_branding",
+)
 MODEL_ACCESS = TransactionMemo(
     "ir_ui_view_model_access",
     invalidated_by=("res.users", "res.groups", "ir.access"),
 )
-
-
-_xpath_groups_key = etree.ETXPath("//*[@__groups_key__]")
-_xpath_model_access = etree.ETXPath("//*[@model_access_rights]")
 
 
 def _view_capabilities(
@@ -428,11 +432,13 @@ class Base(models.AbstractModel):
         view_type: str = "form",
         **options: Any,
     ) -> tuple:
+        context = self.env.context
         return (
             view_id,
             view_type,
             options.get("mobile"),
             self.env.lang,
+            *(bool(context.get(key)) for key in _ARCH_CONTEXT_KEYS),
         ) + tuple(
             sorted(
                 (key, value)
@@ -455,8 +461,17 @@ class Base(models.AbstractModel):
         view_type: str = "form",
         **options: Any,
     ) -> frozendict:
+        # the key holds no active_test: a caller's archived views must not
+        # become every caller's default view
+        self = self.with_context(active_test=True)
         with _debug.perf(
-            "view_cache_miss", cr=self.env.cr, model=self._name, type=view_type
+            "view_cache_miss",
+            cr=self.env.cr,
+            model=self._name,
+            type=view_type,
+            arch_context=[
+                key for key in _ARCH_CONTEXT_KEYS if self.env.context.get(key)
+            ],
         ):
             arch, view = self._get_view(view_id, view_type, **options)
             arch, view_models = self._get_view_postprocessed(view, arch, **options)

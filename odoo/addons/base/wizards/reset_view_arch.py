@@ -1,7 +1,7 @@
 from typing import Any
 
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.http import request
 from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import get_diff
@@ -119,6 +119,17 @@ class ResetViewArchWizard(models.TransientModel):
             "wizard_reset_view", view=self.view_id.id, mode=self.reset_mode
         )
         if self.reset_mode == "other_view":
+            if not self.arch_to_compare or not self.has_diff:
+                _debug.logic(
+                    "reset_refused",
+                    view=self.view_id.id,
+                    reason="no_compare_arch" if not self.arch_to_compare else "no_diff",
+                )
+                raise UserError(
+                    self.env._(
+                        "Select another view whose architecture differs from this one."
+                    )
+                )
             self.view_id.with_context(lang=None).write(
                 {"arch_db": self.arch_to_compare}
             )

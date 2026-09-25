@@ -202,7 +202,7 @@ class TestMenuVisibility(TransactionCase):
 
     def test_load_menus_root_keyed_on_debug(self):
         self.assertIn(
-            "self._get_session_debug()", IrUiMenu.load_menus_root.__cache__.args
+            "bool(self._get_session_debug())", IrUiMenu.load_menus_root.__cache__.args
         )
 
         action = self._act_window("res.partner")
@@ -252,6 +252,39 @@ class TestMenuVisibility(TransactionCase):
                 "debug-only menus into the non-debug cache entry",
             )
             self.assertIn(debug_root.id, self.Menu.load_menus(True))
+
+    def test_a_sudo_caller_does_not_widen_the_cached_set(self):
+        action = self._act_window("ir.config_parameter")
+        menu = self.Menu.create(
+            {"name": "Needs system", "action": f"{action._name},{action.id}"}
+        )
+        employee_menus = self.Menu.with_user(self.employee)
+        self.assertNotIn(menu.id, employee_menus.sudo()._get_visible_menu_ids())
+        self.assertNotIn(menu.id, employee_menus._get_visible_menu_ids())
+        self.assertNotIn(menu.id, employee_menus.sudo().load_menus(False))
+
+    def test_an_action_restricted_to_other_groups_hides_its_menu(self):
+        action = self._act_window("res.partner")
+        action.group_ids = self.env.ref("base.group_system")
+        menu = self.Menu.create(
+            {"name": "Admins only", "action": f"{action._name},{action.id}"}
+        )
+        employee_menus = self.Menu.with_user(self.employee)
+        self.assertNotIn(menu.id, employee_menus._get_visible_menu_ids())
+        self.assertNotIn(menu.id, employee_menus.load_menus(False))
+
+        action.group_ids = False
+        self.assertIn(menu.id, employee_menus._get_visible_menu_ids())
+
+    def test_every_debug_spelling_shares_one_entry(self):
+        self.assertIs(
+            self.Menu._get_visible_menu_ids("assets"),
+            self.Menu._get_visible_menu_ids(True),
+        )
+        self.assertIs(
+            self.Menu._get_visible_menu_ids(""), self.Menu._get_visible_menu_ids(False)
+        )
+        self.assertIs(self.Menu.load_menus("1"), self.Menu.load_menus(True))
 
 
 class TestMenuMisc(TransactionCase):

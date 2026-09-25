@@ -3,7 +3,7 @@ import logging
 import time
 from collections.abc import Collection, Iterable
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from lxml import etree
 from psycopg.errors import LockNotAvailable, ReadOnlySqlTransaction
@@ -19,10 +19,7 @@ from odoo.libs.hashing import cache_hash
 from odoo.modules import module as _module
 from odoo.tools.assets import esm_index
 from odoo.tools.assets.esbuild import EsbuildResult
-from odoo.tools.assets.esm_graph import (
-    addon_specifier_to_url,
-    resolve_specifier_url,
-)
+from odoo.tools.assets.esm_graph import resolve_specifier_url
 from odoo.tools.assets.esm_libs import (
     served_external_libs,
     served_lib_files,
@@ -394,8 +391,6 @@ class IrQweb(models.AbstractModel):
     _served_external_libs_table = staticmethod(served_external_libs)
     _served_lib_files = staticmethod(served_lib_files)
 
-    _specifier_to_static_url = staticmethod(addon_specifier_to_url)
-
     def _resolve_specifier_url(self, spec: str) -> str | None:
         return resolve_specifier_url(spec, self._external_libs())
 
@@ -708,16 +703,41 @@ class IrQweb(models.AbstractModel):
         # a process that has not compiled yet serves what another one did
         variant = esm_index.variant_key(assets_params)
         reused = self._reuse_esm_group(group, variant, source_key)
-        if reused is not None:
-            log_event(
-                _fallback_log,
-                logging.DEBUG,
-                "group_reuse_by_source",
-                bundle=group,
-                children=len(reused),
-            )
-            _debug.logic("runtime_group_reused", group=group, children=len(reused))
-            return reused
+        if reused is None:
+            with self._esbuild_lock(group) as locked:
+                if locked is None:
+                    _debug.logic(
+                        "esbuild_group_declined", group=group, reason="no_lock_cursor"
+                    )
+                    return {}
+                if locked is not self:
+                    reused = self._reuse_esm_group(
+                        group, variant, source_key, lookup=locked
+                    )
+                if reused is None:
+                    return self._compile_and_save_esm_group(
+                        group, children, entries, stubs, templates, variant, source_key
+                    )
+        log_event(
+            _fallback_log,
+            logging.DEBUG,
+            "group_reuse_by_source",
+            bundle=group,
+            children=len(reused),
+        )
+        _debug.logic("runtime_group_reused", group=group, children=len(reused))
+        return reused
+
+    def _compile_and_save_esm_group(
+        self,
+        group: str,
+        children: dict[str, AssetsBundle],
+        entries: dict[str, list],
+        stubs: dict[str, str],
+        templates: dict[str, str],
+        variant: str,
+        source_key: str,
+    ) -> dict[str, str]:
         with _debug.perf(
             "runtime_group_compile",
             cr=self.env.cr,
@@ -760,10 +780,16 @@ class IrQweb(models.AbstractModel):
             return {}
 
     def _reuse_esm_group(
-        self, group: str, variant: str, source_key: str
+        self,
+        group: str,
+        variant: str,
+        source_key: str,
+        *,
+        lookup: Self | None = None,
     ) -> dict[str, str] | None:
+        lookup = self if lookup is None else lookup
         build = (
-            self.env["ir.asset.build"]
+            lookup.env["ir.asset.build"]
             .sudo()
             ._find_reusable("group", group, variant, source_key)
         )
@@ -772,7 +798,7 @@ class IrQweb(models.AbstractModel):
             return None
         prefix = build.directories[0]
         urls = {name: f"{prefix}{name}.esm.js" for name in build.members or ()}
-        IrAttachment = self.env["ir.attachment"].sudo()
+        IrAttachment = lookup.env["ir.attachment"].sudo()
         present = IrAttachment.search_count(
             IrAttachment._get_domain_generated_assets()
             & Domain("url", "in", list(urls.values()))
@@ -2123,6 +2149,11 @@ class IrQweb(models.AbstractModel):
                     "cannot persist ESM attachments on a read-only cursor"
                 )
             fresh = self._publish_esm_rows(self.env, vals_list, build)
+            if fresh:
+                # the nodes cached from here on name rows this transaction
+                # owns: invalidating now makes a rollback, of the transaction
+                # or of a savepoint around the render, drop those nodes too
+                self.env.registry.clear_cache("assets")
             _debug.lifecycle("esm_rows_saved", by="own_cursor", rows=fresh)
             return
         try:

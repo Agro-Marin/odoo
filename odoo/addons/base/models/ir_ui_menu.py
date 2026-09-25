@@ -93,7 +93,7 @@ class IrUiMenu(models.Model):
             else:
                 menu[fname] = menu.name
 
-    def _read_image(self, path: str) -> bytes | bool:
+    def _read_image(self, path: str | None) -> bytes | bool:
         if not path:
             return False
         path_info = path.split(",")
@@ -124,8 +124,11 @@ class IrUiMenu(models.Model):
     _hierarchy_cycle_message = _lt("Error! You cannot create recursive menus.")
 
     @api.model
-    @tools.ormcache("frozenset(self.env.user._get_group_ids())", "debug")
+    @tools.ormcache("frozenset(self.env.user._get_group_ids())", "bool(debug)")
     def _get_visible_menu_ids(self, debug: bool = False) -> frozenset[int]:
+        # the key is the user's groups: a superuser's access checks, which
+        # pass everything, must not decide what a group set sees
+        self = self.sudo(False)
         group_ids = set(self.env.user._get_group_ids())
         if not debug:
             group_ids.discard(
@@ -154,27 +157,37 @@ class IrUiMenu(models.Model):
                 action_ids_by_model[action._name].append(action.id)
 
         actions = self.env["ir.actions.actions"]
-        MODEL_BY_TYPE = {
-            model_name: field_name
-            for model_name in actions._get_model_names_in_tree()
-            if (field_name := self.env[model_name]._get_field_target_model())
-        }
+        MODEL_BY_TYPE = {}
+        GROUPS_BY_TYPE = {}
+        for model_name in actions._get_model_names_in_tree():
+            if field_name := self.env[model_name]._get_field_target_model():
+                MODEL_BY_TYPE[model_name] = field_name
+            if field_name := self.env[model_name]._get_field_groups():
+                GROUPS_BY_TYPE[model_name] = field_name
 
         def exists_actions(model_name, action_ids):
-            if model_name not in MODEL_BY_TYPE:
+            field_names = [
+                name
+                for name in (
+                    MODEL_BY_TYPE.get(model_name),
+                    GROUPS_BY_TYPE.get(model_name),
+                )
+                if name
+            ]
+            if not field_names:
                 return self.env[model_name].browse(action_ids).exists()
-            field_name = MODEL_BY_TYPE[model_name]
             records = (
                 self.env[model_name]
                 .sudo()
                 .with_context(active_test=False)
                 .search_fetch(
                     [("id", "in", action_ids)],
-                    [field_name],
+                    field_names,
                     order="id",
                 )
             )
-            records.mapped(field_name)
+            for field_name in field_names:
+                records.mapped(field_name)
             return records
 
         existing_actions = {
@@ -197,9 +210,10 @@ class IrUiMenu(models.Model):
                 no_action += 1  # debuglog
                 continue
             model_fname = MODEL_BY_TYPE.get(action._name)
-            gating_model = action[model_fname] if model_fname else None
-            if gating_model and not (
-                gating_model in self.env and self.env[gating_model].has_access("read")
+            groups_fname = GROUPS_BY_TYPE.get(action._name)
+            if actions._get_load_refusal(
+                action[groups_fname]._ids if groups_fname else (),
+                action[model_fname] if model_fname else None,
             ):
                 access_denied += 1  # debuglog
                 continue
@@ -265,9 +279,7 @@ class IrUiMenu(models.Model):
         return super().write(vals)
 
     def _prepare_web_icon_data(self, web_icon: str | None) -> bytes | bool:
-        if web_icon and len(web_icon.split(",")) == 2:
-            return self._read_image(web_icon)
-        return False
+        return self._read_image(web_icon)
 
     def unlink(self) -> bool:
         if not self:
@@ -309,8 +321,9 @@ class IrUiMenu(models.Model):
         return request.session.debug if request else False
 
     @api.model
-    @tools.ormcache("self.env.uid", "self.env.lang", "self._get_session_debug()")
+    @tools.ormcache("self.env.uid", "self.env.lang", "bool(self._get_session_debug())")
     def load_menus_root(self) -> dict[str, Any]:
+        self = self.sudo(False)
         fields = ["name", "sequence", "parent_id", "action", "web_icon_data"]
         menu_roots = self.get_user_roots()
         menu_roots_data = menu_roots.read(fields) if menu_roots else []
@@ -331,8 +344,9 @@ class IrUiMenu(models.Model):
         return menu_root
 
     @api.model
-    @tools.ormcache("self.env.uid", "debug", "self.env.lang")
+    @tools.ormcache("self.env.uid", "bool(debug)", "self.env.lang")
     def load_menus(self, debug: bool) -> dict[str | int, Any]:
+        self = self.sudo(False)
         blacklisted_menu_ids = self._get_blacklisted_menu_ids()
         with _debug.perf(
             "load_menus.fetch",
@@ -343,7 +357,7 @@ class IrUiMenu(models.Model):
             visible_menus = self.search_fetch(
                 [("id", "not in", blacklisted_menu_ids)],
                 ["name", "parent_id", "action", "web_icon", "web_keywords"],
-            )._filter_visible_menus(debug)
+            )._filter_visible_menus(bool(debug))
 
         children_dict = defaultdict(list)
         for menu in visible_menus:

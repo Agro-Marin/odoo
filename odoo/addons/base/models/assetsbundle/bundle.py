@@ -639,7 +639,9 @@ class AssetsBundle:
                 previous=bool(previous_attachment),
             )
             banner = self._css._render_css_error_banner(self.css_errors, previous_css)
-            return self.save_attachment(extension, banner)
+            # Saved under the versioned url, the banner would outlive a
+            # transient compiler failure until a source file changes.
+            return self._store.unsaved_attachment(extension, banner)
 
         import_rules, css = self._css.hoist_import_rules(css)
         _debug.pipeline(

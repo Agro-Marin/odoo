@@ -1657,6 +1657,30 @@ class TestCssCompileErrorReporting(TransactionCase):
         self.assertIn(CssPipeline._CSS_ERROR_HEADER, banner)
         self.assertIn("test_assetsbundle.csserr", banner)
 
+    def test_a_transient_failure_does_not_replace_the_last_good_stylesheet(self):
+        good = self._bundle(("/m/static/src/a.scss", ".ok{color:red}", 1.0)).css()
+        edited = ("/m/static/src/a.scss", ".ok{color:blue}", 2.0)
+
+        def timed_out(pipeline, compiler, source):
+            pipeline._bundle.css_errors.append("Sass: timed out")
+            return ""
+
+        failing = self._bundle(edited)
+        with patch.object(CssPipeline, "compile_css", timed_out):
+            banner = failing.css()
+        self.assertIn(CssPipeline._CSS_ERROR_HEADER, banner.raw.decode())
+        self.assertIn("color:red", banner.raw.decode(), "it carries the old css")
+        self.assertTrue(good.exists(), "the last good build is kept")
+        self.assertNotEqual(banner.url, good.url)
+        self.assertFalse(
+            failing.get_attachments("min.css"), "the banner is not persisted"
+        )
+
+        recovered = self._bundle(edited).css()
+        self.assertNotIn(CssPipeline._CSS_ERROR_HEADER, recovered.raw.decode())
+        self.assertIn("color:blue", recovered.raw.decode())
+        self.assertEqual(recovered.url, banner.url)
+
     def test_sass_load_path_noise_is_trimmed(self):
         pipeline = CssPipeline(_fake_bundle(name="b"))
         formatted = pipeline._format_compiler_error(

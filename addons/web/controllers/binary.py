@@ -221,6 +221,7 @@ class Binary(http.Controller):
             raise request.prepare_not_found_error()
         debug_assets = unique == "debug"
         stream = None
+        persisted = True
         if unique in ("any", "%"):
             unique = ANY_UNIQUE
         if not debug_assets:
@@ -250,7 +251,7 @@ class Binary(http.Controller):
                 filename,
                 debug_assets,
             )
-            stream, redirect = self._get_generated_asset_stream(
+            stream, redirect, persisted = self._get_generated_asset_stream(
                 filename, unique, debug_assets, assets_params
             )
             if redirect is not None:
@@ -272,7 +273,9 @@ class Binary(http.Controller):
             "as_attachment": False,
             "content_security_policy": None,
         }
-        if str2bool(nocache, False):
+        if str2bool(nocache, False) or not persisted:
+            # an asset built but not saved (a stylesheet's error banner) is
+            # served once: the next request builds again once the fault clears
             send_file_kwargs["max_age"] = None
         elif not debug_assets:
             send_file_kwargs["immutable"] = True
@@ -286,7 +289,7 @@ class Binary(http.Controller):
         unique: str,
         debug_assets: bool,
         assets_params: dict[str, Any],
-    ) -> tuple[Any, Response | None]:
+    ) -> tuple[Any, Response | None, bool]:
         if filename.endswith(".map"):
             _logger.error(
                 ".map should have been generated through debug assets, (version %s most likely outdated)",
@@ -347,7 +350,7 @@ class Binary(http.Controller):
                         unique,
                         bundle.get_version(asset_type),
                     )
-                    return None, request.redirect(bundle.get_link(asset_type))
+                    return None, request.redirect(bundle.get_link(asset_type)), True
                 attachment = None
                 with dbg.timer(
                     rw_env, "[asset:%s] generate: %s()", filename, asset_type
@@ -365,11 +368,17 @@ class Binary(http.Controller):
                     stream = rw_env["ir.binary"]._get_stream_from_record(
                         attachment, "raw", filename
                     )
+                    if not attachment.id:
+                        dbg.logic.debug(
+                            "[asset:%s] generate: unsaved attachment, not cached",
+                            filename,
+                        )
+                        return stream, None, False
             except ValueError as e:
                 dbg.logic.debug("[asset:%s] generate: bundle name unparsable", filename)
                 _logger.warning("Parsing asset bundle %s has failed: %s", filename, e)
                 raise request.prepare_not_found_error() from e
-        return stream, None
+        return stream, None, True
 
     @http.route(
         ["/web/assets/esm/<string:unique>/<string:filename>"],

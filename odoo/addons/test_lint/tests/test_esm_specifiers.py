@@ -3,10 +3,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from odoo.modules import Manifest
+from odoo.tools.assets.esm_graph import addon_specifier_to_url
 from odoo.tools.assets.esm_registry import external_libs
 
 from . import _js_sources, lint_case
-from odoo.addons.base.models.ir_qweb_assets import IrQweb
 
 _logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class TestEsmSpecifiers(lint_case.LintCase):
             for spec in _js_sources.specifiers(source):
                 if spec in external_libs():
                     continue
-                url = IrQweb._specifier_to_static_url(spec)
+                url = addon_specifier_to_url(spec)
                 if url is None:
                     continue
                 addon, _, relative = url.lstrip("/").partition("/")

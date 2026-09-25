@@ -184,20 +184,39 @@ class AssetAttachmentStore:
         )
         return ira.browse(attachment_ids)
 
-    def save_attachment(self, extension: str, content: str) -> IrAttachment:
+    def _versioned_attachment_values(
+        self, extension: str, content: str
+    ) -> dict[str, Any]:
         mimetype = self._ATTACHMENT_MIMETYPES.get(extension)
         if mimetype is None:
             _debug.logic(
                 "attachment_save_rejected", bundle=self.name, extension=extension
             )
             raise ValueError(f"Invalid asset extension {extension!r}")
-        ira = self.env["ir.attachment"]
-
-        fname = f"{self.name}.{extension}"
-        url = self.get_versioned_url(extension)
-        values = self._attachment_values(
-            name=fname, mimetype=mimetype, raw=content.encode("utf-8"), url=url
+        return self._attachment_values(
+            name=f"{self.name}.{extension}",
+            mimetype=mimetype,
+            raw=content.encode("utf-8"),
+            url=self.get_versioned_url(extension),
         )
+
+    def unsaved_attachment(self, extension: str, content: str) -> IrAttachment:
+        values = self._versioned_attachment_values(extension, content)
+        _debug.lifecycle(
+            "attachment_served_unsaved",
+            bundle=self.name,
+            extension=extension,
+            bytes=len(content),
+        )
+        return (
+            self.env["ir.attachment"]
+            .with_user(SUPERUSER_ID)
+            .new({**values, "db_datas": values["raw"]})
+        )
+
+    def save_attachment(self, extension: str, content: str) -> IrAttachment:
+        values = self._versioned_attachment_values(extension, content)
+        ira = self.env["ir.attachment"]
         with _debug.perf(
             "attachment_create", cr=self.env.cr, bundle=self.name, extension=extension
         ):

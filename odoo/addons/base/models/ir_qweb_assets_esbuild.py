@@ -1,11 +1,14 @@
+import contextlib
 import logging
 import re
-from typing import Any
+from collections.abc import Iterator
+from typing import Any, Self
 
 from odoo import models
 from odoo.libs.asset_log import get_asset_logger, log_event
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.lru import LRU
+from odoo.modules import module as _module
 from odoo.tools.assets import esm_index
 from odoo.tools.assets.esbuild import (
     EsbuildCompiler,
@@ -240,14 +243,10 @@ class IrQweb(models.AbstractModel):
         if assets_params is None:
             assets_params = self.env["ir.asset"]._prepare_assets_params()
 
-        with self._get_esbuild_lock_cursor(bundle) as lock_cr:
-            if lock_cr is None:
+        with self._esbuild_lock(bundle) as locked:
+            if locked is None:
                 _debug.logic("esbuild_declined", bundle=bundle, reason="no_lock_cursor")
-                log_event(
-                    _fallback_log, logging.INFO, "lock_unavailable", bundle=bundle
-                )
                 return empty, child_bundles
-            self._acquire_esbuild_lock(bundle, cr=lock_cr)
 
             child_bundles = self._get_dynamic_child_bundles(
                 bundle, assets_params, debug_assets=False
@@ -300,7 +299,7 @@ class IrQweb(models.AbstractModel):
             variant = esm_index.variant_key(
                 assets_params, page_scope=page_scope, standalone=standalone
             )
-            reused = self._load_esbuild_result_by_source(bundle, source_key, variant)
+            reused = locked._load_esbuild_result_by_source(bundle, source_key, variant)
             if reused is not None:
                 _debug.logic("esbuild_result", bundle=bundle, by="reused")
                 return reused, child_bundles
@@ -314,6 +313,8 @@ class IrQweb(models.AbstractModel):
             )
             if result.code:
                 result = result._replace(source_key=source_key, variant=variant)
+                if locked is not self and not standalone:
+                    self._publish_esbuild_result(bundle, asset_bundle, result)
             _debug.logic(
                 "esbuild_result",
                 bundle=bundle,
@@ -322,6 +323,53 @@ class IrQweb(models.AbstractModel):
                 exported=len(exported_specs or ()),
             )
         return result, child_bundles
+
+    @contextlib.contextmanager
+    def _esbuild_lock(self, bundle: str) -> Iterator[Self | None]:
+        with self._get_esbuild_lock_cursor(bundle) as lock_cr:
+            if lock_cr is None:
+                log_event(
+                    _fallback_log, logging.INFO, "lock_unavailable", bundle=bundle
+                )
+                yield None
+                return
+            if _module.current_test:
+                # the lock cursor is a test cursor over this very transaction,
+                # and the rollback that closes it would undo what the caller
+                # publishes under the lock
+                self._acquire_esbuild_lock(bundle, cr=self.env.cr)
+                yield self
+                return
+            # the waiter must see what the holder published before releasing
+            lock_cr.use_read_committed()
+            self._acquire_esbuild_lock(bundle, cr=lock_cr)
+            yield self.with_env(self.env(cr=lock_cr))
+
+    def _publish_esbuild_result(
+        self, bundle: str, asset_bundle: AssetsBundle, result: EsbuildResult
+    ) -> None:
+        # the same artifact the page saves afterwards, saved while the lock is
+        # held: a request waiting on the lock reuses it instead of compiling
+        code = self._combine_bundle_with_templates(
+            result.code, asset_bundle.generate_esm_template_bundle(use_import=False)
+        )
+        savepoint = self.env.cr.savepoint()
+        try:
+            self._save_esm_attachment(
+                bundle,
+                code,
+                metafile=result.metafile,
+                sourcemap=result.sourcemap,
+                source_key=result.source_key,
+                variant=result.variant or esm_index.DEFAULT_VARIANT,
+            )
+        except Exception as exc:
+            savepoint.close(rollback=self.env.cr.in_failed_transaction())
+            _debug.logic(
+                "esbuild_publish_deferred", bundle=bundle, error=type(exc).__name__
+            )
+        else:
+            savepoint.close(rollback=False)
 
     def _esm_source_key(
         self,
@@ -688,62 +736,52 @@ class IrQweb(models.AbstractModel):
         if not self._can_compile_with_esbuild(group):
             _debug.logic("esbuild_group_declined", group=group, reason="circuit")
             return empty
-        with self._get_esbuild_lock_cursor(group) as lock_cr:
-            if lock_cr is None:
-                _debug.logic(
-                    "esbuild_group_declined", group=group, reason="no_lock_cursor"
-                )
-                log_event(_fallback_log, logging.INFO, "lock_unavailable", bundle=group)
-                return empty
-            self._acquire_esbuild_lock(group, cr=lock_cr)
-            reference = next(iter(children.values()))
-            compiler = EsbuildCompiler(
-                group,
-                [module for modules in entries.values() for module in modules],
-                addon_flags_provider=reference._get_esbuild_addon_flags,
-            )
-            config = self._get_esbuild_config()
-            try:
-                with _debug.perf(
-                    "esbuild_group",
-                    group=group,
-                    children=len(children),
-                    modules=sum(len(modules) for modules in entries.values()),
-                    stubs=len(stubs),
-                ):
-                    result = compiler.compile_group(
-                        entries,
-                        timeout_s=config.get_param_int(
-                            "web.esbuild.timeout_s", EsbuildCompiler._ESBUILD_TIMEOUT_S
-                        ),
-                        target=config.get_param("web.esbuild.target")
-                        or EsbuildCompiler._ESBUILD_TARGET,
-                        source_maps=config.get_param("web.esbuild.source_maps")
-                        or EsbuildCompiler._ESBUILD_SOURCE_MAPS,
-                        secondary_parent_stubs=stubs or None,
-                    )
-            except Exception as exc:
-                log_event(
-                    _fallback_log,
-                    logging.WARNING,
-                    "esbuild_exception",
-                    bundle=group,
-                    err=type(exc).__name__,
-                    msg=str(exc)[:200],
-                )
-                _debug.logic(
-                    "esbuild_group_failed", group=group, error=type(exc).__name__
-                )
-                if self._is_esbuild_fail_closed():
-                    raise EsbuildBundleError(
-                        f"esbuild failed for runtime group {group!r}: {exc}"
-                    ) from exc
-                self._open_esbuild_circuit(group, reason=type(exc).__name__)
-                return empty
-            self._close_esbuild_circuit(group)
-            _debug.lifecycle(
-                "esbuild_group_compiled",
+        reference = next(iter(children.values()))
+        compiler = EsbuildCompiler(
+            group,
+            [module for modules in entries.values() for module in modules],
+            addon_flags_provider=reference._get_esbuild_addon_flags,
+        )
+        config = self._get_esbuild_config()
+        try:
+            with _debug.perf(
+                "esbuild_group",
                 group=group,
-                outputs=len(getattr(result, "outputs", None) or ()),
+                children=len(children),
+                modules=sum(len(modules) for modules in entries.values()),
+                stubs=len(stubs),
+            ):
+                result = compiler.compile_group(
+                    entries,
+                    timeout_s=config.get_param_int(
+                        "web.esbuild.timeout_s", EsbuildCompiler._ESBUILD_TIMEOUT_S
+                    ),
+                    target=config.get_param("web.esbuild.target")
+                    or EsbuildCompiler._ESBUILD_TARGET,
+                    source_maps=config.get_param("web.esbuild.source_maps")
+                    or EsbuildCompiler._ESBUILD_SOURCE_MAPS,
+                    secondary_parent_stubs=stubs or None,
+                )
+        except Exception as exc:
+            log_event(
+                _fallback_log,
+                logging.WARNING,
+                "esbuild_exception",
+                bundle=group,
+                err=type(exc).__name__,
+                msg=str(exc)[:200],
             )
-            return result
+            _debug.logic("esbuild_group_failed", group=group, error=type(exc).__name__)
+            if self._is_esbuild_fail_closed():
+                raise EsbuildBundleError(
+                    f"esbuild failed for runtime group {group!r}: {exc}"
+                ) from exc
+            self._open_esbuild_circuit(group, reason=type(exc).__name__)
+            return empty
+        self._close_esbuild_circuit(group)
+        _debug.lifecycle(
+            "esbuild_group_compiled",
+            group=group,
+            outputs=len(getattr(result, "outputs", None) or ()),
+        )
+        return result

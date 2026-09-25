@@ -506,8 +506,21 @@ class IrHttp(models.AbstractModel):
         return translations_per_module, lang_params
 
     @api.model
+    def _get_web_translations_hash(self, modules: list[str], lang: str | None) -> str:
+        effective_lang = lang or self.env.context.get("lang")
+        _debug.logic(
+            "web_translations_hash",
+            requested_lang=lang,
+            effective_lang=effective_lang,
+            modules=len(modules),
+        )
+        return self._get_web_translations_hash_cached(modules, effective_lang)
+
+    @api.model
     @tools.ormcache("frozenset(modules)", "lang")
-    def _get_web_translations_hash(self, modules: list[str], lang: str) -> str:
+    def _get_web_translations_hash_cached(
+        self, modules: list[str], lang: str | None
+    ) -> str:
         translations, lang_params = self._get_translations_for_webclient(modules, lang)
         translation_cache = {
             "lang_parameters": lang_params,

@@ -6,6 +6,7 @@ from unittest.mock import patch
 import markupsafe
 from lxml import etree
 
+from odoo.db import db_connect
 from odoo.exceptions import MissingError, UserError
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase, skip_if_dev_mode
@@ -3579,10 +3580,12 @@ class TestQWebHelpers(TransactionCase):
     def test_format_attributes(self):
         self.assertEqual(
             format_attributes(
-                {"a": 1, "b": "", "c": None, "d": 0, "e": False, 'x"y': "<&>"}
+                {"a": 1, "b": "", "c": None, "d": 0, "e": False, "x&y": "<&>"}
             ),
-            ' a="1" b="" x&#34;y="&lt;&amp;&gt;"',
+            ' a="1" b="" x&amp;y="&lt;&amp;&gt;"',
         )
+        with self.assertRaisesRegex(ValueError, "Invalid attribute name"):
+            format_attributes({'x"y': "1"})
 
     def test_is_static_node(self):
         qweb = self.env["ir.qweb"]
@@ -4779,7 +4782,7 @@ class TestQWebCompileErrorLocation(TransactionCase):
         )  # committed, visible to a second cursor
         arch = etree.fromstring('<t><p t-out="env.cr.execute(q)"/></t>')
         query = f"SELECT id FROM res_partner WHERE id = {partner.id} FOR UPDATE NOWAIT"
-        with self.registry.cursor() as other:
+        with db_connect(self.env.cr.dbname).cursor() as other:
             other.execute(
                 "SELECT id FROM res_partner WHERE id = %s FOR UPDATE NOWAIT",
                 [partner.id],
@@ -4933,6 +4936,129 @@ class TestQWebDirectiveEdgeCases(TransactionCase):
         ][-1]
         self.assertIn("1/0", lines[error_line - 1])
         self.assertEqual(cm.exception.qweb.path, "/t/t")
+
+    def test_the_javascript_scheme_is_scrubbed_whatever_the_attribute_case(self):
+        url = {"u": "javascript:alert(1)"}
+        for arch, values in (
+            ('<a t-att-HREF="u">x</a>', url),
+            ("<a t-att=\"{'Href': u}\">x</a>", url),
+            ('<button t-att-formAction="u">x</button>', url),
+            ('<img t-attf-SRC="{{u}}"/>', url),
+        ):
+            with self.subTest(arch=arch):
+                self.assertNotIn("javascript", self._render(arch, values))
+        self.assertEqual(
+            self._render('<a t-att-HREF="u">x</a>', {"u": "/web"}),
+            '<a HREF="/web">x</a>',
+        )
+
+    def test_a_dynamic_attribute_name_outside_the_html_grammar_is_refused(self):
+        for name in (
+            "x onmouseover=alert(1) y",
+            "a/b",
+            "a>b",
+            "a=b",
+            "a'b",
+            'a"b',
+            "a\tb",
+            "a\x00b",
+            "",
+        ):
+            with self.subTest(name=name):
+                error = self._render_error('<div t-att="d"/>', {"d": {name: "1"}})
+                self.assertIn("Invalid attribute name", error)
+        self.assertEqual(
+            self._render(
+                '<div t-att="d"/>',
+                {"d": {"data-x": "1", "@click": "go", ":class": "c", "a&b": "2"}},
+            ),
+            '<div data-x="1" @click="go" :class="c" a&amp;b="2"></div>',
+        )
+
+    def test_the_slot_escapes_a_string_that_is_not_a_body(self):
+        self.env["ir.ui.view"].create(
+            {
+                "name": "slot",
+                "type": "qweb",
+                "key": "base.edge_slot",
+                "arch": '<t t-name="base.edge_slot"><div t-out="0"/></t>',
+            }
+        )
+        evil = {"v": "<img src=x onerror=alert(1)>"}
+        escaped = "&lt;img src=x onerror=alert(1)&gt;"
+        self.assertEqual(
+            self._render(
+                '<t><t t-call="base.edge_slot" t-args="{\'0\': v}"/></t>', evil
+            ),
+            f"<div>{escaped}</div>",
+        )
+        self.assertEqual(
+            self._render('<t><t t-set="{\'0\': v}"/><t t-out="0"/></t>', evil),
+            escaped,
+        )
+        with mute_logger("odoo.addons.base.models.ir_qweb"):
+            self.assertEqual(
+                self._render('<t><t t-set="{\'0\': v}"/><t t-raw="0"/></t>', evil),
+                evil["v"],
+            )
+        self.assertEqual(
+            self._render(
+                '<t><t t-call="base.edge_slot" t-args="{\'0\': v}"/></t>',
+                {"v": markupsafe.Markup("<b>ok</b>")},
+            ),
+            "<div><b>ok</b></div>",
+        )
+        self.assertEqual(
+            self._render('<t><t t-call="base.edge_slot"><i>body</i></t></t>'),
+            "<div><i>body</i></div>",
+        )
+
+    def test_the_depth_limit_counts_nesting_not_error_locations(self):
+        levels = 24
+        for i in range(levels):
+            body = (
+                f'<t t-call="base.edge_depth{i + 1}"><i t-out="0"/></t>'
+                if i < levels - 1
+                else '<b t-out="0"/>'
+            )
+            self.env["ir.ui.view"].create(
+                {
+                    "name": f"depth{i}",
+                    "type": "qweb",
+                    "key": f"base.edge_depth{i}",
+                    "arch": f'<t t-name="base.edge_depth{i}">{body}</t>',
+                }
+            )
+        out = self._render('<t><t t-call="base.edge_depth0">x</t></t>')
+        nested = "<i>" * (levels - 1) + "x" + "</i>" * (levels - 1)
+        self.assertEqual(out, f"<b>{nested}</b>")
+
+    def test_a_body_renders_once_however_often_it_is_output(self):
+        self.assertEqual(
+            self._render(
+                '<t><t t-set="x"><b t-out="lst.pop()"/></t>'
+                '<t t-out="x"/>|<t t-out="x"/>|<t t-out="len(x)"/>|<t t-out="x"/></t>',
+                {"lst": list(range(10))},
+            ),
+            "<b>9</b>|<b>9</b>|8|<b>9</b>",
+        )
+        self.env["ir.ui.view"].create(
+            {
+                "name": "twice",
+                "type": "qweb",
+                "key": "base.edge_twice",
+                "arch": '<t t-name="base.edge_twice"><t t-out="0"/>|<t t-out="0"/></t>',
+            }
+        )
+        self.assertEqual(
+            self._render(
+                '<t><t t-call="base.edge_twice">'
+                '<t t-set="y"><i t-out="lst.pop()"/></t>'
+                '<t t-out="y"/><t t-out="y"/></t></t>',
+                {"lst": list(range(10))},
+            ),
+            "<i>9</i><i>9</i>|<i>9</i><i>9</i>",
+        )
 
 
 def iter_traceback(error):

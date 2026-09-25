@@ -112,3 +112,21 @@ class TestIrHttpSessionGc(TransactionCase):
         ):
             self.env["ir.http"]._gc_sessions()
         vacuum.assert_not_called()
+
+
+class TestWebTranslationsHash(TransactionCase):
+    def test_hash_without_lang_follows_the_context_lang(self):
+        for code in ("fr_FR", "es_ES"):
+            self.env["res.lang"]._activate_lang(code)
+        IrHttp = self.env["ir.http"]
+        self.env.registry.clear_cache()
+        self.addCleanup(self.env.registry.clear_cache)
+
+        for code in ("fr_FR", "es_ES"):
+            with self.subTest(lang=code):
+                self.assertEqual(
+                    IrHttp.with_context(lang=code)._get_web_translations_hash(
+                        ["base"], None
+                    ),
+                    IrHttp._get_web_translations_hash(["base"], code),
+                )

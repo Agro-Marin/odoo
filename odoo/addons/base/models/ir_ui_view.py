@@ -572,9 +572,15 @@ class IrUiView(models.Model):
     ) -> list[tuple[str, str, Any]] | types.NotImplementedType:
         if operator in Domain.NEGATIVE_OPERATORS:
             return NotImplemented
-        name = "name" if isinstance(value, str) else "id"
-        domain = [("model", "=", "ir.ui.view"), (name, operator, value)]
-        query = self.env["ir.model.data"].sudo()._search(domain)
+        if operator == "any" and isinstance(value, Domain | list | tuple):
+            data_domain = Domain(value)
+        else:
+            data_domain = Domain("id", operator, value)
+        query = (
+            self.env["ir.model.data"]
+            .sudo()
+            ._search(Domain("model", "=", "ir.ui.view") & data_domain)
+        )
         return [("id", "in", query.subselect("res_id"))]
 
     @api.depends("model")
@@ -865,12 +871,10 @@ class IrUiView(models.Model):
         they inherit the roots' extensions and one may no longer apply."""
         # one read per level, none when the tree is in cache already
         sibling_primary_views = self.env["ir.ui.view"]
-        level = self
+        level = self.inherit_children_ids
         while level:
-            children = level.inherit_children_ids
-            primaries = children.filtered(lambda view: view.mode == "primary")
-            sibling_primary_views |= primaries
-            level = children - primaries
+            sibling_primary_views |= level.filtered(lambda view: view.mode == "primary")
+            level = level.inherit_children_ids
 
         if not self.pool.ready and sibling_primary_views and self.pool.loaded_modules:
             found = len(sibling_primary_views)  # debuglog
@@ -1331,6 +1335,7 @@ class IrUiView(models.Model):
                 ("model", "=", model),
                 ("type", "=", view_type),
                 ("mode", "=", "primary"),
+                ("active", "=", True),
             ]
         )
 
@@ -1389,6 +1394,17 @@ class IrUiView(models.Model):
         if not self.ids:
             return self.browse()
         domain = self._get_domain_inheriting_views()
+        views = self._fetch_views_inheriting(domain)
+        if (self - views) and (
+            unreached := self._get_primary_anchored_ids() - set(views._ids)
+        ):
+            _debug.logic("views_inheriting.anchored", views=sorted(unreached))
+            views = self._fetch_views_inheriting(
+                domain | Domain("id", "in", sorted(unreached))
+            )
+        return views
+
+    def _fetch_views_inheriting(self, domain: Domain) -> Self:
         query = self._search(domain)
         if query.from_clause != SQL.identifier("ir_ui_view"):
             _debug.logic("views_inheriting_refused", reason="joined_from_clause")
@@ -1413,6 +1429,20 @@ class IrUiView(models.Model):
             )
         _debug.perf.count("views_inheriting", roots=len(self.ids), rows=len(views))
         return views
+
+    def _get_primary_anchored_ids(self) -> set[int]:
+        """The primary views among these and every view above them: what a
+        primary view is built on, so each is part of its tree whether active
+        or not -- the active flag decides which extensions join a tree, not
+        whether a primary view keeps its own definition."""
+        anchored: set[int] = set()
+        for view in self:
+            if view.mode != "primary":
+                continue
+            while view and view.id not in anchored:
+                anchored.add(view.id)
+                view = view.inherit_id
+        return anchored
 
     def _filter_loaded_views(
         self,

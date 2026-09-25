@@ -1,5 +1,6 @@
 import ast
 import base64
+import functools
 import io
 import logging
 import math
@@ -173,6 +174,7 @@ MALICIOUS_SCHEMES = re.compile(
     r"javascript:(?!( ?)((window\.)?)history\.back\(\)$)", re.IGNORECASE
 ).findall
 URL_IGNORED_CHARS = re.compile(r"[\s\x00-\x1f]+")
+ATTRIBUTE_NAME_REGEXP = re.compile(r"[^\s\"'>/=\x00-\x1f\x7f-\x9f]+")
 
 
 def _normalize_url_for_scheme_check(value: object) -> str:
@@ -201,12 +203,28 @@ def indent_code(code: str, level: int) -> str:
     return textwrap.indent(textwrap.dedent(code).strip(), " " * 4 * level)
 
 
-def format_attributes(attrs: Mapping[str, Any]) -> str:
+def format_attributes(attrs: Mapping[str, Any], *, strict: bool = True) -> str:
+    # a name computed while rendering must be one: a data-driven key could
+    # otherwise add an attribute of its own; a name the template's markup
+    # already carries is the template's, and is only escaped
+    name_html = _attribute_name_html if strict else _escaped_attribute_name
     return "".join(
-        f' {escape(str(name))}="{escape(str(value))}"'
+        f' {name_html(str(name))}="{escape(str(value))}"'
         for name, value in attrs.items()
         if value or isinstance(value, str)
     )
+
+
+def _escaped_attribute_name(name: str) -> str:
+    return str(escape(name))
+
+
+@functools.lru_cache(maxsize=4096)
+def _attribute_name_html(name: str) -> str:
+    if not ATTRIBUTE_NAME_REGEXP.fullmatch(name):
+        msg = f"Invalid attribute name {name!r}"
+        raise ValueError(msg)
+    return str(escape(name))
 
 
 class QwebCallParameters(NamedTuple):
@@ -242,6 +260,7 @@ class QwebStackFrame(NamedTuple):
     values: dict[str, Any]
     options: Mapping[str, Any] | None
     cache_signature: tuple
+    location_only: bool = False
 
     def __repr__(self) -> str:
         return f"<QwebStackFrame {self.params!r}>"
@@ -519,12 +538,17 @@ class IrQweb(models.AbstractModel):
             )
         ]
 
+        depth = 1
+        # A body streamed through the stack keeps what it yielded, so it
+        # renders once however many times it is output.
+        captured: list[str] = []
+        capturing: list[tuple[QwebContent, int, int]] = []
         try:
             while stack:
-                if len(stack) > QWEB_MAX_RENDER_DEPTH:
+                if depth > QWEB_MAX_RENDER_DEPTH:
                     _debug.logic(
                         "render.recursion_exceeded",
-                        depth=len(stack),
+                        depth=depth,
                         limit=QWEB_MAX_RENDER_DEPTH,
                     )
                     msg = "Qweb template infinite recursion"
@@ -534,20 +558,33 @@ class IrQweb(models.AbstractModel):
 
                 for item in frame.iterator:
                     if isinstance(item, str):
+                        if capturing:
+                            captured.append(item)
                         yield item
                         continue
 
                     if isinstance(item, QwebContent) and item.html is not None:
+                        if capturing:
+                            captured.append(item.html)
                         yield item.html
                         continue
 
                     self._push_render_frame(
                         stack, frame, item, compiled_cache, root_values
                     )
+                    depth += 1
+                    if isinstance(item, QwebContent):
+                        capturing.append((item, len(stack), len(captured)))
                     break
 
                 else:
-                    stack.pop()
+                    if capturing and capturing[-1][1] == len(stack):
+                        content, _stack_len, start = capturing.pop()
+                        content.html = "".join(captured[start:])
+                        if not capturing:
+                            captured.clear()
+                    if not stack.pop().location_only:
+                        depth -= 1
 
         except (
             TransactionRollback,
@@ -627,7 +664,13 @@ class IrQweb(models.AbstractModel):
                 )
                 stack.append(
                     QwebStackFrame(
-                        log_params, qweb, (), values, options, cache_signature
+                        log_params,
+                        qweb,
+                        (),
+                        values,
+                        options,
+                        cache_signature,
+                        location_only=True,
                     )
                 )
             stack.append(
@@ -1922,7 +1965,9 @@ class IrQweb(models.AbstractModel):
             void=el_tag in VOID_ELEMENTS,
         )
         if unqualified_el_tag != "t":
-            self._add_text(f"<{el_tag}{format_attributes(attrib)}", compile_context)
+            self._add_text(
+                f"<{el_tag}{format_attributes(attrib, strict=False)}", compile_context
+            )
             if el_tag in VOID_ELEMENTS:
                 self._add_text("/>", compile_context)
             else:
@@ -2640,13 +2685,22 @@ class IrQweb(models.AbstractModel):
 
         if expr == T_CALL_SLOT and not has_options:
             _debug.logic("directive_out.slot_passthrough", ttype=ttype, tag=el.tag)
+            text = (
+                "self._compile_to_str(content)"
+                if ttype == "t-raw"
+                else "str(escape(self._compile_to_str(content)))"
+            )
             code.append(indent_code("if True:", level))
             code.extend(tag_open)
             code.append(
                 indent_code(
                     f"""
                 self.env.context['_qweb_error_path_xml'][:] = (template_options['ref'], {path!r}, {xml!r})
-                yield values.get({T_CALL_SLOT!r}, '')
+                content = values.get({T_CALL_SLOT!r}, '')
+                if isinstance(content, QwebContent):
+                    yield content
+                elif content is not None and content is not False:
+                    yield {text}
                 """,
                     level + 1,
                 )
@@ -3087,9 +3141,11 @@ class IrQweb(models.AbstractModel):
         self, tag_name: str, atts: dict[str, Any], *, is_static: bool = False
     ) -> dict[str, Any]:
         if not is_static:
-            for attr in POST_PROCESSING_ATT_NAMES:
-                if (value := atts.get(attr)) and MALICIOUS_SCHEMES(
-                    _normalize_url_for_scheme_check(value)
+            for attr, value in atts.items():
+                if (
+                    value
+                    and str(attr).lower() in POST_PROCESSING_ATT_NAMES
+                    and MALICIOUS_SCHEMES(_normalize_url_for_scheme_check(value))
                 ):
                     _debug.logic("attribute_scheme_stripped", tag=tag_name, attr=attr)
                     atts[attr] = ""

@@ -64,6 +64,7 @@ class IrActionsAct_Window(models.Model):
         string="Views",
     )
     views = fields.Binary(
+        string="Effective Views",
         compute="_compute_views",
         help="This function field computes the ordered list of views that should be enabled "
         "when displaying the result of an action, federating view mode, views and "

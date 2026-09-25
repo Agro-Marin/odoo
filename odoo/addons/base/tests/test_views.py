@@ -9385,3 +9385,186 @@ class TestViewModeScrub(ViewCase):
             {("res.partner", "graph")}
         )
         self.assertEqual(action.view_mode, "list,graph")
+
+
+@tagged("post_install", "-at_install")
+class TestViewCacheContext(ViewCase):
+    def setUp(self):
+        super().setUp()
+        self.Partner = self.env["res.partner"].with_context(lang="en_US")
+        self.env.registry.clear_cache("templates")
+
+    def test_edit_translations_does_not_reach_a_plain_caller(self):
+        flagged = self.Partner.with_context(edit_translations=True).get_view(
+            view_type="form"
+        )
+        self.assertIn("data-oe-translation-state", flagged["arch"])
+        plain = self.Partner.get_view(view_type="form")
+        self.assertNotIn("data-oe-translation-state", plain["arch"])
+
+    def test_check_translations_is_part_of_the_key(self):
+        self.assertNotEqual(
+            self.Partner._get_view_cache_key(view_type="form"),
+            self.Partner.with_context(check_translations=True)._get_view_cache_key(
+                view_type="form"
+            ),
+        )
+
+    def test_read_arch_from_file_does_not_hide_a_customisation(self):
+        view = self.env.ref("base.view_partner_form")
+        view.arch = view.arch.replace("<form", '<form data-probe-marker="1"', 1)
+        from_file = self.Partner.with_context(read_arch_from_file=True).get_view(
+            view.id, "form"
+        )
+        self.assertNotIn("data-probe-marker", from_file["arch"])
+        plain = self.Partner.get_view(view.id, "form")
+        self.assertIn("data-probe-marker", plain["arch"])
+
+    def test_inherit_branding_does_not_reach_a_plain_caller(self):
+        branded = self.Partner.with_context(inherit_branding=True).get_view(
+            view_type="form"
+        )
+        self.assertIn("data-oe-model", branded["arch"])
+        plain = self.Partner.get_view(view_type="form")
+        self.assertNotIn("data-oe-model", plain["arch"])
+
+    def test_an_archived_view_is_never_the_default(self):
+        default_id = self.View.default_view("res.partner", "form")
+        self.View.create(
+            {
+                "name": "archived partner form",
+                "model": "res.partner",
+                "priority": 1,
+                "active": False,
+                "arch": '<form><field name="name"/></form>',
+            }
+        )
+        self.assertEqual(
+            self.View.with_context(active_test=False).default_view(
+                "res.partner", "form"
+            ),
+            default_id,
+        )
+        unfiltered = self.Partner.with_context(active_test=False).get_view(
+            view_type="form"
+        )
+        self.assertEqual(unfiltered["id"], default_id)
+        self.assertEqual(self.Partner.get_view(view_type="form")["id"], default_id)
+
+
+@tagged("post_install", "-at_install")
+class TestPrimaryChains(ViewCase):
+    def _chain(self):
+        root = self.assertValid(
+            '<form><field name="name"/><field name="email"/></form>',
+            name="chain root",
+            model="res.partner",
+        )
+        middle = self.View.create(
+            {
+                "name": "chain middle",
+                "model": "res.partner",
+                "inherit_id": root.id,
+                "mode": "primary",
+                "arch": '<field name="name" position="after"><field name="ref"/></field>',
+            }
+        )
+        leaf = self.View.create(
+            {
+                "name": "chain leaf",
+                "model": "res.partner",
+                "inherit_id": middle.id,
+                "mode": "primary",
+                "arch": '<field name="email" position="after"><field name="lang"/></field>',
+            }
+        )
+        return root, middle, leaf
+
+    def test_an_extension_breaking_a_nested_primary_is_refused(self):
+        root, _middle, _leaf = self._chain()
+        with mute_logger("odoo.addons.base.models.ir_ui_view"):
+            with self.assertRaises(ValidationError):
+                self.assertValid(
+                    '<field name="email" position="replace"/>',
+                    name="breaks the leaf",
+                    inherit_id=root.id,
+                    model="res.partner",
+                )
+
+    def test_an_archived_link_keeps_the_primary_specs_below_it(self):
+        _root, middle, leaf = self._chain()
+        middle.active = False
+        leaf_arch = leaf.get_combined_arch()
+        self.assertIn('name="ref"', leaf_arch)
+        self.assertIn('name="lang"', leaf_arch)
+        self.assertIn('name="ref"', middle.get_combined_arch())
+        self.assertIn(
+            'name="ref"', self.env["res.partner"].get_view(middle.id, "form")["arch"]
+        )
+
+    def test_an_archived_extension_requested_alone_does_not_apply(self):
+        root, _middle, _leaf = self._chain()
+        extension = self.View.create(
+            {
+                "name": "archived extension",
+                "model": "res.partner",
+                "inherit_id": root.id,
+                "active": False,
+                "arch": '<field name="email" position="after"><field name="phone"/></field>',
+            }
+        )
+        self.assertNotIn('name="phone"', extension.get_combined_arch())
+
+
+class TestModelDataIdSearch(ViewCase):
+    def test_search_by_full_xmlid(self):
+        view = self.env.ref("base.view_partner_form")
+        self.assertIn(
+            view, self.View.search([("model_data_id", "=", "base.view_partner_form")])
+        )
+        self.assertIn(
+            view,
+            self.View.search([("model_data_id", "ilike", "base.view_partner_form")]),
+        )
+        self.assertIn(
+            view, self.View.search([("model_data_id", "ilike", "view_partner_form")])
+        )
+        self.assertIn(
+            view,
+            self.View.search(
+                [("model_data_id", "in", ["base.view_partner_form", "view_other"])]
+            ),
+        )
+        self.assertNotIn(
+            view, self.View.search([("model_data_id", "=", "web.view_partner_form")])
+        )
+        self.assertNotIn(
+            view,
+            self.View.search([("model_data_id", "!=", "base.view_partner_form")]),
+        )
+        self.assertIn(
+            view,
+            self.View.search([("model_data_id", "not ilike", "web.view_partner")]),
+        )
+
+
+class TestResetViewWizard(ViewCase):
+    def test_other_view_without_a_view_to_compare_is_refused(self):
+        root = self.assertValid(
+            '<form><field name="name"/></form>', name="reset root", model="res.partner"
+        )
+        extension = self.assertValid(
+            '<field name="name" position="after"><field name="ref"/></field>',
+            name="reset extension",
+            inherit_id=root.id,
+            model="res.partner",
+        )
+        arch = extension.arch_db
+        wizard = (
+            self.env["reset.view.arch.wizard"]
+            .with_context(active_model="ir.ui.view", active_ids=[extension.id])
+            .create({"reset_mode": "other_view"})
+        )
+        with self.assertRaises(UserError):
+            wizard.reset_view_button()
+        self.assertEqual(extension.arch_db, arch)

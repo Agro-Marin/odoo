@@ -29,6 +29,7 @@ from odoo.tools.assets.esm_graph import (
     _bridge_shim_source,
     _BridgeExportResolver,
     _get_import_specifiers,
+    addon_specifier_to_url,
     discover_transitive_import_specifiers,
 )
 from odoo.tools.assets.esm_lexer import lex_module
@@ -1360,21 +1361,21 @@ class TestQwebAssetHelpers(TransactionCase):
             "@account/models/move": "/account/static/src/models/move.js",
         }
         for spec, url in cases.items():
-            self.assertEqual(self._qweb._specifier_to_static_url(spec), url, spec)
+            self.assertEqual(addon_specifier_to_url(spec), url, spec)
 
     def test_specifier_odoo_namespace_is_reserved(self):
         externals = self._qweb._external_libs()
         for spec in [k for k in externals if k.startswith("@odoo/")]:
             self.assertIsNone(
-                self._qweb._specifier_to_static_url(spec),
+                addon_specifier_to_url(spec),
                 f"{spec} must not resolve via the addon convention",
             )
             self.assertTrue(externals[spec])
-        self.assertIsNone(self._qweb._specifier_to_static_url("@odoo/nope"))
+        self.assertIsNone(addon_specifier_to_url("@odoo/nope"))
 
     def test_specifier_non_convention_returns_none(self):
         for spec in ["luxon", "@web", "@/foo", ""]:
-            self.assertIsNone(self._qweb._specifier_to_static_url(spec), spec)
+            self.assertIsNone(addon_specifier_to_url(spec), spec)
 
     def test_is_debug_assets_string_semantics(self):
         q = self._qweb
@@ -1536,6 +1537,8 @@ class TestNativeNodesDispatch(TransactionCase):
 
 @tagged("web_unit", "web_assets")
 class TestEsbuildLockCursor(TransactionCase):
+    registry_test_mode = False
+
     @property
     def _qweb(self):
         return self.env["ir.qweb"]

@@ -11,6 +11,7 @@ from odoo.tests.common import HttpCase, tagged
 from odoo.tools import mute_logger
 from odoo.tools.sass_embedded import SassCompileError, close_sass_compiler
 
+from odoo.addons.base.models.assetsbundle.css_pipeline import CssPipeline
 from odoo.addons.base.models.assetsbundle.js_pipeline import (
     ModuleSyntaxInLegacyBundleError,
 )
@@ -230,6 +231,31 @@ class TestWebAssetsCursors(HttpCase):
 
 @tagged("post_install", "-at_install")
 class TestWebAssetsRegenerationLock(HttpCase):
+    def test_a_stylesheet_error_banner_is_not_cached(self):
+        bundle_name = "web.assets_frontend"
+        self.env["ir.attachment"].search(
+            [("url", "=like", f"/web/assets/%/{bundle_name}.min.css")]
+        ).unlink()
+        version = self.env["ir.qweb"]._get_asset_bundle(bundle_name).get_version("css")
+        url = f"/web/assets/{version}/{bundle_name}.min.css"
+
+        def failing_compile(pipeline, compiler, source):
+            pipeline._bundle.css_errors.append("Sass: timed out")
+            return ""
+
+        with (
+            patch.object(CssPipeline, "compile_css", failing_compile),
+            mute_logger("odoo.addons.base.models.assetsbundle"),
+        ):
+            banner = self.url_open(url, allow_redirects=False)
+        self.assertEqual(banner.status_code, 200)
+        self.assertIn(CssPipeline._CSS_ERROR_HEADER.strip(), banner.text)
+        self.assertNotIn("immutable", banner.headers.get("Cache-Control", ""))
+
+        recovered = self.url_open(url, allow_redirects=False)
+        self.assertNotIn(CssPipeline._CSS_ERROR_HEADER.strip(), recovered.text)
+        self.assertIn("immutable", recovered.headers.get("Cache-Control", ""))
+
     def test_regeneration_takes_a_stable_per_bundle_advisory_lock(self):
         bundle_name = "web.assets_frontend"
         self.env["ir.attachment"].search(
