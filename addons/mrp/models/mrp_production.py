@@ -2564,15 +2564,52 @@ class MrpProduction(models.Model):
         self.check_singleton()
         return date_end == self.date_start
 
+    def _get_bom_demand_by_line(self, quantity):
+        self.check_singleton()
+        if not self.bom_id:
+            return {}
+        _boms, lines = self.bom_id._explode(
+            self.product_id,
+            self.bom_id._get_explode_factor(quantity, self.product_uom_id),
+            picking_type=self.bom_id.picking_type_id,
+            never_attribute_values=self.never_product_template_attribute_value_ids,
+        )
+        demand = {}
+        repeated = set()
+        for bom_line, line_data in lines:
+            if bom_line in demand:
+                repeated.add(bom_line)
+            demand[bom_line] = line_data["qty"]
+        return {
+            bom_line: qty
+            for bom_line, qty in demand.items()
+            if bom_line not in repeated
+        }
+
     def _update_raw_moves(self, factor):
         self.check_singleton()
         update_info = []
         moves_to_reference = self.env["stock.move"]
+        old_demand = self._get_bom_demand_by_line(self.product_qty)
+        new_demand = self._get_bom_demand_by_line(self.product_qty * factor)
         for move in self.move_raw_ids.filtered(
             lambda m: m.state not in ("done", "cancel")
         ):
             old_qty = move.product_uom_qty
             new_qty = move.product_uom_id.round(old_qty * factor, rounding_method="UP")
+            bom_line = move.bom_line_id
+            # A move still at its BoM demand takes the demand a new order of
+            # the new size would get, so back-and-forth changes do not drift
+            # on rounding; a hand-edited one rescales from what was entered.
+            if bom_line in old_demand and bom_line in new_demand:
+                line_uom = bom_line.product_uom_id
+                at_demand = line_uom._get_quantity_in_unit(
+                    old_demand[bom_line], move.product_uom_id
+                )
+                if move.product_uom_id.compare(old_qty, at_demand) == 0:
+                    new_qty = line_uom._get_quantity_in_unit(
+                        new_demand[bom_line], move.product_uom_id
+                    )
             if new_qty > 0:
                 move.write({"product_uom_qty": new_qty})
                 update_info.append((move, old_qty, new_qty))

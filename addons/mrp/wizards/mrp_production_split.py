@@ -136,6 +136,22 @@ class MrpProductionSplit(models.TransientModel):
                 )
 
     def action_split(self):
+        if any(
+            self.product_uom_id.compare(detail.quantity, 0) <= 0
+            for detail in self.production_detailed_vals_ids
+        ):
+            _debug.logic(
+                "split_refused",
+                reason="part_not_positive",
+                production=self.production_id.id,
+            )
+            raise UserError(
+                self.env._(
+                    "Every part of a split must produce a positive quantity:"
+                    " remove the parts of %(production)s at zero or below.",
+                    production=self.production_id.display_name,
+                )
+            )
         if not self.valid_details:
             _debug.logic(
                 "split_refused",

@@ -55,7 +55,9 @@ class MrpConsumptionWarning(models.TransientModel):
             "mrp_production_id"
         )
         for production in self.mrp_production_ids:
-            moves_by_product = production.move_raw_ids.grouped("product_id")
+            moves_by_product = production.move_raw_ids.filtered(
+                lambda move: move.state not in ("done", "cancel")
+            ).grouped("product_id")
             for line in lines_by_production.get(production, self.browse()):
                 matching = moves_by_product.get(line.product_id)
                 if not matching:

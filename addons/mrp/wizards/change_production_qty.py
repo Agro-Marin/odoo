@@ -39,15 +39,16 @@ class ChangeProductionQty(models.TransientModel):
 
     @api.model
     def _update_finished_moves(self, production, new_qty, old_qty):
-        modification = {}
         push_moves = self.env["stock.move"]
-        for move in production.move_finished_ids:
-            if move.state in ("done", "cancel"):
-                continue
+        open_moves = production.move_finished_ids.filtered(
+            lambda move: move.state not in ("done", "cancel")
+        )
+        for move in open_moves:
             qty = (new_qty - old_qty) * move.unit_factor
-            modification[move] = (move.product_uom_qty + qty, move.product_uom_qty)
             if self._is_quantity_propagation_required(move, qty):
-                push_moves |= move.copy({"product_uom_qty": qty})
+                push_moves |= move.copy(
+                    {"product_uom_qty": qty, "workorder_id": move.workorder_id.id}
+                )
             else:
                 move.write({"product_uom_qty": move.product_uom_qty + qty})
 
@@ -56,14 +57,12 @@ class ChangeProductionQty(models.TransientModel):
             production=production.id,
             new_qty=new_qty,
             old_qty=old_qty,
-            modified=len(modification),
+            modified=len(open_moves),
             pushed=len(push_moves),
         )
         if push_moves:
             push_moves._action_confirm()
         production.move_finished_ids._action_assign()
-
-        return modification
 
     @api.model
     def _is_quantity_propagation_required(self, move, qty):
@@ -122,7 +121,6 @@ class ChangeProductionQty(models.TransientModel):
                 production._update_moves_from_qty_producing()
 
             for wo in production.workorder_ids:
-                operation = wo.operation_id
                 remaining = wo.qty_production - wo.qty_produced
                 if wo.product_uom_id.compare(remaining, 0) <= 0:
                     quantity = 0.0
@@ -145,21 +143,6 @@ class ChangeProductionQty(models.TransientModel):
                             "costs_hour": wo.workcenter_id.costs_hour,
                         }
                     )
-                moves_raw = production.move_raw_ids.filtered_domain(
-                    [
-                        ("operation_id", "=", operation.id),
-                        ("state", "not in", ("done", "cancel")),
-                    ]
-                )
-                if wo == production.workorder_ids[-1]:
-                    moves_raw |= production.move_raw_ids.filtered(
-                        lambda move: not move.operation_id
-                    )
-                moves_finished = production.move_finished_ids.filtered_domain(
-                    [("operation_id", "=", operation.id)]
-                )
-                moves_raw.mapped("move_line_ids").write({"workorder_id": wo.id})
-                (moves_finished + moves_raw).write({"workorder_id": wo.id})
 
         self.mo_id.filtered(
             lambda mo: mo.state in ["confirmed", "progress"]

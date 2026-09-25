@@ -194,8 +194,25 @@ class MrpUnbuild(models.Model):
         for order in self:
             if not order.mo_id or order.has_tracking == "serial":
                 order.product_qty = 1.0
-            else:
-                order.product_qty = order.mo_id.qty_produced
+                continue
+            production = order.mo_id
+            unbuilt = sum(
+                unbuild.product_uom_id._get_quantity_in_unit(
+                    unbuild.product_qty, production.product_uom_id, round=False
+                )
+                for unbuild in production.unbuild_ids
+                if unbuild.state == "done" and unbuild != order
+            )
+            remaining = production.product_uom_id.round(
+                production.qty_produced - unbuilt
+            )
+            # Over-unbuilding an order is supported: once nothing remains, the
+            # default falls back to the whole order rather than to zero.
+            order.product_qty = (
+                remaining
+                if production.product_uom_id.compare(remaining, 0) > 0
+                else production.qty_produced
+            )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -279,7 +296,7 @@ class MrpUnbuild(models.Model):
         consume_moves._action_confirm()
         produce_moves = self._create_produce_moves()
         produce_moves._action_confirm()
-        produce_moves.quantity = 0
+        produce_moves.move_line_ids.unlink()
         _debug.pipeline("unbuild", consume=consume_moves, produce=produce_moves)
 
         previously_unbuilt_lots = (
@@ -333,7 +350,8 @@ class MrpUnbuild(models.Model):
             if self.lot_id
             else self._get_quantities_returned_before()
         )
-        unbuild_lines = self.env["stock.move.line"]
+        move_line_vals_list = []
+        missing_by_move = {}
         for move in produce_moves | consume_moves:
             if (
                 float_compare(
@@ -355,7 +373,6 @@ class MrpUnbuild(models.Model):
                 move.quantity = move.product_uom_id.round(move.product_uom_qty)
                 continue
             needed_quantity = move.product_uom_qty
-            move_line_vals_list = []
             moves_lines = original_move.mapped("move_line_ids")
             if move in produce_moves and self.lot_id:
                 moves_lines = moves_lines.filtered(
@@ -389,8 +406,6 @@ class MrpUnbuild(models.Model):
                     move_line_vals_list.append(move_line_vals)
                     needed_quantity -= taken_quantity
                     qty_already_used[move_line] += taken_quantity
-            if move_line_vals_list:
-                unbuild_lines |= self.env["stock.move.line"].create(move_line_vals_list)
             if (
                 move in produce_moves
                 and float_compare(
@@ -398,8 +413,11 @@ class MrpUnbuild(models.Model):
                 )
                 > 0
             ):
-                move.quantity += needed_quantity
+                missing_by_move[move] = needed_quantity
 
+        unbuild_lines = self.env["stock.move.line"].create(move_line_vals_list)
+        for move, missing in missing_by_move.items():
+            move.quantity += missing
         unbuild_lines._apply_putaway_strategy()
         _debug.pipeline("unbuild_lines_built", unbuild=self.id, lines=unbuild_lines)
 
@@ -410,7 +428,7 @@ class MrpUnbuild(models.Model):
         produced_move_line_ids = produce_moves.mapped("move_line_ids").filtered(
             lambda ml: ml.quantity > 0
         )
-        consume_moves.mapped("move_line_ids").write(
+        (finished_moves | consume_moves).move_line_ids.write(
             {"produce_line_ids": [Command.set(produced_move_line_ids.ids)]}
         )
         _debug.lifecycle("unbuild_done", unbuild=self.id, mo=self.mo_id)
@@ -453,88 +471,96 @@ class MrpUnbuild(models.Model):
         return self.bom_id._get_explode_factor(self.product_qty, self.product_uom_id)
 
     def _create_consume_moves(self):
-        moves = self.env["stock.move"]
+        vals_list = []
         for unbuild in self:
             factor = unbuild._get_unbuild_factor()
             if unbuild.mo_id:
                 finished_moves = unbuild.mo_id.move_finished_ids.filtered(
                     lambda move: move.state == "done"
                 )
-                for finished_move in finished_moves:
-                    moves += unbuild._create_move_from_existing_move(
+                vals_list.extend(
+                    unbuild._prepare_move_vals_from_existing_move(
                         finished_move,
                         factor,
                         unbuild.location_id,
                         finished_move.location_id,
                     )
-            else:
-                moves += unbuild._create_move_from_bom_line(
+                    for finished_move in finished_moves
+                )
+                continue
+            vals_list.append(
+                unbuild._prepare_move_vals_from_bom_line(
                     unbuild.product_id, unbuild.product_uom_id, unbuild.product_qty
                 )
-                for byproduct in unbuild.bom_id.byproduct_ids:
-                    if byproduct._is_bom_line_skipped(unbuild.product_id):
-                        continue
-                    quantity = byproduct.product_qty * factor
-                    moves += unbuild._create_move_from_bom_line(
-                        byproduct.product_id,
-                        byproduct.product_uom_id,
-                        quantity,
-                        byproduct_id=byproduct.id,
-                    )
+            )
+            vals_list.extend(
+                unbuild._prepare_move_vals_from_bom_line(
+                    byproduct.product_id,
+                    byproduct.product_uom_id,
+                    byproduct.product_qty * factor,
+                    byproduct_id=byproduct.id,
+                )
+                for byproduct in unbuild.bom_id.byproduct_ids
+                if not byproduct._is_bom_line_skipped(unbuild.product_id)
+            )
+        moves = self.env["stock.move"].create(vals_list)
         _debug.pipeline("unbuild_consume_moves", unbuilds=self, moves=moves)
         return moves
 
     def _create_produce_moves(self):
-        moves = self.env["stock.move"]
+        vals_list = []
         for unbuild in self:
             factor = unbuild._get_unbuild_factor()
             if unbuild.mo_id:
                 raw_moves = unbuild.mo_id.move_raw_ids.filtered(
                     lambda move: move.state == "done"
                 )
-                for raw_move in raw_moves:
-                    moves += unbuild._create_move_from_existing_move(
+                vals_list.extend(
+                    unbuild._prepare_move_vals_from_existing_move(
                         raw_move,
                         factor,
                         raw_move.location_dest_id,
                         unbuild.location_dest_id,
                     )
-            else:
-                _boms, lines = unbuild.bom_id._explode(
-                    unbuild.product_id,
-                    factor,
-                    picking_type=unbuild.bom_id.picking_type_id,
+                    for raw_move in raw_moves
                 )
-                for line, line_data in lines:
-                    moves += unbuild._create_move_from_bom_line(
-                        line.product_id,
-                        line.product_uom_id,
-                        line_data["qty"],
-                        bom_line_id=line.id,
-                    )
+                continue
+            _boms, lines = unbuild.bom_id._explode(
+                unbuild.product_id,
+                factor,
+                picking_type=unbuild.bom_id.picking_type_id,
+            )
+            vals_list.extend(
+                unbuild._prepare_move_vals_from_bom_line(
+                    line.product_id,
+                    line.product_uom_id,
+                    line_data["qty"],
+                    bom_line_id=line.id,
+                )
+                for line, line_data in lines
+            )
+        moves = self.env["stock.move"].create(vals_list)
         _debug.pipeline("unbuild_produce_moves", unbuilds=self, moves=moves)
         return moves
 
-    def _create_move_from_existing_move(
+    def _prepare_move_vals_from_existing_move(
         self, move, factor, location_id, location_dest_id
     ):
-        return self.env["stock.move"].create(
-            {
-                "date": self.create_date,
-                "product_id": move.product_id.id,
-                "product_uom_qty": move.quantity * factor,
-                "product_uom_id": move.product_uom_id.id,
-                "procure_method": "make_to_stock",
-                "location_dest_id": location_dest_id.id,
-                "location_id": location_id.id,
-                "warehouse_id": location_dest_id.warehouse_id.id,
-                "unbuild_id": self.id,
-                "company_id": move.company_id.id,
-                "origin_returned_move_id": move.id,
-            }
-        )
+        return {
+            "date": self.create_date,
+            "product_id": move.product_id.id,
+            "product_uom_qty": move.quantity * factor,
+            "product_uom_id": move.product_uom_id.id,
+            "procure_method": "make_to_stock",
+            "location_dest_id": location_dest_id.id,
+            "location_id": location_id.id,
+            "warehouse_id": location_dest_id.warehouse_id.id,
+            "unbuild_id": self.id,
+            "company_id": move.company_id.id,
+            "origin_returned_move_id": move.id,
+        }
 
-    def _create_move_from_bom_line(
+    def _prepare_move_vals_from_bom_line(
         self, product, product_uom_id, quantity, bom_line_id=False, byproduct_id=False
     ):
         product_prod_location = product.with_company(
@@ -544,23 +570,20 @@ class MrpUnbuild(models.Model):
         location_dest_id = (
             bom_line_id and self.location_dest_id
         ) or product_prod_location
-        warehouse = location_dest_id.warehouse_id
-        return self.env["stock.move"].create(
-            {
-                "date": self.create_date,
-                "bom_line_id": bom_line_id,
-                "byproduct_id": byproduct_id,
-                "product_id": product.id,
-                "product_uom_qty": quantity,
-                "product_uom_id": product_uom_id.id,
-                "procure_method": "make_to_stock",
-                "location_dest_id": location_dest_id.id,
-                "location_id": location_id.id,
-                "warehouse_id": warehouse.id,
-                "unbuild_id": self.id,
-                "company_id": self.company_id.id,
-            }
-        )
+        return {
+            "date": self.create_date,
+            "bom_line_id": bom_line_id,
+            "byproduct_id": byproduct_id,
+            "product_id": product.id,
+            "product_uom_qty": quantity,
+            "product_uom_id": product_uom_id.id,
+            "procure_method": "make_to_stock",
+            "location_dest_id": location_dest_id.id,
+            "location_id": location_id.id,
+            "warehouse_id": location_dest_id.warehouse_id.id,
+            "unbuild_id": self.id,
+            "company_id": self.company_id.id,
+        }
 
     def action_validate(self):
         self.check_singleton()

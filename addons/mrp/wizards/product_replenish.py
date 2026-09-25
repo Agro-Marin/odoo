@@ -14,13 +14,13 @@ class ProductReplenish(models.TransientModel):
         for rec in self:
             rec.allowed_uom_ids |= rec.product_id.bom_ids.product_uom_id
 
-    @api.depends("route_id")
+    @api.depends("route_id", "product_id")
     def _compute_date_planned(self):
         super()._compute_date_planned()
         for rec in self:
             if "manufacture" in rec.route_id.rule_ids.mapped("action"):
                 rec.date_planned = rec._get_date_planned(
-                    rec.route_id, product_tmpl_id=rec.product_tmpl_id
+                    rec.route_id, product=rec.product_id
                 )
 
     def _get_record_to_notify(self, date):
@@ -45,16 +45,17 @@ class ProductReplenish(models.TransientModel):
         date = super()._get_date_planned(route, **kwargs)
         if "manufacture" not in route.rule_ids.mapped("action"):
             return date
-        delay = 0
-        product_tmpl_id = kwargs.get("product_tmpl_id") or self.product_tmpl_id
-        if product_tmpl_id and product_tmpl_id.bom_ids:
-            delay += (
-                product_tmpl_id.bom_ids[0].produce_delay
-                + product_tmpl_id.bom_ids[0].days_to_prepare_mo
-            )
+        product = kwargs.get("product") or self.product_id
+        bom = self.env["mrp.bom"]._get_bom_by_product(
+            product,
+            company_id=(self.company_id or self.env.company).id,
+            bom_type="normal",
+        )[product]
+        delay = bom.produce_delay + bom.days_to_prepare_mo
         _debug.logic(
             "replenish_date_planned",
-            template=product_tmpl_id.id,
+            product=product.id,
+            bom=bom.id,
             route=route.id,
             manufacture_delay=delay,
         )

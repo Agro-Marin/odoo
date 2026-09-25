@@ -13,10 +13,23 @@ class StockReplenishmentInfo(models.TransientModel):
     )
     show_bom_tab = fields.Boolean(compute="_compute_show_bom_tab")
 
-    @api.depends("orderpoint_id")
+    @api.depends("orderpoint_id", "product_id")
     def _compute_bom_ids(self):
         for replenishment_info in self:
-            replenishment_info.bom_ids = replenishment_info.product_id.bom_ids
+            product = replenishment_info.product_id
+            replenishment_info.bom_ids = (
+                product.product_tmpl_id.bom_ids.filtered_domain(
+                    [
+                        ("type", "=", "normal"),
+                        ("product_id", "in", [product.id, False]),
+                        (
+                            "company_id",
+                            "in",
+                            [replenishment_info.orderpoint_id.company_id.id, False],
+                        ),
+                    ]
+                )
+            )
 
     @api.depends("orderpoint_id")
     def _compute_show_bom_tab(self):
