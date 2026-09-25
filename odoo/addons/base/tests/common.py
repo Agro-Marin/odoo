@@ -97,6 +97,13 @@ def reaches_own_creation(domain, uid):
     return False
 
 
+def names_field(domain, field_expr):
+    # whether a compiled row reads a field: a condition on it anywhere
+    return any(
+        condition.field_expr == field_expr for condition in domain.iter_conditions()
+    )
+
+
 def converted_reach(env, model_name, user, operation="read"):
     # what the ir.access rows of the model give the user, counted as the
     # superuser from the rows themselves, beside the ORM's own answer

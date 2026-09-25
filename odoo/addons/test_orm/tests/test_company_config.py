@@ -2,6 +2,8 @@ from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command
 from odoo.tests.common import TransactionCase, new_test_user, tagged
 
+from odoo.addons.base.tests.common import names_field, row_domains
+
 
 @tagged("post_install", "-at_install")
 class TestCompanyConfig(TransactionCase):
@@ -68,8 +70,12 @@ class TestCompanyConfig(TransactionCase):
         for Config in self._config_models():
             with self.subTest(model=Config._name):
                 rows = Access.search([("model_id.model", "=", Config._name)])
+                compiled = row_domains(self.env, rows)
                 self.assertTrue(
-                    any("company_id" in (row.domain or "") for row in rows),
+                    any(
+                        names_field(domain, "company_id")
+                        for domain in compiled.values()
+                    ),
                     f"{Config._name} ships no ir.access row on company_id",
                 )
 
