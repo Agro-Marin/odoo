@@ -3238,6 +3238,10 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         wizard.max_batch_size = 1
         wizard.save().action_split()
         self.assertEqual(len(mo.production_group_id.production_ids), 2)
+        # No components and an MTO destination: procurement leaves the order
+        # in draft, and a draft order cannot be marked done.
+        self.assertEqual(mo.state, "draft")
+        mo.production_group_id.production_ids.action_confirm()
 
         mo.production_group_id.production_ids[0].button_mark_done()
         self.assertEqual(sale_picking.move_ids.quantity, 1)

@@ -1,6 +1,9 @@
+import gc
+from unittest.mock import patch
+
 from odoo import Command
 from odoo.exceptions import UserError
-from odoo.tests import Form, tagged
+from odoo.tests import Form, TransactionCase, tagged
 
 from .common import TestMrpCommon
 
@@ -288,3 +291,229 @@ class TestOrderGuards(TestMrpCommon):
             {"group_unlocked_by_default": False}
         ).execute()
         self.assertTrue(production.is_locked)
+
+    def _partially_produced(self, qty, producing):
+        self.env["stock.quant"]._update_available_quantity(
+            self.component, self.stock_location, 100
+        )
+        production = self._production(qty)
+        production.action_confirm()
+        production.action_assign()
+        production.qty_producing = producing
+        production.set_qty_producing()
+        return production
+
+    def _mark_done_counting_posts(self, production, **context):
+        Production = self.registry["mrp.production"]
+        post_inventory = Production._post_inventory
+        posted = []
+
+        def counting_post(records, cancel_backorder=False):
+            if records:
+                posted.append(records.ids)
+            return post_inventory(records, cancel_backorder=cancel_backorder)
+
+        with patch.object(Production, "_post_inventory", counting_post):
+            action = production.with_context(**context).button_mark_done()
+        return action, posted
+
+    def test_an_always_backorder_is_posted_once(self):
+        production = self._partially_produced(4, 1)
+        production.picking_type_id.create_backorder = "always"
+        action, posted = self._mark_done_counting_posts(
+            production, skip_redirection=True
+        )
+        self.assertIs(action, True)
+        self.assertEqual(posted, [production.ids])
+        self.assertEqual(production.state, "done")
+        self.assertEqual(len(production.production_group_id.production_ids), 2)
+
+    def test_a_swallowed_always_backorder_still_returns_its_reports(self):
+        production = self._partially_produced(4, 1)
+        production.picking_type_id.write(
+            {"create_backorder": "always", "auto_print_done_production_order": True}
+        )
+        Production = self.registry["mrp.production"]
+        with patch.object(
+            Production, "_is_result_return_required", lambda productions: False
+        ):
+            action, posted = self._mark_done_counting_posts(production)
+        self.assertEqual(posted, [production.ids])
+        self.assertEqual(action["tag"], "do_multi_print")
+        self.assertEqual(
+            [report["report_name"] for report in action["params"]["reports"]],
+            [self.env.ref("mrp.action_report_production_order").report_name],
+        )
+
+    def test_a_draft_order_is_not_marked_done(self):
+        production = self._production(2)
+        with self.assertRaises(UserError):
+            production.button_mark_done()
+        self.assertEqual(production.state, "draft")
+
+    def test_a_cancelled_order_is_not_marked_done(self):
+        production = self._production(2)
+        production.action_confirm()
+        production.action_cancel()
+        with self.assertRaises(UserError):
+            production.button_mark_done()
+        self.assertEqual(production.state, "cancel")
+
+    def test_a_fractional_run_costs_its_expected_time_per_unit(self):
+        self.bom.operation_ids = [
+            Command.create(
+                {
+                    "name": "Only",
+                    "workcenter_id": self.workcenter_2.id,
+                    "time_cycle_manual": 30,
+                }
+            )
+        ]
+        self.env["stock.quant"]._update_available_quantity(
+            self.component, self.stock_location, 100
+        )
+        production = self._production(0.5)
+        production.action_confirm()
+        production.qty_producing = 0.5
+        production.button_mark_done()
+        workorder = production.workorder_ids
+        self.assertEqual(workorder.qty_produced, 0.5)
+        self.assertTrue(workorder.duration)
+        self.assertEqual(workorder.duration_unit, round(workorder.duration / 0.5, 2))
+
+    def test_merged_orders_log_where_they_went(self):
+        first, second = self._production(1), self._production(2)
+        (first | second).action_confirm()
+        action = (first | second).action_merge()
+        merged = self.env["mrp.production"].browse(action["res_id"])
+        note = "This production has been merge in %s" % merged.display_name
+        for production in first | second:
+            self.assertTrue(
+                any(note in body for body in production.message_ids.mapped("body"))
+            )
+
+
+@tagged("post_install", "-at_install")
+class TestProductionStatementGuards(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.stock_location = (
+            cls.env["stock.warehouse"]
+            .search([("company_id", "=", cls.env.company.id)], limit=1)
+            .lot_stock_id
+        )
+        cls.workcenter = cls.env["mrp.workcenter"].create({"name": "Guarded"})
+
+    def _bom(self, operations=0):
+        # Every measurement gets its own products and stock, so what an earlier
+        # size left reserved does not change what a later one costs.
+        finished, *components = self.env["product.product"].create(
+            [{"name": "Guarded %s" % index, "is_storable": True} for index in range(3)]
+        )
+        for component in components:
+            self.env["stock.quant"]._update_available_quantity(
+                component, self.stock_location, 1000
+            )
+        return self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1})
+                    for component in components
+                ],
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": "Operation %s" % index,
+                            "workcenter_id": self.workcenter.id,
+                            "time_cycle_manual": 10,
+                        }
+                    )
+                    for index in range(operations)
+                ],
+            }
+        )
+
+    def _orders(self, count, qty=2, operations=0):
+        bom = self._bom(operations)
+        return self.env["mrp.production"].create(
+            [
+                {
+                    "product_id": bom.product_tmpl_id.product_variant_id.id,
+                    "bom_id": bom.id,
+                    "product_qty": qty,
+                }
+                for _index in range(count)
+            ]
+        )
+
+    def _reserved(self, count, qty=2):
+        productions = self._orders(count, qty)
+        productions.action_confirm()
+        productions.action_assign()
+        return productions
+
+    def statements(self, productions, action):
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.env.registry.clear_all_caches()
+        gc.collect()
+        productions = productions.browse(productions.ids)
+        before = self.env.cr.sql_statement_count
+        action(productions)
+        self.env.flush_all()
+        return self.env.cr.sql_statement_count - before
+
+    def test_mark_done_preflight_statements_do_not_grow_with_orders(self):
+        def preflight(count):
+            return self.statements(
+                self._reserved(count),
+                lambda productions: productions.pre_button_mark_done(),
+            )
+
+        preflight(1)
+        self.assertEqual(preflight(2), preflight(6))
+
+    def test_confirming_one_operation_orders_does_not_grow_with_orders(self):
+        def confirm(count):
+            return self.statements(
+                self._orders(count, operations=1),
+                lambda productions: productions.action_confirm(),
+            )
+
+        confirm(1)
+        self.assertEqual(confirm(2), confirm(6))
+
+    def test_planning_by_availability_does_not_grow_with_orders(self):
+        def plan(count):
+            return self.statements(
+                self._orders(count),
+                lambda productions: (
+                    productions.action_plan_with_components_availability()
+                ),
+            )
+
+        plan(1)
+        self.assertEqual(plan(2), plan(6))
+
+    def test_backorder_split_grows_by_its_line_writes_only(self):
+        def split(count):
+            productions = self._reserved(count, qty=4)
+            for production in productions:
+                production.qty_producing = 1
+                production.set_qty_producing()
+            return self.statements(
+                productions,
+                lambda productions: productions.with_context(
+                    skip_backorder=True, mo_ids_to_backorder=productions.ids
+                ).button_mark_done(),
+            )
+
+        split(1)
+        # Three statements per order remain: the consume-line insert (an
+        # x2many written per record) and the reservation line moved onto the
+        # backorder, whose write flushes and re-sums the move quantity. The
+        # slack of one per order absorbs an ormcache miss that depends on what
+        # ran before; the per-order split this guards against cost thirteen.
+        self.assertLessEqual(split(6) - split(2), 4 * 4)
