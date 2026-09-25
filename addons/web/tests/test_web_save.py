@@ -519,6 +519,26 @@ class TestWebSaveConcurrencyAccess(common.TransactionCase):
                 last_write_date="2000-01-01 00:00:00",
             )
 
+    def test_a_user_saves_their_own_preferences_with_the_check_on(self):
+        # res.users grants no write to a plain user; its write() lets one
+        # write their own preferences, so the check must leave write access
+        # to write() and not refuse first
+        user = new_test_user(self.env, login="ws_self", groups="base.group_user")
+        self.env.flush_all()
+        record = user.with_user(user)
+        record.web_save(
+            {"signature": "<p>mine</p>"},
+            specification={"id": {}},
+            known_values={"signature": user.signature or False},
+        )
+        record.web_save(
+            {"tz": "Europe/Brussels"},
+            specification={"id": {}},
+            last_write_date="2999-01-01 00:00:00",
+        )
+        self.assertEqual(str(user.signature), "<p>mine</p>")
+        self.assertEqual(user.tz, "Europe/Brussels")
+
     def test_a_user_still_learns_of_a_conflict_on_what_they_may_read(self):
         manager = new_test_user(
             self.env,
