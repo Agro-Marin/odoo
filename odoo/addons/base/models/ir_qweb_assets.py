@@ -18,7 +18,7 @@ from odoo.libs.documents import mimetype_for
 from odoo.libs.hashing import cache_hash
 from odoo.modules import module as _module
 from odoo.tools.assets import esm_index
-from odoo.tools.assets.esbuild import EsbuildResult
+from odoo.tools.assets.esbuild import EsbuildResult, minify_js
 from odoo.tools.assets.esm_graph import resolve_specifier_url
 from odoo.tools.assets.esm_libs import (
     served_external_libs,
@@ -29,6 +29,7 @@ from odoo.tools.assets.esm_registry import (
     external_lib_aliases,
     external_libs,
 )
+from odoo.tools.assets.js_scan import rjsmin_misreads
 from odoo.tools.assets.nodes import (
     LOADER_SHIM_MARKER,
     AssetNode,
@@ -1063,7 +1064,12 @@ class IrQweb(models.AbstractModel):
             return cached[1]
         source = src_path.read_text(encoding="utf-8")
         with _debug.perf("loader_shim_minify", source_bytes=len(source)) as span:
-            minified = _rjsmin(source)
+            # Same guard as JavascriptAsset.minify: rjsmin corrupts nested
+            # template literals and keyword-led regexes.
+            if rjsmin_misreads(source):
+                minified = minify_js(source, label=str(src_path)) or source
+            else:
+                minified = _rjsmin(source)
             span.set(minified_bytes=len(minified))
         cls._loader_shim_cache = (mtime, minified)
         log_event(
