@@ -678,7 +678,7 @@ class TestMrpByProduct(common.TransactionCase):
             }
         )
 
-        self.assertEqual(bom._get_extra_attachments(), attachments)
+        self.assertEqual(bom._get_extra_attachments_by_bom()[bom], attachments)
 
     def test_3_steps_byproduct(self):
         self.warehouse.manufacture_steps = "pbm_sam"

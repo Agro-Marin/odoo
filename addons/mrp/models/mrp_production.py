@@ -1017,14 +1017,9 @@ class MrpProduction(models.Model):
     @api.depends("product_uom_id", "product_qty", "product_id.uom_id")
     def _compute_product_uom_qty(self):
         for production in self:
-            if production.product_id.uom_id != production.product_uom_id:
-                production.product_uom_qty = (
-                    production.product_uom_id._get_quantity_in_unit(
-                        production.product_qty, production.product_id.uom_id
-                    )
-                )
-            else:
-                production.product_uom_qty = production.product_qty
+            production.product_uom_qty = production.product_uom_id._get_quantity_stored(
+                production.product_qty, production.product_id.uom_id
+            )
 
     @api.depends("product_id", "company_id")
     def _compute_production_location_id(self):
@@ -4972,15 +4967,6 @@ class MrpProduction(models.Model):
         )
 
         return {**default_data, **new_default_data}
-
-    def _get_product_catalog_order_data(self, products, **kwargs):
-        product_catalog = super()._get_product_catalog_order_data(products, **kwargs)
-        for product in products:
-            product_catalog[product.id] |= self._get_product_price_and_data(product)
-        return product_catalog
-
-    def _get_product_price_and_data(self, product):
-        return {"price": product.standard_price}
 
     def _get_domain_product_catalog(self):
         return super()._get_domain_product_catalog() & Domain("type", "=", "consu")

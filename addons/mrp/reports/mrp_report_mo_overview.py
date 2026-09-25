@@ -91,7 +91,53 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         )
         return qty_in_bom_uom / production.bom_id.product_qty
 
+    def _get_bom_plan(self, production):
+        scratch = self.env.context.get("bom_cost_share_cache")
+        key = ("mo_overview_bom_plan", production.id)
+        if scratch is not None and key in scratch:
+            return scratch[key]
+        demands = defaultdict(float)
+        operations = self.env["mrp.routing.workcenter"]
+        if production.bom_id:
+            boms_done, lines_done = production.bom_id._explode(
+                production.product_id,
+                self._get_bom_factor(production),
+                picking_type=production.bom_id.picking_type_id,
+                never_attribute_values=production.never_product_template_attribute_value_ids,
+            )
+            for line, line_data in lines_done:
+                demands[line] += line_data["qty"]
+            operations = operations.union(
+                *(bom.operation_ids for bom, _data in boms_done)
+            )
+        moves_per_line = defaultdict(int)
+        for move in production.move_raw_ids:
+            if move.bom_line_id and move.state != "cancel":
+                moves_per_line[move.bom_line_id] += 1
+        plan = {
+            "demands": demands,
+            "operations": operations,
+            "moves_per_line": moves_per_line,
+        }
+        if scratch is not None:
+            scratch[key] = plan
+        return plan
+
+    def _get_move_bom_demand(self, production, move_raw):
+        plan = self._get_bom_plan(production)
+        line = move_raw.bom_line_id
+        if line not in plan["demands"]:
+            return False
+        return line.product_uom_id._get_quantity_report(
+            plan["demands"][line] / max(plan["moves_per_line"][line], 1),
+            move_raw.product_uom_id,
+            round=False,
+        )
+
     def _get_report_data(self, production_id):
+        self = self.with_context(
+            bom_cost_share_cache=self.env["mrp.bom"]._get_explosion_scratch()
+        )
         production = self.env["mrp.production"].browse(production_id)
         production = production.with_context(warehouse_id=production.warehouse_id.id)
 
@@ -110,16 +156,11 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
 
         if production.bom_id:
             currency = (production.company_id or self.env.company).currency_id
-            current_bom_lines = (
-                production.move_raw_ids.bom_line_id
-                | self._get_kit_bom_lines(production.bom_id)
-            )
-            missing_components = production.bom_id.bom_line_ids.filtered(
-                lambda bom_line: (
-                    bom_line not in current_bom_lines
-                    and not bom_line._is_bom_line_skipped(production.product_id)
-                )
-            )
+            demands = self._get_bom_plan(production)["demands"]
+            current_bom_lines = production.move_raw_ids.bom_line_id
+            missing_components = [
+                line for line in demands if line not in current_bom_lines
+            ]
             missing_operations = (
                 bom_line
                 for bom_line in production.bom_id.operation_ids
@@ -127,15 +168,10 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             )
             _debug.logic("mo_overview_drift", missing=len(missing_components))
             for line in missing_components:
-                line_cost = (
-                    line.product_id.uom_id._get_price_in_unit(
-                        line.product_id.standard_price, line.product_uom_id
-                    )
-                    * line.product_qty
+                unit_cost = line.product_id.uom_id._get_price_in_unit(
+                    line.product_id.standard_price, line.product_uom_id
                 )
-                initial_bom_cost += currency.round(
-                    line_cost * self._get_bom_factor(production)
-                )
+                initial_bom_cost += currency.round(unit_cost * demands[line])
             for operation in missing_operations:
                 cost = operation.with_context(
                     product=production.product_id,
@@ -475,13 +511,8 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         else:
             return "success"
 
-    def _get_bom_operation_cost(self, workorder, production, kit_operation=False):
-        operations = (
-            production.bom_id.operation_ids + kit_operation
-            if kit_operation
-            else production.bom_id.operation_ids
-        )
-        if workorder.operation_id not in operations:
+    def _get_bom_operation_cost(self, workorder, production):
+        if workorder.operation_id not in self._get_bom_plan(production)["operations"]:
             return False
         return workorder.operation_id.with_context(
             product=production.product_id,
@@ -508,11 +539,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 else workorder.get_duration()
             )
             mo_cost = workorder._get_expected_operation_cost()
-            bom_cost = self._get_bom_operation_cost(
-                workorder,
-                production,
-                kit_operation=self._get_kit_operations(production.bom_id),
-            )
+            bom_cost = self._get_bom_operation_cost(workorder, production)
             real_cost = (
                 mo_cost if estimate_cost else workorder._get_current_operation_cost()
             )
@@ -600,27 +627,6 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             },
             "details": operations,
         }
-
-    def _get_kit_operations(self, bom):
-        operations = self.env["mrp.routing.workcenter"]
-        for bom_line in bom.bom_line_ids:
-            if bom_line.child_bom_id and bom_line.child_bom_id.type == "phantom":
-                operations += (
-                    bom_line.child_bom_id.operation_ids
-                    + self._get_kit_operations(bom_line.child_bom_id)
-                )
-        return operations
-
-    def _get_kit_bom_lines(self, bom):
-        bom_lines = self.env["mrp.bom.line"]
-        for bom_line in bom.bom_line_ids:
-            if bom_line.child_bom_id and bom_line.child_bom_id.type == "phantom":
-                bom_lines += (
-                    bom_line
-                    + bom_line.child_bom_id.bom_line_ids
-                    + self._get_kit_bom_lines(bom_line.child_bom_id)
-                )
-        return bom_lines
 
     def _get_finished_operation_data(self, production, level=0, current_index=False):
         currency = (production.company_id or self.env.company).currency_id
@@ -863,16 +869,12 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             )
         )
         if production.bom_id:
-            if move_raw.bom_line_id:
-                bom_cost = currency.round(
-                    self._get_component_real_cost(
-                        move_raw,
-                        move_raw.bom_line_id.product_qty
-                        * self._get_bom_factor(production),
-                    )
-                )
-            else:
-                bom_cost = False
+            bom_demand = self._get_move_bom_demand(production, move_raw)
+            bom_cost = (
+                currency.round(self._get_component_real_cost(move_raw, bom_demand))
+                if bom_demand is not False
+                else False
+            )
         else:
             bom_cost = currency.round(
                 self._get_component_real_cost(move_raw, expected_quantity)
@@ -946,6 +948,12 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             component["state"] = "to_order"
 
         return component
+
+    def _get_full_bom_demand(self, production, move_raw, default):
+        if not production.bom_id:
+            return default
+        bom_demand = self._get_move_bom_demand(production, move_raw)
+        return default if bom_demand is False else bom_demand
 
     def _get_component_real_cost(self, move_raw, quantity):
         if move_raw.product_uom_id.is_zero(quantity):
@@ -1053,12 +1061,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     forecast_line["quantity"], move_raw.product_uom_id
                 ),
             )
-            if production.bom_id and move_raw.bom_line_id:
-                full_bom_demand = move_raw.bom_line_id.product_qty * (
-                    self._get_bom_factor(production)
-                )
-            else:
-                full_bom_demand = quantity
+            full_bom_demand = self._get_full_bom_demand(production, move_raw, quantity)
             bom_quantity = full_bom_demand - (quantity - line_quantity)
             replenishment["summary"] = {
                 "level": level + 1,
@@ -1179,12 +1182,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         )
         available_qty = reserved_quantity + qty_free + total_ordered
         missing_quantity = quantity - available_qty
-        if production.bom_id and move_raw.bom_line_id:
-            full_bom_demand = move_raw.bom_line_id.product_qty * (
-                self._get_bom_factor(production)
-            )
-        else:
-            full_bom_demand = quantity
+        full_bom_demand = self._get_full_bom_demand(production, move_raw, quantity)
         bom_missing_quantity = full_bom_demand - (
             reserved_quantity + qty_free + total_ordered
         )
@@ -1322,11 +1320,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             self.env
         )
         receipt_date = datetime.strptime(in_transit["delivery_date"], lg.date_format)
-        full_bom_demand = (
-            move_raw.bom_line_id.product_qty * self._get_bom_factor(production)
-            if production.bom_id and move_raw.bom_line_id
-            else 0
-        )
+        full_bom_demand = self._get_full_bom_demand(production, move_raw, 0)
         bom_missing_qty = max(
             0,
             full_bom_demand - (move_raw.product_uom_qty - in_transit["quantity"]),

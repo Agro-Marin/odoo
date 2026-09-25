@@ -35,7 +35,9 @@ class MrpBomOverviewReportHandler(models.AbstractModel):
             if not bom.product_id
         ]
         warehouses = self.env["stock.warehouse"].search(
-            self.env["stock.warehouse"]._check_company_domain(self.env.company)
+            self.env["stock.warehouse"]._check_company_domain(
+                bom.company_id or self.env.company
+            )
         )
         options["bom_overview_warehouse_id"] = (
             previous_options.get("bom_overview_warehouse_id") or warehouses[:1].id
@@ -96,11 +98,19 @@ class MrpBomOverviewReportHandler(models.AbstractModel):
         ):
             self._collect_lines(report, options, child, lines, line["id"])
 
+    def _get_row_record(self, row):
+        if row.get("type") == "operation":
+            return "mrp.routing.workcenter", row["operation"].id
+        if row.get("product_id"):
+            return "product.product", row["product_id"]
+        return None, None
+
     def _bom_line(self, report, options, row, parent_line_id=None):
+        model, record_id = self._get_row_record(row)
         line_id = report._get_generic_line_id(
-            "product.product" if row.get("product_id") else None,
-            row.get("product_id") or None,
-            markup={"index": str(row.get("index", ""))},
+            model,
+            record_id,
+            markup={"index": str(row.get("index", "")), "type": row.get("type")},
             parent_line_id=parent_line_id,
         )
         currency = self.env["res.currency"].browse(row.get("currency_id"))

@@ -1,4 +1,4 @@
-from odoo import api, models
+from odoo import models
 from odoo.fields import Command
 from odoo.libs.debug_log import DebugLog
 
@@ -7,6 +7,7 @@ _debug = DebugLog(__name__)
 
 class MixinCatalogChildLines(models.AbstractModel):
     _name = "mixin.catalog.child.lines"
+    _inherit = ["mixin.product.catalog"]
     _description = "Catalog Lines Held In A Child Field"
 
     def _update_catalog_line_quantity(self, line, quantity, **kwargs):
@@ -15,9 +16,14 @@ class MixinCatalogChildLines(models.AbstractModel):
     def _prepare_new_catalog_line_vals(self, product_id, quantity, **kwargs):
         raise NotImplementedError
 
-    @api.model
-    def _get_catalog_line_price(self, product_id):
-        return self.env["product.product"].browse(product_id).standard_price
+    def _get_product_catalog_order_data(self, products, **kwargs):
+        product_catalog = super()._get_product_catalog_order_data(products, **kwargs)
+        for product in products:
+            product_catalog[product.id] |= self._get_product_price_and_data(product)
+        return product_catalog
+
+    def _get_product_price_and_data(self, product):
+        return {"price": product.standard_price}
 
     def _get_product_catalog_record_lines(
         self, product_ids, *, child_field=False, **kwargs
@@ -73,4 +79,6 @@ class MixinCatalogChildLines(models.AbstractModel):
             quantity=quantity,
             by=by,
         )
-        return self._get_catalog_line_price(product_id)
+        return self._get_product_price_and_data(
+            self.env["product.product"].browse(product_id)
+        )["price"]

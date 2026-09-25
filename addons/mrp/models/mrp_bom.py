@@ -227,8 +227,7 @@ class MrpBom(models.Model):
                     }
                 )
                 boms_to_check = (
-                    self.search(Domain.OR(self._get_domain_bom(p) for p in reached))
-                    - checked
+                    self.search(self._get_domain_bom(reached)) - checked
                     if reached
                     else self.browse()
                 )
@@ -314,7 +313,7 @@ class MrpBom(models.Model):
         for product in unknown:
             subcomponents[product] = (
                 bom_by_product[product]
-                .bom_line_ids._filtered_applicable_to(product)
+                .bom_line_ids._filtered_possibly_applicable_to(product)
                 .product_id
             )
 
@@ -325,7 +324,9 @@ class MrpBom(models.Model):
             return [(self.bom_line_ids.product_id, finished_products)]
         grouped_by_components = defaultdict(lambda: self.env["product.product"])
         for finished in finished_products:
-            components = self.bom_line_ids._filtered_applicable_to(finished).product_id
+            components = self.bom_line_ids._filtered_possibly_applicable_to(
+                finished
+            ).product_id
             grouped_by_components[components] |= finished
         return list(grouped_by_components.items())
 
@@ -385,11 +386,24 @@ class MrpBom(models.Model):
             variants = bom.product_id or bom.product_tmpl_id.product_variant_ids
             if not byproducts.bom_product_template_attribute_value_ids:
                 variants = variants[:1]
+            never_value_choices = byproducts._get_no_variant_choices()
             for product in variants:
-                total_variant_cost_share = sum(
-                    byproducts._filtered_applicable_to(product).mapped("cost_share")
+                total_variant_cost_share = max(
+                    sum(
+                        byproducts._filtered_applicable_to(
+                            product, never_values
+                        ).mapped("cost_share")
+                    )
+                    for never_values in never_value_choices
                 )
                 if float_compare(total_variant_cost_share, 100, precision_digits=2) > 0:
+                    _debug.logic(
+                        "bom_refused",
+                        reason="byproduct_cost_share_over_100",
+                        bom=bom.id,
+                        product=product.id,
+                        cost_share=total_variant_cost_share,
+                    )
                     raise ValidationError(
                         self.env._(
                             "The total cost share for a BoM's by-products cannot exceed 100."
@@ -560,24 +574,24 @@ class MrpBom(models.Model):
         self.show_copy_operations_button = exist_operation
 
     def action_compute_bom_days(self):
-        company_id = self.env.context.get("default_company_id", self.env.company.id)
-        warehouse = self.env["stock.warehouse"].search(
-            [("company_id", "=", company_id)], limit=1
+        report = self.env["report.mrp.report_bom_structure"].with_context(
+            minimized=True
         )
-        report = self.env["report.mrp.report_bom_structure"]
         incomplete = self.browse()
         with _debug.perf("bom_days_computed", cr=self.env.cr, boms=self) as span:
-            for bom in self:
-                bom_data = report.with_context(minimized=True)._get_bom_data(
-                    bom, warehouse, bom.product_id, ignore_stock=True
-                )
-                bom.days_to_prepare_mo = report._get_max_component_delay(
-                    bom_data["components"]
-                )
-                if bom_data.get(
-                    "availability_state"
-                ) == "unavailable" and not bom_data.get("components_available", True):
-                    incomplete |= bom
+            for boms in self.grouped("company_id").values():
+                warehouse = report._get_default_warehouse(boms[:1])
+                for bom in boms:
+                    bom_data = report._get_bom_data(
+                        bom, warehouse, bom.product_id, ignore_stock=True
+                    )
+                    bom.days_to_prepare_mo = report._get_max_component_delay(
+                        bom_data["components"]
+                    )
+                    if bom_data.get("availability_state") == "unavailable" and (
+                        not bom_data.get("components_available", True)
+                    ):
+                        incomplete |= bom
             span.set(incomplete=len(incomplete))
         if not incomplete:
             return None
@@ -702,14 +716,18 @@ class MrpBom(models.Model):
             hits=len(products) - len(unknown),
             misses=len(unknown),
         )
-        if not unknown:
-            return bom_by_product
-        found = self._search_bom_by_product(unknown, picking_type, company_id, bom_type)
-        for product in unknown:
-            bom = found.get(product)
-            memo[scope, product.id] = bom.id if bom else False
-            if bom:
-                bom_by_product[product] = bom
+        if unknown:
+            found = self._search_bom_by_product(
+                unknown, picking_type, company_id, bom_type
+            )
+            for product in unknown:
+                bom = found.get(product)
+                memo[scope, product.id] = bom.id if bom else False
+                if bom:
+                    bom_by_product[product] = bom
+        prefetch_ids = tuple(OrderedSet(bom.id for bom in bom_by_product.values()))
+        for product, bom in bom_by_product.items():
+            bom_by_product[product] = bom.with_prefetch(prefetch_ids)
         return bom_by_product
 
     @api.model
@@ -992,16 +1010,6 @@ class MrpBom(models.Model):
         new_default_data = self.env[model]._get_product_catalog_lines_data()
         return {**default_data, **new_default_data}
 
-    def _get_product_catalog_order_data(self, products, **kwargs):
-        product_catalog = super()._get_product_catalog_order_data(products, **kwargs)
-        for product in products:
-            product_catalog[product.id] |= self._get_product_price_and_data(product)
-        return product_catalog
-
-    def _get_product_price_and_data(self, product):
-        self.check_singleton()
-        return {"price": product.standard_price}
-
     def _update_catalog_line_quantity(self, line, quantity, **kwargs):
         line.product_qty = quantity
 
@@ -1013,10 +1021,6 @@ class MrpBom(models.Model):
         for bom, attachments in self._get_extra_attachments_by_bom().items():
             res[bom.id] |= attachments
         return res
-
-    def _get_extra_attachments(self):
-        product_ids, template_ids = self._get_extra_attachment_targets()
-        return self._search_extra_attachments(product_ids, template_ids).attachment_id
 
     def _get_extra_attachments_by_bom(self):
         targets_by_bom = {bom: bom._get_extra_attachment_targets() for bom in self}
@@ -1090,14 +1094,12 @@ class MrpBom(models.Model):
         if not never_attribute_values:
             return True
 
-        never_values_by_attribute = never_attribute_values.grouped("attribute_id")
-        for attribute, values in no_variant_bom_attributes.grouped(
-            "attribute_id"
-        ).items():
-            never_values = never_values_by_attribute.get(attribute)
-            if never_values and values & never_values:
-                return not other_attribute_valid
-        return True
+        matched_attributes = (
+            no_variant_bom_attributes & never_attribute_values
+        ).attribute_id
+        if matched_attributes != no_variant_bom_attributes.attribute_id:
+            return True
+        return not other_attribute_valid
 
     @api.depends_context("orderpoint_id", "default_orderpoint_id")
     def _compute_show_set_bom_button(self):

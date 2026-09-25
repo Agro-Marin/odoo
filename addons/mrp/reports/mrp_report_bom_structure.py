@@ -19,10 +19,12 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     _description = "BOM Overview Report"
 
     @api.model
-    def get_warehouses(self):
-        return self.env["stock.warehouse"].search_read(
-            [("company_id", "in", self.env.companies.ids)],
-            fields=["id", "name", "manu_type_id"],
+    def _get_default_warehouse(self, bom):
+        if warehouse_id := self.env.context.get("warehouse_id"):
+            return self.env["stock.warehouse"].browse(warehouse_id)
+        company = bom.company_id or self.env.company
+        return self.env["stock.warehouse"].search(
+            [("company_id", "=", company.id)], limit=1
         )
 
     @api.model
@@ -121,17 +123,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 for variant in bom.product_tmpl_id.product_variant_ids:
                     bom_product_variants[variant.id] = variant.display_name
 
-        if self.env.context.get("warehouse_id"):
-            warehouse = self.env["stock.warehouse"].browse(
-                self.env.context.get("warehouse_id")
-            )
-        else:
-            warehouses = self.get_warehouses()
-            warehouse = (
-                self.env["stock.warehouse"].browse(warehouses[0]["id"])
-                if warehouses
-                else self.env["stock.warehouse"]
-            )
+        warehouse = self._get_default_warehouse(bom)
 
         with _debug.perf(
             "bom_structure_report",
@@ -280,17 +272,17 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 product, line.product_uom_id, product_info, parent_bom, parent_product
             )
             stock_loc = quantities_info["stock_loc"]
-            product_info[product.id]["consumptions"][stock_loc] += line_quantity
-            product_quantities_info[product.id][line.id] = product_info[product.id][
-                "consumptions"
-            ][stock_loc]
+            consumptions = product_info[product.id]["consumptions"]
+            consumptions[stock_loc] += line.product_uom_id._get_quantity_report(
+                line_quantity, product.uom_id, round=False
+            )
+            product_quantities_info[product.id][line.id] = consumptions[stock_loc]
+            qty_free = line.product_uom_id._get_quantity_report(
+                quantities_info["qty_free"], product.uom_id, round=False
+            )
             if (
                 not product.is_storable
-                or product.uom_id.compare(
-                    product_info[product.id]["consumptions"][stock_loc],
-                    quantities_info["qty_free"],
-                )
-                <= 0
+                or product.uom_id.compare(consumptions[stock_loc], qty_free) <= 0
             ):
                 closest_forecasted[product.id][line.id] = date.min
             elif (
@@ -418,7 +410,11 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             "quantity_forecasted": quantities_info.get("forecasted_qty") or 0,
             "free_to_manufacture_qty": quantities_info.get("free_to_manufacture_qty")
             or 0,
-            "base_bom_line_qty": bom_line.product_qty if bom_line else False,
+            "base_bom_line_qty": bom_line.product_uom_id._get_quantity_report(
+                bom_line.product_qty, bom.product_uom_id, round=False
+            )
+            if bom_line
+            else False,
             "name": product.display_name or bom.product_tmpl_id.display_name,
             "uom": bom.product_uom_id if bom else product.uom_id,
             "uom_name": bom.product_uom_id.name if bom else product.uom_id.name,
@@ -483,6 +479,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             ignore_stock,
             components,
             report_line=bom_report_line,
+            uom=bom.product_uom_id,
         )
         bom_report_line["lead_time"] = route_info.get("lead_time", False)
         bom_report_line["manufacture_delay"] = route_info.get(
@@ -625,6 +622,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             level,
             ignore_stock,
             bom_line=bom_line,
+            uom=bom_line.product_uom_id,
         )
 
         has_attachments = False
@@ -756,6 +754,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     "id": byproduct.id,
                     "index": f"{index}{byproduct_index}",
                     "type": "byproduct",
+                    "product_id": byproduct.product_id.id,
                     "link_id": byproduct.product_id.id
                     if byproduct.product_id.product_variant_count > 1
                     else byproduct.product_id.product_tmpl_id.id,
@@ -826,7 +825,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 continue
             op = operation.with_context(product=product, quantity=qty)
             duration_expected = op.time_total
-            bom_cost = self.env.company.currency_id.round(op.cost)
+            bom_cost = company.currency_id.round(op.cost)
             if planning := operations_planning.get(operation, None):
                 availability_state = "estimated"
                 availability_delay = (planning["date_end"].date() - date_today).days
@@ -882,17 +881,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 ).product_variant_ids[:1]
             )
 
-        if self.env.context.get("warehouse_id"):
-            warehouse = self.env["stock.warehouse"].browse(
-                self.env.context.get("warehouse_id")
-            )
-        else:
-            warehouses = self.get_warehouses()
-            warehouse = (
-                self.env["stock.warehouse"].browse(warehouses[0]["id"])
-                if warehouses
-                else self.env["stock.warehouse"]
-            )
+        warehouse = self._get_default_warehouse(bom)
 
         level = 1
         data = self._get_bom_data(
@@ -1083,11 +1072,17 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         components=False,
         bom_line=None,
         report_line=False,
+        uom=None,
     ):
         stock_state, stock_delay = ("unavailable", False)
         if not ignore_stock:
             stock_state, stock_delay = self._get_stock_availability(
-                product, quantity, product_info, quantities_info, bom_line=bom_line
+                product,
+                quantity,
+                product_info,
+                quantities_info,
+                bom_line=bom_line,
+                uom=uom,
             )
 
         components = components or []
@@ -1144,7 +1139,13 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
 
     @api.model
     def _get_stock_availability(
-        self, product, quantity, product_info, quantities_info, bom_line=None
+        self,
+        product,
+        quantity,
+        product_info,
+        quantities_info,
+        bom_line=None,
+        uom=None,
     ):
         closest_forecasted = None
         if bom_line:
@@ -1160,17 +1161,20 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         date_today = self.env.context.get("from_date", fields.Date.today())
         if product and not product.is_storable:
             return ("available", 0)
+        if closest_forecasted:
+            # _get_components_closest_forecasted already counted this consumption
+            return ("expected", (closest_forecasted - date_today).days)
 
+        unit = uom or product.uom_id
         stock_loc = quantities_info["stock_loc"]
-        product_info[product.id]["consumptions"][stock_loc] += quantity
-        if (
-            product
-            and product.uom_id.compare(
-                product_info[product.id]["consumptions"][stock_loc],
-                quantities_info["qty_free"],
-            )
-            <= 0
-        ):
+        consumptions = product_info[product.id]["consumptions"]
+        consumptions[stock_loc] += unit._get_quantity_report(
+            quantity, product.uom_id, round=False
+        )
+        qty_free = unit._get_quantity_report(
+            quantities_info["qty_free"], product.uom_id, round=False
+        )
+        if product and product.uom_id.compare(consumptions[stock_loc], qty_free) <= 0:
             return ("available", 0)
 
         if stock_loc == "in_stock":
@@ -1178,21 +1182,15 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 ("state", "=", "forecast"),
                 ("date", ">=", date_today),
                 ("product_id", "=", product.id),
-                (
-                    "product_qty",
-                    ">=",
-                    product_info[product.id]["consumptions"][stock_loc],
-                ),
+                ("product_qty", ">=", consumptions[stock_loc]),
             ]
             if self.env.context.get("warehouse_id"):
                 domain.append(
                     ("warehouse_id", "=", self.env.context.get("warehouse_id"))
                 )
-
-            if not closest_forecasted:
-                [closest_forecasted] = self.env["report.stock.quantity"]._read_group(
-                    domain, aggregates=["date:min"]
-                )[0]
+            [closest_forecasted] = self.env["report.stock.quantity"]._read_group(
+                domain, aggregates=["date:min"]
+            )[0]
             if closest_forecasted:
                 days_to_forecast = (closest_forecasted - date_today).days
                 return ("expected", days_to_forecast)

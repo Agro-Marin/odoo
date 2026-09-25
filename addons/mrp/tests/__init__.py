@@ -36,3 +36,4 @@ from . import test_workorder_lifecycle
 from . import test_stock_integration
 from . import test_unbuild_and_wizards
 from . import test_production_integrity
+from . import test_bom_and_reports
