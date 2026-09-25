@@ -6,6 +6,14 @@ from odoo.addons.sale_timesheet.tests.test_sale_timesheet import TestSaleTimeshe
 
 @tagged("post_install", "-at_install")
 class TestPerformanceTimesheet(TestSaleTimesheet):
+    def _statements_of(self, project):
+        self.env.flush_all()
+        self.env.invalidate_all()
+        before = self.env.cr.sql_statement_count
+        project.write({"allow_billable": True, "partner_id": self.partner_b.id})
+        self.env.flush_all()
+        return self.env.cr.sql_statement_count - before
+
     def test_performance_billable_project_change_customer(self):
         project = self.env["project.project"].create(
             {
@@ -14,41 +22,23 @@ class TestPerformanceTimesheet(TestSaleTimesheet):
             }
         )
         self.assertFalse(project.task_ids.sale_line_id)
-        self.env.invalidate_all()
-        # 30 on a sale_timesheet-only database: the absolute count moves with
-        # the install.
-        # A narrower install logs `Query count less than expected` and passes.
-        # The install-independent guard is
-        # `test_making_a_project_billable_does_not_cost_a_query_per_task` below.
-        with self.assertQueryCount(30):
-            project.write(
-                {
-                    "allow_billable": True,
-                    "partner_id": self.partner_b.id,
-                }
-            )
+        # the absolute count moves with every module that extends a project or a
+        # task, so what is held is the cost of doubling the tasks
+        fifty = self._statements_of(project)
         self.assertTrue(project.task_ids.sale_line_id)
 
         project.allow_billable = False
         self.assertFalse(project.task_ids.sale_line_id)
         self.env["project.task"].create(
-            [
-                {
-                    "name": f"Task {i}",
-                    "project_id": project.id,
-                }
-                for i in range(50, 100)
-            ]
+            [{"name": f"Task {i}", "project_id": project.id} for i in range(50, 100)]
         )
-        self.env.invalidate_all()
-        with self.assertQueryCount(31):
-            project.write(
-                {
-                    "allow_billable": True,
-                    "partner_id": self.partner_b.id,
-                }
-            )
+        hundred = self._statements_of(project)
         self.assertTrue(project.task_ids.sale_line_id)
+        self.assertLessEqual(
+            hundred,
+            fifty + 1,
+            f"100 tasks cost {hundred} statements against {fifty} for 50",
+        )
 
 
 @tagged("post_install", "-at_install")
