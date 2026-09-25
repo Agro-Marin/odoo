@@ -68,6 +68,68 @@ class TestGrantProjection(GrantCase):
         self.assertTrue(user.has_group("base.group_everyone"), "an implied group")
         self.assertTrue(user.with_user(user).env["res.partner"].has_access("create"))
 
+    def test_reading_a_new_users_groups_early_keeps_every_cache(self):
+        Users = self.env["res.users"]
+        follow = type(self.Grant)._follow_membership
+
+        def read_groups_first(grants, added, removed, fresh_user_ids=()):
+            for user_id in fresh_user_ids:
+                Users.browse(user_id)._get_group_ids()
+            return follow(grants, added, removed, fresh_user_ids)
+
+        self.other._get_group_ids()
+        login = self.other.login
+        with patch.object(type(self.Grant), "_follow_membership", read_groups_first):
+            user = Users.create(
+                {
+                    "name": "Read early",
+                    "login": "read_early",
+                    "group_ids": [
+                        Command.link(self.group_user.id),
+                        Command.link(self.group_partner_manager.id),
+                    ],
+                }
+            )
+        with self.assertQueryCount(0):
+            self.other._get_group_ids()
+            self.assertEqual(self.other.login, login)
+        self.assertTrue(user.has_group("base.group_partner_manager"))
+
+    def test_a_grant_the_create_made_first_widens_when_the_membership_follows(self):
+        company_b = self.env["res.company"].create({"name": "Early scope B"})
+        company_a = self.env.company
+        Users = self.env["res.users"]
+        follow = type(self.Grant)._follow_membership
+
+        def scope_then_read(grants, added, removed, fresh_user_ids=()):
+            for user_id in fresh_user_ids:
+                self.Grant.create(
+                    {
+                        "user_id": user_id,
+                        "group_id": self.group_partner_manager.id,
+                        "company_ids": [Command.set(company_a.ids)],
+                    }
+                )
+                in_b = Users.browse(user_id).with_context(
+                    allowed_company_ids=company_b.ids
+                )
+                self.assertNotIn(self.group_partner_manager.id, in_b._get_group_ids())
+            return follow(grants, added, removed, fresh_user_ids)
+
+        with patch.object(type(self.Grant), "_follow_membership", scope_then_read):
+            user = Users.create(
+                {
+                    "name": "Scoped early",
+                    "login": "scoped_early",
+                    "group_ids": [
+                        Command.link(self.group_user.id),
+                        Command.link(self.group_partner_manager.id),
+                    ],
+                }
+            )
+        in_b = user.with_context(allowed_company_ids=company_b.ids)
+        self.assertTrue(in_b.has_group("base.group_partner_manager"))
+
     def test_linking_a_group_grants_it_and_unlinking_revokes_it(self):
         self.user.group_ids = [Command.link(self.group_partner_manager.id)]
         grant = self.live(self.user, self.group_partner_manager)

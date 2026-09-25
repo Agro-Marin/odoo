@@ -643,23 +643,47 @@ class ResUsersGrant(models.Model):
     ) -> None:
         # a membership written through group_ids or user_ids: an added pair is
         # granted unscoped, a removed one loses every live grant of it
+        added = set(added)
+        # a writer clears the caches after its write; a create does not. A new
+        # user's group state asked before its grants existed counted each
+        # membership no grant covered, unscoped, as its grant now does: only a
+        # pair a grant already covered (scoped, timed or scheduled, given
+        # inside the create) reads differently once its unscoped grant exists
+        asked = set(fresh_user_ids) & self.env.cr.cache.get(GROUP_STATE_COMPUTED, set())
+        grants = self.sudo()
+        covered = grants._covered_pairs({pair for pair in added if pair[0] in asked})
         token = _FRESH_USERS.set(frozenset(fresh_user_ids))
         try:
             with _marked(_FOLLOWING):
-                self._follow_membership_pairs(added, removed)
+                granted = grants._follow_membership_pairs(added, removed)
         finally:
             _FRESH_USERS.reset(token)
-        # a writer clears the caches after its write; a create does not, and
-        # only needs to when something asked a new user's groups before all of
-        # its grants existed (an inverse granting one group of several)
-        if set(fresh_user_ids) & self.env.cr.cache.get(GROUP_STATE_COMPUTED, set()):
-            self._clear_membership_caches()
+        if asked:
+            widened = covered & granted._pairs()
+            _debug.logic(
+                "fresh_group_state_checked",
+                asked=sorted(asked),
+                widened=sorted(widened),
+            )
+            if widened:
+                self._clear_membership_caches()
+
+    def _covered_pairs(self, pairs: set[tuple[int, int]]) -> set[tuple[int, int]]:
+        if not pairs:
+            return set()
+        rows = self._read_group(
+            Domain("state", "in", ("scheduled", "active"))
+            & Domain("user_id", "in", list({user_id for user_id, _ in pairs}))
+            & Domain("group_id", "in", list({group_id for _, group_id in pairs})),
+            ["user_id", "group_id"],
+        )
+        return {(user.id, group.id) for user, group in rows} & pairs
 
     def _follow_membership_pairs(
         self,
         added: Iterable[tuple[int, int]],
         removed: Iterable[tuple[int, int]],
-    ) -> None:
+    ) -> Self:
         cause = self._membership_cause()
         added, removed = set(added), set(removed)
         if _debug.lifecycle.enabled:
@@ -673,11 +697,14 @@ class ResUsersGrant(models.Model):
         by_group: defaultdict[int, list[int]] = defaultdict(list)
         for user_id, group_id in added:
             by_group[group_id].append(user_id)
-        grants = self.sudo()
+        grants = self
         users = self.env["res.users"].sudo()
         groups = self.env["res.groups"].sudo()
+        granted = grants.browse()
         for group_id, user_ids in by_group.items():
-            grants._grant(users.browse(user_ids), groups.browse(group_id), cause=cause)
+            granted |= grants._grant(
+                users.browse(user_ids), groups.browse(group_id), cause=cause
+            )
         if removed:
             candidates = grants.search(
                 grants._live_domain()
@@ -687,6 +714,7 @@ class ResUsersGrant(models.Model):
             candidates.filtered(
                 lambda grant: (grant.user_id.id, grant.group_id.id) in removed
             ).action_revoke()
+        return granted
 
     def _on_grant_changed(self, event: str) -> None:
         # called once per batch after a grant is created, changed, revoked,
