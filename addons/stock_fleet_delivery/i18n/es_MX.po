@@ -17,6 +17,17 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. module: stock_fleet_delivery
+#: model:ir.model,name:stock_fleet_delivery.model_stock_picking_batch
+msgid "Batch Transfer"
+msgstr "Traslado por lote"
+
+#. module: stock_fleet_delivery
+#. odoo-python
+#: code:addons/stock_fleet_delivery/models/stock_picking_batch.py:0
+msgid "Choose an operator with a user: his sales are found through it."
+msgstr "Elige un operador con usuario: sus ventas se buscan por él."
+
+#. module: stock_fleet_delivery
 #: model:ir.model.fields.selection,name:stock_fleet_delivery.selection__delivery_carrier__dispatch_mode__pickup
 #: model:ir.model.fields.selection,name:stock_fleet_delivery.selection__stock_location__dispatch_mode__pickup
 msgid "Customer Pickup"
@@ -32,6 +43,7 @@ msgstr "Modalidad de despacho"
 #: model:ir.model.fields,field_description:stock_fleet_delivery.field_delivery_carrier__display_name
 #: model:ir.model.fields,field_description:stock_fleet_delivery.field_stock_location__display_name
 #: model:ir.model.fields,field_description:stock_fleet_delivery.field_stock_picking__display_name
+#: model:ir.model.fields,field_description:stock_fleet_delivery.field_stock_picking_batch__display_name
 msgid "Display Name"
 msgstr "Nombre mostrado"
 
@@ -49,6 +61,7 @@ msgstr "Cómo sale la mercancía con este transportista. La flota propia y la en
 #: model:ir.model.fields,field_description:stock_fleet_delivery.field_delivery_carrier__id
 #: model:ir.model.fields,field_description:stock_fleet_delivery.field_stock_location__id
 #: model:ir.model.fields,field_description:stock_fleet_delivery.field_stock_picking__id
+#: model:ir.model.fields,field_description:stock_fleet_delivery.field_stock_picking_batch__id
 msgid "ID"
 msgstr "ID"
 
@@ -56,6 +69,17 @@ msgstr "ID"
 #: model:ir.model,name:stock_fleet_delivery.model_stock_location
 msgid "Inventory Locations"
 msgstr "Ubicaciones de inventario"
+
+#. module: stock_fleet_delivery
+#: model_terms:ir.ui.view,arch_db:stock_fleet_delivery.stock_picking_batch_form_trip_operator_sales
+msgid "Load Operator's Sales"
+msgstr "Cargar ventas del operador"
+
+#. module: stock_fleet_delivery
+#. odoo-python
+#: code:addons/stock_fleet_delivery/models/stock_picking_batch.py:0
+msgid "No delivery of %(salesperson)s's sales is ready to leave."
+msgstr "Ninguna entrega de las ventas de %(salesperson)s está lista para salir."
 
 #. module: stock_fleet_delivery
 #: model:ir.model.fields.selection,name:stock_fleet_delivery.selection__delivery_carrier__dispatch_mode__own_fleet
@@ -94,3 +118,9 @@ msgid ""
 msgstr ""
 "El albarán %(name)s sale por paquetería: captura su número de guía antes "
 "de validarlo."
+
+#. module: stock_fleet_delivery
+#. odoo-python
+#: code:addons/stock_fleet_delivery/models/stock_picking_batch.py:0
+msgid "Trip %s has departed: it takes no more transfers."
+msgstr "El viaje %s ya salió: no admite más albaranes."
