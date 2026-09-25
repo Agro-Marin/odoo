@@ -12,6 +12,7 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { useAppContext } from "@web/core/app_context";
 import { browser } from "@web/core/browser/browser";
 import { isMacOS, isMobileOS } from "@web/core/browser/feature_detection";
 import { isCtrlOrCmdKey } from "@web/core/browser/hotkeys";
@@ -218,6 +219,7 @@ export class CommandPalette extends Component {
     brokenCommands;
 
     setup() {
+        this.appContext = useAppContext();
         if (this.props.bus) {
             const setConfig = (
                 /** @type {{ detail: CommandPaletteConfig }} */ { detail },
@@ -367,7 +369,7 @@ export class CommandPalette extends Component {
             providers: providers.length,
         });
         const proms = providers.map(async (provider) =>
-            provider.provide(this.env, options),
+            provider.provide(this.appContext, options),
         );
         const settled = await this.keepLast.add(Promise.allSettled(proms));
         for (const result of settled) {

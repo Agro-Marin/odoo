@@ -7,7 +7,7 @@ import {
 } from "@web/views/multi_record_selection";
 
 /**
- * @param {Pick<import("./list_renderer").ListGridContext, "getProps" | "getAllowSelectors" | "toggleRecordSelection" | "getEnv">} ctx
+ * @param {Pick<import("./list_renderer").ListGridContext, "getProps" | "getAllowSelectors" | "toggleRecordSelection" | "isSmall">} ctx
  * @param {object} config
  * @param {number} config.longTouchThreshold
  * @returns {ReturnType<typeof useRecordSelection> & {
@@ -20,7 +20,7 @@ import {
  * }}
  */
 export function useListSelection(ctx, { longTouchThreshold }) {
-    const { getProps, getAllowSelectors, toggleRecordSelection, getEnv } = ctx;
+    const { getProps, getAllowSelectors, toggleRecordSelection, isSmall } = ctx;
 
     const core = useRecordSelection({
         getRecords: () => getProps().list.records,
@@ -65,7 +65,7 @@ export function useListSelection(ctx, { longTouchThreshold }) {
          */
         onClickCapture(record, ev) {
             const { list } = getProps();
-            if (getEnv().isSmall && list.selection.length) {
+            if (isSmall() && list.selection.length) {
                 ev.stopPropagation();
                 ev.preventDefault();
                 toggleRecordSelection(record);
@@ -75,7 +75,7 @@ export function useListSelection(ctx, { longTouchThreshold }) {
         /** @param {MouseEvent} ev */
         ignoreEventInSelectionMode(ev) {
             const { list } = getProps();
-            if (getEnv().isSmall && list.selection.length) {
+            if (isSmall() && list.selection.length) {
                 ev.stopPropagation();
                 ev.preventDefault();
             }

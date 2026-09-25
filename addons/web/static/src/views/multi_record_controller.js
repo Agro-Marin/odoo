@@ -3,13 +3,16 @@
 
 import { onMounted, onWillStart } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { user } from "@web/core/user";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { provideViewModel } from "@web/model/model";
 import { usePager } from "@web/search/pager_hook";
+import { useSearchModel } from "@web/search/search_model";
 import { useViewButtons } from "@web/views/view_button/view_button_hook";
 import { useViewChassis } from "@web/views/view_components/view_layout";
 import { ViewController } from "@web/views/view_controller";
@@ -88,6 +91,8 @@ export class MultiRecordController extends ViewController {
     setup() {
         this.ui = useService("ui");
         this.setupControllerServices();
+        this.viewConfig = useViewConfig();
+        this.inDialog = useDialogContext().inDialog;
         this.setupModel();
         this.setupArch();
         this.initMultiRecordBehavior();
@@ -145,7 +150,7 @@ export class MultiRecordController extends ViewController {
             () => [this.selectionKey, this.model.root.isDomainSelected],
         );
 
-        this.exportRecords = useExportRecords(this.env, () =>
+        this.exportRecords = useExportRecords(this.model, useSearchModel(), () =>
             this.getExportableFields(),
         );
         this.deleteRecordsWithConfirmation = useDeleteRecords(this.model);
@@ -228,7 +233,7 @@ export class MultiRecordController extends ViewController {
     }
 
     get modelOptions() {
-        return computeModelOptions(this.env, this.props.display);
+        return computeModelOptions(this.viewConfig, this.inDialog, this.props.display);
     }
 
     getStaticActionMenuItems() {

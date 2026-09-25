@@ -13,6 +13,7 @@ import { SearchModelEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useBus } from "@web/core/utils/hooks";
+import { useViewScope } from "@web/model/view_scope";
 import { CustomGroupByItem } from "@web/search/custom_group_by_item/custom_group_by_item";
 /** @import { EnrichedSearchItem } from "@web/search/search_types" */
 import { PropertiesGroupByItem } from "@web/search/properties_group_by_item/properties_group_by_item";
@@ -61,6 +62,7 @@ export class SearchBarMenu extends Component {
 
     setup() {
         this._searchModel = useSearchModel();
+        this.viewScope = useViewScope();
         this.facet_icons = FACET_ICONS;
         this.actionService = useAction();
         this.state = useState({
@@ -114,10 +116,7 @@ export class SearchBarMenu extends Component {
 
     /** @returns {Promise<{Component: Function, groupNumber: number, key: string}[]>} */
     _registryItems() {
-        return getDisplayedRegistryItems(
-            favoriteMenuRegistry,
-            /** @type {import("@web/env").OdooEnv} */ (this.env),
-        );
+        return getDisplayedRegistryItems(favoriteMenuRegistry, this.viewScope);
     }
 
     /** @returns {Object[]} */

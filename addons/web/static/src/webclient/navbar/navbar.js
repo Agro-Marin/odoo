@@ -12,6 +12,7 @@ import {
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { useAppContext } from "@web/core/app_context";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
@@ -83,6 +84,7 @@ export class NavBar extends Component {
     quickLauncher;
 
     setup() {
+        this.appContext = useAppContext();
         this.bus = useEventBus();
         this.ui = useService("ui");
         useLifecycleLog(log);
@@ -210,9 +212,7 @@ export class NavBar extends Component {
                     return true;
                 }
                 try {
-                    return item.isDisplayed(
-                        /** @type {import("@web/env").OdooEnv} */ (this.env),
-                    );
+                    return item.isDisplayed(this.appContext);
                 } catch (error) {
                     console.error(
                         `Error in "isDisplayed" of systray item "${item.key}":`,

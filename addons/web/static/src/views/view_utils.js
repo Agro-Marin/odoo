@@ -231,16 +231,14 @@ export function toStringExpression(str) {
 }
 
 /**
- * @param {Object} env
+ * @param {import("@web/views/view_config").ViewConfig & Record<string, any>} config
+ * @param {boolean | undefined} inDialog
  * @param {Object} display
  * @returns {{ lazy: boolean }}
  */
-export function computeModelOptions(env, display) {
+export function computeModelOptions(config, inDialog, display) {
     return {
-        lazy:
-            !env.config.isReloadingController &&
-            !env.inDialog &&
-            !!display.controlPanel,
+        lazy: !config.isReloadingController && !inDialog && !!display.controlPanel,
     };
 }
 

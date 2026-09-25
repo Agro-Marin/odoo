@@ -19,7 +19,7 @@ const debugLog = makeLogger("web.env");
  * @typedef {{
  * bus: import("@odoo/owl").EventBus;
  * debug: string;
- * services: Record<string, any>;
+ * services: import("services").ServiceFactories;
  * readonly isSmall: boolean;
  * [key: string]: any;
  * }} ServiceContext

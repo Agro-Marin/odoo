@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { Component, markRaw, onMounted, onWillUnmount, useState } from "@odoo/owl";
+import { useAppContext } from "@web/core/app_context";
 import { AppEvent } from "@web/core/events";
 import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { menuUsage } from "@web/webclient/menus/menu_usage";
@@ -36,6 +37,7 @@ export class QuickLauncher extends Component {
     catalog = [];
 
     setup() {
+        this.appContext = useAppContext();
         this.bus = useEventBus();
         this.menus = useService("menu");
         this.homeMenu = useService("home_menu");
@@ -48,7 +50,7 @@ export class QuickLauncher extends Component {
         this._loadCatalog();
         useHomeMenuLayoutSync(refresh);
         useBus(this.bus, AppEvent.MENUS_APP_CHANGED, refresh);
-        useHomeMenuBadgeUpdates(this.env, () => this.loadBadges());
+        useHomeMenuBadgeUpdates(this.appContext, () => this.loadBadges());
         onWillUnmount(() => {
             this.badgeRequest++;
         });
@@ -63,7 +65,7 @@ export class QuickLauncher extends Component {
 
     async loadBadges() {
         const request = ++this.badgeRequest;
-        const badges = await loadHomeMenuBadges(this.env, this.catalog);
+        const badges = await loadHomeMenuBadges(this.appContext, this.catalog);
         if (request === this.badgeRequest) {
             this.state.badges = badges;
         }

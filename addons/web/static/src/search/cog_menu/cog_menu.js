@@ -6,6 +6,7 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useViewScope } from "@web/model/view_scope";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
 import {
     COG_GROUP,
@@ -49,6 +50,7 @@ export class CogMenu extends ActionMenus {
     setup() {
         super.setup();
         this.ui = useService("ui");
+        this.viewScope = useViewScope();
         onWillStart(async () => {
             this.registryItems = await this._registryItems();
         });
@@ -64,10 +66,7 @@ export class CogMenu extends ActionMenus {
 
     /** @returns {Promise<Array<{Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}>>} */
     _registryItems() {
-        return getDisplayedRegistryItems(
-            cogMenuRegistry,
-            /** @type {import("@web/env").OdooEnv} */ (this.env),
-        );
+        return getDisplayedRegistryItems(cogMenuRegistry, this.viewScope);
     }
 
     /**

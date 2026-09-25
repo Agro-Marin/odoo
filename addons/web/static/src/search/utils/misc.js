@@ -76,14 +76,14 @@ export const MENU_REGISTRY_VALIDATION = {
 
 /**
  * @param {import("@web/core/registry").Registry<any>} registry
- * @param {import("@web/env").OdooEnv} env
+ * @param {import("@web/model/view_scope").ViewScope} viewScope
  * @returns {Promise<{Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}[]>}
  */
-export async function getDisplayedRegistryItems(registry, env) {
+export async function getDisplayedRegistryItems(registry, viewScope) {
     const entries = registry.getEntries();
     const displayed = await Promise.all(
         entries.map(([, item]) =>
-            "isDisplayed" in item ? item.isDisplayed(env) : true,
+            "isDisplayed" in item ? item.isDisplayed(viewScope) : true,
         ),
     );
     const items = [];

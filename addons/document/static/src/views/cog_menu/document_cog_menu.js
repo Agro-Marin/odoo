@@ -39,7 +39,7 @@ export class DocumentsCogMenu extends CogMenu {
     async _registryItems() {
         const [globalItems, documentsItems] = await Promise.all([
             super._registryItems(),
-            getDisplayedRegistryItems(documentsCogMenuRegistry, this.env),
+            getDisplayedRegistryItems(documentsCogMenuRegistry, this.viewScope),
         ]);
         return [
             ...globalItems,

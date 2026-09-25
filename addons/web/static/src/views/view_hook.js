@@ -140,12 +140,12 @@ export function useBounceButton(containerRef, shouldBounce) {
 }
 
 /**
- * @param {Object} env
+ * @param {import("@web/model/model").Model} model
+ * @param {import("@web/search/search_model").SearchModel} searchModel
  * @param {() => Object[]} getDefaultExportList
  * @returns {() => void}
  */
-export function useExportRecords(env, getDefaultExportList) {
-    const { model, searchModel } = env;
+export function useExportRecords(model, searchModel, getDefaultExportList) {
     const dialog = useService("dialog");
     useBus(searchModel, SearchModelEvent.DIRECT_EXPORT_DATA, () =>
         _downloadExport(getDefaultExportList(), false, "xlsx"),

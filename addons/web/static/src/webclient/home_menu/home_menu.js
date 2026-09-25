@@ -10,6 +10,7 @@ import {
     useState,
 } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
+import { useAppContext } from "@web/core/app_context";
 import { browser } from "@web/core/browser/browser";
 import { hasTouch, isIosApp } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -124,6 +125,7 @@ export class HomeMenu extends Component {
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
     rootRef;
     setup() {
+        this.appContext = useAppContext();
         this.ui = useService("ui");
         useLifecycleLog(log);
         this.menus = useService("menu");
@@ -213,7 +215,7 @@ export class HomeMenu extends Component {
 
     _setupBadges() {
         this.badgeRequest = 0;
-        useHomeMenuBadgeUpdates(this.env, () => this._loadBadges());
+        useHomeMenuBadgeUpdates(this.appContext, () => this._loadBadges());
         onMounted(() => {
             this.badgeTimer = browser.setTimeout(() => this._loadBadges(), BADGE_DELAY);
         });
@@ -363,9 +365,7 @@ export class HomeMenu extends Component {
     async _loadBadges(apps) {
         const request = ++this.badgeRequest;
         const badges = await loadHomeMenuBadges(
-            /** @type {import("@web/env").OdooEnv} */ (
-                /** @type {unknown} */ (this.env)
-            ),
+            this.appContext,
             apps ?? this.displayedApps,
             { refresh: true },
         );

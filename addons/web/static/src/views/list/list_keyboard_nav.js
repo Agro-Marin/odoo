@@ -149,7 +149,7 @@ function elementToFocusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
  * import("./list_renderer").ListGridContext,
  * | "getColumns"
  * | "getProps"
- * | "getEnv"
+ * | "getSearchModel"
  * | "getGridState"
  * | "onToggleGroup"
  * | "toggleRecordSelection"
@@ -488,8 +488,9 @@ class ListKeyboardNavigation {
         if (moved === true) {
             return { handled: true };
         }
-        if (!moved && direction === "up" && this.ctx.getEnv().searchModel) {
-            this.ctx.getEnv().searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
+        const searchModel = this.ctx.getSearchModel();
+        if (!moved && direction === "up" && searchModel) {
+            searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
             return { handled: true };
         }
         return { toFocus: moved };
@@ -635,9 +636,9 @@ export function useListKeyboardNavigation(tableRef, ctx) {
             (nav.lastIsDirty = applyFieldDirtyPayload(dirtyOwners, ev.detail).size > 0),
     );
 
-    const env = ctx.getEnv();
-    if (env.searchModel) {
-        useBus(env.searchModel, SearchModelEvent.FOCUS_VIEW, () => {
+    const searchModel = ctx.getSearchModel();
+    if (searchModel) {
+        useBus(searchModel, SearchModelEvent.FOCUS_VIEW, () => {
             if (ctx.getProps().list.model.useSampleModel) {
                 return;
             }

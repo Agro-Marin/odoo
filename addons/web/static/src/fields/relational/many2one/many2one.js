@@ -6,6 +6,7 @@ import { webNameSearch } from "@web/components/autocomplete/name_search";
 import { BarcodeScanner } from "@web/components/barcode/barcode_dialog";
 import { isBarcodeScannerSupported } from "@web/components/barcode/barcode_video_scanner";
 import { useAction } from "@web/core/action_port";
+import { useAppContext } from "@web/core/app_context";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeContext } from "@web/core/context";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -227,6 +228,7 @@ export class Many2One extends Component {
     _activeActions = null;
 
     setup() {
+        this.appContext = useAppContext();
         this.dialogContext = useDialogContext();
         this.ui = useService("ui");
         useRenderCounter("fields.web.Many2One");
@@ -399,7 +401,7 @@ export class Many2One extends Component {
     }
 
     async openBarcodeScanner() {
-        const barcode = await BarcodeScanner.scanBarcode(this.env);
+        const barcode = await BarcodeScanner.scanBarcode(this.appContext);
         if (barcode) {
             await this.processScannedBarcode(barcode);
             if ("vibrate" in navigator) {

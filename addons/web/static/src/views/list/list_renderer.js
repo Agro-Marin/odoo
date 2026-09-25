@@ -32,6 +32,7 @@ import { useViewConfig } from "@web/core/view_config_hooks";
 import { Field } from "@web/fields/field";
 import { getTooltipInfo } from "@web/fields/field_tooltip";
 import { MOVABLE_RECORD_TYPES } from "@web/model/relational_model/dynamic_group_list";
+import { useSearchModel } from "@web/search/search_model";
 import { ActionHelper } from "@web/views/action_helper";
 import { useGroupManagement } from "@web/views/multi_record_group";
 import { ViewButton } from "@web/views/view_button/view_button";
@@ -79,7 +80,8 @@ import {
  * }} ListRendererProps
  * @typedef {{
  * getProps: () => ListRendererProps;
- * getEnv: () => any;
+ * getSearchModel: () => import("@web/search/search_model").SearchModel | undefined;
+ * isSmall: () => boolean;
  * getColumns: () => Column[];
  * getAllColumns: () => Column[];
  * getFields: () => Record<string, object>;
@@ -250,6 +252,7 @@ export class ListRenderer extends Component {
         this._displaySaveNotification = this.displaySaveNotification.bind(this);
         this.actionService = useAction();
         this.uiService = useService("ui");
+        this.searchModel = useSearchModel();
         this.notificationService = useService("notification");
         this.orm = useService("orm");
         const key = this.createViewKey();
@@ -602,7 +605,8 @@ export class ListRenderer extends Component {
     getGridContext() {
         return {
             getProps: () => this.props,
-            getEnv: () => this.env,
+            getSearchModel: () => this.searchModel,
+            isSmall: () => this.uiService.isSmall,
             getColumns: () => this.columns,
             getAllColumns: () => this.allColumns,
             getFields: () => this.fields,

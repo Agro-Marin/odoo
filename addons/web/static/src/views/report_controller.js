@@ -3,6 +3,8 @@
 
 import { Component, toRaw, useState } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { useModelWithSampleData } from "@web/model/model";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { useViewChassis, ViewLayout } from "@web/views/view_components";
@@ -28,6 +30,8 @@ export class ReportController extends Component {
     actionState;
 
     setup() {
+        this.viewConfig = useViewConfig();
+        this.inDialog = useDialogContext().inDialog;
         this.model = useState(
             useModelWithSampleData(
                 this.props.Model,
@@ -51,7 +55,9 @@ export class ReportController extends Component {
 
     /** @returns {Object} */
     get modelOptions() {
-        return /** @type {any} */ (computeModelOptions(this.env, this.props.display));
+        return /** @type {any} */ (
+            computeModelOptions(this.viewConfig, this.inDialog, this.props.display)
+        );
     }
 
     /** @returns {Object} */

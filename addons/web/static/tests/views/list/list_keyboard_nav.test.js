@@ -21,7 +21,7 @@ function makeCtx(overrides = {}) {
     return {
         getColumns: () => /** @type {any[]} */ ([]),
         getProps: () => props,
-        getEnv: () => ({}),
+        getSearchModel: () => undefined,
         getGridState: () => /** @type {any} */ (null),
         onToggleGroup: () => {},
         toggleRecordSelection: () => {},

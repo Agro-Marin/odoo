@@ -97,7 +97,11 @@ export class KanbanQuickCreateController extends Component {
             context: this.props.context,
         };
         this.model = useState(
-            new this.props.Model(this.env, { config }, modelServices),
+            new this.props.Model(
+                this.props.Model.useViewContext(),
+                { config },
+                modelServices,
+            ),
         );
 
         onWillStart(async () => {

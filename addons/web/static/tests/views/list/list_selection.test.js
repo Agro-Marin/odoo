@@ -57,7 +57,7 @@ function mountSelectionHost(/** @type {any} */ onToggle) {
                         /** @type {any} */ ({ list: { selection: [], records: [] } }),
                     getAllowSelectors: () => true,
                     toggleRecordSelection: onToggle,
-                    getEnv: () => ({ isSmall: true }),
+                    isSmall: () => true,
                 },
                 { longTouchThreshold: LONG_TOUCH_THRESHOLD },
             );

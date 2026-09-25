@@ -6,6 +6,7 @@ import { CheckBox } from "@web/components/checkbox/checkbox";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { useAppContext } from "@web/core/app_context";
 import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
@@ -24,6 +25,7 @@ export class UserMenu extends Component {
     static props = {};
 
     setup() {
+        this.appContext = useAppContext();
         this.debug = useDebugMode();
         this.userName = user.name;
         this.userLogin = user.login;
@@ -48,9 +50,7 @@ export class UserMenu extends Component {
                 try {
                     return [
                         {
-                            ...element(
-                                /** @type {import("@web/env").OdooEnv} */ (this.env),
-                            ),
+                            ...element(this.appContext),
                             key,
                         },
                     ];
