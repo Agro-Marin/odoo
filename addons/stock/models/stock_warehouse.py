@@ -71,6 +71,7 @@ WAREHOUSE_PICKING_TYPE_CODES = {
 class StockWarehouse(models.Model):
     _name = "stock.warehouse"
     _description = "Warehouse"
+    _inherit = ["mixin.mail.thread"]
     _order = "sequence,id"
     _check_company_auto = True
 
@@ -80,9 +81,13 @@ class StockWarehouse(models.Model):
         string="Warehouse",
         default=lambda self: self._default_name(),
         required=True,
+        tracking=True,
     )
 
-    active = fields.Boolean(default=True)
+    active = fields.Boolean(
+        default=True,
+        tracking=True,
+    )
 
     sequence = fields.Integer(
         default=10,
@@ -102,6 +107,7 @@ class StockWarehouse(models.Model):
         string="Address",
         default=lambda self: self.env.company.partner_id,
         check_company=True,
+        tracking=True,
     )
 
     view_location_id = fields.Many2one(
@@ -111,6 +117,7 @@ class StockWarehouse(models.Model):
         required=True,
         domain="[('usage', '=', 'view'), ('company_id', '=', company_id)]",
         check_company=True,
+        tracking=True,
     )
 
     lot_stock_id = fields.Many2one(
@@ -120,12 +127,14 @@ class StockWarehouse(models.Model):
         required=True,
         domain="[('usage', '=', 'internal'), ('company_id', '=', company_id)]",
         check_company=True,
+        tracking=True,
     )
 
     code = fields.Char(
         string="Short Name",
         size=5,
         required=True,
+        tracking=True,
         help="Short name used to identify your warehouse",
     )
 
@@ -138,6 +147,7 @@ class StockWarehouse(models.Model):
         copy=False,
         domain="[('warehouse_selectable', '=', True), ('company_id', 'in', [False, company_id])]",
         check_company=True,
+        tracking=True,
         help="Defaults routes through the warehouse",
     )
 
@@ -150,6 +160,7 @@ class StockWarehouse(models.Model):
         string="Incoming Shipments",
         default="one_step",
         required=True,
+        tracking=True,
         help="Default incoming route to follow",
     )
 
@@ -162,6 +173,7 @@ class StockWarehouse(models.Model):
         string="Outgoing Shipments",
         default="ship_only",
         required=True,
+        tracking=True,
         help="Default outgoing route to follow",
     )
 
@@ -170,6 +182,7 @@ class StockWarehouse(models.Model):
         string="Input Location",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     wh_qc_stock_loc_id = fields.Many2one(
@@ -177,6 +190,7 @@ class StockWarehouse(models.Model):
         string="Quality Control Location",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     wh_output_stock_loc_id = fields.Many2one(
@@ -184,6 +198,7 @@ class StockWarehouse(models.Model):
         string="Output Location",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     wh_pack_stock_loc_id = fields.Many2one(
@@ -191,36 +206,42 @@ class StockWarehouse(models.Model):
         string="Packing Location",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     mto_pull_id = fields.Many2one(
         comodel_name="stock.rule",
         string="MTO rule",
         copy=False,
+        tracking=True,
     )
 
     pick_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     pack_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     out_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     in_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     int_type_id = fields.Many2one(
@@ -228,6 +249,7 @@ class StockWarehouse(models.Model):
         string="Internal Type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     qc_type_id = fields.Many2one(
@@ -235,6 +257,7 @@ class StockWarehouse(models.Model):
         string="Quality Control Type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     store_type_id = fields.Many2one(
@@ -242,6 +265,7 @@ class StockWarehouse(models.Model):
         string="Storage Type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     xdock_type_id = fields.Many2one(
@@ -249,6 +273,7 @@ class StockWarehouse(models.Model):
         string="Cross Dock Type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     reception_route_id = fields.Many2one(
@@ -256,12 +281,14 @@ class StockWarehouse(models.Model):
         string="Receipt Route",
         copy=False,
         ondelete="restrict",
+        tracking=True,
     )
 
     delivery_route_id = fields.Many2one(
         comodel_name="stock.route",
         copy=False,
         ondelete="restrict",
+        tracking=True,
     )
 
     resupply_wh_ids = fields.Many2many(
@@ -270,6 +297,7 @@ class StockWarehouse(models.Model):
         column1="supplied_wh_id",
         column2="supplier_wh_id",
         string="Resupply From",
+        tracking=True,
         help="Routes will be created automatically to resupply this warehouse from the warehouses ticked",
     )
 

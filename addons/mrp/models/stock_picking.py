@@ -43,46 +43,56 @@ class StockPickingType(models.Model):
     use_create_components_lots = fields.Boolean(
         string="Create New Lots/Serial Numbers for Components",
         default=False,
+        tracking=True,
         help="Allow to create new lot/serial numbers for the components",
     )
 
     auto_print_done_production_order = fields.Boolean(
-        help="If this checkbox is ticked, Odoo will automatically print the production order of a MO when it is done."
+        tracking=True,
+        help="If this checkbox is ticked, Odoo will automatically print the production order of a MO when it is done.",
     )
     auto_print_done_mrp_product_labels = fields.Boolean(
         string="Auto Print Produced Product Labels",
+        tracking=True,
         help="If this checkbox is ticked, Odoo will automatically print the product labels of a MO when it is done.",
     )
     mrp_product_label_to_print = fields.Selection(
         selection=[("pdf", "PDF"), ("zpl", "ZPL")],
         string="Product Label to Print",
         default="pdf",
+        tracking=True,
     )
     auto_print_done_mrp_lot = fields.Boolean(
         string="Auto Print Produced Lot Label",
+        tracking=True,
         help="If this checkbox is ticked, Odoo will automatically print the lot/SN label of a MO when it is done.",
     )
     done_mrp_lot_label_to_print = fields.Selection(
         selection=[("pdf", "PDF"), ("zpl", "ZPL")],
         string="Lot/SN Label to Print",
         default="pdf",
+        tracking=True,
     )
     auto_print_mrp_reception_report = fields.Boolean(
         string="Auto Print Allocation Report",
+        tracking=True,
         help="If this checkbox is ticked, Odoo will automatically print the allocation report of a MO when it is done and has assigned moves.",
     )
     auto_print_mrp_reception_report_labels = fields.Boolean(
         string="Auto Print Allocation Report Labels",
+        tracking=True,
         help="If this checkbox is ticked, Odoo will automatically print the allocation report labels of a MO when it is done.",
     )
     auto_print_generated_mrp_lot = fields.Boolean(
         string="Auto Print Generated Lot/SN Label",
+        tracking=True,
         help='Automatically print the lot/SN label when the "Create a new serial/lot number" button is used.',
     )
     generated_mrp_lot_label_to_print = fields.Selection(
         selection=[("pdf", "PDF"), ("zpl", "ZPL")],
         string="Generated Lot/SN Label to Print",
         default="pdf",
+        tracking=True,
     )
 
     @api.depends("code")

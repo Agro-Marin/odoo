@@ -5,5 +5,6 @@ class StockLocation(models.Model):
     _inherit = "stock.location"
 
     maintenance_location = fields.Boolean(
-        help="Equipment sent here is out for maintenance."
+        tracking=True,
+        help="Equipment sent here is out for maintenance.",
     )

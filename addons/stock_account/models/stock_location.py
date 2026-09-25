@@ -20,6 +20,7 @@ class StockLocation(models.Model):
                 ),
             )
         ],
+        tracking=True,
         help="Expense account used to re-qualify products removed from stock and sent to this location",
     )
     is_valued_internal = fields.Boolean(

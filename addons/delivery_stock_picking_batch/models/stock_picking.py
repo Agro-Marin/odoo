@@ -17,10 +17,12 @@ class StockPickingType(models.Model):
 
     batch_group_by_carrier = fields.Boolean(
         string="Carrier",
+        tracking=True,
         help="Automatically group batches by carriers",
     )
     batch_max_weight = fields.Integer(
         string="Maximum weight",
+        tracking=True,
         help="A transfer will not be automatically added to batches that will exceed this weight if the transfer is added to it.\n"
         "Leave this value as '0' if no weight limit.",
     )

@@ -22,6 +22,7 @@ class StockWarehouseOrderpoint(models.Model):
         inverse="_inverse_bom_id",
         domain="[('type', '=', 'normal'), '&', '|', ('company_id', '=', company_id), ('company_id', '=', False), '|', ('product_id', '=', product_id), '&', ('product_id', '=', False), ('product_tmpl_id', '=', product_tmpl_id)]",
         check_company=True,
+        tracking=True,
     )
     bom_id_placeholder = fields.Char(compute="_compute_bom_id_placeholder")
     effective_bom_id = fields.Many2one(

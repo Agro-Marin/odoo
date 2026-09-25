@@ -134,6 +134,7 @@
                         options="{'model': 'stock.move'}"
                         invisible="action not in ['push', 'pull_push']" />
                 </sheet>
+                <chatter />
             </form>
         </field>
     </record>

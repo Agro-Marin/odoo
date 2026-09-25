@@ -8,7 +8,8 @@ class StockPickingType(models.Model):
     _inherit = "stock.picking.type"
 
     dispatch_management = fields.Boolean(
-        help="Enable this option to display dispatch management related details in the batch/wave form view and operations kanban overview."
+        tracking=True,
+        help="Enable this option to display dispatch management related details in the batch/wave form view and operations kanban overview.",
     )
     dock_ids = fields.Many2many(
         comodel_name="stock.location",
@@ -17,6 +18,7 @@ class StockPickingType(models.Model):
         store=True,
         readonly=False,
         domain="[('warehouse_id', '=', warehouse_id), ('usage', '=', 'internal')]",
+        tracking=True,
     )
 
     @api.depends("warehouse_id")

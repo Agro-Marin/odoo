@@ -38,7 +38,11 @@
         <field name="name">stock.putaway.rule.list</field>
         <field name="model">stock.putaway.rule</field>
         <field name="arch" type="xml">
-            <list string="Putaway Rules" editable="bottom" sample="1">
+            <list
+                string="Putaway Rules"
+                editable="bottom"
+                sample="1"
+                open_form_view="1">
                 <field name="company_id" column_invisible="True" />
                 <field name="package_type_ids" column_invisible="True" />
                 <field
@@ -102,10 +106,79 @@
         </field>
     </record>
 
+    <record id="view_stock_putaway_rule_form" model="ir.ui.view">
+        <field name="name">stock.putaway.rule.form</field>
+        <field name="model">stock.putaway.rule</field>
+        <field name="arch" type="xml">
+            <form string="Putaway Rule">
+                <sheet>
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        invisible="active"
+                        bg_color="text-bg-danger" />
+                    <group name="main">
+                        <group name="left_col">
+                            <field name="active" invisible="1" />
+                            <field
+                                name="location_in_id"
+                                string="When product arrives in"
+                                options="{'no_create': True}"
+                                readonly="context.get('fixed_location', False)" />
+                            <field
+                                name="product_id"
+                                string="Product"
+                                placeholder="All Products"
+                                force_save="1"
+                                options="{'no_create': True}"
+                                readonly="context.get('single_product', False) or category_id" />
+                            <field
+                                name="category_id"
+                                string="Product Category"
+                                placeholder="All Categories"
+                                force_save="1"
+                                options="{'no_create': True}"
+                                readonly="context.get('fixed_category', False) or product_id" />
+                            <field
+                                name="package_type_ids"
+                                string="Package type"
+                                widget="many2many_tags"
+                                options="{'no_create': True}"
+                                groups="stock.group_tracking_lot" />
+                        </group>
+                        <group name="right_col">
+                            <field
+                                name="location_out_id"
+                                string="Store to"
+                                options="{'no_create': True}"
+                                readonly="not location_in_id" />
+                            <field name="sublocation" force_save="1" required="True" />
+                            <field
+                                name="storage_category_id"
+                                string="Having Category"
+                                placeholder="Any Category"
+                                options="{'no_create': True}"
+                                groups="stock.group_stock_multi_locations"
+                                readonly="sublocation == 'no'"
+                                required="sublocation == 'closest_location'" />
+                            <field
+                                name="company_id"
+                                force_save="1"
+                                options="{'no_create': True}"
+                                groups="base.group_multi_company"
+                                readonly="context.get('fixed_location', False)" />
+                        </group>
+                    </group>
+                </sheet>
+                <chatter />
+            </form>
+        </field>
+    </record>
+
     <record id="action_stock_putaway_rule" model="ir.actions.act_window">
         <field name="name">Putaway Rules</field>
         <field name="res_model">stock.putaway.rule</field>
-        <field name="view_mode">list</field>
+        <field name="view_mode">list,form</field>
         <field name="view_id" ref="view_stock_putaway_rule_list" />
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">

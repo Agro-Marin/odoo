@@ -34,7 +34,9 @@ class GroupingCriterion(NamedTuple):
 
 class StockPickingType(models.Model):
     _name = "stock.picking.type"
-    _inherit = ["mixin.date.category", "mixin.user.favorite"]
+    # the thread goes last: mixin.user.favorite's write returns before super()
+    # on a favourite-only toggle, which then skips the tracking snapshot
+    _inherit = ["mixin.date.category", "mixin.user.favorite", "mixin.mail.thread"]
     _description = "Picking Type"
     _order = "is_user_favorite desc, sequence, id"
     _rec_names_search = ["name", "warehouse_id.name"]
@@ -44,6 +46,7 @@ class StockPickingType(models.Model):
         string="Operation Type",
         translate=True,
         required=True,
+        tracking=True,
     )
     code = fields.Selection(
         selection=[
@@ -54,21 +57,30 @@ class StockPickingType(models.Model):
         string="Type of Operation",
         default="incoming",
         required=True,
+        tracking=True,
     )
-    active = fields.Boolean(default=True)
+    active = fields.Boolean(
+        default=True,
+        tracking=True,
+    )
     sequence = fields.Integer(help="Used to order the 'All Operations' kanban view")
     color = fields.Integer()
-    barcode = fields.Char(copy=False)
+    barcode = fields.Char(
+        copy=False,
+        tracking=True,
+    )
 
     sequence_id = fields.Many2one(
         comodel_name="ir.sequence",
         string="Reference Sequence",
         copy=False,
         check_company=True,
+        tracking=True,
     )
     sequence_code = fields.Char(
         string="Sequence Prefix",
         required=True,
+        tracking=True,
     )
 
     company_id = fields.Many2one(
@@ -84,6 +96,7 @@ class StockPickingType(models.Model):
         readonly=False,
         ondelete="cascade",
         check_company=True,
+        tracking=True,
     )
 
     default_location_src_id = fields.Many2one(
@@ -95,6 +108,7 @@ class StockPickingType(models.Model):
         readonly=False,
         required=True,
         check_company=True,
+        tracking=True,
         help="This is the default source location when this operation is manually created. However, it is possible to change it afterwards or that the routes use another one by default.",
     )
     default_location_dest_id = fields.Many2one(
@@ -106,6 +120,7 @@ class StockPickingType(models.Model):
         readonly=False,
         required=True,
         check_company=True,
+        tracking=True,
         help="This is the default destination location when this operation is manually created. However, it is possible to change it afterwards or that the routes use another one by default.",
     )
 
@@ -114,6 +129,7 @@ class StockPickingType(models.Model):
         string="Operation Type for Returns",
         index="btree_not_null",
         check_company=True,
+        tracking=True,
     )
     move_type = fields.Selection(
         selection=[
@@ -123,12 +139,14 @@ class StockPickingType(models.Model):
         string="Shipping Policy",
         default="direct",
         required=True,
+        tracking=True,
         help="It specifies goods to be transferred partially or all at once",
     )
     create_backorder = fields.Selection(
         selection=[("ask", "Ask"), ("always", "Always"), ("never", "Never")],
         default="ask",
         required=True,
+        tracking=True,
         help="When validating a transfer:\n"
         " * Ask: users are asked to choose if they want to make a backorder for remaining products\n"
         " * Always: a backorder is automatically created for the remaining products\n"
@@ -143,14 +161,17 @@ class StockPickingType(models.Model):
         ],
         default="at_confirm",
         required=True,
+        tracking=True,
         help="How products in transfers of this operation type should be reserved.",
     )
     reservation_days_before = fields.Integer(
         string="Days",
+        tracking=True,
         help="Maximum number of days before scheduled date that products should be reserved.",
     )
     reservation_days_before_priority = fields.Integer(
         string="Days when starred",
+        tracking=True,
         help="Maximum number of days before scheduled date that priority picking products should be reserved.",
     )
 
@@ -160,6 +181,7 @@ class StockPickingType(models.Model):
         default=True,
         store=True,
         readonly=False,
+        tracking=True,
         help="If this is checked only, it will suppose you want to create new Lots/Serial Numbers, so you can provide them in a text field. ",
     )
     use_existing_lots = fields.Boolean(
@@ -168,15 +190,18 @@ class StockPickingType(models.Model):
         default=True,
         store=True,
         readonly=False,
+        tracking=True,
         help="If this is checked, you will be able to choose the Lots/Serial Numbers. You can also decide to not put lots in this operation type.  This means it will create stock with no lot or not put a restriction on the lot taken. ",
     )
     show_entire_packs = fields.Boolean(
         string="Move Entire Packages",
         default=False,
+        tracking=True,
         help="If ticked, packages to move will be directly displayed in Barcode instead of the products they contain",
     )
     set_package_type = fields.Boolean(
         default=False,
+        tracking=True,
         help="If ticked, you will be able to select which package or package type to use in a put in pack",
     )
 
@@ -185,16 +210,20 @@ class StockPickingType(models.Model):
         compute="_compute_print_label",
         store=True,
         readonly=False,
+        tracking=True,
         help="Check this box if you want to generate shipping label in this operation.",
     )
     auto_print_delivery_slip = fields.Boolean(
-        help="If this checkbox is ticked, Odoo will automatically print the delivery slip of a picking when it is validated."
+        tracking=True,
+        help="If this checkbox is ticked, Odoo will automatically print the delivery slip of a picking when it is validated.",
     )
     auto_print_return_slip = fields.Boolean(
-        help="If this checkbox is ticked, Odoo will automatically print the return slip of a picking when it is validated."
+        tracking=True,
+        help="If this checkbox is ticked, Odoo will automatically print the return slip of a picking when it is validated.",
     )
     auto_print_product_labels = fields.Boolean(
-        help="If this checkbox is ticked, Odoo will automatically print the product labels of a picking when it is validated."
+        tracking=True,
+        help="If this checkbox is ticked, Odoo will automatically print the product labels of a picking when it is validated.",
     )
     product_label_format = fields.Selection(
         selection=[
@@ -208,9 +237,11 @@ class StockPickingType(models.Model):
         ],
         string="Product Label Format to auto-print",
         default="2x7xprice",
+        tracking=True,
     )
     auto_print_lot_labels = fields.Boolean(
         string="Auto Print Lot/SN Labels",
+        tracking=True,
         help="If this checkbox is ticked, Odoo will automatically print the lot/SN labels of a picking when it is validated.",
     )
     lot_label_format = fields.Selection(
@@ -222,28 +253,35 @@ class StockPickingType(models.Model):
         ],
         string="Lot Label Format to auto-print",
         default="4x12_lots",
+        tracking=True,
     )
     auto_print_packages = fields.Boolean(
-        help="If this checkbox is ticked, Odoo will automatically print the packages and their contents of a picking when it is validated."
+        tracking=True,
+        help="If this checkbox is ticked, Odoo will automatically print the packages and their contents of a picking when it is validated.",
     )
     auto_print_package_label = fields.Boolean(
-        help='If this checkbox is ticked, Odoo will automatically print the package label when "Put in Pack" button is used.'
+        tracking=True,
+        help='If this checkbox is ticked, Odoo will automatically print the package label when "Put in Pack" button is used.',
     )
     package_label_to_print = fields.Selection(
         selection=[("pdf", "PDF"), ("zpl", "ZPL")],
         string="Package Label to Print",
         default="pdf",
+        tracking=True,
     )
 
     auto_show_reception_report = fields.Boolean(
         string="Show Reception Report at Validation",
+        tracking=True,
         help="If this checkbox is ticked, Odoo will automatically show the reception report (if there are moves to allocate to) when validating.",
     )
     auto_print_reception_report = fields.Boolean(
-        help="If this checkbox is ticked, Odoo will automatically print the reception report of a picking when it is validated and has assigned moves."
+        tracking=True,
+        help="If this checkbox is ticked, Odoo will automatically print the reception report of a picking when it is validated and has assigned moves.",
     )
     auto_print_reception_report_labels = fields.Boolean(
-        help="If this checkbox is ticked, Odoo will automatically print the reception report labels of a picking when it is validated."
+        tracking=True,
+        help="If this checkbox is ticked, Odoo will automatically print the reception report labels of a picking when it is validated.",
     )
 
     picking_properties_definition = fields.PropertiesDefinition(
@@ -255,6 +293,7 @@ class StockPickingType(models.Model):
     show_operations = fields.Boolean(
         string="Show Detailed Operations",
         default=False,
+        tracking=True,
         help="If this checkbox is ticked, the pickings lines will represent detailed stock operations. If not, the picking lines will represent an aggregate of detailed stock operations.",
     )
     hide_reservation_method = fields.Boolean(compute="_compute_hide_reservation_method")
@@ -768,47 +807,56 @@ class StockPickingType(models.Model):
 
     auto_batch = fields.Boolean(
         string="Automatic Batches",
+        tracking=True,
         help="Automatically put pickings into batches as they are confirmed when possible.",
     )
 
     batch_group_by_partner = fields.Boolean(
         string="Contact",
+        tracking=True,
         help="Automatically group batches by contacts.",
     )
 
     batch_group_by_destination = fields.Boolean(
         string="Destination Country",
+        tracking=True,
         help="Automatically group batches by destination country.",
     )
 
     batch_group_by_src_loc = fields.Boolean(
         string="Group by Source Location",
+        tracking=True,
         help="Automatically group batches by their source location.",
     )
 
     batch_group_by_dest_loc = fields.Boolean(
         string="Group by Destination Location",
+        tracking=True,
         help="Automatically group batches by their destination location.",
     )
 
     wave_group_by_product = fields.Boolean(
         string="Product",
+        tracking=True,
         help="Split transfers by product then group transfers that have the same product.",
     )
 
     wave_group_by_category = fields.Boolean(
         string="Product Category",
+        tracking=True,
         help="Split transfers by product category, then group transfers that have the same product category.",
     )
 
     wave_category_ids = fields.Many2many(
         comodel_name="product.category",
         string="Wave Product Categories",
+        tracking=True,
         help="Categories to consider when grouping waves.",
     )
 
     wave_group_by_location = fields.Boolean(
         string="Location",
+        tracking=True,
         help="Split transfers by defined locations, then group transfers with the same location.",
     )
 
@@ -816,17 +864,20 @@ class StockPickingType(models.Model):
         comodel_name="stock.location",
         string="Wave Locations",
         domain="[('usage', '=', 'internal')]",
+        tracking=True,
         help="Locations to consider when grouping waves.",
     )
 
     batch_max_lines = fields.Integer(
         string="Maximum lines",
+        tracking=True,
         help="A transfer will not be automatically added to batches that will exceed this number of lines if the transfer is added to it.\n"
         "Leave this value as '0' if no line limit.",
     )
 
     batch_max_pickings = fields.Integer(
         string="Maximum transfers",
+        tracking=True,
         help="A transfer will not be automatically added to batches that will exceed this number of transfers.\n"
         "Leave this value as '0' if no transfer limit.",
     )
@@ -834,6 +885,7 @@ class StockPickingType(models.Model):
     batch_auto_confirm = fields.Boolean(
         string="Auto-confirm",
         default=True,
+        tracking=True,
     )
 
     batch_properties_definition = fields.PropertiesDefinition(string="Batch Properties")

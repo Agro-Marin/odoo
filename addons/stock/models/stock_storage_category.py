@@ -8,14 +8,17 @@ _debug = DebugLog(__name__)
 class StockStorageCategory(models.Model):
     _name = "stock.storage.category"
     _description = "Storage Category"
+    _inherit = ["mixin.mail.thread"]
     _order = "name"
 
     name = fields.Char(
         string="Storage Category",
         required=True,
+        tracking=True,
     )
     max_weight = fields.Float(
         digits="Stock Weight",
+        tracking=True,
         help="Maximum weight the locations of this storage category can hold. "
         "Leave 0 for no weight limit.",
     )
@@ -42,12 +45,16 @@ class StockStorageCategory(models.Model):
         ],
         default="mixed",
         required=True,
+        tracking=True,
     )
     location_ids = fields.One2many(
         comodel_name="stock.location",
         inverse_name="storage_category_id",
     )
-    company_id = fields.Many2one(comodel_name="res.company")
+    company_id = fields.Many2one(
+        comodel_name="res.company",
+        tracking=True,
+    )
     weight_uom_name = fields.Char(
         string="Weight unit",
         compute="_compute_weight_uom_name",

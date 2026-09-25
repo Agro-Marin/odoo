@@ -64,6 +64,7 @@ class StockLocation(models.Model):
     name = fields.Char(
         string="Location Name",
         required=True,
+        tracking=True,
     )
     complete_name = fields.Char(
         string="Full Location Name",
@@ -73,6 +74,7 @@ class StockLocation(models.Model):
     )
     active = fields.Boolean(
         default=True,
+        tracking=True,
         help="By unchecking the active field, you may hide a location without deleting it.",
     )
     usage = fields.Selection(
@@ -89,6 +91,7 @@ class StockLocation(models.Model):
         default="internal",
         index=True,
         required=True,
+        tracking=True,
         help="* Vendor: Virtual location representing the source location for products coming from your vendors"
         "\n* Virtual: Virtual location used to create a hierarchical structure for your warehouse by aggregating its child locations. Can't directly contain products"
         "\n* Internal: Physical locations inside your warehouses,"
@@ -102,6 +105,7 @@ class StockLocation(models.Model):
         string="Parent Location",
         index=True,
         check_company=True,
+        tracking=True,
         help="The parent location that includes this location. Example : The 'Dispatch Zone' is the 'Gate 1' parent location.",
     )
     child_ids = fields.One2many(
@@ -120,6 +124,7 @@ class StockLocation(models.Model):
         comodel_name="res.company",
         default=lambda self: self.env.company,
         index=True,
+        tracking=True,
         help="Let this field empty if this location is shared between companies",
     )
     replenish_location = fields.Boolean(
@@ -128,10 +133,12 @@ class StockLocation(models.Model):
         store=True,
         copy=False,
         readonly=False,
+        tracking=True,
         help="Trigger replenishment suggestions for this location when required",
     )
     removal_strategy_id = fields.Many2one(
         comodel_name="product.removal",
+        tracking=True,
         help="Defines the default method used for suggesting the exact location (shelf) "
         "where to take the products from, which lot etc. for this location. "
         "This method can be enforced at the product category level, "
@@ -148,7 +155,10 @@ class StockLocation(models.Model):
         inverse_name="location_in_id",
         string="Putaway Rules",
     )
-    barcode = fields.Char(copy=False)
+    barcode = fields.Char(
+        copy=False,
+        tracking=True,
+    )
     quant_ids = fields.One2many(
         comodel_name="stock.quant",
         inverse_name="location_id",
@@ -156,6 +166,7 @@ class StockLocation(models.Model):
     cyclic_inventory_frequency = fields.Integer(
         string="Inventory Frequency",
         default=0,
+        tracking=True,
         help=" When different than 0, inventory count date for products stored at this location will be automatically set at the defined frequency.",
     )
     last_inventory_date = fields.Date(
@@ -184,6 +195,7 @@ class StockLocation(models.Model):
         comodel_name="stock.storage.category",
         index="btree_not_null",
         check_company=True,
+        tracking=True,
     )
     outgoing_move_line_ids = fields.One2many(
         comodel_name="stock.move.line",

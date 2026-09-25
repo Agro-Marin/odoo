@@ -22,6 +22,7 @@ _logger = logging.getLogger(__name__)
 class StockWarehouseOrderpoint(models.Model):
     _name = "stock.warehouse.orderpoint"
     _description = "Minimum Inventory Rule"
+    _inherit = ["mixin.mail.thread"]
     _check_company_auto = True
     _order = "location_id,company_id,id"
 
@@ -39,9 +40,11 @@ class StockWarehouseOrderpoint(models.Model):
         selection=[("auto", "Auto"), ("manual", "Manual")],
         default="auto",
         required=True,
+        tracking=True,
     )
     active = fields.Boolean(
         default=True,
+        tracking=True,
         help="If the active field is set to False, it will allow you to hide the orderpoint without removing it.",
     )
     snoozed_until = fields.Date(
@@ -58,6 +61,7 @@ class StockWarehouseOrderpoint(models.Model):
         required=True,
         ondelete="cascade",
         check_company=True,
+        tracking=True,
     )
     location_id = fields.Many2one(
         comodel_name="stock.location",
@@ -69,6 +73,7 @@ class StockWarehouseOrderpoint(models.Model):
         required=True,
         ondelete="cascade",
         check_company=True,
+        tracking=True,
     )
     product_tmpl_id = fields.Many2one(
         comodel_name="product.template",
@@ -83,6 +88,7 @@ class StockWarehouseOrderpoint(models.Model):
         " [('is_storable', '=', True)]",
         ondelete="cascade",
         check_company=True,
+        tracking=True,
     )
     product_category_id = fields.Many2one(
         comodel_name="product.category",
@@ -104,6 +110,7 @@ class StockWarehouseOrderpoint(models.Model):
         digits="Product Unit",
         default=0.0,
         required=True,
+        tracking=True,
         help="The minimum Stock level that will trigger a replenishment.",
     )
     product_max_qty = fields.Float(
@@ -114,6 +121,7 @@ class StockWarehouseOrderpoint(models.Model):
         store=True,
         readonly=False,
         required=True,
+        tracking=True,
         help="Stock level to reach when replenishing.",
     )
     allowed_replenishment_uom_ids = fields.Many2many(
@@ -124,6 +132,7 @@ class StockWarehouseOrderpoint(models.Model):
         comodel_name="uom.uom",
         string="Multiple",
         domain="[('id', 'in', allowed_replenishment_uom_ids)]",
+        tracking=True,
         help="The procurement quantity will be rounded up to a multiple of this unit/packaging. If it is not set, it is not rounded.",
     )
     replenishment_uom_id_placeholder = fields.Char(
@@ -151,6 +160,7 @@ class StockWarehouseOrderpoint(models.Model):
         comodel_name="stock.route",
         inverse="_inverse_route_id",
         domain="['|', ('product_selectable', '=', True), ('rule_ids.action', 'in', ['buy', 'manufacture'])]",
+        tracking=True,
     )
     route_id_placeholder = fields.Char(compute="_compute_route_id_placeholder")
     effective_route_id = fields.Many2one(

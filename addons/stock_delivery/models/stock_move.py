@@ -9,7 +9,10 @@ _debug = DebugLog(__name__)
 class StockRoute(models.Model):
     _inherit = "stock.route"
 
-    shipping_selectable = fields.Boolean(string="Applicable on Shipping Methods")
+    shipping_selectable = fields.Boolean(
+        string="Applicable on Shipping Methods",
+        tracking=True,
+    )
 
 
 class StockMove(models.Model):

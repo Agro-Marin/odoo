@@ -10,5 +10,6 @@ class StockPickingType(models.Model):
         index="btree_not_null",
         domain="[('use_stock', '=', True), ('company_id', 'in', [False, company_id])]",
         check_company=True,
+        tracking=True,
         help="The team running this operation: its transfers are filed under it.",
     )

@@ -11,6 +11,7 @@ _debug = DebugLog(__name__)
 class StockRoute(models.Model):
     _name = "stock.route"
     _description = "Inventory Routes"
+    _inherit = ["mixin.mail.thread"]
     _order = "sequence"
     _check_company_auto = True
 
@@ -18,9 +19,11 @@ class StockRoute(models.Model):
         string="Route",
         translate=True,
         required=True,
+        tracking=True,
     )
     active = fields.Boolean(
         default=True,
+        tracking=True,
         help="If the active field is set to False, it will allow you to hide the route without removing it.",
     )
     sequence = fields.Integer(default=0)
@@ -33,33 +36,40 @@ class StockRoute(models.Model):
     product_selectable = fields.Boolean(
         string="Applicable on Product",
         default=True,
+        tracking=True,
         help="When checked, the route will be selectable in the Inventory tab of the Product form.",
     )
     product_categ_selectable = fields.Boolean(
         string="Applicable on Product Category",
+        tracking=True,
         help="When checked, the route will be selectable on the Product Category.",
     )
     warehouse_selectable = fields.Boolean(
         string="Applicable on Warehouse",
+        tracking=True,
         help="When a warehouse is selected for this route, this route should be seen as the default route when products pass through this warehouse.",
     )
     package_type_selectable = fields.Boolean(
         string="Applicable on Package Type",
+        tracking=True,
         help="When checked, the route will be selectable on package types",
     )
     supplied_wh_id = fields.Many2one(
         comodel_name="stock.warehouse",
         string="Supplied Warehouse",
         index="btree_not_null",
+        tracking=True,
     )
     supplier_wh_id = fields.Many2one(
         comodel_name="stock.warehouse",
         string="Supplying Warehouse",
+        tracking=True,
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
         default=lambda self: self.env.company,
         index=True,
+        tracking=True,
         help="Leave this field empty if this route is shared between all companies",
     )
     product_ids = fields.Many2many(
@@ -91,6 +101,7 @@ class StockRoute(models.Model):
         string="Warehouses",
         copy=False,
         domain="[('id', 'in', warehouse_domain_ids)]",
+        tracking=True,
     )
 
     def _has_rule_with_action(self, action):
