@@ -47,7 +47,7 @@
                                                     class="progress-bar rounded-start bg-info"
                                                     role="progressbar"
                                                     aria-label="Progress bar"
-                                                    t-att-aria-valuenow="slide.channel_id.completion"
+                                                    t-attf-aria-valuenow="{{slide.channel_id.completion}}"
                                                     aria-valuemin="0"
                                                     aria-valuemax="100"
                                                     t-attf-style="width: #{slide.channel_id.completion}%;">

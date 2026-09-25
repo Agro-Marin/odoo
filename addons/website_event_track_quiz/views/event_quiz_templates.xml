@@ -9,7 +9,7 @@
             t-att-data-id="track.id"
             t-att-data-event-id="track.event_id.id"
             t-att-data-completed="1 if quiz_completed else 0"
-            t-att-data-quiz-attempts-count="quiz_attempts_count or 0"
+            t-attf-data-quiz-attempts-count="{{quiz_attempts_count or 0}}"
             t-att-data-quiz-points-gained="quiz_points"
             t-att-data-is-event-user="is_event_user or 0"
             t-att-data-repeatable="track.quiz_id.repeatable">

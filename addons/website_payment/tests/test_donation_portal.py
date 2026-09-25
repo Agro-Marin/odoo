@@ -1,5 +1,6 @@
 import json
 
+from odoo.fields import Command
 from odoo.tests import HttpCase, tagged
 
 from odoo.addons.payment import utils as payment_utils
@@ -10,9 +11,17 @@ class TestDonationPortal(HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # the transfer provider carries payment methods only once payment_custom
+        # is installed, which website_payment does not depend on
+        cls.method = cls.env.ref("payment.payment_method_unknown")
         cls.provider = cls.env.ref("payment.payment_provider_transfer")
-        cls.provider.write({"state": "enabled", "is_published": True})
-        cls.method = cls.provider.payment_method_ids[:1]
+        cls.provider.write(
+            {
+                "state": "enabled",
+                "is_published": True,
+                "payment_method_ids": [Command.link(cls.method.id)],
+            }
+        )
         cls.currency = cls.env.company.currency_id
         cls.country = cls.env.ref("base.mx")
 

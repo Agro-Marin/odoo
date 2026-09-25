@@ -117,6 +117,25 @@ class TestPrintedCv(SkillsCase):
         )
         self.assertNotIn("Conservatory", self._render())
 
+    def test_a_zero_progress_level_keeps_its_aria_value(self):
+        beginner = self.env["hr.skill.level"].create(
+            {
+                "name": "Beginner",
+                "skill_type_id": self.skill_type.id,
+                "level_progress": 0,
+            }
+        )
+        self.env["hr.employee.skill"].create(
+            {
+                "employee_id": self.employee.id,
+                "skill_id": self.skill_guitar.id,
+                "skill_level_id": beginner.id,
+                "skill_type_id": self.skill_type.id,
+            }
+        )
+        self.env.flush_all()
+        self.assertIn('aria-valuenow="0"', self._render())
+
     def _piano_rows(self):
         return self.employee.employee_skill_ids.filtered(
             lambda skill: skill.skill_id == self.skill_piano

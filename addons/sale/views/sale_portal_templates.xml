@@ -77,7 +77,7 @@
                     type="text"
                     class="js_quantity form-control"
                     t-att-data-line-id="line.id"
-                    t-att-value="int(line.product_qty) or '0'" />
+                    t-attf-value="{{int(line.product_qty)}}" />
                 <span class="d-print-none input-group-text d-none d-md-inline-block">
                     <a
                         title="Add one"
@@ -208,7 +208,7 @@
         <xpath expr="//div[hasclass('o_portal_sidebar')]" position="inside">
             <div
                 class="row o_portal_sale_sidebar"
-                t-att-data-order-amount-total="sale_order.amount_total">
+                t-attf-data-order-amount-total="{{sale_order.amount_total}}">
                 <t t-call="portal.portal_record_sidebar">
                     <t t-set="classes" t-value="'col-lg-4 col-xxl-3 d-print-none'" />
                     <t t-set="title">

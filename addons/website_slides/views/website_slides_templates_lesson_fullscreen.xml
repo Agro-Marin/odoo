@@ -117,7 +117,7 @@
                                                     class="progress-bar"
                                                     role="progressbar"
                                                     t-attf-style="width: #{slide.channel_id.completion}%"
-                                                    t-att-aria-valuenow="slide.channel_id.completion"
+                                                    t-attf-aria-valuenow="{{slide.channel_id.completion}}"
                                                     aria-valuemin="0"
                                                     aria-valuemax="100"
                                                     aria-label="Progress bar" />

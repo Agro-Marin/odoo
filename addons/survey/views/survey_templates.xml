@@ -576,7 +576,7 @@
                 class="form-control o_survey_question_numerical_box bg-transparent rounded-0 p-0"
                 t-att-name="question.id"
                 t-att-placeholder="question.question_placeholder"
-                t-att-value="answer_lines[0].value_numerical_box if answer_lines else None"
+                t-attf-value="{{answer_lines[0].value_numerical_box if answer_lines and not answer_lines[0].skipped else ''}}"
                 t-att-data-question-type="question.question_type"
                 t-att-data-validation-float-min="str(question.validation_min_float_value) if question.validation_required else False"
                 t-att-data-validation-float-max="str(question.validation_max_float_value) if question.validation_required else False" />
@@ -707,10 +707,10 @@
                     type="range"
                     class="form-range flex-fill o_survey_question_slider"
                     t-att-name="question.id"
-                    t-att-min="question.slider_min"
-                    t-att-max="question.slider_max"
+                    t-attf-min="{{question.slider_min}}"
+                    t-attf-max="{{question.slider_max}}"
                     t-att-step="question.slider_step"
-                    t-att-value="answer_line.value_numerical_box if answer_line else (question.slider_min + question.slider_max) / 2"
+                    t-attf-value="{{answer_line.value_numerical_box if answer_line else (question.slider_min + question.slider_max) / 2}}"
                     oninput="this.closest('.o_survey_answer_wrapper').querySelector('.o_survey_slider_value').textContent = this.value" />
                 <span class="text-muted small" t-out="question.slider_max" />
             </div>
@@ -817,7 +817,7 @@
             <t t-foreach="displayed_suggested_answers" t-as="label">
                 <t
                     t-set="existing_line"
-                    t-value="answer_lines.filtered(lambda ln, l=label: ln.suggested_answer_id == l)" />
+                    t-value="answer_lines.filtered(lambda ln: ln.suggested_answer_id == label)" />
                 <div class="d-flex align-items-center gap-2 mb-2">
                     <span class="flex-fill" t-field="label.value" />
                     <input
@@ -829,7 +829,7 @@
                         style="max-width: 100px;"
                         t-att-data-answer-id="label.id"
                         t-attf-name="{{ question.id }}_{{ label.id }}"
-                        t-att-value="int(existing_line.value_numerical_box) if existing_line else 0" />
+                        t-attf-value="{{int(existing_line.value_numerical_box) if existing_line else 0}}" />
                 </div>
             </t>
             <div class="d-flex justify-content-end mt-2 fw-bold">
@@ -933,7 +933,7 @@
                                 t-as="col_label">
                                 <t
                                     t-set="answer_line"
-                                    t-value="answer_lines.filtered(                                     lambda l, r=row_label, c=col_label: l.matrix_row_id == r and l.suggested_answer_id == c                                 )" />
+                                    t-value="answer_lines.filtered(lambda ln: ln.matrix_row_id == row_label and ln.suggested_answer_id == col_label)" />
                                 <td
                                     class="o_survey_matrix_btn"
                                     t-att-class="'o_survey_selected' if answer_line else ''">

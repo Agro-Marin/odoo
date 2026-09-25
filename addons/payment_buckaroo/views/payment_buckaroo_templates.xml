@@ -4,7 +4,7 @@
     <template id="redirect_form">
         <form t-att-action="api_url" method="post">
             <input type="hidden" name="Brq_websitekey" t-att-value="Brq_websitekey" />
-            <input type="hidden" name="Brq_amount" t-att-value="Brq_amount" />
+            <input type="hidden" name="Brq_amount" t-attf-value="{{Brq_amount}}" />
             <input type="hidden" name="Brq_currency" t-att-value="Brq_currency" />
             <input
                 type="hidden"

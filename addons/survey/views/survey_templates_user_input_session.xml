@@ -295,7 +295,7 @@
                     <div
                         class="o_survey_session_leaderboard_bar ms-2 align-top d-inline-block text-end fw-bold"
                         t-att-style="'width: calc(calc(%s - 18rem) * %s)' % ('100%', width_ratio)"
-                        t-att-data-width-ratio="width_ratio">
+                        t-attf-data-width-ratio="{{width_ratio}}">
                     </div>
                     <div
                         class="o_survey_session_leaderboard_bar_question me-2 align-top d-inline-block text-end fw-bold position-relative"

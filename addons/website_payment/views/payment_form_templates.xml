@@ -124,7 +124,7 @@
                                     class="form-check-input"
                                     type="radio"
                                     t-attf-id="amount_#{donation_amount_index}"
-                                    t-att-value="donation_amount"
+                                    t-attf-value="{{donation_amount}}"
                                     t-att-checked="is_checked or None" />
                                 <label
                                     class="form-check-label mt-0"
@@ -147,7 +147,7 @@
                                 type="radio"
                                 id="other_amount"
                                 name="amount"
-                                t-att-value="amount"
+                                t-attf-value="{{amount}}"
                                 t-att-checked="not has_checked or None" />
                             <label
                                 class="form-check-label mt-0 d-block"
@@ -192,9 +192,9 @@
             name="o_donation_amount"
             type="number"
             class="form-control o_amount_input"
-            t-att-min="donation_options.get('minimumAmount')"
+            t-attf-min="{{donation_options.get('minimumAmount')}}"
             t-att-max="donation_options.get('customAmount') == 'slider' and donation_options.get('maximumAmount') or undefined"
-            t-att-value="amount"
+            t-attf-value="{{amount}}"
             placeholder="Amount to donate"
             id="other_amount_value" />
         <small class="text-danger d-none" id="warning_message_id">Please enter the amount to donate.</small>

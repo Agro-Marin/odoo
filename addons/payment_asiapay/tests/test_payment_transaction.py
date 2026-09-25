@@ -128,6 +128,15 @@ class TestPaymentTransaction(AsiaPayCommon, PaymentHttpCommon):
         self.assertEqual(form_info["method"], "post")
         self.assertListEqual(list(form_info["inputs"].keys()), expected_input_keys)
 
+    @mute_logger("odoo.addons.payment.models.payment_transaction")
+    def test_a_zero_amount_is_posted_not_dropped(self):
+        tx = self._create_transaction(flow="redirect", amount=0.0)
+        processing_values = tx._prepare_processing_values()
+        form_info = self._extract_values_from_html_form(
+            processing_values["redirect_form_html"]
+        )
+        self.assertEqual(form_info["inputs"]["amount"], "0.0")
+
     def test_apply_updates_confirms_transaction(self):
         """Test that the transaction state is set to 'done' when the payment data indicate a
         successful payment."""

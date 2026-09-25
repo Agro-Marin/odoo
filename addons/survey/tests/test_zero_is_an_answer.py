@@ -1,5 +1,7 @@
 import json
 
+from lxml import html
+
 from odoo.tests import HttpCase, tagged
 
 from odoo.addons.survey.tests import common
@@ -173,6 +175,118 @@ class TestZeroIsAnAnswer(common.TestSurveyCommon, HttpCase):
         )
         self.assertIn("data-validation-float-min", rendered)
         self.assertIn("data-validation-float-max", rendered)
+
+    def _render_input(self, question, answer_lines, **values):
+        rendered = self.env["ir.qweb"]._render(
+            f"survey.question_{question.question_type}",
+            {"question": question, "answer_lines": answer_lines, **values},
+        )
+        return html.fromstring(str(rendered)).xpath(f"//input[@name='{question.id}']")
+
+    def test_a_zero_answer_is_rendered_back_into_its_input(self):
+        answer = self.zero_survey._create_answer(email="render@test.com")
+        for question_type in ("numerical_box", "slider"):
+            question = self.questions_by_type[question_type]
+            answer._save_lines(question, 0)
+            with self.subTest(question_type=question_type):
+                [input_el] = self._render_input(
+                    question, self._line_for(answer, question)
+                )
+                self.assertEqual(input_el.get("value"), "0.0")
+
+    def test_a_skipped_numerical_answer_renders_an_empty_input(self):
+        question = self.questions_by_type["numerical_box"]
+        answer = self.zero_survey._create_answer(email="skipped@test.com")
+        answer._save_lines(question, "")
+        [input_el] = self._render_input(question, self._line_for(answer, question))
+        self.assertFalse(input_el.get("value"))
+
+    def test_slider_bounds_of_zero_reach_the_dom(self):
+        question = self.env["survey.question"].create(
+            {
+                "survey_id": self.zero_survey.id,
+                "title": "Below zero",
+                "question_type": "slider",
+                "slider_min": -10,
+                "slider_max": 0,
+            }
+        )
+        [input_el] = self._render_input(question, None)
+        self.assertEqual(input_el.get("max"), "0.0")
+        self.assertEqual(input_el.get("value"), "-5.0")
+        [input_el] = self._render_input(self.questions_by_type["slider"], None)
+        self.assertEqual(input_el.get("min"), "0.0")
+
+    def test_an_unanswered_constant_sum_item_renders_zero(self):
+        question = self.env["survey.question"].create(
+            {
+                "survey_id": self.zero_survey.id,
+                "title": "Split",
+                "question_type": "constant_sum",
+                "constant_sum_total": 10,
+                "suggested_answer_ids": [
+                    (0, 0, {"value": "A"}),
+                    (0, 0, {"value": "B"}),
+                ],
+            }
+        )
+        rendered = self.env["ir.qweb"]._render(
+            "survey.question_constant_sum",
+            {
+                "question": question,
+                "answer_lines": self.env["survey.user_input.line"],
+                "displayed_suggested_answers": question.suggested_answer_ids,
+            },
+        )
+        inputs = html.fromstring(str(rendered)).xpath("//input[@type='number']")
+        self.assertEqual([el.get("value") for el in inputs], ["0", "0"])
+
+    def test_a_likert_answer_is_rendered_back_as_checked(self):
+        question = self.env["survey.question"].create(
+            {
+                "survey_id": self.zero_survey.id,
+                "title": "Agreement",
+                "question_type": "likert",
+                "suggested_answer_ids": [
+                    (0, 0, {"value": "Agree"}),
+                    (0, 0, {"value": "Disagree"}),
+                ],
+                "matrix_row_ids": [(0, 0, {"value": "Statement"})],
+            }
+        )
+        agree = question.suggested_answer_ids[0]
+        row = question.matrix_row_ids
+        answer = self.zero_survey._create_answer(email="likert@test.com")
+        lines = self.env["survey.user_input.line"].create(
+            {
+                "user_input_id": answer.id,
+                "question_id": question.id,
+                "answer_type": "suggestion",
+                "matrix_row_id": row.id,
+                "suggested_answer_id": agree.id,
+            }
+        )
+        rendered = self.env["ir.qweb"]._render(
+            "survey.question_likert", {"question": question, "answer_lines": lines}
+        )
+        checked = html.fromstring(str(rendered)).xpath("//input[@checked]")
+        self.assertEqual([el.get("value") for el in checked], [f"{row.id}_{agree.id}"])
+
+    def test_a_zero_score_keeps_its_leaderboard_bar_ratio(self):
+        rendered = self.env["ir.qweb"]._render(
+            "survey.user_input_session_leaderboard",
+            {
+                "animate": True,
+                "leaderboard": [
+                    {"nickname": "Ahead", "scoring_total": 10.0, "updated_score": 10.0},
+                    {"nickname": "Behind", "scoring_total": 0.0, "updated_score": 0.0},
+                ],
+            },
+        )
+        bars = html.fromstring(str(rendered)).xpath(
+            "//div[contains(@class, 'o_survey_session_leaderboard_bar ')]"
+        )
+        self.assertEqual([bar.get("data-width-ratio") for bar in bars], ["1.0", "0.0"])
 
     def test_submit_route_keeps_a_json_number_zero(self):
         """/survey/submit is jsonrpc: a JSON number is what a non-browser client sends."""

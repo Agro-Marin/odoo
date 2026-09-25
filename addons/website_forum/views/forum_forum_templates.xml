@@ -106,7 +106,7 @@
                             <input
                                 type="hidden"
                                 name="karma"
-                                t-att-value="user.karma"
+                                t-attf-value="{{user.karma}}"
                                 id="karma" />
                             <div class="form-text small text-muted">
                                 <a
@@ -168,12 +168,12 @@
                             <input
                                 type="hidden"
                                 name="karma_tag_create"
-                                t-att-value="forum.karma_tag_create"
+                                t-attf-value="{{forum.karma_tag_create}}"
                                 id="karma_tag_create" />
                             <input
                                 type="hidden"
                                 name="karma_edit_retag"
-                                t-att-value="forum.karma_edit_retag"
+                                t-attf-value="{{forum.karma_edit_retag}}"
                                 id="karma_edit_retag" />
                             <div class="js_select_menu_wrapper" />
                         </div>
@@ -286,7 +286,7 @@
                     <input
                         type="hidden"
                         name="karma"
-                        t-att-value="user.karma"
+                        t-attf-value="{{user.karma}}"
                         id="karma" />
                     <div t-if="not is_answer" class="row mb-2">
                         <label class="form-label col-lg-2" for="post_tags">Tags</label>
@@ -294,12 +294,12 @@
                             <input
                                 type="hidden"
                                 name="karma_tag_create"
-                                t-att-value="forum.karma_tag_create"
+                                t-attf-value="{{forum.karma_tag_create}}"
                                 id="karma_tag_create" />
                             <input
                                 type="hidden"
                                 name="karma_edit_retag"
-                                t-att-value="forum.karma_edit_retag"
+                                t-attf-value="{{forum.karma_edit_retag}}"
                                 id="karma_edit_retag" />
                             <t
                                 t-set="edit_tags_karma_fail"

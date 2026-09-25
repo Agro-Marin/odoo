@@ -3140,7 +3140,7 @@
                     class="js_quantity quantity form-control border-0"
                     t-att-data-line-id="line.id"
                     t-att-data-product-id="line.product_id.id"
-                    t-att-value="line._get_displayed_quantity()" />
+                    t-attf-value="{{line._get_displayed_quantity()}}" />
                 <t t-if="line._get_shop_warning(clear=False)">
                     <a href="#" class="btn btn-link">
                         <i
@@ -3165,7 +3165,7 @@
                     class="js_quantity form-control quantity text-start text-md-end text-md-end border-0 p-0 shadow-none mw-100"
                     t-att-data-line-id="line.id"
                     t-att-data-product-id="line.product_id.id"
-                    t-att-value="line._get_displayed_quantity()"
+                    t-attf-value="{{line._get_displayed_quantity()}}"
                     readonly="True" />
             </t>
         </div>
@@ -3364,15 +3364,15 @@
                                 style="white-space: nowrap;" />
                             <input
                                 type="text"
-                                t-att-value="int(order_line.product_qty)"
+                                t-attf-value="{{int(order_line.product_qty)}}"
                                 class="o_wsale_quick_reorder_qty_input form-control text-center"
-                                t-att-data-price-unit="combination_info['price']"
-                                t-att-data-currency-digits="combination_info['currency'].decimal_places" />
+                                t-attf-data-price-unit="{{combination_info['price']}}"
+                                t-attf-data-currency-digits="{{combination_info['currency'].decimal_places}}" />
                             <button
                                 type="button"
                                 title="Press 'Enter' to add to cart"
                                 class="o_wsale_quick_reorder_product_button btn btn-outline-primary"
-                                t-att-data-quantity="order_line.product_qty"
+                                t-attf-data-quantity="{{order_line.product_qty}}"
                                 t-att-data-product-id="order_line.product_id.id"
                                 t-att-data-product-template-id="order_line.product_id.product_tmpl_id.id"
                                 t-att-data-product-type="order_line.product_id.type"

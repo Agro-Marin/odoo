@@ -1,3 +1,7 @@
+from lxml import html
+
+from odoo.tests import HttpCase, new_test_user, tagged
+
 from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website_forum.controllers.website_forum import WebsiteForum
 from odoo.addons.website_forum.tests.common import KARMA, TestForumCommon
@@ -108,3 +112,49 @@ class TestForumController(TestForumCommon):
                         self._get_my_other_forums(self.forum_1_website_2),
                         self.forum_2_website_2,
                     )
+
+
+@tagged("post_install", "-at_install")
+class TestForumZeroKarmaForm(HttpCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.forum = cls.env["forum.forum"].create(
+            {
+                "name": "Open forum",
+                "karma_ask": 0,
+                "karma_tag_create": 0,
+                "karma_edit_retag": 0,
+                "karma_comment_all": 7,
+            }
+        )
+        new_test_user(cls.env, login="zero_karma", groups="base.group_user", karma=0)
+
+    def test_a_zero_karma_reaches_the_ask_form(self):
+        forum = self.forum
+        self.authenticate("zero_karma", "zero_karma")
+
+        response = self.url_open(f"/forum/{self.env['ir.http']._slug(forum)}/ask")
+
+        self.assertEqual(response.status_code, 200)
+        page = html.fromstring(response.content)
+        for input_id in ("karma", "karma_tag_create", "karma_edit_retag"):
+            with self.subTest(input_id=input_id):
+                [input_el] = page.xpath(f"//input[@id='{input_id}']")
+                self.assertEqual(input_el.get("value"), "0")
+
+    def test_the_comment_link_carries_the_karma_it_requires(self):
+        question = self.env["forum.post"].create(
+            {"forum_id": self.forum.id, "name": "Question", "content": "Body"}
+        )
+        self.authenticate("zero_karma", "zero_karma")
+        slug = self.env["ir.http"]._slug
+
+        response = self.url_open(f"/forum/{slug(self.forum)}/{slug(question)}")
+
+        self.assertEqual(response.status_code, 200)
+        links = html.fromstring(response.content).xpath(
+            "//a[contains(@class, 'karma_required')][.//i[contains(@class, 'fa-comment')]]"
+        )
+        self.assertTrue(links)
+        self.assertEqual({link.get("data-karma") for link in links}, {"7"})

@@ -1,10 +1,13 @@
 import logging
 
+from lxml import html
 from markupsafe import Markup
 
 from odoo import fields
 from odoo.exceptions import AccessError
 from odoo.tests import TransactionCase, new_test_user, tagged
+
+from odoo.addons.http_routing.tests.common import MockRequest
 
 _logger = logging.getLogger(__name__)
 
@@ -218,3 +221,23 @@ class TestPortalRating(TransactionCase):
         )
         with self.assertRaises(AccessError):
             rating.with_user(restricted)._check_publisher_values()
+
+    def test_an_unrated_record_renders_a_zero_average_and_count(self):
+        with MockRequest(self.env) as request:
+            rendered = (
+                self.env["ir.qweb"]
+                .with_context(minimal_qcontext=True)
+                ._render(
+                    "portal_rating.rating_stars_static_popup_composer",
+                    {
+                        "object": self.env.user.partner_id,
+                        "disable_composer": True,
+                        "request": request,
+                    },
+                )
+            )
+        [composer] = html.fromstring(str(rendered)).xpath(
+            "//div[contains(@class, 'o_rating_popup_composer ')]"
+        )
+        self.assertEqual(composer.get("data-rating_avg"), "0.0")
+        self.assertEqual(composer.get("data-rating_count"), "0")

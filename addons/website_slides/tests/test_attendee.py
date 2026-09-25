@@ -828,3 +828,24 @@ class TestAttendeeCase(HttpCaseWithUserPortal):
             f"/slides/slide/{self.env['ir.http']._slug(self.slide)}",
             "Should redirect to the slide page",
         )
+
+    def test_a_zero_completion_keeps_its_aria_value(self):
+        # a training slide other than a video is completed by merely opening it
+        self.slide.write(
+            {
+                "slide_category": "video",
+                "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            }
+        )
+        self.assertEqual(self.channel_partner_emp.completion, 0)
+        self.authenticate("user_emp", "user_emp")
+        slug = self.env["ir.http"]._slug
+        for url in (
+            f"/slides/{slug(self.channel)}",
+            f"/slides/slide/{slug(self.slide)}",
+            f"/slides/slide/{slug(self.slide)}?fullscreen=1",
+        ):
+            with self.subTest(url=url):
+                response = self.url_open(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertIn('aria-valuenow="0"', response.text)

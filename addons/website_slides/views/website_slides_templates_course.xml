@@ -523,7 +523,7 @@
                 class="progress-bar"
                 role="progressbar"
                 t-attf-style="width: #{channel.completion}%"
-                t-att-aria-valuenow="channel.completion"
+                t-attf-aria-valuenow="{{channel.completion}}"
                 aria-valuemin="0"
                 aria-valuemax="100"
                 aria-label="Progress bar" />

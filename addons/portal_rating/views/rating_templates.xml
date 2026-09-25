@@ -66,8 +66,8 @@
         <div
             class="d-print-none o_rating_popup_composer o_not_editable p-0"
             contenteditable="false"
-            t-att-data-rating_avg="rating_avg or 0.0"
-            t-att-data-rating_count="rating_count or 0.0"
+            t-attf-data-rating_avg="{{rating_avg or 0.0}}"
+            t-attf-data-rating_count="{{rating_count or 0}}"
             t-att-data-token="token"
             t-att-data-hash="hash"
             t-att-data-pid="pid"

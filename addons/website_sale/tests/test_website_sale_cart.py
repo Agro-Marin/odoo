@@ -2,6 +2,8 @@ from datetime import datetime
 from functools import partial
 from unittest.mock import patch
 
+from lxml import html
+
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.tests import tagged
@@ -197,6 +199,42 @@ class TestWebsiteSaleCart(ProductVariantsCommon, WebsiteSaleCommon):
             )
             self.assertEqual(sale_order.cart_quantity, 0.0)
             self.assertEqual(sale_order.line_ids, SaleOrderLine)
+
+    def test_a_zero_quantity_and_price_reach_the_rendered_inputs(self):
+        self.product.lst_price = 0.0
+        line = self._create_so(
+            line_ids=[Command.create({"product_id": self.product.id, "product_qty": 0})]
+        ).line_ids
+        self.assertEqual(line.product_qty, 0)
+        with MockRequest(self.website.env, website=self.website):
+            cart = html.fromstring(
+                str(
+                    self.env["ir.qweb"]._render(
+                        "website_sale.cart_lines_quantity",
+                        {"line": line, "is_mobile": False},
+                    )
+                )
+            )
+            reorder = html.fromstring(
+                str(
+                    self.env["ir.qweb"]._render(
+                        "website_sale.quick_reorder_history",
+                        {"order_history": [{"label": "Earlier", "lines": line}]},
+                    )
+                )
+            )
+
+        [quantity] = cart.xpath("//input[contains(@class, 'js_quantity')]")
+        self.assertEqual(quantity.get("value"), "0.0")
+        [reorder_qty] = reorder.xpath(
+            "//input[contains(@class, 'o_wsale_quick_reorder_qty_input')]"
+        )
+        self.assertEqual(reorder_qty.get("value"), "0")
+        self.assertEqual(reorder_qty.get("data-price-unit"), "0.0")
+        [reorder_button] = reorder.xpath(
+            "//button[contains(@class, 'o_wsale_quick_reorder_product_button')]"
+        )
+        self.assertEqual(reorder_button.get("data-quantity"), "0.0")
 
     def test_unpublished_accessory_product_visibility(self):
         accessory_product = self.env["product.product"].create(
