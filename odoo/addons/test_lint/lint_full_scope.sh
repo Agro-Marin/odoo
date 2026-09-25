@@ -18,10 +18,10 @@ FULL_SCOPE=(
     test_lint marin
     accountant account_edi_ubl_cii account_payment_provider approval_purchase
     asset_ledger_maintenance automation calendar crm document event_sale
-    google_address_autocomplete helpdesk hr_expense hr_expense_stripe
+    geoengine google_address_autocomplete helpdesk hr_expense hr_expense_stripe
     hr_gamification hr_holidays hr_recruitment hr_skills_slides im_livechat mrp
-    onboarding point_of_sale pos_sale project purchase sale spreadsheet_dashboard
-    stock_account survey website_sale
+    onboarding point_of_sale pos_sale pos_self_order project purchase sale
+    spreadsheet_dashboard stock_account survey website_sale whatsapp
 )
 
 DB="" KEEP=0 TAGS="/test_lint" PORT=8269

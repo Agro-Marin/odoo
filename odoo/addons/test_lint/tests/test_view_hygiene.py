@@ -8,6 +8,7 @@ from odoo import SUPERUSER_ID, api
 from odoo.modules.registry import Registry
 from odoo.tests import tagged
 from odoo.tests.common import BaseCase, get_db_name
+from odoo.tools.view_ir import Node, from_arch
 
 from .lint_case import LintCase
 
@@ -260,3 +261,154 @@ class ActWindowViewOrderLinter(LintCase):
                 pins.setdefault(norm(action.get("ref")), []).append(
                     (order, (mode.text or "").strip())
                 )
+
+
+# The form compiler builds these from `el.children`, which holds elements only:
+# a text node directly inside one is never rendered, yet it is exported for
+# translation. `page` only as a notebook's child and the button box only when it
+# has an element child; `app` and `block` only under the settings compiler.
+_FORM_TEXT_DROPPING = frozenset({"setting", "group", "notebook"})
+_SETTINGS_TEXT_DROPPING = frozenset({"app", "block"})
+_SETTINGS_JS_CLASS = "base_settings"
+
+
+def _drops_text(node: Node, parent: Node | None, settings: bool) -> bool:
+    if node.kind in _FORM_TEXT_DROPPING:
+        return True
+    if node.kind == "page":
+        return parent is not None and parent.kind == "notebook"
+    if node.kind == "div" and node.attrs.get("name") == "button_box":
+        return any(not child.is_markup for child in node.children)
+    return settings and node.kind in _SETTINGS_TEXT_DROPPING
+
+
+def dropped_text(root: Node):
+    settings = root.attrs.get("js_class") == _SETTINGS_JS_CLASS
+    stack: list[tuple[Node, Node | None]] = [(root, None)]
+    while stack:
+        node, parent = stack.pop()
+        stack.extend((child, node) for child in reversed(node.children))
+        if not _drops_text(node, parent, settings):
+            continue
+        if (node.text or "").strip():
+            yield node, node, node.text.strip()
+        for child in node.children:
+            if (child.tail or "").strip():
+                yield node, child, child.tail.strip()
+
+
+def _describe(node: Node) -> str:
+    for attr in ("id", "name", "string", "title"):
+        if node.attrs.get(attr):
+            return f"<{node.kind} {attr}={node.attrs[attr]!r}>"
+    return f"<{node.kind}>"
+
+
+@tagged("post_install", "-at_install")
+class DroppedViewTextLinter(LintCase):
+    def test_no_form_text_goes_unrendered(self):
+        offenders = set()
+        with Registry(get_db_name()).cursor() as cr:
+            env = api.Environment(cr, SUPERUSER_ID, {})
+            View = env["ir.ui.view"]
+            views = View.search([("type", "=", "form"), ("mode", "=", "primary")])
+            self.assertTrue(views, "the scan reached no form views at all")
+            found = []
+            for root, hierarchy in views._get_hierarchies():
+                try:
+                    arch, combined = root._combine_tree(hierarchy)
+                except Exception:
+                    _logger.info(
+                        "skipping %s: its arch does not combine",
+                        root.xml_id or root.id,
+                    )
+                    continue
+                for container, carrier, text in dropped_text(
+                    combined if combined is not None else from_arch(arch)
+                ):
+                    origin = carrier.origin or container.origin
+                    view_id = int(origin.split(",")[1]) if origin else root.id
+                    where = _describe(container)
+                    if carrier is not container:
+                        where += f" after {_describe(carrier)}"
+                    found.append((view_id, where, text))
+            names = {
+                view.id: view.xml_id or f"ir.ui.view({view.id})"
+                for view in View.browse({view_id for view_id, _, _ in found})
+            }
+            offenders = {
+                f"{names[view_id]}: {where} {text!r}" for view_id, where, text in found
+            }
+        self.assert_ratchet(
+            offenders,
+            "view_dropped_text",
+            "text node(s) directly inside a form container that renders only "
+            "its child elements",
+            "The form compiler never renders them, and they are still exported "
+            "for translation. Delete a stray one; wrap one meant to be read in "
+            "an element (<span>, <div>) so it renders.",
+        )
+
+
+class TestDroppedViewText(BaseCase):
+    def _found(self, arch: str) -> list[tuple[str, str]]:
+        return [
+            (container.kind, text)
+            for container, _carrier, text in dropped_text(
+                from_arch(etree.fromstring(arch))
+            )
+        ]
+
+    def test_text_directly_inside_a_setting_is_found_before_and_after_its_field(self):
+        self.assertEqual(
+            self._found(
+                '<form><setting string="s">a<field name="x"/> bytes</setting></form>'
+            ),
+            [("setting", "a"), ("setting", "bytes")],
+        )
+
+    def test_text_an_element_carries_inside_a_setting_is_rendered(self):
+        self.assertEqual(
+            self._found(
+                "<form><setting>"
+                '<field name="x"/><span>bytes</span><div>shown <b>too</b></div>'
+                "</setting></form>"
+            ),
+            [],
+        )
+
+    def test_group_notebook_page_and_button_box_drop_their_direct_text(self):
+        self.assertEqual(
+            self._found(
+                "<form><sheet>"
+                '<div name="button_box">b<button name="x" type="object"/></div>'
+                '<group>g<field name="x"/></group>'
+                '<notebook>n<page string="p">p<field name="y"/></page></notebook>'
+                "</sheet></form>"
+            ),
+            [("div", "b"), ("group", "g"), ("notebook", "n"), ("page", "p")],
+        )
+
+    def test_a_button_box_without_elements_and_a_page_outside_a_notebook_render(self):
+        self.assertEqual(
+            self._found(
+                '<form><div name="button_box">empty</div><page>loose</page></form>'
+            ),
+            [],
+        )
+
+    def test_app_and_block_drop_text_only_under_the_settings_compiler(self):
+        arch = '<form{}><app name="a">x<block title="b">y</block></app></form>'
+        self.assertEqual(self._found(arch.format("")), [])
+        self.assertEqual(
+            self._found(arch.format(' js_class="base_settings"')),
+            [("app", "x"), ("block", "y")],
+        )
+
+    def test_whitespace_and_a_comment_tail_of_whitespace_are_not_text(self):
+        self.assertEqual(
+            self._found(
+                '<form><setting>\n  <!-- c -->\n  <field name="x"/>\n</setting></form>'
+            ),
+            [],
+        )

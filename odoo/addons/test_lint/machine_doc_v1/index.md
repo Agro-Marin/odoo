@@ -311,8 +311,23 @@ The same file counts the other ambient reads a component makes of `this.env`, ea
 | `column-invisible-outside-list` | `column_invisible=` in a form: a literal is promoted to `invisible=`, an expression is never evaluated and the field shows. |
 | `boolean-spelling` | `invisible="true"` and friends: py.js aliases `true`, Python does not; the guide writes conditions as Python. |
 
-The last three moved here from `test_view_hygiene.py`, which keeps the two
-gates that need the registry (`OrphanLabelLinter`, `ActWindowViewOrderLinter`).
+The last three moved here from `test_view_hygiene.py`, which keeps the gates
+that read installed views or every manifest (`OrphanLabelLinter`,
+`ActWindowViewOrderLinter`, `DroppedViewTextLinter`).
+
+`DroppedViewTextLinter` (`view_dropped_text`, a hard zero) reads the combined
+arch of every installed primary form view, across repositories, for a text node
+the form compiler never renders: directly inside a `<setting>`, `<group>`,
+`<notebook>`, a notebook's `<page>`, or a `<div name="button_box">` with an
+element child -- `form_compiler.js` builds each from `el.children`, which holds
+elements only -- and, in a `js_class="base_settings"` form, an `<app>` or a
+`<block>` (`settings_form_compiler.js`). Leading text and the tail after a
+child both count; text inside a child element (`<span>bytes</span>`) renders
+and does not. Such text still reaches the translation export, which is how
+`pos_self_order`'s stray "a" got a msgid. A finding names the view that
+brought the text, from the combine's provenance, not the primary it lands in.
+It replaced a `pos_self_order`-local test that read one module's own
+`arch_db`, `<setting>` and `<block>` only.
 
 `test_record_refs.py` judges every reference shape `odoo/tools/convert.py`
 resolves at load: `ref=`, `ref()` inside `eval`, `context`, `search` and
@@ -446,7 +461,7 @@ applies), repeats `-i` until the modules it names stop going missing (a single
 and drops the database. A `--ref` worktree grades its own addons: the conf's
 `odoo/addons` entry is replaced by the checkout's. What only this lane can see:
 `TestFieldDeclarations`, `TestIndex`, `TestLintOverrideSignatures`,
-`OrphanLabelLinter`, `TestSchemeDuplication`, `TestDocstring`, the bundle gates
+`OrphanLabelLinter`, `DroppedViewTextLinter`, `TestSchemeDuplication`, `TestDocstring`, the bundle gates
 that read what is served (`TestBundlesAssemble`, `TestBundleTokenDefs`,
 `TestOrphanAssets`, `TestAssetPathsExist`, `TestBundleDoubleEvaluation`), and the
 per-repository floors of enterprise and agromarin (`bare_sudo_agromarin`,

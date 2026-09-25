@@ -13,4 +13,3 @@ from . import test_takeaway_preset_mail
 from . import test_combo_prices
 from . import test_self_order_notifications
 from . import test_bundle_services
-from . import test_settings_view
