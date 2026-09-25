@@ -16,7 +16,7 @@ class SaleReport(models.Model):
         selection_add=[
             ("paid", "Paid"),
             ("invoiced", "Invoiced"),
-            ("done", "Posted"),
+            ("posted", "Posted"),
         ]
     )
 
@@ -27,7 +27,7 @@ class SaleReport(models.Model):
     @api.model
     def _get_done_states(self):
         done_states = super()._get_done_states()
-        done_states.extend(["paid", "invoiced", "done"])
+        done_states.extend(["paid", "invoiced", "posted"])
         return done_states
 
     # ------------------------------------------------------------
@@ -139,7 +139,7 @@ class SaleReport(models.Model):
             "date_order": "pos.date_order",
             "name": "pos.name",
             "state": """CASE WHEN pos.state = 'done'
-                    THEN 'done'
+                    THEN 'posted'
                     ELSE pos.state
                 END""",
             "sent": "FALSE",

@@ -298,7 +298,7 @@ msgid "Pos Order Count"
 msgstr "Jumlah Order POS"
 
 #. module: pos_sale
-#: model:ir.model.fields.selection,name:pos_sale.selection__sale_report__state__done
+#: model:ir.model.fields.selection,name:pos_sale.selection__sale_report__state__posted
 msgid "Posted"
 msgstr "Terekam"
 

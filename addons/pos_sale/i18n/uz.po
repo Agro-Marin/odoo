@@ -341,7 +341,7 @@ msgid "Pos Order Count"
 msgstr "POS buyurtmalari soni"
 
 #. module: pos_sale
-#: model:ir.model.fields.selection,name:pos_sale.selection__sale_report__state__done
+#: model:ir.model.fields.selection,name:pos_sale.selection__sale_report__state__posted
 #, fuzzy
 msgid "Posted"
 msgstr "Joylashtirilgan"

@@ -59,6 +59,24 @@ class TestPoSSaleReport(TestPoSCommon, TestPointOfSaleHttpCommon):
         self.assertEqual(reports[1].weight, 18)
         self.assertEqual(reports[1].volume, 24)
 
+    def test_posted_pos_orders_do_not_take_the_sales_order_state(self):
+        self.open_new_session()
+        self.env["pos.order"].sync_from_ui(
+            [self.create_ui_order_data([(self.product0, 1)])]
+        )
+        self.pos_session.action_pos_session_closing_control()
+
+        states = dict(self.env["sale.report"]._fields["state"].selection)
+        self.assertEqual(states["done"], "Sales Order")
+        self.assertEqual(states["posted"], "Posted")
+        report = (
+            self.env["sale.report"]
+            .sudo()
+            .search([("product_id", "=", self.product0.id)], limit=1)
+        )
+        self.assertEqual(report.state, "posted")
+        self.assertIn("posted", self.env["sale.report"]._get_done_states())
+
     def test_refund_line_report_prices_sign(self):
         test_product = self.env["product.product"].create(
             {
