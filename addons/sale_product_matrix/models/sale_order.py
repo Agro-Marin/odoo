@@ -1,194 +1,22 @@
-import functools
-import json
-
-from odoo import api, fields, models
-from odoo.exceptions import ValidationError
-from odoo.libs.debug_log import DebugLog
-
-_debug = DebugLog(__name__)
+from odoo import models
 
 
 class SaleOrder(models.Model):
-    _inherit = "sale.order"
+    _inherit = ["sale.order", "mixin.order.product.matrix"]
 
-    report_grids = fields.Boolean(
-        string="Print Variant Grids",
-        default=True,
-    )
+    _matrix_display_extra_price = True
 
-    """ Matrix loading and update: fields and methods :
-
-    NOTE: The matrix functionality was done in python, server side, to avoid js
-        restriction.  Indeed, the js framework only loads the x first lines displayed
-        in the client, which means in case of big matrices and lots of so_lines,
-        the js doesn't have access to the 41nth and following lines.
-
-        To force the loading, a 'hack' of the js framework would have been needed...
-    """
-
-    grid_product_tmpl_id = fields.Many2one(
-        comodel_name="product.template",
-        store=False,
-    )
-    grid_update = fields.Boolean(
-        default=False,
-        store=False,
-    )
-    grid = fields.Char(
-        string="Matrix local storage",
-        store=False,
-        help="Technical local storage of grid. "
-        "\nIf grid_update, will be loaded on the SO."
-        "\nIf not, represents the matrix to open.",
-    )
-
-    @api.onchange("grid_product_tmpl_id")
-    def _set_grid_up(self):
-        if self.grid_product_tmpl_id:
-            self.grid_update = False
-            self.grid = json.dumps(self._get_matrix(self.grid_product_tmpl_id))
-
-    @api.onchange("grid")
-    def _apply_grid(self):
-        if self.grid and self.grid_update:
-            grid = json.loads(self.grid)
-            product_template = self.env["product.template"].browse(
-                grid["product_template_id"]
-            )
-            dirty_cells = grid["changes"]
-            Attrib = self.env["product.template.attribute.value"]
-            default_so_line_vals = {}
-            new_lines = []
-            for cell in dirty_cells:
-                combination = Attrib.browse(cell["ptav_ids"])
-                no_variant_attribute_values = (
-                    combination - combination._without_no_variant_attributes()
-                )
-
-                product = product_template._create_product_variant(combination)
-                order_lines = self._get_matrix_cell_lines(
-                    product, no_variant_attribute_values
-                )
-
-                old_qty = sum(order_lines.mapped("product_qty"))
-                qty = cell["qty"]
-                diff = qty - old_qty
-
-                if not diff:
-                    continue
-
-                if order_lines:
-                    if qty == 0:
-                        if self.state in ["draft", "sent"]:
-                            self.line_ids -= order_lines
-                        else:
-                            order_lines.update({"product_qty": 0.0})
-                    else:
-                        """
-                        When there are multiple lines for same product and its quantity was changed in the matrix,
-                        An error is raised.
-
-                        A 'good' strategy would be to:
-                            * Sets the quantity of the first found line to the cell value
-                            * Remove the other lines.
-
-                        But this would remove all business logic linked to the other lines...
-                        Therefore, it only raises an Error for now.
-                        """
-                        if len(order_lines) > 1:
-                            _debug.logic("matrix_qty_refused", lines=order_lines)
-                            raise ValidationError(
-                                self.env._(
-                                    "You cannot change the quantity of a product present in multiple sale lines."
-                                )
-                            )
-                        order_lines[0].product_qty = qty
-                else:
-                    if not default_so_line_vals:
-                        OrderLine = self.env["sale.order.line"]
-                        default_so_line_vals = OrderLine.default_get(
-                            OrderLine._fields.keys()
-                        )
-                    last_sequence = self.line_ids[-1:].sequence
-                    if last_sequence:
-                        default_so_line_vals["sequence"] = last_sequence
-                    new_lines.append(
-                        (
-                            0,
-                            0,
-                            dict(
-                                default_so_line_vals,
-                                product_id=product.id,
-                                product_qty=qty,
-                                product_no_variant_attribute_value_ids=no_variant_attribute_values.ids,
-                            ),
-                        )
-                    )
-            _debug.pipeline(
-                "matrix_applied", order=self._origin, new_lines=len(new_lines)
-            )
-            if new_lines:
-                self.update({"line_ids": new_lines})
-
-    def _get_matrix_cell_lines(self, product, no_variant_attribute_values):
-        return self.line_ids.filtered(
-            lambda line: (
-                line.product_id.id == product.id
-                and line.product_no_variant_attribute_value_ids.ids
-                == no_variant_attribute_values.ids
-                and not line.combo_item_id
-            )
+    def _get_matrix_line_conflict_message(self):
+        return self.env._(
+            "You cannot change the quantity of a product present in multiple sale lines."
         )
 
-    def _get_matrix(self, product_template):
+    def _is_matrix_excluded_line(self, line):
+        return bool(line.combo_item_id)
 
-        def has_ptavs(line, sorted_attr_ids):
-            ptav = line.product_template_attribute_value_ids.ids
-            pnav = line.product_no_variant_attribute_value_ids.ids
-            pav = pnav + ptav
-            pav.sort()
-            return pav == sorted_attr_ids
-
-        matrix = product_template._get_template_matrix(
-            company_id=self.company_id,
-            currency_id=self.currency_id,
-            display_extra_price=True,
+    def _get_matrix_report_templates(self):
+        return (
+            super()
+            ._get_matrix_report_templates()
+            .filtered(lambda template: template.product_add_mode == "matrix")
         )
-        if self.line_ids:
-            lines = matrix["matrix"]
-            order_lines = self.line_ids.filtered(
-                lambda line: line.product_template_id == product_template
-            )
-            for row in lines:
-                for cell in row:
-                    if not cell.get("name", False):
-                        matching_lines = order_lines.filtered(
-                            functools.partial(
-                                has_ptavs, sorted_attr_ids=cell["ptav_ids"]
-                            )
-                        )
-                        if matching_lines and not matching_lines.combo_item_id:
-                            cell.update(
-                                {"qty": sum(matching_lines.mapped("product_qty"))}
-                            )
-        return matrix
-
-    def get_report_matrixes(self):
-        matrixes = []
-        if self.report_grids:
-            grid_configured_templates = self.line_ids.filtered(
-                "is_configurable_product"
-            ).product_template_id.filtered(
-                lambda ptmpl: ptmpl.product_add_mode == "matrix"
-            )
-            lines_by_template = self.line_ids.grouped("product_template_id")
-            for template in grid_configured_templates:
-                if len(lines_by_template[template]) > 1:
-                    matrix = self._get_matrix(template)
-                    matrix["matrix"] = [
-                        row
-                        for row in matrix["matrix"]
-                        if any(column["qty"] != 0 for column in row[1:])
-                    ]
-                    matrixes.append(matrix)
-        return matrixes

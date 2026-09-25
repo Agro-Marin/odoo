@@ -11,7 +11,7 @@ by choosing product variants quantity through a Grid Entry.
     "license": "LGPL-3",
     "depends": [
         "sale",
-        "product_matrix",
+        "trade_product_matrix",
     ],
     "data": [
         "views/product_template_views.xml",
