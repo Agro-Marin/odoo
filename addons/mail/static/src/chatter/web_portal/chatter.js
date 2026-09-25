@@ -29,13 +29,13 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  */
 const log = makeLogger("mail.chatter");
 
+export const chatterProps = ["composer?", "threadId?", "threadModel", "twoColumns?"];
+
 /**
  * @template {Props} [P=Props]
  * @template {State} [S=State]
  * @extends {Component<P, import("@web/env").OdooEnv>}
  */
-export const chatterProps = ["composer?", "threadId?", "threadModel", "twoColumns?"];
-
 export class Chatter extends Component {
     static template = "mail.Chatter";
     static components = { Thread, Composer };

@@ -7,7 +7,7 @@ export function provideViewConfig(config) {
     useSubEnv({ config });
 }
 
-/** @param {import("@web/views/view_config").ViewConfig & Record<string, any>} config */
+/** @param {Partial<import("@web/views/view_config").ViewConfig> & Record<string, any>} config */
 export function provideChildViewConfig(config) {
     useChildSubEnv({ config });
 }
