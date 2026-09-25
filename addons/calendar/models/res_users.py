@@ -1,10 +1,14 @@
 import datetime
+from collections import defaultdict
 from datetime import UTC
 
 from odoo import api, fields, models, modules
 from odoo.exceptions import AccessError
 from odoo.libs.datetime import timezone
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
+
+_debug = DebugLog(__name__)
 
 
 class ResUsers(models.Model):
@@ -89,11 +93,33 @@ class ResUsers(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         default_privacy = self._get_user_calendar_default_privacy()
-        for vals_dict in vals_list:
-            if not vals_dict.get("calendar_default_privacy"):
-                vals_dict.update(calendar_default_privacy=default_privacy)
-
-        return super().create(vals_list)
+        privacies = [
+            vals.get("calendar_default_privacy") or default_privacy
+            for vals in vals_list
+        ]
+        # kept for internal users only, and a new user's groups are known once
+        # its create has made its grants: through the inverse, the create would
+        # ask them first
+        users = super().create(
+            [
+                {k: v for k, v in vals.items() if k != "calendar_default_privacy"}
+                for vals in vals_list
+            ]
+        )
+        by_privacy = defaultdict(users.browse)
+        for user, privacy in zip(users, privacies, strict=True):
+            if user._is_internal():
+                by_privacy[privacy] |= user
+        _debug.logic(
+            "create_privacy_settled",
+            users=len(users),
+            internal={privacy: len(group) for privacy, group in by_privacy.items()},
+        )
+        for privacy, internal in by_privacy.items():
+            internal.sudo().res_users_settings_ids.filtered_domain(
+                [("calendar_default_privacy", "!=", privacy)]
+            ).calendar_default_privacy = privacy
+        return users
 
     def write(self, vals):
         privacy_update = "calendar_default_privacy" in vals
@@ -136,7 +162,7 @@ class ResUsers(models.Model):
                 field: user[field]
                 for field in self._get_fields_user_calendar_configuration()
             }
-            settings.sudo().update(configuration)
+            settings.update(configuration)
 
     @api.model
     def _get_fields_user_calendar_configuration(self) -> list[str]:

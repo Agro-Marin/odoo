@@ -1,7 +1,89 @@
+from unittest.mock import patch
+
+from odoo.fields import Command
 from odoo.tests.common import TransactionCase
+
+from odoo.addons.base.models.res_users_grant import GROUP_STATE_COMPUTED
 
 
 class TestResUsers(TransactionCase):
+    def test_a_new_users_groups_are_not_asked_before_its_grants_exist(self):
+        Grant = type(self.env["res.users.grant"])
+        follow = Grant._follow_membership
+        asked_early = []
+
+        def record_early_asks(grants, added, removed, fresh_user_ids=()):
+            computed = grants.env.cr.cache.get(GROUP_STATE_COMPUTED, set())
+            asked_early.extend(set(fresh_user_ids) & computed)
+            return follow(grants, added, removed, fresh_user_ids)
+
+        with patch.object(Grant, "_follow_membership", record_early_asks):
+            self.env["res.users"].create(
+                [
+                    {"name": "Early internal", "login": "early_internal"},
+                    {
+                        "name": "Early private",
+                        "login": "early_private",
+                        "calendar_default_privacy": "private",
+                    },
+                    {
+                        "name": "Early portal",
+                        "login": "early_portal",
+                        "calendar_default_privacy": "private",
+                        "group_ids": [
+                            Command.set(self.env.ref("base.group_portal").ids)
+                        ],
+                    },
+                ]
+            )
+        self.assertFalse(asked_early)
+
+    def test_creating_users_keeps_what_others_have_cached(self):
+        admin = self.env.ref("base.user_admin")
+        admin._get_group_ids()
+        self.env["res.users"].create(
+            [
+                {"name": f"Cache keeper {i}", "login": f"cache_keeper_{i}"}
+                for i in range(3)
+            ]
+        )
+        with self.assertQueryCount(0):
+            admin._get_group_ids()
+
+    def test_one_create_gives_each_internal_user_its_own_privacy(self):
+        self.env["ir.config_parameter"].set_param("calendar.default_privacy", "private")
+        portal = self.env.ref("base.group_portal")
+        internal, confidential, public, outsider = self.env["res.users"].create(
+            [
+                {"name": "Batch default", "login": "batch_default"},
+                {
+                    "name": "Batch confidential",
+                    "login": "batch_confidential",
+                    "calendar_default_privacy": "confidential",
+                },
+                {
+                    "name": "Batch public",
+                    "login": "batch_public",
+                    "calendar_default_privacy": "public",
+                },
+                {
+                    "name": "Batch portal",
+                    "login": "batch_portal",
+                    "calendar_default_privacy": "confidential",
+                    "group_ids": [Command.set(portal.ids)],
+                },
+            ]
+        )
+        self.assertEqual(
+            [
+                user.sudo().res_users_settings_id.calendar_default_privacy
+                for user in (internal, confidential, public)
+            ],
+            ["private", "confidential", "public"],
+        )
+        self.assertFalse(outsider.sudo().res_users_settings_id)
+        self.assertEqual(outsider.calendar_default_privacy, "private")
+
     def test_same_calendar_default_privacy_as_user_template(self):
         """
         The 'calendar default privacy' variable can be set in the Default User Template
