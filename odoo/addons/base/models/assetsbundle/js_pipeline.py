@@ -32,20 +32,31 @@ class JsPipeline:
 
     def _module_syntax_error_stub(self, asset: JavascriptAsset) -> str | None:
         bundle = self._bundle
-        if bundle._is_esm_bundle:
-            return None
         header = asset.parsed_header
         if header and header["ignore"]:
             _debug.logic("module_syntax_ignored", bundle=bundle.name, url=asset.url)
             return None
-        if not header and not has_module_syntax(asset.raw_content):
+        if bundle._is_esm_bundle:
+            # Only files classified classic reach self.javascripts here: a
+            # headerless static/lib file that is really an ES module would
+            # land raw in the classic script and its SyntaxError kill it whole.
+            if not has_module_syntax(asset.raw_content):
+                return None
+            msg = (
+                f"Module-syntax file {asset.url or asset.name!r} is classified "
+                f"classic in ESM bundle {bundle.name!r}; import it through its "
+                "'esm.external_libs' specifier instead of listing its path, or "
+                "give it an '@odoo-module native' header. File skipped."
+            )
+        elif not header and not has_module_syntax(asset.raw_content):
             return None
-        msg = (
-            f"Module-syntax file {asset.url or asset.name!r} cannot be "
-            f"concatenated into non-ESM bundle {bundle.name!r}; declare the "
-            "bundle under the 'esm' key of its module's manifest to serve "
-            "it. File skipped."
-        )
+        else:
+            msg = (
+                f"Module-syntax file {asset.url or asset.name!r} cannot be "
+                f"concatenated into non-ESM bundle {bundle.name!r}; declare the "
+                "bundle under the 'esm' key of its module's manifest to serve "
+                "it. File skipped."
+            )
         log_event(
             _bundle_log,
             logging.ERROR,
