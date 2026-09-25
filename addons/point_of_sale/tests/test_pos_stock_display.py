@@ -167,7 +167,11 @@ class TestPosStockQuantities(TransactionCase):
         self.assertNotIn(self.other_warehouse.lot_stock_id, in_warehouse)
 
         self.config.stock_location_ids = self.stock
-        self.assertEqual(self.config._get_stock_locations(), self.stock | self.shelf)
+        under_stock = Location.search(
+            [("location_id", "child_of", self.stock.id), ("usage", "=", "internal")]
+        )
+        self.assertIn(self.shelf, under_stock)
+        self.assertEqual(self.config._get_stock_locations(), under_stock)
 
         self.config.stock_location_ids = self.shelf
         self.assertEqual(self.config._get_stock_locations(), self.shelf)
