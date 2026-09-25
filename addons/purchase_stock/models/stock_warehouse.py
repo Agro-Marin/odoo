@@ -16,6 +16,7 @@ class StockWarehouse(models.Model):
         comodel_name="stock.rule",
         string="Buy rule",
         copy=False,
+        tracking=True,
     )
 
     @api.depends("buy_pull_id.route_id.warehouse_ids")

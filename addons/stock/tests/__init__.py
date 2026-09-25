@@ -5,6 +5,7 @@ from . import test_blocked_location_forgery
 from . import test_blocked_location_migration
 from . import test_blocked_location_visibility
 from . import test_completion_sequence
+from . import test_config_tracking
 from . import test_consignment_interface
 from . import test_create_computes
 from . import test_derived_defaults

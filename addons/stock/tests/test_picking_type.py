@@ -407,21 +407,6 @@ class TestPickingTypeReservation(TestStockCommon):
 
 
 @tagged("post_install", "-at_install")
-class TestPickingTypeMailFootprint(TestStockCommon):
-    def test_the_model_carries_no_unread_mail_thread(self):
-        model = self.env["stock.picking.type"]
-        self.assertNotIn("message_ids", model._fields)
-        self.assertEqual(
-            [
-                name
-                for name, field in model._fields.items()
-                if getattr(field, "tracking", False)
-            ],
-            [],
-        )
-
-
-@tagged("post_install", "-at_install")
 class TestPickingTypeSequenceOwnership(TestStockCommon):
     @classmethod
     def setUpClass(cls):

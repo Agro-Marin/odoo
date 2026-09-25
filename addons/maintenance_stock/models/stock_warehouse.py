@@ -9,25 +9,29 @@ class StockWarehouse(models.Model):
 
     # FIELDS
     allow_maintenance = fields.Boolean(
-        help="Equipment can be sent out for maintenance and received back through dedicated operations."
+        tracking=True,
+        help="Equipment can be sent out for maintenance and received back through dedicated operations.",
     )
     wh_maintenance_stock_loc_id = fields.Many2one(
         comodel_name="stock.location",
         string="Maintenance Location",
         copy=False,
         check_company=True,
+        tracking=True,
     )
     maintenance_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         string="Maintenance Type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
     maintenance_return_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         string="Maintenance Return Type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     # CRUD METHODS

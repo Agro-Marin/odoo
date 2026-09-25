@@ -18,16 +18,19 @@ class StockWarehouse(models.Model):
         comodel_name="stock.rule",
         string="Manufacture Rule",
         copy=False,
+        tracking=True,
     )
     manufacture_mto_pull_id = fields.Many2one(
         comodel_name="stock.rule",
         string="Manufacture MTO Rule",
         copy=False,
+        tracking=True,
     )
     pbm_mto_pull_id = fields.Many2one(
         comodel_name="stock.rule",
         string="Picking Before Manufacturing MTO Rule",
         copy=False,
+        tracking=True,
     )
     manu_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
@@ -35,6 +38,7 @@ class StockWarehouse(models.Model):
         copy=False,
         domain="[('code', '=', 'mrp_operation'), ('company_id', '=', company_id)]",
         check_company=True,
+        tracking=True,
     )
 
     pbm_type_id = fields.Many2one(
@@ -42,12 +46,14 @@ class StockWarehouse(models.Model):
         string="Picking Before Manufacturing Operation Type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
     sam_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
         string="Stock After Manufacturing Operation Type",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     manufacture_steps = fields.Selection(
@@ -59,6 +65,7 @@ class StockWarehouse(models.Model):
         string="Manufacture",
         default="mrp_one_step",
         required=True,
+        tracking=True,
         help="1 Step: Consume components from stock and produce.\n\
               2 Steps: Pick components from stock and then produce.\n\
               3 Steps: Pick components from stock, produce, and then move final product(s) from production area to stock.",
@@ -69,6 +76,7 @@ class StockWarehouse(models.Model):
         string="Picking Before Manufacturing Route",
         copy=False,
         ondelete="restrict",
+        tracking=True,
     )
 
     pbm_loc_id = fields.Many2one(
@@ -76,12 +84,14 @@ class StockWarehouse(models.Model):
         string="Picking before Manufacturing Location",
         copy=False,
         check_company=True,
+        tracking=True,
     )
     sam_loc_id = fields.Many2one(
         comodel_name="stock.location",
         string="Stock after Manufacturing Location",
         copy=False,
         check_company=True,
+        tracking=True,
     )
 
     @api.depends("manufacture_pull_id")

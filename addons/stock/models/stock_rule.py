@@ -21,6 +21,7 @@ RESUPPLY_ROLE = "resupply"
 class StockRule(models.Model):
     _name = "stock.rule"
     _description = "Stock Rule"
+    _inherit = ["mixin.mail.thread"]
     _order = "sequence, id"
     _check_company_auto = True
 
@@ -50,10 +51,12 @@ class StockRule(models.Model):
     name = fields.Char(
         translate=True,
         required=True,
+        tracking=True,
         help="This field will fill the packing origin and the name of its moves",
     )
     active = fields.Boolean(
         default=True,
+        tracking=True,
         help="If unchecked, it will allow you to hide the rule without removing it.",
     )
     sequence = fields.Integer(default=20)
@@ -66,12 +69,14 @@ class StockRule(models.Model):
         default="pull",
         index=True,
         required=True,
+        tracking=True,
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
         default=lambda self: self.env.company,
         index=True,
         domain="[('id', '=?', route_company_id)]",
+        tracking=True,
     )
     location_dest_id = fields.Many2one(
         comodel_name="stock.location",
@@ -79,16 +84,19 @@ class StockRule(models.Model):
         index=True,
         required=True,
         check_company=True,
+        tracking=True,
     )
     location_src_id = fields.Many2one(
         comodel_name="stock.location",
         string="Source Location",
         index=True,
         check_company=True,
+        tracking=True,
     )
     location_dest_from_rule = fields.Boolean(
         string="Destination location origin from rule",
         default=False,
+        tracking=True,
         help="When set to True the destination location of the stock.move will be the rule."
         "Otherwise, it takes it from the picking type.",
     )
@@ -97,6 +105,7 @@ class StockRule(models.Model):
         index=True,
         required=True,
         ondelete="cascade",
+        tracking=True,
     )
     route_company_id = fields.Many2one(
         related="route_id.company_id",
@@ -111,6 +120,7 @@ class StockRule(models.Model):
         string="Supply Method",
         default="make_to_stock",
         required=True,
+        tracking=True,
         help="Take From Stock: the products will be taken from the available stock of the source location.\n"
         "Trigger Another Rule: the system will try to find a stock rule to bring the products in the source location. The available stock will be ignored.\n"
         "Take From Stock, if Unavailable, Trigger Another Rule: the products will be taken from the available stock of the source location."
@@ -127,32 +137,38 @@ class StockRule(models.Model):
         required=True,
         domain="[('code', 'in', picking_type_code_domain)] if picking_type_code_domain else []",
         check_company=True,
+        tracking=True,
     )
     picking_type_code_domain = fields.Json(compute="_compute_picking_type_code_domain")
     delay = fields.Integer(
         string="Lead Time",
         default=0,
+        tracking=True,
         help="The expected date of the created transfer will be computed based on this lead time.",
     )
     partner_address_id = fields.Many2one(
         comodel_name="res.partner",
         check_company=True,
+        tracking=True,
         help="Address where goods should be delivered. Optional.",
     )
     propagate_cancel = fields.Boolean(
         string="Cancel Next Move",
         default=False,
+        tracking=True,
         help="When ticked, if the move created by this rule is cancelled, the next move will be cancelled too.",
     )
     propagate_carrier = fields.Boolean(
         string="Propagation of carrier",
         default=False,
+        tracking=True,
         help="When ticked, carrier of shipment will be propagated.",
     )
     warehouse_id = fields.Many2one(
         comodel_name="stock.warehouse",
         index=True,
         check_company=True,
+        tracking=True,
     )
     warehouse_role = fields.Selection(
         selection="_selection_warehouse_role",
@@ -170,11 +186,15 @@ class StockRule(models.Model):
         string="Automatic Move",
         default="manual",
         required=True,
+        tracking=True,
         help="The 'Manual Operation' value will create a stock move after the current one. "
         "With 'Automatic No Step Added', the location is replaced in the original move.",
     )
     rule_message = fields.Html(compute="_compute_rule_message")
-    push_domain = fields.Char(string="Push Applicability")
+    push_domain = fields.Char(
+        string="Push Applicability",
+        tracking=True,
+    )
 
     @api.constrains("push_domain")
     def _check_push_domain(self):

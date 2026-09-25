@@ -15,6 +15,7 @@ class StockWarehouseOrderpoint(models.Model):
         inverse="_inverse_supplier_id",
         domain="['|', ('product_id', '=', product_id), '&', ('product_id', '=', False), ('product_tmpl_id', '=', product_tmpl_id)]",
         check_company=True,
+        tracking=True,
     )
     supplier_id_placeholder = fields.Char(compute="_compute_supplier_id_placeholder")
     vendor_ids = fields.One2many(

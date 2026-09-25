@@ -12,6 +12,7 @@ class StockPutawayRule(models.Model):
     _name = "stock.putaway.rule"
     _order = "sequence,product_id"
     _description = "Putaway Rule"
+    _inherit = ["mixin.mail.thread"]
     _check_company_auto = True
 
     company_id = fields.Many2one(
@@ -19,6 +20,7 @@ class StockPutawayRule(models.Model):
         default=lambda s: s.env.company.id,
         index=True,
         required=True,
+        tracking=True,
     )
     product_id = fields.Many2one(
         comodel_name="product.product",
@@ -27,6 +29,7 @@ class StockPutawayRule(models.Model):
         domain="[('product_tmpl_id', '=', context.get('active_id', False))] if context.get('active_model') == 'product.template' else [('type', '!=', 'service')]",
         ondelete="cascade",
         check_company=True,
+        tracking=True,
     )
     category_id = fields.Many2one(
         comodel_name="product.category",
@@ -35,6 +38,7 @@ class StockPutawayRule(models.Model):
         index="btree_not_null",
         domain=[("filter_for_stock_putaway_rule", "=", True)],
         ondelete="cascade",
+        tracking=True,
     )
     location_in_id = fields.Many2one(
         comodel_name="stock.location",
@@ -45,6 +49,7 @@ class StockPutawayRule(models.Model):
         domain="[('child_ids', '!=', False)]",
         ondelete="cascade",
         check_company=True,
+        tracking=True,
     )
     location_out_id = fields.Many2one(
         comodel_name="stock.location",
@@ -53,8 +58,12 @@ class StockPutawayRule(models.Model):
         domain="[('id', 'child_of', location_in_id)]",
         ondelete="cascade",
         check_company=True,
+        tracking=True,
     )
-    active = fields.Boolean(default=True)
+    active = fields.Boolean(
+        default=True,
+        tracking=True,
+    )
     sequence = fields.Integer(
         string="Priority",
         help="Give to the more specialized category, a higher priority to have them in top of the list.",
@@ -62,6 +71,7 @@ class StockPutawayRule(models.Model):
     package_type_ids = fields.Many2many(
         comodel_name="stock.package.type",
         check_company=True,
+        tracking=True,
     )
     storage_category_id = fields.Many2one(
         comodel_name="stock.storage.category",
@@ -70,6 +80,7 @@ class StockPutawayRule(models.Model):
         readonly=False,
         ondelete="cascade",
         check_company=True,
+        tracking=True,
     )
     sublocation = fields.Selection(
         selection=[
@@ -78,6 +89,7 @@ class StockPutawayRule(models.Model):
             ("closest_location", "Closest Location"),
         ],
         default="no",
+        tracking=True,
     )
 
     def write(self, vals):

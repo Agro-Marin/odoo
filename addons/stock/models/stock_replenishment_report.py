@@ -225,4 +225,10 @@ class StockReplenishmentReport(models.AbstractModel):
             shortages=len(shortages),
             existing=len(existing),
         )
-        return Orderpoint.with_user(SUPERUSER_ID).create(values_list)
+        # a shortage row is regenerated and vacuumed with the report, not
+        # configured by anyone: a creation entry would be churn in the chatter
+        return (
+            Orderpoint.with_user(SUPERUSER_ID)
+            .with_context(mail_create_nolog=True)
+            .create(values_list)
+        )

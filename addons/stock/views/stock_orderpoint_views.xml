@@ -128,6 +128,7 @@
                 export_xlsx="0"
                 multi_edit="1"
                 sample="1"
+                open_form_view="1"
                 js_class="stock_orderpoint_list">
                 <field name="active" column_invisible="True" />
                 <field name="company_id" column_invisible="True" />
@@ -341,6 +342,7 @@
                         </group>
                     </group>
                 </sheet>
+                <chatter />
             </form>
         </field>
     </record>

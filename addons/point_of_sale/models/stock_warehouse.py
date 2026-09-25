@@ -10,6 +10,7 @@ class StockWarehouse(models.Model):
         comodel_name="stock.picking.type",
         string="Point of Sale Operation Type",
         copy=False,
+        tracking=True,
     )
 
     def _prepare_picking_type_update_vals(self):
