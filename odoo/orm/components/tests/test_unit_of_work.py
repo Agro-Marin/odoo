@@ -119,6 +119,39 @@ class TestRunRecomputeLoop(unittest.TestCase):
         self.assertTrue(result.converged)
         self.assertEqual(result.iterations, 0)
 
+    def test_live_order_not_built_without_pending(self) -> None:
+        calls = []
+
+        def order():
+            calls.append(1)
+            return {}
+
+        self.uow.set_recompute_order(order)
+        self.uow.recompute_until_converged(lambda field: None)
+        self.assertEqual(calls, [])
+
+    def test_live_order_built_once_for_pending(self) -> None:
+        f_a = _field("m", "subtotal")
+        f_b = _field("m", "total")
+        calls = []
+
+        def order():
+            calls.append(1)
+            return {f_b: 0, f_a: 1}
+
+        self.uow.set_recompute_order(order)
+        self.engine.schedule(f_a, [1])
+        self.engine.schedule(f_b, [1])
+        seen = []
+
+        def recompute(field):
+            seen.append(field)
+            self.engine.mark_done(field, [1])
+
+        self.uow.recompute_until_converged(recompute)
+        self.assertEqual(calls, [1])
+        self.assertEqual(seen, [f_b, f_a])
+
 
 class TestRunFlushLoop(unittest.TestCase):
     def setUp(self) -> None:

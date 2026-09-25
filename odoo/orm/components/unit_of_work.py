@@ -110,8 +110,6 @@ class UnitOfWork[F: FieldKey = FieldKey]:
     ) -> ConvergenceResult:
         result = ConvergenceResult()
         order = self._recompute_order
-        if callable(order):
-            order = order()
 
         detector = _StallDetector()
         for iteration in range(self.max_iterations):
@@ -121,6 +119,12 @@ class UnitOfWork[F: FieldKey = FieldKey]:
                 result.converged = True
                 result.stalled_fields = []
                 break
+
+            # the live order rebuilds every field trigger of the registry when
+            # its caches were just reset (each module install does that), so
+            # an empty flush must not ask for it
+            if callable(order):
+                order = order()
 
             if iteration >= SNAPSHOT_AFTER:
                 snapshot = self._get_pending_snapshot()
