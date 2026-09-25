@@ -183,7 +183,7 @@ Defined in `__manifest__.py`. The split is **frontend (public) vs editor
 | Bundle | Contents |
 |--------|----------|
 | `web.assets_backend` | **Includes** `website.assets_editor` + `html_editor.assets_link_popover`; adds backend SCSS, `client_actions/*/*` (minus test-mode), backend fields/views, `services/website_service.js`, `common/**`. |
-| `web.assets_web_dark` | Dark-mode SCSS overrides. |
+| `web.assets_web_dark` | Test-only dark reference; website declares it empty. |
 
 ### Tests
 | Bundle | Contents |

@@ -385,25 +385,7 @@ window.odoo = {csrf_token: "<t t-out="request.csrf_token(None)" />",debug: "<t t
                 <t t-call-assets="web.assets_web_print" media="print" t-js="false" />
                 <t t-call-assets="web.assets_web" t-css="false" />
 
-                <t t-if="color_scheme_preference == 'system'">
-                    <t
-                        t-call-assets="web.assets_web"
-                        media="screen and (prefers-color-scheme: light)"
-                        t-js="false" />
-                    <t
-                        t-call-assets="web.assets_web_dark"
-                        media="screen and (prefers-color-scheme: dark)"
-                        t-js="false" />
-                </t>
-                <t t-elif="color_scheme == 'dark'">
-                    <t
-                        t-call-assets="web.assets_web_dark"
-                        media="screen"
-                        t-js="false" />
-                </t>
-                <t t-else="">
-                    <t t-call-assets="web.assets_web" media="screen" t-js="false" />
-                </t>
+                <t t-call-assets="web.assets_web" media="screen" t-js="false" />
                 <t t-call="web.conditional_assets_tests" media="screen" />
             </t>
             <t t-set="head" t-value="head_web + (head or '')" />

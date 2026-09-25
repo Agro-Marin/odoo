@@ -413,7 +413,7 @@ Defined in `__manifest__.py`. Bundles group JS/CSS/SCSS for specific contexts.
 | `web.assets_frontend` | Public pages | OWL, Bootstrap, `core/**` + `ui/**` + `components/**` (no backend views) |
 | `web.assets_frontend_minimal` | Early bootstrap | Session bootstrap (session.js), cookies (core/browser/cookie.js), minimal DOM helpers (core/utils/dom/ui.js), lazyloader + minimal_dom (static/src/public/). **Does NOT contain `module_loader.js`** — the loader shim is emitted inline, not via any bundle. |
 | `web.assets_frontend_lazy` | Frontend extended | Full frontend with all components |
-| `web.assets_web_dark` | Dark mode | CSS overrides for backend |
+| `web.assets_web_dark` | Dark reference | `web.assets_web` compiled with the dark palette; never linked. `TestSchemeDuplication` measures the light bundle under `data-color-scheme="dark"` against it |
 | `web.assets_web_print` | Print | Print stylesheet overrides |
 | `web.assets_emoji` | Emoji picker | Emoji data (lazy loaded) |
 | `web.report_assets_common` | Reports | Common report assets |

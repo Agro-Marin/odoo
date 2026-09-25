@@ -10,7 +10,7 @@ import {
     setupWebsiteBuilder,
 } from "./website_helpers.js";
 
-const THEME_COLOR_1 = "#A855F7";
+const THEME_COLOR_1 = "#0071E3";
 
 defineWebsiteModels();
 

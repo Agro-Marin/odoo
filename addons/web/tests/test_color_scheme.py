@@ -37,15 +37,27 @@ class TestColorScheme(HttpCase):
         response = self.url_open("/odoo")
         self.assertEqual(response.cookies.get("color_scheme"), "light")
 
-    def test_system_preference_ships_both_bundles(self):
-        html = self._open_webclient(color_scheme="system").text
-        self.assertIn("prefers-color-scheme: dark", html)
-        self.assertIn("prefers-color-scheme: light", html)
+    def test_every_preference_ships_the_one_stylesheet(self):
+        user = new_test_user(
+            self.env, "bob", groups="base.group_user", email="bob@test.com"
+        )
+        self.authenticate(user.login, user.login)
+        for preference in ("system", "light", "dark"):
+            with self.subTest(preference=preference):
+                user.res_users_settings_id.write({"color_scheme": preference})
+                html = self.url_open("/odoo").text
+                self.assertNotIn('media="screen and (prefers-color-scheme', html)
+                self.assertNotIn(
+                    "assets_web_dark",
+                    html,
+                    "the dark bundle is a test-only reference; the attribute "
+                    "answers the scheme from assets_web",
+                )
+                self.assertIn('media="screen"', html)
 
-    def test_explicit_preference_ships_one_bundle(self):
+    def test_explicit_preference_needs_no_media_query(self):
         html = self._open_webclient(color_scheme="dark").text
         self.assertNotIn("prefers-color-scheme", html)
-        self.assertIn("assets_web_dark", html)
 
     def test_document_carries_the_dark_scheme(self):
         html = self._open_webclient(color_scheme="dark").text

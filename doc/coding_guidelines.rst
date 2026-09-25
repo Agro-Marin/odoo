@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 7.5
+:Version: 7.6
 :Date: 2026-09-25
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -3848,8 +3848,12 @@ any.
 * **Never hard-code a colour or spacing a variable controls; override the Odoo or
   Bootstrap variable in ``web._assets_primary_variables`` /
   ``_secondary_variables``** ``[review]``.
-* **Dark overrides go in a ``*.dark.scss`` sibling**, globbed into
-  ``web.assets_web_dark`` / ``web.assets_backend_dark`` ``[test_lint test_dark_sibling_scope]``.
+* **One stylesheet answers both schemes: a dark value is a token, a
+  ``light-dark()`` pair or a scoped restatement (§5.3-§5.5), never a separate
+  file** ``[test_lint test_scheme_duplication]``. ``web.assets_web_dark`` is
+  compiled only as the reference that test measures against, and is never linked;
+  ``*.dark.scss`` is left to web's own reference partials
+  ``[test_lint test_dark_sibling_scope]``.
 * **Use logical properties (``margin-inline-start``) and Odoo's RTL-aware mixins,
   never hard ``left`` / ``right``** ``[review]``. RTL is generated.
 
@@ -3899,17 +3903,27 @@ tokenise a variable that** ``[review]``:
 * **is passed to a mixin written for colours.** ``o-button-variant-from()`` and
   ``o-print-color-rgb()`` accept tokens; others fail.
 
+**In a file that also rides ``assets_frontend``, give a token its own source
+variable as fallback** ``[review]``: ``o-token(--success, $success)``, never
+``o-token(--success, $o-success)``. Why: the frontend publishes ``--success`` from
+the theme's ``$success``, so a fallback that only equals it in the backend repaints
+the website. Use ``o-palette-token()`` / ``o-palette-token-mix()`` /
+``o-palette-token-alpha()`` instead; they fall back to plain Sass where
+``$o-bootstrap-follows-palette`` is off.
+
 5.5 Restating a rule for the other scheme
 -----------------------------------------
 
 Where neither a token nor ``light-dark()`` can carry a value, restate the rule under
-``:root[data-color-scheme="dark"]`` (specificity 0,2,0) in ``scheme_rules.scss`` or
-``html_editor.scheme_rules.scss`` ``[review]``:
+``:root[data-color-scheme="dark"]`` (specificity 0,2,0) in the module's backend-only
+``<module>.scheme_rules.scss`` (web's is ``scheme_rules.scss``) ``[review]``:
 
 * **One scoped rule per original rule, with its whole selector list, copied as the
   bundle emits it.**
 * **Only the dark half.**
 * **Screen only.** ``assets_web_print`` includes the backend bundle unconditionally.
+  The same bundle republishes the report bundle's tokens after the backend's, so a
+  colour that print keeps restates its dark half here instead of reading a token.
 * **Never in a file riding ``assets_frontend``**; split a sibling declared in the
   backend bundle alone (as ``html_editor.scheme_rules.scss``).
 * **Never call ``tint-color()`` / ``shade-color()`` in a scoped block; use
@@ -5353,6 +5367,9 @@ when found, and do not leave it for an unrelated edit.** ``[review]``
 
    * - Retired
      - Replacement
+   * - A ``*.dark.scss`` sibling globbed into ``web.assets_web_dark``
+     - A token, ``light-dark()`` or a restatement in ``<module>.scheme_rules.scss``
+       (§5.2-§5.5)
    * - Suffix XML IDs (``sale_order_view_form``)
      - Prefix style (§3.2)
    * - Commit tags ``[MIG]``, ``[CLA]``
@@ -5417,6 +5434,11 @@ collisions, so an eighth fails and so does a renumbering.
    * - Version
      - Date
      - Summary
+   * - 7.6
+     - 2026-09-25
+     - §5.2: one stylesheet answers both schemes and ``web.assets_web_dark`` is a
+       never-linked test reference; ``*.dark.scss`` siblings retired (Appendix C);
+       §5.4 frontend-safe token fallbacks; §5.5 per-module scheme rules, print.
    * - 7.5
      - 2026-09-25
      - How rules are enforced: ``TestSchemeDuplication`` is a zero rule over the
