@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_my_trips"
+        parent="stock_picking_batch.menu_stock_jobs"
+        action="action_my_trips"
+        sequence="10"
+        groups="stock_fleet.group_trip_driver" />
+
+</odoo>

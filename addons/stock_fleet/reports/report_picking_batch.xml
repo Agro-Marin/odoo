@@ -16,7 +16,65 @@
             <div t-if="o.vehicle_model_id">
                 <strong>Vehicle Category:</strong>
                 <span t-field="o.vehicle_model_id" />
-            </div><br />
+            </div>
+            <div t-if="o.operator_id">
+                <strong>Operator:</strong>
+                <span t-field="o.operator_id" />
+            </div>
+            <!--
+                The sheet leaves with the driver before the trip is over, so a
+                reading that does not exist yet prints as a ruled blank. The table
+                carries no "table" class on purpose: the sequence-column xpaths
+                below anchor on the first table that has it.
+            -->
+            <table
+                t-if="o.has_dispatch_management or o.date_departure"
+                class="o_trip_dispatch o_ignore_layout_styling"
+                style="width: auto; margin-top: 0.5rem;">
+                <thead>
+                    <tr>
+                        <th />
+                        <th>Date</th>
+                        <th>Odometer <span t-field="o.odometer_uom_id" /></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Departure</strong></td>
+                        <td>
+                            <span t-if="o.date_departure" t-field="o.date_departure" />
+                            <span
+                                t-else=""
+                                style="display: inline-block; min-width: 22mm; border-bottom: 1px dotted #000;" />
+                        </td>
+                        <td>
+                            <span
+                                t-if="o.odometer_departure"
+                                t-field="o.odometer_departure" />
+                            <span
+                                t-else=""
+                                style="display: inline-block; min-width: 22mm; border-bottom: 1px dotted #000;" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Return</strong></td>
+                        <td>
+                            <span t-if="o.date_return" t-field="o.date_return" />
+                            <span
+                                t-else=""
+                                style="display: inline-block; min-width: 22mm; border-bottom: 1px dotted #000;" />
+                        </td>
+                        <td>
+                            <span
+                                t-if="o.odometer_return"
+                                t-field="o.odometer_return" />
+                            <span
+                                t-else=""
+                                style="display: inline-block; min-width: 22mm; border-bottom: 1px dotted #000;" />
+                        </td>
+                    </tr>
+                </tbody>
+            </table><br />
         </xpath>
         <xpath expr="//table[hasclass('table')]//thead//tr//th" position="before">
             <th>Sequence</th>

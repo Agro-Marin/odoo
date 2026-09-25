@@ -133,7 +133,7 @@ class TestDispatchManagement(TransactionCase):
         picking.move_ids.quantity = 5
         batch = self._batch(picking, vehicle_id=self.vehicle.id)
         self.assertEqual(batch.vehicle_model_id, self.model)
-        self.assertEqual(batch.driver_id, self.driver)
+        self.assertFalse(batch.driver_id, "the vehicle's holder is not the driver")
         self.assertEqual(batch.estimated_shipping_weight, 50.0)
         self.assertEqual(batch.used_weight_percentage, 50.0)
 

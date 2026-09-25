@@ -1,6 +1,6 @@
 {
     "name": "Stock Transport",
-    "version": "2.0",
+    "version": "2.1",
     "category": "Supply Chain/Inventory",
     "summary": "Stock Transport: Dispatch Management System",
     "description": "Transport Management: organize packs in your fleet, or carriers.",
@@ -9,14 +9,20 @@
     "depends": [
         "stock_picking_batch",
         "fleet",
+        "hr_fleet",
     ],
     "data": [
+        "security/stock_fleet_security.xml",
+        "security/ir.access.csv",
         "views/fleet_vehicle_model.xml",
         "views/stock_picking_batch.xml",
         "views/stock_picking_type.xml",
         "views/stock_picking_view.xml",
         "reports/report_picking_batch.xml",
         "views/stock_location.xml",
+        "views/stock_picking_batch_trip.xml",
+        "wizards/stock_picking_delivery_failure_views.xml",
+        "views/stock_fleet_menus.xml",
     ],
     "demo": [
         "demo/stock_fleet_demo.xml",

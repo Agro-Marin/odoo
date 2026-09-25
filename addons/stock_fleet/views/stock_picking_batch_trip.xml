@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="stock_picking_batch_form_trip" model="ir.ui.view">
+        <field name="name">stock.picking.batch.form.trip</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="inherit_id" ref="stock_fleet.stock_picking_batch_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_confirm']" position="before">
+                <button
+                    name="action_depart"
+                    type="object"
+                    string="Depart"
+                    invisible="date_departure or not has_dispatch_management or state in ('done', 'cancel')"
+                    class="oe_highlight" />
+                <button
+                    name="action_return"
+                    type="object"
+                    string="Register Return"
+                    invisible="not date_departure or date_return or state == 'cancel'"
+                    class="oe_highlight" />
+            </xpath>
+            <field name="vehicle_id" position="attributes">
+                <attribute name="readonly">date_departure</attribute>
+            </field>
+            <field name="vehicle_id" position="after">
+                <field name="operator_id" readonly="date_departure" />
+                <field
+                    name="supervisor_id"
+                    widget="many2one_avatar_user"
+                    readonly="date_departure" />
+            </field>
+            <!--
+                The departure and return are stamped by their buttons; the readings
+                stay editable until they become part of the dispatch record.
+            -->
+            <xpath expr="//group[@id='batch_delivery_data']" position="after">
+                <group
+                    id="batch_trip_data"
+                    string="Trip"
+                    invisible="not has_dispatch_management and not date_departure">
+                    <field
+                        name="trip_state"
+                        widget="badge"
+                        decoration-info="trip_state == 'planned'"
+                        decoration-success="trip_state == 'closed'"
+                        decoration-warning="trip_state == 'in_transit'" />
+                    <field name="date_departure" />
+                    <field name="departed_uid" invisible="not departed_uid" />
+                    <label for="odometer_departure" />
+                    <div class="d-flex flex-row gap-2 align-items-baseline">
+                        <field
+                            name="odometer_departure"
+                            readonly="date_departure"
+                            class="oe_inline" />
+                        <field
+                            name="odometer_uom_id"
+                            nolabel="1"
+                            groups="uom.group_uom"
+                            class="oe_inline" />
+                    </div>
+                    <field name="date_return" />
+                    <field name="odometer_return" readonly="date_return" />
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="stock_picking_batch_tree_trip" model="ir.ui.view">
+        <field name="name">stock.picking.batch.list.trip</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="inherit_id" ref="stock_fleet.stock_picking_batch_tree" />
+        <field name="arch" type="xml">
+            <field name="vehicle_id" position="after">
+                <field name="operator_id" optional="hide" />
+                <field name="trip_state" widget="badge" optional="hide" />
+                <field name="date_departure" optional="hide" />
+                <field name="date_return" optional="hide" />
+            </field>
+        </field>
+    </record>
+
+    <record id="stock_picking_batch_filter_trip" model="ir.ui.view">
+        <field name="name">stock.picking.batch.filter.trip</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="inherit_id" ref="stock_fleet.stock_picking_batch_filter" />
+        <field name="arch" type="xml">
+            <field name="driver_id" position="after">
+                <field name="operator_id" />
+            </field>
+            <xpath expr="//filter[@name='group_by_vehicle_id']" position="after">
+                <filter
+                    name="group_by_operator_id"
+                    string="Operator"
+                    context="{'group_by': 'operator_id'}" />
+                <filter
+                    name="group_by_trip_state"
+                    string="Trip Status"
+                    context="{'group_by': 'trip_state'}" />
+            </xpath>
+            <xpath expr="//filter[@name='vehicle_id']" position="before">
+                <filter
+                    name="trip_in_transit"
+                    string="In Transit"
+                    domain="[('trip_state', '=', 'in_transit')]" />
+                <filter
+                    name="my_trips"
+                    string="My Trips"
+                    domain="[('operator_id.user_id', '=', uid)]" />
+            </xpath>
+        </field>
+    </record>
+
+    <!-- The driver's screen: the trip as the operator sees it on a phone or tablet -->
+    <record id="stock_picking_batch_form_driver" model="ir.ui.view">
+        <field name="name">stock.picking.batch.form.driver</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <form string="My Trip" create="0" delete="0" duplicate="0">
+                <field name="has_dispatch_management" invisible="1" />
+                <header>
+                    <button
+                        name="action_return"
+                        type="object"
+                        string="Register Return"
+                        invisible="not date_departure or date_return"
+                        class="oe_highlight" />
+                    <field
+                        name="trip_state"
+                        widget="statusbar"
+                        statusbar_visible="planned,in_transit,closed" />
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1" /></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="vehicle_id" readonly="1" />
+                            <field name="operator_id" readonly="1" />
+                            <field
+                                name="date_departure"
+                                invisible="not date_departure" />
+                            <field name="date_return" invisible="not date_return" />
+                        </group>
+                        <group>
+                            <label for="odometer_return" />
+                            <div class="d-flex flex-row gap-2 align-items-baseline">
+                                <field
+                                    name="odometer_return"
+                                    readonly="date_return"
+                                    class="oe_inline" />
+                                <field
+                                    name="odometer_uom_id"
+                                    nolabel="1"
+                                    class="oe_inline" />
+                            </div>
+                            <field name="trip_delivered_count" />
+                            <field name="trip_pending_count" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page name="deliveries" string="Deliveries">
+                            <field
+                                name="picking_ids"
+                                options="{'no_open': True}"
+                                readonly="1">
+                                <list
+                                    create="0"
+                                    delete="0"
+                                    decoration-muted="state == 'cancel'"
+                                    decoration-success="state == 'done'">
+                                    <field name="batch_sequence" widget="handle" />
+                                    <field name="name" />
+                                    <field name="partner_id" />
+                                    <field name="origin" optional="hide" />
+                                    <field
+                                        name="state"
+                                        widget="badge"
+                                        decoration-info="state == 'assigned'"
+                                        decoration-success="state == 'done'" />
+                                    <button
+                                        name="action_deliver"
+                                        type="object"
+                                        string="Delivered"
+                                        icon="fa-check"
+                                        invisible="state != 'assigned' or not parent.date_departure"
+                                        class="btn-success" />
+                                    <button
+                                        name="action_not_delivered"
+                                        type="object"
+                                        string="Not delivered"
+                                        icon="fa-times"
+                                        invisible="state != 'assigned' or not parent.date_departure"
+                                        class="btn-outline-danger" />
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter />
+            </form>
+        </field>
+    </record>
+
+    <record id="stock_picking_batch_kanban_driver" model="ir.ui.view">
+        <field name="name">stock.picking.batch.kanban.driver</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <kanban
+                type="object"
+                create="0"
+                class="o_kanban_mobile"
+                action="action_open_trip_driver_form">
+                <field name="name" />
+                <field name="trip_state" />
+                <templates>
+                    <t t-name="card">
+                        <div class="d-flex flex-column gap-1">
+                            <strong class="fs-5"><field name="name" /></strong>
+                            <div><i class="fa fa-truck me-1" title="Vehicle" /><field name="vehicle_id" /></div>
+                            <div><i class="fa fa-calendar me-1" title="Scheduled" /><field name="date_planned" /></div>
+                            <div>
+                                <field name="trip_delivered_count" /> delivered,
+                                <field name="trip_pending_count" /> pending
+                            </div>
+                            <field
+                                name="trip_state"
+                                widget="badge"
+                                decoration-info="trip_state == 'planned'"
+                                decoration-success="trip_state == 'closed'"
+                                decoration-warning="trip_state == 'in_transit'" />
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="action_my_trips" model="ir.actions.act_window">
+        <field name="name">My Trips</field>
+        <field name="res_model">stock.picking.batch</field>
+        <field name="view_mode">kanban,form</field>
+        <field
+            name="domain">[('operator_id.user_id', '=', uid), ('trip_state', 'in', ('planned', 'in_transit'))]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No trip assigned to you</p>
+            <p>A trip shows up here when you are its operator.</p>
+        </field>
+        <field
+            name="view_ids"
+            eval="[             Command.clear(),             Command.create({'view_mode': 'kanban', 'view_id': ref('stock_picking_batch_kanban_driver')}),             Command.create({'view_mode': 'form', 'view_id': ref('stock_picking_batch_form_driver')}),         ]" />
+    </record>
+
+    <record id="view_picking_type_form_trip" model="ir.ui.view">
+        <field name="name">stock.picking.type.form.trip</field>
+        <field name="model">stock.picking.type</field>
+        <field name="inherit_id" ref="stock_fleet.view_picking_type_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='auto_batch']" position="before">
+                <field name="dispatch_batch_required" invisible="code != 'outgoing'" />
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_picking_form_trip" model="ir.ui.view">
+        <field name="name">stock.picking.form.trip</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_stock_picking_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='other_infos']" position="inside">
+                <field
+                    name="delivery_failure_reason"
+                    invisible="not delivery_failure_reason"
+                    readonly="1" />
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

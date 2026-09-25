@@ -1,4 +1,5 @@
 from . import models
+from . import wizards
 
 
 def _enable_dispatch_management(env):
