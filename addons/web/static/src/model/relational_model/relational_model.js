@@ -4,6 +4,7 @@
 import { markRaw, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useDialogContext } from "@web/core/dialog_context_hooks";
 import { reportUncaught } from "@web/core/errors/error_utils";
 import { ModelEvent } from "@web/core/events";
 import { modelLog } from "@web/core/utils/asset_log";
@@ -159,6 +160,13 @@ const log = makeLogger("web.model");
 
 export class RelationalModel extends Model {
     static services = ["orm"];
+
+    /** @returns {import("@web/model/model").ViewContext} */
+    static useViewContext() {
+        const viewContext = super.useViewContext();
+        viewContext.inDialog = useDialogContext().inDialog;
+        return viewContext;
+    }
     static Record = RelationalRecord;
     static Group = Group;
     static DynamicRecordList = DynamicRecordList;
@@ -213,7 +221,7 @@ export class RelationalModel extends Model {
             params.state?.specialDataCaches || new SpecialDataCache(),
         );
         this.useSendBeaconToSaveUrgently = params.useSendBeaconToSaveUrgently || false;
-        this.withCache = this.Class.withCache && this.env.config?.cache;
+        this.withCache = this.Class.withCache && this.viewContext.config?.cache;
         this.initialSampleGroups = undefined;
         this.canUseSampleModel = Boolean(params.canUseSampleModel);
 

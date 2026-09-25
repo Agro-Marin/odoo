@@ -13,11 +13,12 @@ export const ProjectTaskModelMixin = (T) =>
         }
 
         _processSearchDomain(domain) {
-            const { my_tasks, subtask_action } = this.env.searchModel.globalContext;
+            const { my_tasks, subtask_action } =
+                this.viewContext.searchModel.globalContext;
             const showSubtasks = my_tasks || subtask_action || getShowSubtasks();
             if (
                 ["project.task", "report.project.task.user"].includes(
-                    this.env.searchModel.resModel,
+                    this.viewContext.searchModel.resModel,
                 ) &&
                 !showSubtasks
             ) {
@@ -26,7 +27,7 @@ export const ProjectTaskModelMixin = (T) =>
                     [["display_in_project", "=", true]],
                 ]).toList({});
             }
-            if (this.env.searchModel.context?.render_task_templates) {
+            if (this.viewContext.searchModel.context?.render_task_templates) {
                 domain = Domain.removeDomainLeaves(domain, [
                     "has_template_ancestor",
                     "has_project_template",

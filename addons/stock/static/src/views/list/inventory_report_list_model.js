@@ -18,7 +18,7 @@ export class InventoryReportListModel extends RelationalModel {
             this._lastCreatedRecordId = null;
         }
         if (justCreated && serverValues.create_date !== serverValues.write_date) {
-            this.env.services.notification.add(
+            this.viewContext.services.notification.add(
                 _t(
                     "You tried to create a record that already exists. The existing record was modified instead.",
                 ),

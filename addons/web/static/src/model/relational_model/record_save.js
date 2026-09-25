@@ -77,7 +77,7 @@ function shouldSaveByBeacon(record) {
     return Boolean(
         record.model.urgentSave.isActive &&
         record.model.useSendBeaconToSaveUrgently &&
-        !record.model.env.inDialog &&
+        !record.model.viewContext.inDialog &&
         record.resId,
     );
 }

@@ -12,8 +12,8 @@ export const ProjectModelMixin = (T) =>
 
         _processSearchDomain(domain) {
             if (
-                this.env.searchModel.resModel === "project.project" &&
-                this.env.searchModel.context?.render_project_templates
+                this.viewContext.searchModel.resModel === "project.project" &&
+                this.viewContext.searchModel.context?.render_project_templates
             ) {
                 return Domain.and([
                     Domain.removeDomainLeaves(domain, ["is_template"]).toList(),

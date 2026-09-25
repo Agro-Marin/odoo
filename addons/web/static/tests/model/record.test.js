@@ -855,7 +855,11 @@ test(`don't duplicate a useRecordObserver effect when switching back and forth b
         setup() {
             this.orm = useService("orm");
             const services = { orm: this.orm };
-            const model = new StandaloneRelationalModel(this.env, {}, services);
+            const model = new StandaloneRelationalModel(
+                StandaloneRelationalModel.useViewContext(),
+                {},
+                services,
+            );
             model.load({ resId: 1, values: { foo: "abc" } });
             const record1 = model.root;
             model.load({ resId: 2, values: { foo: "def" } });

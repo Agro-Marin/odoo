@@ -84,7 +84,7 @@ export class VersionsTimeline extends StatusBarField {
 
         await this.props.record.model.load({
             context: {
-                ...this.props.record.model.env.searchModel.context,
+                ...this.props.record.model.viewContext.searchModel.context,
                 version_id: version_id,
             },
         });
@@ -99,7 +99,7 @@ export class VersionsTimeline extends StatusBarField {
         await record.save();
         await this.props.record.model.load({
             context: {
-                ...this.props.record.model.env.searchModel.context,
+                ...this.props.record.model.viewContext.searchModel.context,
                 version_id: item.value,
             },
         });

@@ -10,9 +10,16 @@ import {
     getCommonEmbeddedActions,
 } from "@document/views/utils";
 import { getSpecEvalContext } from "@web/model/relational_model";
+import { useDocumentContext } from "@document/document_context";
 
 export const DocumentsModelMixin = (component) =>
     class extends component {
+        static useViewContext() {
+            const viewContext = super.useViewContext();
+            viewContext.documentsView = useDocumentContext().documentsView;
+            return viewContext;
+        }
+
         setup(params) {
             super.setup(...arguments);
             if (this.config.resModel === "document.document") {
@@ -54,9 +61,9 @@ export const DocumentsModelMixin = (component) =>
             if (this.config.resModel !== "document.document") {
                 return res;
             }
-            this.env.searchModel.skipLoadClosePreview
-                ? (this.env.searchModel.skipLoadClosePreview = false)
-                : this.env.documentsView.bus.trigger("documents-close-preview");
+            this.viewContext.searchModel.skipLoadClosePreview
+                ? (this.viewContext.searchModel.skipLoadClosePreview = false)
+                : this.viewContext.documentsView.bus.trigger("documents-close-preview");
             this._reapplySelection();
             this._computeFileSize();
             this.shortcutTargetRecords = this.orm.isSample
@@ -141,7 +148,7 @@ export const DocumentsModelMixin = (component) =>
         async _notifyChange() {
             await this.load();
             await this.notify();
-            await this.env.searchModel._reloadSearchModel(true);
+            await this.viewContext.searchModel._reloadSearchModel(true);
             this.documentService.setPreviewedDocument(null);
         }
 
@@ -174,7 +181,7 @@ export const DocumentsModelMixin = (component) =>
                 return false;
             }
             const singleSelection = this.targetRecords[0];
-            const currentFolder = this.env.searchModel.getSelectedFolder();
+            const currentFolder = this.viewContext.searchModel.getSelectedFolder();
             return (
                 this.documentService.userIsInternal &&
                 singleSelection &&
@@ -195,7 +202,7 @@ export const DocumentsModelMixin = (component) =>
                     r.owner_id?.id === user.userId &&
                     ["binary", "url"].includes(r.type) &&
                     typeof r.folder_id?.id === "number" &&
-                    this.env.searchModel.getFolderById(r.folder_id.id)
+                    this.viewContext.searchModel.getFolderById(r.folder_id.id)
                         .user_permission === "edit",
             );
         }
@@ -345,7 +352,8 @@ export const DocumentsModelMixin = (component) =>
                           name: d.data.name,
                       })),
                 operation: "copy",
-                onClose: async () => this.env.searchModel._reloadSearchModel(true),
+                onClose: async () =>
+                    this.viewContext.searchModel._reloadSearchModel(true),
             });
         }
 
@@ -361,7 +369,7 @@ export const DocumentsModelMixin = (component) =>
                 ? await this.getResIds([["active", "=", false]])
                 : records.map((r) => r.data.id);
             await this.orm.call("document.document", "action_unarchive", [recordIds]);
-            await this.env.searchModel._reloadSearchModel(true);
+            await this.viewContext.searchModel._reloadSearchModel(true);
         }
 
         onSplitPDF() {
@@ -370,7 +378,7 @@ export const DocumentsModelMixin = (component) =>
                 return;
             }
 
-            this.env.documentsView.bus.trigger("documents-open-preview", {
+            this.viewContext.documentsView.bus.trigger("documents-open-preview", {
                 documents: documents,
                 mainDocument: this.targetRecords[0],
                 isPdfSplit: true,
@@ -403,7 +411,8 @@ export const DocumentsModelMixin = (component) =>
                           name: d.data.name,
                       })),
                 operation: "move",
-                onClose: async () => this.env.searchModel._reloadSearchModel(true),
+                onClose: async () =>
+                    this.viewContext.searchModel._reloadSearchModel(true),
             });
         }
 

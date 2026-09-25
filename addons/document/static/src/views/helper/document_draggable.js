@@ -157,7 +157,7 @@ export const useDraggableDocuments = makeDraggableHook({
                 targetClasses.contains("w-100")
             ) {
                 const valueEl = ev.target.closest(".o_search_panel_category_value");
-                const targetFolder = model.env.searchModel.getFolderById(
+                const targetFolder = model.viewContext.searchModel.getFolderById(
                     toFolderValueId(valueEl.dataset.valueId),
                 );
                 this._checkTargetValidity(
@@ -180,9 +180,12 @@ export const useDraggableDocuments = makeDraggableHook({
                 }
                 addClass(valueEl, "o_drag_over_selector");
                 if (!ctx.isInvalidTarget) {
-                    model.env.documentsView.bus.trigger("documents-expand-folder", {
-                        folderId: targetFolder.id,
-                    });
+                    model.viewContext.documentsView.bus.trigger(
+                        "documents-expand-folder",
+                        {
+                            folderId: targetFolder.id,
+                        },
+                    );
                 }
             }
         };
@@ -206,7 +209,7 @@ export const useDraggableDocuments = makeDraggableHook({
         };
 
         const onTargetFolderPointerEnter = (ev) => {
-            const targetFolder = model.env.searchModel.getFolderById(
+            const targetFolder = model.viewContext.searchModel.getFolderById(
                 toFolderValueId(ev.currentTarget.dataset.valueId),
             );
             this._checkTargetValidity(
@@ -282,7 +285,7 @@ export const useDraggableDocuments = makeDraggableHook({
                     ctx.draggedRecords.movableRecordIds,
                 ))
             ) {
-                model.env.services.notification.add(
+                model.viewContext.services.notification.add(
                     _t(
                         "%s document(s) sent to trash.",
                         ctx.draggedRecords.movableRecordIds.length,
@@ -290,12 +293,13 @@ export const useDraggableDocuments = makeDraggableHook({
                     { type: "success" },
                 );
             }
-            await model.env.searchModel._reloadSearchModel(true);
+            await model.viewContext.searchModel._reloadSearchModel(true);
             return;
         }
         const targetFolderId = toFolderValueId(targetElement.dataset.valueId);
-        const sourceFolder = model.env.searchModel.getSelectedFolder();
-        const targetFolder = model.env.searchModel.getFolderById(targetFolderId);
+        const sourceFolder = model.viewContext.searchModel.getSelectedFolder();
+        const targetFolder =
+            model.viewContext.searchModel.getFolderById(targetFolderId);
 
         if (sourceFolder === targetFolder) {
             return;
@@ -311,7 +315,7 @@ export const useDraggableDocuments = makeDraggableHook({
 
         if (targetFolder.id === "COMPANY") {
             await model.documentService.moveToCompanyRoot(ctx.draggedRecords);
-            await model.env.searchModel._reloadSearchModel(true);
+            await model.viewContext.searchModel._reloadSearchModel(true);
             return;
         }
 
@@ -339,7 +343,7 @@ export const useDraggableDocuments = makeDraggableHook({
 
         await model.load();
         await model.notify();
-        await model.env.searchModel._reloadSearchModel(true);
+        await model.viewContext.searchModel._reloadSearchModel(true);
     },
 
     _getMovableRecords(model) {
@@ -390,7 +394,7 @@ export const useDraggableDocuments = makeDraggableHook({
             targetFolder,
             userIsDocumentManager: model.documentService.userIsDocumentManager,
             getFolderAndParents: (folder) =>
-                model.env.searchModel.getFolderAndParents(folder),
+                model.viewContext.searchModel.getFolderAndParents(folder),
         });
     },
 

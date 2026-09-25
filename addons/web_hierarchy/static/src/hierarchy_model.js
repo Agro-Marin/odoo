@@ -459,11 +459,11 @@ export class HierarchyModel extends Model {
 
     /** @returns {import("@web/core/domain").DomainListRepr} */
     get globalDomain() {
-        if (!this.env.searchModel?.globalDomain.length) {
+        if (!this.viewContext.searchModel?.globalDomain.length) {
             return [];
         }
-        return new Domain(this.env.searchModel.globalDomain).toList(
-            this.env.searchModel.domainEvalContext,
+        return new Domain(this.viewContext.searchModel.globalDomain).toList(
+            this.viewContext.searchModel.domainEvalContext,
         );
     }
 
@@ -657,22 +657,22 @@ export class HierarchyModel extends Model {
 
     /** @returns {boolean} */
     isSearchDefaultOrEmpty() {
-        if (!this.env.searchModel) {
+        if (!this.viewContext.searchModel) {
             return true;
         }
         const isDisabledOptionalSearchMenuType = (type) => {
             return (
                 ["filter", "groupBy", "favorite"].includes(type) &&
-                !this.env.searchModel.searchMenuTypes.has(type)
+                !this.viewContext.searchModel.searchMenuTypes.has(type)
             );
         };
-        const activeSearchItems = this.env.searchModel.getSearchItems(
+        const activeSearchItems = this.viewContext.searchModel.getSearchItems(
             (item) => item.isActive && !isDisabledOptionalSearchMenuType(item.type),
         );
         if (!activeSearchItems.length) {
             return true;
         }
-        const defaultSearchItems = this.env.searchModel.getSearchItems(
+        const defaultSearchItems = this.viewContext.searchModel.getSearchItems(
             (item) =>
                 item.isDefault &&
                 item.type !== "favorite" &&

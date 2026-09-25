@@ -74,7 +74,7 @@ function makeRecord({
             closeUrgentSaveNotification() {},
             urgentSave: { isActive: false },
             useSendBeaconToSaveUrgently: false,
-            env: { inDialog: false },
+            viewContext: { inDialog: false },
             load: async () => {},
             patchConfig: () => {},
             updateSimilarRecords: () => {},

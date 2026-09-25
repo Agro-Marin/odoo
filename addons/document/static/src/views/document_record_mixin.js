@@ -50,9 +50,12 @@ export const DocumentsRecordMixin = (component) =>
 
         async update(changes, options = {}) {
             if ("name" in changes && !changes.name) {
-                this.model.env.services.notification.add(_t("Name cannot be empty."), {
-                    type: "danger",
-                });
+                this.model.viewContext.services.notification.add(
+                    _t("Name cannot be empty."),
+                    {
+                        type: "danger",
+                    },
+                );
                 if (Object.keys(changes).length === 1) {
                     this.discardLocked();
                     return;
@@ -79,10 +82,12 @@ export const DocumentsRecordMixin = (component) =>
             }
             if ((this.data.folder_id?.id ?? false) !== originalFolderId) {
                 this.model.root.removeRecords(movedRecordsIds);
-                this.model.env.documentsView.bus.trigger("documents-close-preview");
+                this.model.viewContext.documentsView.bus.trigger(
+                    "documents-close-preview",
+                );
             }
             if (this.isDetailsPanelRecord && this.data.type === "folder") {
-                this.model.env.searchModel._reloadSearchPanel();
+                this.model.viewContext.searchModel._reloadSearchPanel();
             }
             return ret;
         }
@@ -147,7 +152,7 @@ export const DocumentsRecordMixin = (component) =>
                         name: rec.data.display_name,
                     })) || [];
 
-                await this.model.env.documentsView.bus.trigger(
+                await this.model.viewContext.documentsView.bus.trigger(
                     "documents-open-preview",
                     {
                         documents,
@@ -190,14 +195,17 @@ export const DocumentsRecordMixin = (component) =>
          * @param {number|String} folderId
          */
         async _goToFolder(folderId) {
-            const searchModel = this.model.env.searchModel;
+            const searchModel = this.model.viewContext.searchModel;
             if (!searchModel.getFolderById(folderId)) {
                 await searchModel._reloadSearchModel(true);
             }
             searchModel.toggleCategoryValue(searchModel.folderCategory.id, folderId);
             this.model.originalSelection = [this.shortcutTarget.resId];
-            this.model.env.documentsView.bus.trigger("documents-expand-folder", {
-                folderId,
-            });
+            this.model.viewContext.documentsView.bus.trigger(
+                "documents-expand-folder",
+                {
+                    folderId,
+                },
+            );
         }
     };

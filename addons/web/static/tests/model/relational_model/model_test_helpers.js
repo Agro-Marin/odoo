@@ -9,7 +9,13 @@ import { RelationalModel } from "@web/model/relational_model/relational_model";
 export async function makeTestRelationalModel(overrides) {
     const env = await makeMockEnv();
     const model = new RelationalModel(
-        env,
+        {
+            searchModel: undefined,
+            config: /** @type {any} */ ({}),
+            services: env.services,
+            debug: "",
+            isSmall: false,
+        },
         {
             config: {
                 resModel: "res.partner",

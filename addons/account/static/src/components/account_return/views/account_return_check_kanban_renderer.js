@@ -28,6 +28,7 @@ export class AccountReturnCheckKanbanRenderer extends KanbanRenderer {
 
     setup() {
         super.setup();
+        this.viewContext = RelationalModel.useViewContext();
         this.bus = useEventBus();
         this.orm = useService("orm");
         this.action = useService("action");
@@ -95,7 +96,9 @@ export class AccountReturnCheckKanbanRenderer extends KanbanRenderer {
             extractedFields.activeFields,
             extractedFields.fields,
         );
-        const model = new RelationalModel(this.env, modelParams, { orm: this.orm });
+        const model = new RelationalModel(this.viewContext, modelParams, {
+            orm: this.orm,
+        });
         return new model.constructor.Record(
             model,
             {

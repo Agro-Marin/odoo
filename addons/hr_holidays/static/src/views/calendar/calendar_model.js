@@ -15,7 +15,7 @@ export class TimeOffCalendarModel extends CalendarModel {
         super.setup(params, services);
 
         this.data.mandatoryDays = {};
-        if (this.env.isSmall) {
+        if (this.viewContext.isSmall) {
             this.meta.scale = "month";
         }
 

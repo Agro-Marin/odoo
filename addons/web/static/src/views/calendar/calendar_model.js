@@ -127,7 +127,7 @@ export class CalendarModel extends Model {
         this.keepLast = new KeepLast({ rejectSuperseded: true });
         this.notification = notification;
 
-        const formViewFromConfig = (this.env.config.views || []).find(
+        const formViewFromConfig = (this.viewContext.config.views || []).find(
             (/** @type {[number | false, string]} */ view) => view[1] === "form",
         );
         const formViewIdFromConfig = formViewFromConfig ? formViewFromConfig[0] : false;
@@ -277,7 +277,7 @@ export class CalendarModel extends Model {
     get hasMultiCreate() {
         return (
             !!this.meta.multiCreateView &&
-            !this.env.isSmall &&
+            !this.viewContext.isSmall &&
             this.meta.scale === "month"
         );
     }
@@ -324,7 +324,7 @@ export class CalendarModel extends Model {
         return this.dateStartType === "datetime" && this.dateStopType === "datetime";
     }
     get storageKey() {
-        return `scaleOf-viewId-${this.env.config.viewId}`;
+        return `scaleOf-viewId-${this.viewContext.config.viewId}`;
     }
     get unusualDays() {
         return this.data.unusualDays;
@@ -760,7 +760,7 @@ export class CalendarModel extends Model {
             fieldMapping: this.meta.fieldMapping,
             isTimeHidden: this.meta.isTimeHidden,
             scale: this.meta.scale,
-            isSmall: this.env.isSmall,
+            isSmall: this.viewContext.isSmall,
         });
     }
 

@@ -15,6 +15,7 @@ patch(AccountReportLineName.prototype, {
     setup() {
         super.setup();
         this.reportContext = useAccountReportContext();
+        this.viewContext = RelationalModel.useViewContext();
         this.accountStatus = useState({ record: false });
         useLayoutEffect(
             () => {
@@ -46,7 +47,7 @@ patch(AccountReportLineName.prototype, {
             };
 
             const model = new RelationalModel(
-                this.env,
+                this.viewContext,
                 {
                     config: {
                         resModel: "account.audit.account.status",

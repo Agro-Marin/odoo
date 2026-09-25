@@ -13,14 +13,22 @@ import {
 } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
 import { SEARCH_KEYS } from "@web/core/constants";
+import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { ModelEvent } from "@web/core/events";
 import { featureFlag } from "@web/core/feature_flags";
 import { RPCError } from "@web/core/network/rpc";
+import { useSearchModel } from "@web/core/search_model_hooks";
 import { Deferred, Race } from "@web/core/utils/concurrency";
-import { useIsDestroyed, useIsMounted, useService } from "@web/core/utils/hooks";
+import {
+    useIsDestroyed,
+    useIsMounted,
+    useService,
+    useServices,
+} from "@web/core/utils/hooks";
 import { useComponentName, useProps } from "@web/core/utils/owl_bridge";
 import { SignalStore } from "@web/core/utils/reactive";
+import { useViewConfig } from "@web/core/view_config_hooks";
 
 import { SampleDataCoordinator } from "./sample_data_coordinator.js";
 import { makeSampleORM } from "./sample_server.js";
@@ -28,26 +36,49 @@ import { getSearchParamsIssues } from "./search_params_schema.js";
 
 const log = makeLogger("web.model");
 
-/** @import { OdooEnv } from "@web/env" */
+/**
+ * @typedef {{
+ * searchModel: import("@web/search/search_model").SearchModel | undefined;
+ * config: import("@web/views/view_config").ViewConfig & Record<string, any>;
+ * services: Record<string, any>;
+ * debug: string;
+ * readonly isSmall: boolean;
+ * [key: string]: any;
+ * }} ViewContext
+ */
 /** @import { SearchParams } from "@web/model/types" */
 /** @import { ServiceFactories as Services } from "services" */
 /**
  * @template {Model} [M=Model]
- * @typedef {{new(env: OdooEnv, params: Object, services: Object): M; services: string[]; prototype: M; name: string}} ModelConstructor
+ * @typedef {{new(viewContext: ViewContext, params: Object, services: Object): M; services: string[]; useViewContext(): ViewContext; prototype: M; name: string}} ModelConstructor
  */
 
-/** @template {object} [E=OdooEnv] */
+/** @template {object} [C=ViewContext] */
 export class Model extends SignalStore {
     static services = [];
 
+    /** @returns {ViewContext} */
+    static useViewContext() {
+        const ui = useService("ui");
+        return {
+            searchModel: useSearchModel(),
+            config: useViewConfig(),
+            services: useServices(),
+            debug: useDebugMode(),
+            get isSmall() {
+                return ui.isSmall;
+            },
+        };
+    }
+
     /**
-     * @param {E} env
+     * @param {C} viewContext
      * @param {Object} params
      * @param {Object} services
      */
-    constructor(env, params, services) {
+    constructor(viewContext, params, services) {
         super();
-        this.env = env;
+        this.viewContext = viewContext;
         this.orm = services.orm;
         this.bus = new EventBus();
         this.isReady = false;
@@ -207,29 +238,25 @@ function reloadFromProps(model, props) {
  * @template {Model} M
  * @param {ModelConstructor<M>} ModelClass
  * @param {(props: Record<string, any>) => Object} buildParams
- * @returns {{ props: Record<string, any>, env: any, isMounted: () => boolean, model: M }}
+ * @returns {{ props: Record<string, any>, viewContext: ViewContext, isMounted: () => boolean, model: M }}
  */
 function makeModel(ModelClass, buildParams) {
     const props = useProps();
-    const env = useEnv();
+    const viewContext = ModelClass.useViewContext();
     const isDestroyed = useIsDestroyed();
     const isMounted = useIsMounted();
     const componentName = useComponentName();
     const services = useModelServices(ModelClass);
     const params = buildParams(props);
     const isAlive = params?.isAlive || (() => !isDestroyed());
-    const model = new ModelClass(
-        /** @type {any} */ (env),
-        { ...params, isAlive },
-        services,
-    );
+    const model = new ModelClass(viewContext, { ...params, isAlive }, services);
     model.isAlive = isAlive;
     log.lifecycle("makeModel", () => ({
         model: ModelClass.name,
         component: componentName,
         services: Object.keys(services),
     }));
-    return { props, env, isMounted, model };
+    return { props, viewContext, isMounted, model };
 }
 
 /**
@@ -265,7 +292,7 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
     }
     const {
         props: componentProps,
-        env,
+        viewContext,
         isMounted,
         model,
     } = makeModel(ModelClass, (props) => ({
@@ -330,7 +357,7 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         if (options.lazy) {
             prom.catch((e) => {
                 if (e instanceof RPCError) {
-                    env.config.historyBack();
+                    viewContext.config.historyBack();
                 }
                 throw e;
             });

@@ -20,7 +20,7 @@ export class ProductCatalogKanbanModel extends RelationalModel {
         // The sample ORM is installed for the duration of the sample load, so
         // this has to be read before awaiting super.
         const isSample = Boolean(this.orm.isSample);
-        const selectedSection = this.env.searchModel.selectedSection;
+        const selectedSection = this.viewContext.searchModel.selectedSection;
         if (selectedSection.filtered) {
             params = {
                 ...params,
@@ -88,7 +88,7 @@ export class ProductCatalogKanbanModel extends RelationalModel {
             product_ids: productIds,
             res_model: params.context.product_catalog_order_model,
             child_field: params.context.child_field,
-            section_id: this.env.searchModel.selectedSection.sectionId,
+            section_id: this.viewContext.searchModel.selectedSection.sectionId,
         };
     }
 

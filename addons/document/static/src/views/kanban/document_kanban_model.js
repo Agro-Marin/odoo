@@ -18,13 +18,16 @@ export class DocumentsKanbanModelRecord extends DocumentsRecordMixin(
         if (!ev.target.files.length) {
             return;
         }
-        await this.model.env.documentsView.bus.trigger("documents-upload-files", {
-            files: ev.target.files,
-            accessToken: this.data.access_token,
-            context: {
-                document_id: this.data.id,
+        await this.model.viewContext.documentsView.bus.trigger(
+            "documents-upload-files",
+            {
+                files: ev.target.files,
+                accessToken: this.data.access_token,
+                context: {
+                    document_id: this.data.id,
+                },
             },
-        });
+        );
         ev.target.value = "";
     }
 }

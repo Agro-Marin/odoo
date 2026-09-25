@@ -446,7 +446,7 @@ test("failed overlapping loads restore the date of the displayed records", async
     const dates = [1, 2, 3, 4].map((day) => DateTime.local(2026, 9, day));
     const model = Object.create(CalendarModel.prototype);
     Object.assign(model, {
-        env: { config: { viewId: "rollback_test" } },
+        viewContext: { config: { viewId: "rollback_test" } },
         meta: {
             date: dates[0],
             scale: "day",

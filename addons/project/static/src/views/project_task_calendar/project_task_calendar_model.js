@@ -11,7 +11,7 @@ export class ProjectTaskCalendarModel extends ProjectTaskModelMixin(CalendarMode
     setup() {
         super.setup(...arguments);
         this.getHighlightIds = useProjectModelActions({
-            getContext: () => this.env.searchModel.context,
+            getContext: () => this.viewContext.searchModel.context,
         }).getHighlightIds;
     }
 

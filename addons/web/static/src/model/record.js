@@ -164,7 +164,7 @@ class _Record extends Component {
         modelServices.orm = this.orm;
         this.model = useState(
             new StandaloneRelationalModel(
-                /** @type {import("@web/env").OdooEnv} */ (this.env),
+                StandaloneRelationalModel.useViewContext(),
                 modelParams,
                 modelServices,
             ),

@@ -54,7 +54,7 @@ export class ButtonNewContractWidget extends Component {
         await record.save();
         await this.props.record.model.load({
             context: {
-                ...this.props.record.model.env.searchModel.context,
+                ...this.props.record.model.viewContext.searchModel.context,
                 version_id: version_id,
             },
         });

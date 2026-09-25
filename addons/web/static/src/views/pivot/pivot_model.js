@@ -92,7 +92,7 @@ const SUPERSEDED = Symbol("superseded");
 const log = makeLogger("web.view.pivot");
 
 /**
- * @template {object} [E=import("@web/env").OdooEnv]
+ * @template {object} [E=import("@web/model/model").ViewContext]
  * @extends {Model<E>}
  */
 export class PivotModel extends Model {
