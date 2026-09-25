@@ -526,6 +526,36 @@ env["ir.config_parameter"].sudo().set_param("web.esbuild.timeout_s", "60")
 | `[registry] Duplicate add for key "…" … (first registration wins)` console.warn in debug | Module loaded twice (separate instances) — `registry.add` is first-wins and warns rather than throwing | Missing bridge shim (happy path is an attachment URL; `data:` URI only as the read-only-cursor fallback); check `_prepare_native_to_legacy_bridge` |
 | Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override in `_get_esm_nodes_prod` (`ir_qweb_assets.py`). |
 
+### Public pages evaluate modules twice (`bundle_double_eval` floor)
+
+`test_bundle_double_evaluation` ratchets the modules a bundle removes by name
+and an importer re-inlines, so pages that load both bundles evaluate them twice,
+each copy with its own state and class identities. The floor in
+`test_lint/tests/floors.json` is **5**, all in `web.assets_frontend_lazy`:
+`@web/core/browser/cookie`, `@web/core/utils/dom/ui`, `@web/public/lazyloader`,
+`@web/public/minimal_dom`, `@web/session`.
+
+- **The floor is scoped to what `-i test_lint` installs** (`web`, not
+  `website`). `-i website` reads 8 (adds `@website/js/content/generate_video_iframe`,
+  `@website/utils/misc`, `@web/../tests/utils` in `web.assets_unit_tests`), 9 with
+  the test bundles (`@website/interactions/multirange_input`). A lower reading
+  is a smaller install, not repaid debt, hence `exact=False`. Take a control
+  reading at your own scope before believing a local failure.
+- **Two constraints block the obvious fix.** Declaring
+  `web.assets_frontend_minimal` a secondary parent of `web.assets_frontend_lazy`
+  stubs all five to the shared loader, but (1) `web.frontend_layout` emits the
+  lazy bundle before the minimal one and module scripts run in document order,
+  so the stubs resolve against an unpopulated loader (537 registered modules
+  drop to 12, every response still 200); and (2) swapping the two looks fixed
+  but loses the tours, because only the first `<script type="importmap">` of a
+  document is honoured and the lazy bundle's map is the one carrying the
+  `web_tour.*` dynamic children (126 entries vs 22). `room`'s
+  `room_booking_templates_frontend.xml` mirrors this order on purpose.
+- **The fix is the bundler's**: the page's honoured import map has to carry the
+  lazy bundle's entries while the provider still runs first — one map per page
+  instead of one per bundle. Specifiers the secondary-parent mechanism already
+  stubs are subtracted, so a correctly wired bundle reads clean.
+
 ## Cache invalidation on source change — no manual flush needed
 
 **Dev mode rebuilds a bundle on a source-file mtime change; you do NOT need
