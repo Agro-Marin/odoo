@@ -465,6 +465,27 @@ registry.category("web_tour.tours").add("test_self_order_table_sharing-meal_mode
         ].flat(),
 });
 
+registry.category("web_tour.tours").add("test_self_order_unsent_cart_joins_table", {
+    steps: () =>
+        [
+            Utils.checkIsNoBtn("My Order"),
+            Utils.clickBtn("Order Now"),
+            ProductPage.clickProduct("Coca-Cola"),
+            {
+                content: "another device's order arrives at the table",
+                trigger: "body",
+                run: async () => {
+                    await rpc("/pos-self-order/test-table-order-arrives/", {});
+                    await posmodel.getUserDataFromServer();
+                },
+            },
+            Utils.clickBtn("Checkout"),
+            CartPage.checkProduct("Coca-Cola", "2.53", "1"),
+            Utils.clickBtn("Order"),
+            ConfirmationPage.isShown(),
+        ].flat(),
+});
+
 registry.category("web_tour.tours").add("self_order_mobile_no_access_token", {
     steps: () =>
         [

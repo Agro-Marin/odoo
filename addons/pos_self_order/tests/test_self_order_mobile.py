@@ -458,6 +458,67 @@ class TestSelfOrderMobile(SelfOrderCommonTest):
 
         self.start_tour(self_route, "test_self_order_table_sharing-meal_mode")
 
+    def test_self_order_table_order_arrives_on_unsent_cart(self):
+        self.pos_config.write(
+            {
+                "self_ordering_mode": "mobile",
+                "self_ordering_pay_after": "meal",
+                "self_ordering_service_mode": "table",
+                "use_presets": False,
+            }
+        )
+        self.pos_config.with_user(self.pos_user).open_ui()
+        self.pos_config.current_session_id.set_opening_control(0, "")
+        session = self.pos_config.current_session_id
+        table = self.pos_table_1
+        fanta = self.fanta
+        self_route = self.pos_config._get_self_order_route(table_id=table.id)
+
+        @http.route(
+            "/pos-self-order/test-table-order-arrives/",
+            auth="public",
+            type="jsonrpc",
+            website=True,
+        )
+        def table_order_arrives(controller):
+            controller.env["pos.order"].sudo().create(
+                {
+                    "session_id": session.id,
+                    "table_id": table.id,
+                    "amount_total": fanta.lst_price,
+                    "amount_tax": 0.0,
+                    "amount_return": 0.0,
+                    "amount_paid": 0.0,
+                    "lines": [
+                        Command.create(
+                            {
+                                "qty": 1,
+                                "product_id": fanta.id,
+                                "price_unit": fanta.lst_price,
+                                "price_subtotal": fanta.lst_price,
+                                "price_subtotal_incl": fanta.lst_price,
+                            }
+                        )
+                    ],
+                }
+            )
+
+        with patch.object(
+            PosSelfOrderController,
+            "table_order_arrives",
+            table_order_arrives,
+            create=True,
+        ):
+            self.start_tour(self_route, "test_self_order_unsent_cart_joins_table")
+
+        table_order = self.env["pos.order"].search(
+            [("table_id", "=", table.id), ("state", "=", "draft")]
+        )
+        self.assertEqual(len(table_order), 1)
+        self.assertEqual(
+            sorted(table_order.lines.product_id.mapped("name")), ["Coca-Cola", "Fanta"]
+        )
+
     def test_delete_mobile_order_from_backend(self):
         self.pos_config.write(
             {

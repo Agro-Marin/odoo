@@ -819,20 +819,17 @@ export class SelfOrder extends SignalStore {
             if (openOrder && this.router.activeSlot !== "confirmation") {
                 this.selectedOrderUuid = openOrder.uuid;
 
-                // Remove all other open orders in draft and add orderline in the current order
-                const lineCmd = [];
-                for (const order of this.models["pos.order"].filter(
-                    (o) => o.state === "draft",
-                )) {
-                    if (order.uuid !== openOrder.uuid) {
-                        lineCmd.push(...order.lines);
-                        order.delete();
-                    }
+                // Only a cart never sent folds into the table's order; a sent
+                // order lives on the server, and dropping it here would only
+                // bring it back on the next refresh.
+                const unsentDrafts = this.models["pos.order"].filter(
+                    (o) =>
+                        o.state === "draft" && !o.isSynced && o.uuid !== openOrder.uuid,
+                );
+                for (const order of unsentDrafts) {
+                    openOrder.update({ lines: [["link", ...order.lines]] });
+                    order.delete();
                 }
-
-                openOrder.update({
-                    lines: [["link", lineCmd]],
-                });
                 openOrder.recomputeChanges();
             }
             this.data.debouncedSynchronizeLocalDataInIndexedDB();
