@@ -10,20 +10,22 @@ import { parseFloat } from "@web/core/parsers";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 const log = makeLogger("pos.screen.payment.lines");
+export const paymentScreenPaymentLinesProps = {
+    paymentLines: { type: Array, optional: true },
+    deleteLine: Function,
+    selectLine: Function,
+    sendForceDone: Function,
+    sendPaymentCancel: Function,
+    sendPaymentRequest: Function,
+    sendPaymentReverse: Function,
+    updateSelectedPaymentline: Function,
+    isRefundOrder: Boolean,
+};
+
 export class PaymentScreenPaymentLines extends Component {
     static template = "point_of_sale.PaymentScreenPaymentLines";
     static components = { PriceFormatter };
-    static props = {
-        paymentLines: { type: Array, optional: true },
-        deleteLine: Function,
-        selectLine: Function,
-        sendForceDone: Function,
-        sendPaymentCancel: Function,
-        sendPaymentRequest: Function,
-        sendPaymentReverse: Function,
-        updateSelectedPaymentline: Function,
-        isRefundOrder: Boolean,
-    };
+    static props = paymentScreenPaymentLinesProps;
 
     setup() {
         this.utils = useService("contextual_utils_service");

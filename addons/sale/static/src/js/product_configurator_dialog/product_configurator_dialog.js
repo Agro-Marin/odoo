@@ -22,54 +22,56 @@ import {
     isPossibleCombination,
 } from "./product_configurator_utils.js";
 
+export const productConfiguratorDialogProps = {
+    productTemplateId: Number,
+    ptavIds: { type: Array, element: Number },
+    customPtavs: {
+        type: Array,
+        element: Object,
+        shape: {
+            id: Number,
+            value: String,
+        },
+    },
+    quantity: Number,
+    productUOMId: { type: Number, optional: true },
+    companyId: { type: Number, optional: true },
+    pricelistId: { type: Number, optional: true },
+    currencyId: { type: Number, optional: true },
+    selectedComboItems: {
+        type: Array,
+        element: Object,
+        shape: {
+            name: String,
+        },
+        optional: true,
+    },
+    soDate: String,
+    size: {
+        type: String,
+        optional: true,
+        validate: (s) => ["sm", "md", "lg", "xl", "fs", "fullscreen"].includes(s),
+    },
+    edit: { type: Boolean, optional: true },
+    options: {
+        type: Object,
+        optional: true,
+        shape: {
+            canChangeVariant: { type: Boolean, optional: true },
+            showQuantity: { type: Boolean, optional: true },
+            showPrice: { type: Boolean, optional: true },
+            showPackaging: { type: Boolean, optional: true },
+        },
+    },
+    save: Function,
+    discard: Function,
+    close: Function,
+};
+
 export class ProductConfiguratorDialog extends Component {
     static components = { Dialog, ProductList };
     static template = "sale.ProductConfiguratorDialog";
-    static props = {
-        productTemplateId: Number,
-        ptavIds: { type: Array, element: Number },
-        customPtavs: {
-            type: Array,
-            element: Object,
-            shape: {
-                id: Number,
-                value: String,
-            },
-        },
-        quantity: Number,
-        productUOMId: { type: Number, optional: true },
-        companyId: { type: Number, optional: true },
-        pricelistId: { type: Number, optional: true },
-        currencyId: { type: Number, optional: true },
-        selectedComboItems: {
-            type: Array,
-            element: Object,
-            shape: {
-                name: String,
-            },
-            optional: true,
-        },
-        soDate: String,
-        size: {
-            type: String,
-            optional: true,
-            validate: (s) => ["sm", "md", "lg", "xl", "fs", "fullscreen"].includes(s),
-        },
-        edit: { type: Boolean, optional: true },
-        options: {
-            type: Object,
-            optional: true,
-            shape: {
-                canChangeVariant: { type: Boolean, optional: true },
-                showQuantity: { type: Boolean, optional: true },
-                showPrice: { type: Boolean, optional: true },
-                showPackaging: { type: Boolean, optional: true },
-            },
-        },
-        save: Function,
-        discard: Function,
-        close: Function,
-    };
+    static props = productConfiguratorDialogProps;
     static defaultProps = {
         edit: false,
     };

@@ -4,7 +4,10 @@ import { KanbanRenderer } from "@web/views/kanban";
 
 import { ProductCatalogKanbanRecord } from "./kanban_record.js";
 
+export const productCatalogKanbanRendererProps = [...KanbanRenderer.props];
+
 export class ProductCatalogKanbanRenderer extends KanbanRenderer {
+    static props = productCatalogKanbanRendererProps;
     static template = "ProductCatalogKanbanRenderer";
     static components = {
         ...KanbanRenderer.components,

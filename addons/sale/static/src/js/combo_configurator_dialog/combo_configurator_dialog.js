@@ -15,33 +15,35 @@ import { ProductCard } from "../product_card/product_card.js";
 import { ProductConfiguratorDialog } from "../product_configurator_dialog/product_configurator_dialog.js";
 import { QuantityButtons } from "../quantity_buttons/quantity_buttons.js";
 
+export const comboConfiguratorDialogProps = {
+    product_tmpl_id: Number,
+    display_name: String,
+    quantity: Number,
+    price: Number,
+    combos: { type: Array, element: ProductCombo },
+    currency_id: Number,
+    company_id: { type: Number, optional: true },
+    pricelist_id: { type: Number, optional: true },
+    date: String,
+    price_info: { type: String, optional: true },
+    edit: { type: Boolean, optional: true },
+    options: {
+        type: Object,
+        optional: true,
+        shape: {
+            showQuantity: { type: Boolean, optional: true },
+            showPrice: { type: Boolean, optional: true },
+        },
+    },
+    save: Function,
+    discard: Function,
+    close: Function,
+};
+
 export class ComboConfiguratorDialog extends Component {
     static template = "sale.ComboConfiguratorDialog";
     static components = { Dialog, ProductCard, QuantityButtons };
-    static props = {
-        product_tmpl_id: Number,
-        display_name: String,
-        quantity: Number,
-        price: Number,
-        combos: { type: Array, element: ProductCombo },
-        currency_id: Number,
-        company_id: { type: Number, optional: true },
-        pricelist_id: { type: Number, optional: true },
-        date: String,
-        price_info: { type: String, optional: true },
-        edit: { type: Boolean, optional: true },
-        options: {
-            type: Object,
-            optional: true,
-            shape: {
-                showQuantity: { type: Boolean, optional: true },
-                showPrice: { type: Boolean, optional: true },
-            },
-        },
-        save: Function,
-        discard: Function,
-        close: Function,
-    };
+    static props = comboConfiguratorDialogProps;
 
     setup() {
         this.dialogContext = useDialogContext();

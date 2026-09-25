@@ -33,6 +33,19 @@ const KEY_BUTTONS = {
 
 const log = makeLogger("account.bank_rec.buttons");
 
+export const bankRecButtonListProps = {
+    statementLineRootRef: { type: Object },
+    statementLine: { type: Object },
+    suspenseAccountLine: { type: [Object, Boolean], optional: true },
+    reconcileLineCount: { type: [Number, { value: null }], optional: true },
+    reconcileModels: Array,
+    preSelectedReconciliationModel: { type: Object, optional: true },
+};
+
+export const bankRecButtonListDefaultProps = {
+    reconcileLineCount: 0,
+};
+
 export class BankRecButtonList extends Component {
     static template = "account.BankRecButtonList";
     static components = {
@@ -41,17 +54,8 @@ export class BankRecButtonList extends Component {
         BankRecButton,
         BankRecFileUploader,
     };
-    static props = {
-        statementLineRootRef: { type: Object },
-        statementLine: { type: Object },
-        suspenseAccountLine: { type: [Object, Boolean], optional: true },
-        reconcileLineCount: { type: [Number, { value: null }], optional: true },
-        reconcileModels: Array,
-        preSelectedReconciliationModel: { type: Object, optional: true },
-    };
-    static defaultProps = {
-        reconcileLineCount: 0,
-    };
+    static props = bankRecButtonListProps;
+    static defaultProps = bankRecButtonListDefaultProps;
 
     setup() {
         this.model = useViewModel();

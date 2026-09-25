@@ -4,8 +4,16 @@ import { useEffect } from "@odoo/owl";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { patch } from "@web/core/utils/patch";
 import { useDebounced } from "@web/core/utils/timing";
-import { CharField, charField } from "@web/fields/basic/char/char_field";
-import { TextField, textField } from "@web/fields/basic/text/text_field";
+import {
+    CharField,
+    charField,
+    charFieldProps,
+} from "@web/fields/basic/char/char_field";
+import {
+    TextField,
+    textField,
+    textFieldProps,
+} from "@web/fields/basic/text/text_field";
 const onchangeOnKeydownMixin = () => ({
     setup() {
         super.setup();
@@ -45,8 +53,8 @@ const extraProps = {
     onchangeOnKeydown: { type: Boolean, optional: true },
     keydownDebounceDelay: { type: Number, optional: true },
 };
-Object.assign(CharField.props, extraProps);
-Object.assign(TextField.props, extraProps);
+Object.assign(charFieldProps, extraProps);
+Object.assign(textFieldProps, extraProps);
 
 /**
  * @param {NonNullable<typeof charField.extractProps>} baseExtractProps

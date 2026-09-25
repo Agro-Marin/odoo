@@ -5,6 +5,8 @@ import {
     PhoneField,
     phoneField,
     formPhoneField,
+    phoneFieldDefaultProps,
+    phoneFieldProps,
 } from "@web/fields/basic/phone/phone_field";
 import { SendSMSButton } from "@sms/components/sms_button/sms_button";
 
@@ -13,14 +15,12 @@ patch(PhoneField, {
         ...PhoneField.components,
         SendSMSButton,
     },
-    defaultProps: {
-        ...PhoneField.defaultProps,
-        enableButton: true,
-    },
-    props: {
-        ...PhoneField.props,
-        enableButton: { type: Boolean, optional: true },
-    },
+});
+Object.assign(phoneFieldDefaultProps, {
+    enableButton: true,
+});
+Object.assign(phoneFieldProps, {
+    enableButton: { type: Boolean, optional: true },
 });
 
 const patchDescr = () => ({

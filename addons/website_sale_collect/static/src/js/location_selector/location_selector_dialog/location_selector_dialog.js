@@ -2,14 +2,14 @@
 import { rpc } from "@web/core/network";
 import { patch } from "@web/core/utils/patch";
 
-import { LocationSelectorDialog } from "@delivery/js/location_selector/location_selector_dialog/location_selector_dialog";
+import {
+    LocationSelectorDialog,
+    locationSelectorDialogProps,
+} from "@delivery/js/location_selector/location_selector_dialog/location_selector_dialog";
 
-patch(LocationSelectorDialog, {
-    props: {
-        ...LocationSelectorDialog.props,
-        productId: { type: Number, optional: true },
-        isProductPage: { type: Boolean, optional: true },
-    },
+Object.assign(locationSelectorDialogProps, {
+    productId: { type: Number, optional: true },
+    isProductPage: { type: Boolean, optional: true },
 });
 
 patch(LocationSelectorDialog.prototype, {

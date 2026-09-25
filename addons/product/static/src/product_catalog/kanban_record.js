@@ -23,7 +23,10 @@ export const productCatalogOrderLines = registry.category(
     "product_catalog_order_lines",
 );
 
+export const productCatalogKanbanRecordProps = [...KanbanRecord.props];
+
 export class ProductCatalogKanbanRecord extends KanbanRecord {
+    static props = productCatalogKanbanRecordProps;
     static template = "ProductCatalogKanbanRecord";
     static components = {
         ...KanbanRecord.components,

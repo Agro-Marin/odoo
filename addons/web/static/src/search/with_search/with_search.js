@@ -17,39 +17,41 @@ import { useBus, useService } from "@web/core/utils/hooks";
 import { provideWebContext } from "@web/core/web_context_hooks";
 import { provideSearchModel, SearchModel } from "@web/search/search_model";
 
+export const withSearchProps = {
+    slots: Object,
+    SearchModel: { type: Function, optional: true },
+
+    resModel: String,
+
+    globalState: { type: Object, optional: true },
+    searchModelArgs: { type: Object, optional: true },
+
+    display: { type: Object, optional: true },
+
+    context: { type: Object, optional: true },
+    domain: { type: Array, element: [String, Array], optional: true },
+    groupBy: { type: Array, element: String, optional: true },
+    orderBy: { type: Array, element: Object, optional: true },
+
+    searchViewArch: { type: String, optional: true },
+    searchViewIR: { type: Object, optional: true },
+    searchViewFields: { type: Object, optional: true },
+    searchViewId: { type: [Number, Boolean], optional: true },
+
+    irFilters: { type: Array, element: Object, optional: true },
+    loadIrFilters: { type: Boolean, optional: true },
+
+    activateFavorite: { type: Boolean, optional: true },
+    dynamicFilters: { type: Array, element: Object, optional: true },
+    hideCustomGroupBy: { type: Boolean, optional: true },
+    searchMenuTypes: { type: Array, element: String, optional: true },
+    canOrderByCount: { type: Boolean, optional: true },
+    defaultGroupBy: { type: Array, element: String, optional: true },
+};
+
 export class WithSearch extends Component {
     static template = "web.WithSearch";
-    static props = {
-        slots: Object,
-        SearchModel: { type: Function, optional: true },
-
-        resModel: String,
-
-        globalState: { type: Object, optional: true },
-        searchModelArgs: { type: Object, optional: true },
-
-        display: { type: Object, optional: true },
-
-        context: { type: Object, optional: true },
-        domain: { type: Array, element: [String, Array], optional: true },
-        groupBy: { type: Array, element: String, optional: true },
-        orderBy: { type: Array, element: Object, optional: true },
-
-        searchViewArch: { type: String, optional: true },
-        searchViewIR: { type: Object, optional: true },
-        searchViewFields: { type: Object, optional: true },
-        searchViewId: { type: [Number, Boolean], optional: true },
-
-        irFilters: { type: Array, element: Object, optional: true },
-        loadIrFilters: { type: Boolean, optional: true },
-
-        activateFavorite: { type: Boolean, optional: true },
-        dynamicFilters: { type: Array, element: Object, optional: true },
-        hideCustomGroupBy: { type: Boolean, optional: true },
-        searchMenuTypes: { type: Array, element: String, optional: true },
-        canOrderByCount: { type: Boolean, optional: true },
-        defaultGroupBy: { type: Array, element: String, optional: true },
-    };
+    static props = withSearchProps;
 
     setup() {
         const parentCallbacks = useActionCallbackRecorders();

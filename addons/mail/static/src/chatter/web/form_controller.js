@@ -8,12 +8,12 @@ import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
 import { useEventBus, useOptionalService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { FormController } from "@web/views/form";
+import { formControllerProps } from "@web/views/form/form_controller";
 
 const log = makeLogger("mail.chatter.form");
-FormController.props = {
-    ...FormController.props,
+Object.assign(formControllerProps, {
     fullComposerBus: { type: EventBus, optional: true },
-};
+});
 
 patch(FormController.prototype, {
     setup() {

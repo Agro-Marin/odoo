@@ -1,18 +1,18 @@
 /** @odoo-module native */
-import { ComboConfiguratorDialog } from "@sale/js/combo_configurator_dialog/combo_configurator_dialog";
+import {
+    ComboConfiguratorDialog,
+    comboConfiguratorDialogProps,
+} from "@sale/js/combo_configurator_dialog/combo_configurator_dialog";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
-patch(ComboConfiguratorDialog, {
-    props: {
-        ...ComboConfiguratorDialog.props,
-        isFrontend: { type: Boolean, optional: true },
-        options: {
-            ...ComboConfiguratorDialog.props.options,
-            shape: {
-                ...ComboConfiguratorDialog.props.options.shape,
-                isBuyNow: { type: Boolean, optional: true },
-            },
+Object.assign(comboConfiguratorDialogProps, {
+    isFrontend: { type: Boolean, optional: true },
+    options: {
+        ...ComboConfiguratorDialog.props.options,
+        shape: {
+            ...ComboConfiguratorDialog.props.options.shape,
+            isBuyNow: { type: Boolean, optional: true },
         },
     },
 });

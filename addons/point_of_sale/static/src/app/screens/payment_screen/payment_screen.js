@@ -20,6 +20,10 @@ import { useService } from "@web/core/utils/hooks";
 import { AlertDialog } from "@web/ui/dialog";
 const log = makeLogger("pos.screen.payment");
 
+export const paymentScreenProps = {
+    orderUuid: String,
+};
+
 export class PaymentScreen extends Component {
     static template = "point_of_sale.PaymentScreen";
     static components = {
@@ -28,9 +32,7 @@ export class PaymentScreen extends Component {
         PaymentScreenStatus,
         PriceFormatter,
     };
-    static props = {
-        orderUuid: String,
-    };
+    static props = paymentScreenProps;
 
     setup() {
         this.utils = useService("contextual_utils_service");

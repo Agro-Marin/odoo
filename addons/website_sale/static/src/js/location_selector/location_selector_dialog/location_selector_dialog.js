@@ -1,14 +1,14 @@
 /** @odoo-module native */
-import { LocationSelectorDialog } from "@delivery/js/location_selector/location_selector_dialog/location_selector_dialog";
+import {
+    LocationSelectorDialog,
+    locationSelectorDialogProps,
+} from "@delivery/js/location_selector/location_selector_dialog/location_selector_dialog";
 import { patch } from "@web/core/utils/patch";
 import { _t } from "@web/core/translation";
 
-patch(LocationSelectorDialog, {
-    props: {
-        ...LocationSelectorDialog.props,
-        orderId: { type: Number, optional: true },
-        isFrontend: { type: Boolean, optional: true },
-    },
+Object.assign(locationSelectorDialogProps, {
+    orderId: { type: Number, optional: true },
+    isFrontend: { type: Boolean, optional: true },
 });
 
 patch(LocationSelectorDialog.prototype, {

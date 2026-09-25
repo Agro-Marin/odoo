@@ -11,14 +11,16 @@ import { _t } from "@web/core/translation";
 
 import { groupOrderlines } from "./orderline_groups.js";
 const log = makeLogger("pos.component.order_display");
+export const orderDisplayProps = {
+    order: Object,
+    slots: Object,
+    mode: { type: String, optional: true },
+};
+
 export class OrderDisplay extends Component {
     static template = "point_of_sale.OrderDisplay";
     static components = { CenteredIcon, Orderline, TagsList };
-    static props = {
-        order: Object,
-        slots: Object,
-        mode: { type: String, optional: true },
-    };
+    static props = orderDisplayProps;
     static defaultProps = {
         mode: "display",
     };

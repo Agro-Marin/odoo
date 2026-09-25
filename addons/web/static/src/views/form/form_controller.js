@@ -55,6 +55,23 @@ const footerArchInfoCache = new WeakMap();
 
 const log = makeLogger("web.view.form");
 
+export const formControllerProps = {
+    ...standardViewProps,
+    discardRecord: { type: Function, optional: true },
+    readonly: { type: Boolean, optional: true },
+    saveRecord: { type: Function, optional: true },
+    removeRecord: { type: Function, optional: true },
+    Model: Function,
+    Renderer: Function,
+    Compiler: Function,
+    archInfo: Object,
+    buttonTemplate: String,
+    preventCreate: { type: Boolean, optional: true },
+    preventEdit: { type: Boolean, optional: true },
+    onDiscard: { type: Function, optional: true },
+    onSave: { type: Function, optional: true },
+};
+
 export class FormController extends ViewController {
     static template = `web.FormView`;
     static components = {
@@ -68,22 +85,7 @@ export class FormController extends ViewController {
     };
 
     /** @type {Record<string, any>} */
-    static props = {
-        ...standardViewProps,
-        discardRecord: { type: Function, optional: true },
-        readonly: { type: Boolean, optional: true },
-        saveRecord: { type: Function, optional: true },
-        removeRecord: { type: Function, optional: true },
-        Model: Function,
-        Renderer: Function,
-        Compiler: Function,
-        archInfo: Object,
-        buttonTemplate: String,
-        preventCreate: { type: Boolean, optional: true },
-        preventEdit: { type: Boolean, optional: true },
-        onDiscard: { type: Function, optional: true },
-        onSave: { type: Function, optional: true },
-    };
+    static props = formControllerProps;
     static defaultProps = {
         preventCreate: false,
         preventEdit: false,

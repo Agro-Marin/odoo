@@ -14,31 +14,35 @@ It will be gone forever!
 Think twice before you click that 'Delete' button!`,
 );
 
+export const confirmationDialogProps = {
+    close: Function,
+    title: {
+        validate: (/** @type {unknown} */ m) =>
+            typeof m === "string" ||
+            (typeof m === "object" && typeof m.toString === "function"),
+        optional: true,
+    },
+    body: { type: String, optional: true },
+    confirm: { type: Function, optional: true },
+    confirmLabel: { type: String, optional: true },
+    confirmClass: { type: String, optional: true },
+    cancel: { type: Function, optional: true },
+    cancelLabel: { type: String, optional: true },
+    dismiss: { type: Function, optional: true },
+};
+
+export const confirmationDialogDefaultProps = {
+    confirmLabel: _t("Ok"),
+    cancelLabel: _t("Cancel"),
+    confirmClass: "btn-primary",
+    title: _t("Confirmation"),
+};
+
 export class ConfirmationDialog extends Component {
     static template = "web.ConfirmationDialog";
     static components = { Dialog };
-    static props = {
-        close: Function,
-        title: {
-            validate: (/** @type {unknown} */ m) =>
-                typeof m === "string" ||
-                (typeof m === "object" && typeof m.toString === "function"),
-            optional: true,
-        },
-        body: { type: String, optional: true },
-        confirm: { type: Function, optional: true },
-        confirmLabel: { type: String, optional: true },
-        confirmClass: { type: String, optional: true },
-        cancel: { type: Function, optional: true },
-        cancelLabel: { type: String, optional: true },
-        dismiss: { type: Function, optional: true },
-    };
-    static defaultProps = {
-        confirmLabel: _t("Ok"),
-        cancelLabel: _t("Cancel"),
-        confirmClass: "btn-primary",
-        title: _t("Confirmation"),
-    };
+    static props = confirmationDialogProps;
+    static defaultProps = confirmationDialogDefaultProps;
 
     setup() {
         this.dialogContext = useDialogContext();
@@ -111,14 +115,18 @@ export class ConfirmationDialog extends Component {
     }
 }
 
+export const alertDialogProps = {
+    ...ConfirmationDialog.props,
+    contentClass: { type: String, optional: true },
+};
+
+export const alertDialogDefaultProps = {
+    ...ConfirmationDialog.defaultProps,
+    title: _t("Alert"),
+};
+
 export class AlertDialog extends ConfirmationDialog {
     static template = "web.AlertDialog";
-    static props = {
-        ...ConfirmationDialog.props,
-        contentClass: { type: String, optional: true },
-    };
-    static defaultProps = {
-        ...ConfirmationDialog.defaultProps,
-        title: _t("Alert"),
-    };
+    static props = alertDialogProps;
+    static defaultProps = alertDialogDefaultProps;
 }

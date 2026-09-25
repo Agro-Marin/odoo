@@ -1,17 +1,17 @@
 /** @odoo-module native */
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
-import { ActionpadWidget } from "@point_of_sale/app/screens/product_screen/action_pad/action_pad";
+import {
+    ActionpadWidget,
+    actionpadWidgetProps,
+} from "@point_of_sale/app/screens/product_screen/action_pad/action_pad";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 /**
  * @props partner
  */
-patch(ActionpadWidget, {
-    props: {
-        ...ActionpadWidget.props,
-        setTable: { type: Function, optional: true },
-        assignOrder: { type: Function, optional: true },
-    },
+Object.assign(actionpadWidgetProps, {
+    setTable: { type: Function, optional: true },
+    assignOrder: { type: Function, optional: true },
 });
 
 patch(ActionpadWidget.prototype, {

@@ -6,7 +6,13 @@ import { registerField } from "@web/fields/_registry";
 import { SimpleInputFieldBase } from "@web/fields/basic/simple_input_field_base";
 import { placeholderFieldOption } from "@web/fields/field_options";
 
+export const phoneFieldProps = { ...SimpleInputFieldBase.props };
+
+export const phoneFieldDefaultProps = { ...SimpleInputFieldBase.defaultProps };
+
 export class PhoneField extends SimpleInputFieldBase {
+    static defaultProps = phoneFieldDefaultProps;
+    static props = phoneFieldProps;
     static template = "web.PhoneField";
     /** @returns {string} */
     get phoneHref() {

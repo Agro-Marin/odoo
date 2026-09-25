@@ -8,7 +8,10 @@ import { CalendarCommonRenderer } from "@web/views/calendar";
 /** @type {WeakSet<object>} */
 const defaultEventPopoverOpened = new WeakSet();
 
+export const attendeeCalendarCommonRendererProps = { ...CalendarCommonRenderer.props };
+
 export class AttendeeCalendarCommonRenderer extends CalendarCommonRenderer {
+    static props = attendeeCalendarCommonRendererProps;
     static eventTemplate = "calendar.AttendeeCalendarCommonRenderer.event";
     static components = {
         ...CalendarCommonRenderer.components,

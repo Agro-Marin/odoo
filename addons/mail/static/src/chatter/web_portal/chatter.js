@@ -34,10 +34,12 @@ const log = makeLogger("mail.chatter");
  * @template {State} [S=State]
  * @extends {Component<P, import("@web/env").OdooEnv>}
  */
+export const chatterProps = ["composer?", "threadId?", "threadModel", "twoColumns?"];
+
 export class Chatter extends Component {
     static template = "mail.Chatter";
     static components = { Thread, Composer };
-    static props = ["composer?", "threadId?", "threadModel", "twoColumns?"];
+    static props = chatterProps;
     static defaultProps = { composer: true, threadId: false, twoColumns: false };
 
     setup() {

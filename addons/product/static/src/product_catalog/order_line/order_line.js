@@ -3,20 +3,22 @@ import { Component } from "@odoo/owl";
 import { useProductCatalogContext } from "@product/product_catalog/product_catalog_context";
 import { formatFieldFloat, formatMonetary } from "@web/core/formatters";
 
+export const productCatalogOrderLineProps = {
+    isSample: { type: Boolean, optional: true },
+    productId: Number,
+    quantity: Number,
+    price: Number,
+    productType: String,
+    uomDisplayName: String,
+    uomFactor: { type: Number, optional: true },
+    code: { type: String, optional: true },
+    readOnly: { type: Boolean, optional: true },
+    warning: { type: String, optional: true },
+};
+
 export class ProductCatalogOrderLine extends Component {
     static template = "product.ProductCatalogOrderLine";
-    static props = {
-        isSample: { type: Boolean, optional: true },
-        productId: Number,
-        quantity: Number,
-        price: Number,
-        productType: String,
-        uomDisplayName: String,
-        uomFactor: { type: Number, optional: true },
-        code: { type: String, optional: true },
-        readOnly: { type: Boolean, optional: true },
-        warning: { type: String, optional: true },
-    };
+    static props = productCatalogOrderLineProps;
 
     setup() {
         super.setup();

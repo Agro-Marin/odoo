@@ -2,11 +2,13 @@
 import { ProductCatalogOrderLine } from "@product/product_catalog/order_line/order_line";
 import { _t } from "@web/core/translation";
 
+export const productCatalogSaleOrderLineProps = {
+    ...ProductCatalogOrderLine.props,
+    deliveredQty: Number,
+};
+
 export class ProductCatalogSaleOrderLine extends ProductCatalogOrderLine {
-    static props = {
-        ...ProductCatalogOrderLine.props,
-        deliveredQty: Number,
-    };
+    static props = productCatalogSaleOrderLineProps;
 
     get disableRemove() {
         return this.props.quantity === this.props.deliveredQty;

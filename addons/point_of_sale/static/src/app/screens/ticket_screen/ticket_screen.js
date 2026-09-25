@@ -36,6 +36,15 @@ const NBR_BY_PAGE = 30;
 
 const log = makeLogger("pos.screen.ticket");
 
+export const ticketScreenProps = {
+    reuseSavedUIState: { type: Boolean, optional: true },
+    stateOverride: { type: Object, optional: true },
+};
+
+export const ticketScreenDefaultProps = {
+    reuseSavedUIState: false,
+};
+
 export class TicketScreen extends Component {
     static storeOnOrder = false;
     static template = "point_of_sale.TicketScreen";
@@ -50,13 +59,8 @@ export class TicketScreen extends Component {
         BackButton,
         BarcodeVideoScanner,
     };
-    static props = {
-        reuseSavedUIState: { type: Boolean, optional: true },
-        stateOverride: { type: Object, optional: true },
-    };
-    static defaultProps = {
-        reuseSavedUIState: false,
-    };
+    static props = ticketScreenProps;
+    static defaultProps = ticketScreenDefaultProps;
 
     setup() {
         this.utils = useService("contextual_utils_service");

@@ -12,6 +12,12 @@ _COMMENT = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
 _OWN_RENDER = re.compile(r"^\s+render\s*\([^)]*\)\s*\{", re.MULTILINE)
 _XML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _SUB_ENV = re.compile(r"(?<![\w.$])use(?:Child)?SubEnv\s*\(")
+_PROPS_WRITE = re.compile(
+    r"(?<![\w.$])[A-Z]\w*\.(?:props|defaultProps)\s*=(?!=)"
+    r"|\bObject\.assign\(\s*[A-Z]\w*\.(?:props|defaultProps)\b"
+)
+_PATCH_CLASS = re.compile(r"(?<![\w.$])patch\(\s*[A-Z]\w*\s*,\s*\{")
+_PROPS_KEY = re.compile(r"(?<![\w$])(?:props|defaultProps)\s*:")
 _PROVIDER = re.compile(
     r"^(?:export\s+)?function\s+provide[A-Z]\w*\s*\([^)]*\)\s*\{", re.MULTILINE
 )
@@ -91,6 +97,24 @@ def _body_end(code: str, open_brace: int) -> int:
     return len(code)
 
 
+def patched_props_calls(source: str) -> list[int]:
+    code = _COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), source)
+    starts = [m.start() for m in _PROPS_WRITE.finditer(code)]
+    for m in _PATCH_CLASS.finditer(code):
+        body_start = m.end() - 1
+        body_end = _body_end(code, body_start)
+        depth = 0
+        for index in range(body_start, body_end):
+            char = code[index]
+            if char in "{([":
+                depth += 1
+            elif char in "})]":
+                depth -= 1
+            elif depth == 1 and _PROPS_KEY.match(code, index):
+                starts.append(index)
+    return sorted(code.count("\n", 0, start) + 1 for start in starts)
+
+
 def raw_sub_env_calls(source: str) -> list[int]:
     code = _COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), source)
     providers = [
@@ -146,15 +170,20 @@ def _findings(gate: str) -> dict[str, tuple[str, ...]]:
     return {repo: tuple(items) for repo, items in sorted(found.items())}
 
 
+_SCANNERS = {
+    "owl_sub_env_raw": raw_sub_env_calls,
+    "owl_patched_props": patched_props_calls,
+}
+
+
 @functools.cache
-def _sub_env_findings() -> dict[str, tuple[str, ...]]:
+def _scan_findings(gate: str) -> dict[str, tuple[str, ...]]:
+    scan = _SCANNERS[gate]
     repo_by_addon = _repo_by_addon()
     found: dict[str, list[str]] = {repo: [] for repo in repo_by_addon.values()}
     for addon, path, source in _js_sources.addon_js_outside_lib():
         if "/static/src/" in path.as_posix() and _outside_vendored(path):
-            found[repo_by_addon[addon]] += [
-                f"{path}:{line}" for line in raw_sub_env_calls(source)
-            ]
+            found[repo_by_addon[addon]] += [f"{path}:{line}" for line in scan(source)]
     return {repo: tuple(items) for repo, items in sorted(found.items())}
 
 
@@ -332,12 +361,23 @@ class TestOwl3Api(lint_case.LintCase):
 
     def test_no_raw_sub_env(self):
         self._assert_per_repo(
-            _sub_env_findings(),
+            _scan_findings("owl_sub_env_raw"),
             "owl_sub_env_raw",
             "useSubEnv / useChildSubEnv calls outside a provide* function",
             "A scope hands a value to its descendants through the provide* hook "
             "paired with the use* accessor its readers call; OWL 3 has no env, so "
             "each pair becomes a plugin",
+        )
+
+    def test_no_patched_props(self):
+        self._assert_per_repo(
+            _scan_findings("owl_patched_props"),
+            "owl_patched_props",
+            "component props or defaultProps rewritten after the class is defined",
+            "The owner exports its props (and defaultProps) object and points its "
+            "static at it; a patch extends that object with Object.assign or push. "
+            "OWL 3 reads props from the schema a component passes to useProps, so a "
+            "rewritten static is lost",
         )
 
 
@@ -378,3 +418,20 @@ class TestOwl3ApiScan(BaseCase):
             "this.useSubEnv(x);\n"
         )
         self.assertEqual(raw_sub_env_calls(source), [8])
+
+    def test_a_props_rewrite_is_found_and_an_owned_schema_extension_is_not(self):
+        source = (
+            "Foo.props = { ...Foo.props, a: String };\n"
+            "Object.assign(Bar.props, extra);\n"
+            "patch(Baz, {\n"
+            "    components: { ...Baz.components },\n"
+            "    defaultProps: { ...Baz.defaultProps, b: 1 },\n"
+            "});\n"
+            "patch(Baz.prototype, { props: 1 });\n"
+            "Object.assign(fooProps, { a: String });\n"
+            'barProps.push("b?");\n'
+            "listView.props = (p) => p;\n"
+            "if (Foo.props === other) {}\n"
+            "// Foo.props = {};\n"
+        )
+        self.assertEqual(patched_props_calls(source), [1, 2, 5])

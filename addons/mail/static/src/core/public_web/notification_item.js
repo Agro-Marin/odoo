@@ -9,25 +9,27 @@ import { luxon } from "@web/core/l10n/luxon";
 import { useService } from "@web/core/utils/hooks";
 const { DateTime } = luxon;
 
+export const notificationItemProps = [
+    "counter?",
+    "datetime?",
+    "first?",
+    "hasMarkAsReadButton?",
+    "iconSrc?",
+    "important?",
+    "muted?",
+    "onClick",
+    "onSwipeLeft?",
+    "onSwipeRight?",
+    "slots?",
+    "isActive?",
+    "nameMaxLine?",
+    "textMaxLine?",
+    "thread?",
+];
+
 export class NotificationItem extends Component {
     static components = { ActionSwiper };
-    static props = [
-        "counter?",
-        "datetime?",
-        "first?",
-        "hasMarkAsReadButton?",
-        "iconSrc?",
-        "important?",
-        "muted?",
-        "onClick",
-        "onSwipeLeft?",
-        "onSwipeRight?",
-        "slots?",
-        "isActive?",
-        "nameMaxLine?",
-        "textMaxLine?",
-        "thread?",
-    ];
+    static props = notificationItemProps;
     static defaultProps = {
         counter: 0,
         muted: 0,

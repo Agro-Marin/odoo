@@ -30,6 +30,22 @@ import { PropertyValue } from "./property_value.js";
 
 const log = makeLogger("web.field.property_definition");
 
+export const propertyDefinitionProps = {
+    fieldName: { type: String },
+    readonly: { type: Boolean, optional: true },
+    canChangeDefinition: { type: Boolean, optional: true },
+    propertyDefinition: { optional: true },
+    context: { type: Object },
+    isNewlyCreated: { type: Boolean, optional: true },
+    propertyIndex: { type: Number },
+    propertiesSize: { type: Number },
+    onChange: { type: Function, optional: true },
+    onDelete: { type: Function, optional: true },
+    onPropertyMove: { type: Function, optional: true },
+    close: { type: Function, optional: true },
+    record: { type: Object, optional: true },
+};
+
 export class PropertyDefinition extends Component {
     static template = "web.PropertyDefinition";
     static components = {
@@ -43,21 +59,7 @@ export class PropertyDefinition extends Component {
         PropertyDefinitionSelection,
         PropertyTags,
     };
-    static props = {
-        fieldName: { type: String },
-        readonly: { type: Boolean, optional: true },
-        canChangeDefinition: { type: Boolean, optional: true },
-        propertyDefinition: { optional: true },
-        context: { type: Object },
-        isNewlyCreated: { type: Boolean, optional: true },
-        propertyIndex: { type: Number },
-        propertiesSize: { type: Number },
-        onChange: { type: Function, optional: true },
-        onDelete: { type: Function, optional: true },
-        onPropertyMove: { type: Function, optional: true },
-        close: { type: Function, optional: true },
-        record: { type: Object, optional: true },
-    };
+    static props = propertyDefinitionProps;
     static _propertyParametersMap = new Map([
         ["comodel", ["many2one", "many2many"]],
         ["currency_field", ["monetary"]],

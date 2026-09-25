@@ -5,16 +5,18 @@ import { useProductConfiguratorContext } from "@sale/js/product_configurator_dia
 import { BadgeExtraPrice } from "../badge_extra_price/badge_extra_price.js";
 import { ProductProduct } from "../models/product_product.js";
 
+export const productCardProps = {
+    product: ProductProduct,
+    extraPrice: { type: Number, optional: true },
+    onClick: Function,
+    isSelected: { type: Boolean, optional: true },
+    isConfigurable: { type: Boolean, optional: true },
+};
+
 export class ProductCard extends Component {
     static template = "sale.ProductCard";
     static components = { BadgeExtraPrice };
-    static props = {
-        product: ProductProduct,
-        extraPrice: { type: Number, optional: true },
-        onClick: Function,
-        isSelected: { type: Boolean, optional: true },
-        isConfigurable: { type: Boolean, optional: true },
-    };
+    static props = productCardProps;
 
     setup() {
         super.setup();

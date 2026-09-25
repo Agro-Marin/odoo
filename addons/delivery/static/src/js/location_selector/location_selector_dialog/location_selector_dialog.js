@@ -9,16 +9,18 @@ import { rpc } from "@web/core/network";
 import { useDebounced } from "@web/core/utils/timing";
 import { useService } from "@web/core/utils/hooks";
 
+export const locationSelectorDialogProps = {
+    orderId: Number,
+    zipCode: String,
+    selectedLocationId: { type: String, optional: true },
+    save: Function,
+    close: Function, // This is the close from the env of the Dialog Component
+};
+
 export class LocationSelectorDialog extends Component {
     static components = { Dialog, LocationList, MapContainer };
     static template = "delivery.locationSelector.dialog";
-    static props = {
-        orderId: Number,
-        zipCode: String,
-        selectedLocationId: { type: String, optional: true },
-        save: Function,
-        close: Function, // This is the close from the env of the Dialog Component
-    };
+    static props = locationSelectorDialogProps;
     static defaultProps = {
         selectedLocationId: false,
     };

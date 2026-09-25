@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Chatter } from "@mail/chatter/web_portal/chatter";
+import { Chatter, chatterProps } from "@mail/chatter/web_portal/chatter";
 import { onWillUpdateProps } from "@odoo/owl";
 import { providePortalContext } from "@portal/portal_context";
 import { useService } from "@web/core/utils/hooks";
@@ -34,9 +34,4 @@ patch(Chatter.prototype, {
         this.state.isFollower = true;
     },
 });
-Chatter.props = [
-    ...Chatter.props,
-    "projectSharingId",
-    "isFollower",
-    "displayFollowButton",
-];
+chatterProps.push("projectSharingId", "isFollower", "displayFollowButton");

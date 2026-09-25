@@ -5,7 +5,13 @@ import { logPosMessage } from "@point_of_sale/app/utils/pretty_console_log";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
-import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog";
+import { ConfirmationDialog } from "@web/ui/dialog";
+import {
+    alertDialogDefaultProps,
+    alertDialogProps,
+    confirmationDialogDefaultProps,
+    confirmationDialogProps,
+} from "@web/ui/dialog/confirmation_dialog";
 const log = makeLogger("pos.dialog.confirmation");
 patch(ConfirmationDialog.prototype, {
     setup() {
@@ -47,24 +53,20 @@ patch(ConfirmationDialog.prototype, {
     },
 });
 
-ConfirmationDialog.props = {
-    ...ConfirmationDialog.props,
+Object.assign(confirmationDialogProps, {
     getPayload: { type: Function, optional: true },
     showReloadButton: { type: Boolean, optional: true },
-};
+});
 
-ConfirmationDialog.defaultProps = {
-    ...ConfirmationDialog.defaultProps,
+Object.assign(confirmationDialogDefaultProps, {
     showReloadButton: false,
-};
+});
 
-AlertDialog.props = {
-    ...AlertDialog.props,
+Object.assign(alertDialogProps, {
     getPayload: { type: Function, optional: true },
     showReloadButton: { type: Boolean, optional: true },
-};
+});
 
-AlertDialog.defaultProps = {
-    ...AlertDialog.defaultProps,
+Object.assign(alertDialogDefaultProps, {
     showReloadButton: false,
-};
+});

@@ -3,7 +3,10 @@ import { AttendeeCalendarCommonRenderer } from "@calendar/views/attendee_calenda
 import { AttendeeCalendarYearRenderer } from "@calendar/views/attendee_calendar/year/attendee_calendar_year_renderer";
 import { CalendarRenderer } from "@web/views/calendar";
 
+export const attendeeCalendarRendererProps = { ...CalendarRenderer.props };
+
 export class AttendeeCalendarRenderer extends CalendarRenderer {
+    static props = attendeeCalendarRendererProps;
     static components = {
         ...CalendarRenderer.components,
         day: AttendeeCalendarCommonRenderer,

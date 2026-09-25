@@ -1,7 +1,10 @@
 /** @odoo-module native */
 import { luxon } from "@web/core/l10n/luxon";
-import { AttendeeCalendarCommonRenderer } from "@calendar/views/attendee_calendar/common/attendee_calendar_common_renderer";
-import { AttendeeCalendarRenderer } from "@calendar/views/attendee_calendar/attendee_calendar_renderer";
+import {
+    AttendeeCalendarCommonRenderer,
+    attendeeCalendarCommonRendererProps,
+} from "@calendar/views/attendee_calendar/common/attendee_calendar_common_renderer";
+import { attendeeCalendarRendererProps } from "@calendar/views/attendee_calendar/attendee_calendar_renderer";
 import { user } from "@web/core/user";
 import { patch } from "@web/core/utils/patch";
 import { renderToString } from "@web/core/utils/render";
@@ -144,14 +147,12 @@ patch(AttendeeCalendarCommonRenderer.prototype, {
     },
 });
 
-AttendeeCalendarRenderer.props = {
-    ...AttendeeCalendarRenderer.props,
+Object.assign(attendeeCalendarRendererProps, {
     openWorkLocationWizard: { type: Function, optional: true },
-};
-AttendeeCalendarCommonRenderer.props = {
-    ...AttendeeCalendarCommonRenderer.props,
+});
+Object.assign(attendeeCalendarCommonRendererProps, {
     openWorkLocationWizard: { type: Function, optional: true },
-};
+});
 
 AttendeeCalendarCommonRenderer.WorklocationTemplate =
     "hr_homeworking_calendar.CalendarCommonRenderer.worklocation";

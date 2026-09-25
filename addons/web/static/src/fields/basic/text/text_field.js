@@ -19,19 +19,21 @@ import { TranslationButton } from "@web/fields/translation_button";
 
 import { TextInputFieldBase } from "../text_input_field_base.js";
 
+export const textFieldProps = {
+    ...standardFieldProps,
+    lineBreaks: { type: Boolean, optional: true },
+    placeholder: { type: String, optional: true },
+    dynamicPlaceholder: { type: Boolean, optional: true },
+    dynamicPlaceholderModelReferenceField: { type: String, optional: true },
+    rowCount: { type: Number, optional: true },
+};
+
 export class TextField extends TextInputFieldBase {
     static template = "web.TextField";
     static components = {
         TranslationButton,
     };
-    static props = {
-        ...standardFieldProps,
-        lineBreaks: { type: Boolean, optional: true },
-        placeholder: { type: String, optional: true },
-        dynamicPlaceholder: { type: Boolean, optional: true },
-        dynamicPlaceholderModelReferenceField: { type: String, optional: true },
-        rowCount: { type: Number, optional: true },
-    };
+    static props = textFieldProps;
     static defaultProps = {
         lineBreaks: true,
         dynamicPlaceholder: false,

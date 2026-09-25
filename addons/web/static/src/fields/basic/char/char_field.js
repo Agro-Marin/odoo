@@ -18,20 +18,22 @@ import { TranslationButton } from "@web/fields/translation_button";
 
 import { TextInputFieldBase } from "../text_input_field_base.js";
 
+export const charFieldProps = {
+    ...standardFieldProps,
+    autocomplete: { type: String, optional: true },
+    isPassword: { type: Boolean, optional: true },
+    trim: { type: Boolean, optional: true },
+    placeholder: { type: String, optional: true },
+    dynamicPlaceholder: { type: Boolean, optional: true },
+    dynamicPlaceholderModelReferenceField: { type: String, optional: true },
+};
+
 export class CharField extends TextInputFieldBase {
     static template = "web.CharField";
     static components = {
         TranslationButton,
     };
-    static props = {
-        ...standardFieldProps,
-        autocomplete: { type: String, optional: true },
-        isPassword: { type: Boolean, optional: true },
-        trim: { type: Boolean, optional: true },
-        placeholder: { type: String, optional: true },
-        dynamicPlaceholder: { type: Boolean, optional: true },
-        dynamicPlaceholderModelReferenceField: { type: String, optional: true },
-    };
+    static props = charFieldProps;
     static defaultProps = { dynamicPlaceholder: false };
 
     /** @type {import("@odoo/owl").Ref<HTMLInputElement>} */

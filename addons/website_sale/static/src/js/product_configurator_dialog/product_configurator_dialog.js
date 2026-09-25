@@ -1,5 +1,8 @@
 /** @odoo-module native */
-import { ProductConfiguratorDialog } from "@sale/js/product_configurator_dialog/product_configurator_dialog";
+import {
+    ProductConfiguratorDialog,
+    productConfiguratorDialogProps,
+} from "@sale/js/product_configurator_dialog/product_configurator_dialog";
 import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import {
@@ -7,17 +10,14 @@ import {
     useProductConfiguratorContext,
 } from "@sale/js/product_configurator_dialog/product_configurator_context";
 
-patch(ProductConfiguratorDialog, {
-    props: {
-        ...ProductConfiguratorDialog.props,
-        isFrontend: { type: Boolean, optional: true },
-        options: {
-            ...ProductConfiguratorDialog.props.options,
-            shape: {
-                ...ProductConfiguratorDialog.props.options.shape,
-                isMainProductConfigurable: { type: Boolean, optional: true },
-                isBuyNow: { type: Boolean, optional: true },
-            },
+Object.assign(productConfiguratorDialogProps, {
+    isFrontend: { type: Boolean, optional: true },
+    options: {
+        ...ProductConfiguratorDialog.props.options,
+        shape: {
+            ...ProductConfiguratorDialog.props.options.shape,
+            isMainProductConfigurable: { type: Boolean, optional: true },
+            isBuyNow: { type: Boolean, optional: true },
         },
     },
 });

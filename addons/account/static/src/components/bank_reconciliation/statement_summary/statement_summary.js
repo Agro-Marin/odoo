@@ -2,17 +2,19 @@
 import { Component } from "@odoo/owl";
 import { useSearchModel } from "@web/search/search_model";
 
+export const bankRecStatementSummaryProps = {
+    label: { type: String },
+    amount: { type: String, optional: true },
+    action: { type: Function },
+    journalId: { type: Number, optional: true },
+    isValid: { type: Boolean, optional: true },
+    journalIsInvalid: { type: Boolean, optional: true },
+};
+
 export class BankRecStatementSummary extends Component {
     static template = "account.BankRecStatementSummary";
 
-    static props = {
-        label: { type: String },
-        amount: { type: String, optional: true },
-        action: { type: Function },
-        journalId: { type: Number, optional: true },
-        isValid: { type: Boolean, optional: true },
-        journalIsInvalid: { type: Boolean, optional: true },
-    };
+    static props = bankRecStatementSummaryProps;
     static defaultProps = {
         isValid: true,
     };

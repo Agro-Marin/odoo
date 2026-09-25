@@ -7,7 +7,10 @@ import { useDebounced } from "@web/core/utils/timing";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { KanbanController } from "@web/views/kanban";
 
+export const productCatalogKanbanControllerProps = { ...KanbanController.props };
+
 export class ProductCatalogKanbanController extends KanbanController {
+    static props = productCatalogKanbanControllerProps;
     static template = "ProductCatalogKanbanController";
 
     setup() {

@@ -9,36 +9,38 @@ import { ProductTemplateAttributeLine as PTAL } from "../product_template_attrib
 import { QuantityButtons } from "../quantity_buttons/quantity_buttons.js";
 import { getSelectedCustomPtav } from "../sale_utils.js";
 
+export const productProps = {
+    id: { type: [Number, { value: false }], optional: true },
+    product_tmpl_id: Number,
+    display_name: String,
+    description_sale: [Boolean, String],
+    price: Number,
+    quantity: Number,
+    uom: { type: Object, optional: true },
+    available_uoms: { type: Array, element: Object, optional: true },
+    attribute_lines: Object,
+    optional: Boolean,
+    imageURL: { type: String, optional: true },
+    archived_combinations: Array,
+    exclusions: Object,
+    parent_exclusions: Object,
+    parent_product_tmpl_id: { type: Number, optional: true },
+    price_info: { type: String, optional: true },
+    selectedComboItems: {
+        type: Array,
+        element: Object,
+        shape: {
+            name: String,
+        },
+        optional: true,
+    },
+    show_extra_price: { type: Boolean, optional: true },
+};
+
 export class Product extends Component {
     static components = { PTAL, QuantityButtons };
     static template = "sale.Product";
-    static props = {
-        id: { type: [Number, { value: false }], optional: true },
-        product_tmpl_id: Number,
-        display_name: String,
-        description_sale: [Boolean, String],
-        price: Number,
-        quantity: Number,
-        uom: { type: Object, optional: true },
-        available_uoms: { type: Array, element: Object, optional: true },
-        attribute_lines: Object,
-        optional: Boolean,
-        imageURL: { type: String, optional: true },
-        archived_combinations: Array,
-        exclusions: Object,
-        parent_exclusions: Object,
-        parent_product_tmpl_id: { type: Number, optional: true },
-        price_info: { type: String, optional: true },
-        selectedComboItems: {
-            type: Array,
-            element: Object,
-            shape: {
-                name: String,
-            },
-            optional: true,
-        },
-        show_extra_price: { type: Boolean, optional: true },
-    };
+    static props = productProps;
 
     static defaultProps = {
         show_extra_price: true,

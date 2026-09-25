@@ -1,14 +1,16 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 
+export const projectProfitabilityProps = {
+    data: Object,
+    labels: Object,
+    formatMonetary: Function,
+    onProjectActionClick: Function,
+    onClick: Function,
+};
+
 export class ProjectProfitability extends Component {
-    static props = {
-        data: Object,
-        labels: Object,
-        formatMonetary: Function,
-        onProjectActionClick: Function,
-        onClick: Function,
-    };
+    static props = projectProfitabilityProps;
     static template = "project.ProjectProfitability";
 
     get revenues() {
