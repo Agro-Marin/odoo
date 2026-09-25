@@ -55,6 +55,10 @@ registerWebsitePreviewTour(
             {
                 trigger: "body:not(:has(.modal))",
             },
+            {
+                content: "eLearning: the preview shows the new course",
+                trigger: ":iframe [is-ready=true] h1:contains(How to Déboulonnate)",
+            },
             ...clickOnEditAndWaitEditMode(),
             {
                 content: "eLearning: double click image to edit it",

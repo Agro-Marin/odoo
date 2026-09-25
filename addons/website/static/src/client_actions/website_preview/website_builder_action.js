@@ -32,12 +32,7 @@ import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { getScrollingElement } from "@web/core/utils/dom/scrolling";
 import { uniqueId } from "@web/core/utils/functions";
-import {
-    useBus,
-    useChildRef,
-    useOptionalService,
-    useService,
-} from "@web/core/utils/hooks";
+import { useBus, useChildRef, useService, useServices } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { effect } from "@web/core/utils/reactive";
 import { renderToElement } from "@web/core/utils/render";
@@ -83,7 +78,9 @@ export class WebsiteBuilderClientAction extends Component {
 
     setup() {
         this.debug = useDebugMode();
-        this.snippets = useOptionalService("html_builder.snippets");
+        // html_builder.snippets registers with website.website_builder_assets,
+        // after setup: it is looked up once that bundle has loaded.
+        this.appServices = useServices();
         useLifecycleLog(log);
         this.target = null;
         this.orm = useService("orm");
@@ -179,11 +176,13 @@ export class WebsiteBuilderClientAction extends Component {
             if (!this.ui.isSmall) {
                 loadBundle("website.website_builder_assets")
                     .then(() =>
-                        this.snippets?.getSnippetModel(this.snippetsTemplate).reload({
-                            lang: this.websiteService.currentWebsite?.default_lang_id
-                                .code,
-                            website_id: this.websiteService.currentWebsite?.id,
-                        }),
+                        this.appServices["html_builder.snippets"]
+                            .getSnippetModel(this.snippetsTemplate)
+                            .reload({
+                                lang: this.websiteService.currentWebsite
+                                    ?.default_lang_id.code,
+                                website_id: this.websiteService.currentWebsite?.id,
+                            }),
                     )
                     .catch((error) =>
                         console.warn("[website] snippet preload skipped:", error),

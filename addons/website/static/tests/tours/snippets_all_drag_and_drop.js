@@ -21,17 +21,20 @@ const DROP_IN_ONLY_SNIPPETS = {
     s_video: ".media_iframe_video",
 };
 
-let snippetsNames =
-    new URL(document.location.href).searchParams.get("snippets_names") || "";
-const searchParams = new URLSearchParams(window.location.search).get("path");
-if (searchParams) {
-    snippetsNames =
-        new URLSearchParams(searchParams.split("/")[1]).get("snippets_names") || "";
-    snippetsNames = snippetsNames.split(",");
+// The preview replaces the browser URL with its iframe's once that loads, so
+// the list is read from the URL the test started on, not from the location.
+function getSnippetsNames(startUrl) {
+    const url = new URL(startUrl, window.location.origin);
+    const path = url.searchParams.get("path");
+    const names = (
+        path ? new URL(path, window.location.origin).searchParams : url.searchParams
+    ).get("snippets_names");
+    return names ? names.split(",") : [];
 }
 
 registry.category("web_tour.tours").add("snippets_all_drag_and_drop", {
-    steps: () => {
+    steps: ({ startUrl = window.location.href } = {}) => {
+        const snippetsNames = getSnippetsNames(startUrl);
         let steps = [];
         let n = 0;
         for (let snippet of snippetsNames) {

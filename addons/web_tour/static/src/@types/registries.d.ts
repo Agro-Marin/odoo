@@ -10,10 +10,15 @@ declare module "registries" {
         [key: string]: any;
     }
 
+    interface TourConfig {
+        startUrl?: string;
+        [key: string]: any;
+    }
+
     export interface ToursRegistryShape {
         test?: boolean;
         url?: string;
-        steps(): TourStep[];
+        steps(config?: TourConfig): TourStep[];
     }
 
     export interface GlobalRegistryCategories {

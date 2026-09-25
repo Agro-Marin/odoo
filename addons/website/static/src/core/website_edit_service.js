@@ -302,13 +302,6 @@ export const websiteEditService = {
         };
 
         const handlePluginLoaded = (ev) => {
-            ev.currentTarget.dispatchEvent(
-                new CustomEvent("transfer_website_edit_service", {
-                    detail: {
-                        websiteEditService,
-                    },
-                }),
-            );
             Object.assign(shared, ev.shared);
             log.lifecycle("edit interaction plugin loaded", () => ({
                 sharedPlugins: Object.keys(shared).length,
@@ -318,6 +311,15 @@ export const websiteEditService = {
                 ...window[EDIT_HOOKS_KEY],
                 ignoreDOMMutations: shared.history.ignoreDOMMutations,
             };
+            // the plugin refreshes synchronously on transfer when it owes one,
+            // which runs interactions through the history hooks set above
+            ev.currentTarget.dispatchEvent(
+                new CustomEvent("transfer_website_edit_service", {
+                    detail: {
+                        websiteEditService,
+                    },
+                }),
+            );
         };
 
         window.parent.document.addEventListener("edit_page", handleEditPage);

@@ -104,20 +104,20 @@ export const tourService = {
             section: "testing",
         }));
 
-        function getTourFromRegistry(tourName) {
+        function getTourFromRegistry(tourName, tourConfig) {
             if (!tourRegistry.contains(tourName)) {
                 return;
             }
             const tour = tourRegistry.get(tourName);
             return {
                 ...tour,
-                steps: tour.steps(),
+                steps: tour.steps(tourConfig),
                 name: tourName,
                 wait_for: tour.wait_for || Promise.resolve(),
             };
         }
 
-        async function getTourFromDB(tourName) {
+        async function getTourFromDB(tourName, tourConfig) {
             const tour = await orm.call("web_tour.tour", "get_tour_json_by_name", [
                 tourName,
             ]);
@@ -126,7 +126,7 @@ export const tourService = {
             }
 
             if (!tour.steps.length && tourRegistry.contains(tour.name)) {
-                tour.steps = tourRegistry.get(tour.name).steps();
+                tour.steps = tourRegistry.get(tour.name).steps(tourConfig);
             }
 
             return tour;
@@ -146,15 +146,14 @@ export const tourService = {
 
         async function startTour(tourName, options = {}) {
             pointer.stop();
-            const tourFromRegistry = getTourFromRegistry(tourName);
-
-            if (!tourFromRegistry && !options.fromDB) {
+            if (!tourRegistry.contains(tourName) && !options.fromDB) {
                 return;
             }
 
-            const tour = options.fromDB
-                ? { name: tourName, url: options.url }
-                : tourFromRegistry;
+            const tour = {
+                name: tourName,
+                url: options.fromDB ? options.url : tourRegistry.get(tourName).url,
+            };
             if (!session.is_public && !toursEnabled && options.mode === "manual") {
                 toursEnabled = await orm.call("res.users", "switch_tour_enabled", [
                     !toursEnabled,
@@ -218,12 +217,12 @@ export const tourService = {
 
             let tour;
             if (tourConfig.fromDB) {
-                tour = await getTourFromDB(tourName);
+                tour = await getTourFromDB(tourName, tourConfig);
             } else {
-                tour = getTourFromRegistry(tourName);
+                tour = getTourFromRegistry(tourName, tourConfig);
                 if (!tour) {
                     await whenTourIsRegistered(tourName);
-                    tour = getTourFromRegistry(tourName);
+                    tour = getTourFromRegistry(tourName, tourConfig);
                 }
             }
             if (!tour) {
