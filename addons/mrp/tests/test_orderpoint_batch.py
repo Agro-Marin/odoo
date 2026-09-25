@@ -128,3 +128,20 @@ class TestMrpOrderpointBatch(TransactionCase):
     def test_lead_time_statements_do_not_grow_without_boms(self):
         self.lead_time_statements(1)
         self.assertEqual(self.lead_time_statements(3), self.lead_time_statements(12))
+
+    def placeholder_statements(self, count):
+        count, placeholders = self.statements(
+            self.make_orderpoints(
+                self.make_products(count, with_bom=True),
+                route_id=self.manufacture_route.id,
+            ),
+            lambda orderpoints: orderpoints.mapped("bom_id_placeholder"),
+        )
+        self.assertTrue(all(placeholders))
+        return count
+
+    def test_placeholder_statements_do_not_grow_with_orderpoints(self):
+        self.placeholder_statements(1)
+        self.assertEqual(
+            self.placeholder_statements(3), self.placeholder_statements(12)
+        )

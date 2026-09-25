@@ -75,16 +75,25 @@ class StockWarehouseOrderpointReplenish(models.Model):
     def action_remove_manual_qty_to_order(self):
         self.write({"qty_to_order_manual": 0, "qty_to_order_manual_set": False})
 
-    def _get_default_rule(self):
-        self.check_singleton()
-        return self.env["stock.rule"]._get_rule(
-            self.product_id,
-            self.location_id,
-            {
-                "route_ids": self.route_id,
-                "warehouse_id": self.warehouse_id,
-            },
-        )
+    def _get_default_rule_map(self):
+        Rule = self.env["stock.rule"]
+        procurements = [
+            Rule.Procurement(
+                orderpoint.product_id,
+                0.0,
+                orderpoint.product_uom_id,
+                orderpoint.location_id,
+                orderpoint.name,
+                orderpoint.name,
+                orderpoint.company_id,
+                {
+                    "route_ids": orderpoint.route_id,
+                    "warehouse_id": orderpoint.warehouse_id,
+                },
+            )
+            for orderpoint in self
+        ]
+        return dict(zip(self, Rule._get_rules_batch(procurements), strict=True))
 
     def _get_default_route_map(self):
         to_compute = self.filtered("location_id")

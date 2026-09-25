@@ -237,11 +237,9 @@ class StockWarehouseOrderpoint(models.Model):
         Bom = self.env["mrp.bom"]
         result = dict.fromkeys(self, Bom)
         by_lookup = defaultdict(lambda: self.env["stock.warehouse.orderpoint"])
-        for orderpoint in self:
-            if orderpoint.show_bom:
-                by_lookup[(orderpoint._get_default_rule(), orderpoint.company_id)] |= (
-                    orderpoint
-                )
+        shown = self.filtered("show_bom")
+        for orderpoint, rule in shown._get_default_rule_map().items():
+            by_lookup[(rule, orderpoint.company_id)] |= orderpoint
         for (rule, company), orderpoints in by_lookup.items():
             products = orderpoints.product_id
             boms = Bom._get_bom_by_product(
