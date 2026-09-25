@@ -122,8 +122,8 @@ Registry.new(db)
    └─ register_model_hooks() · check_null_constraints()
 ```
 
-Fourteen of the 24 `loader.*` calls, in call order; the sketch selects, it does
-not enumerate. Every one of the 24 is *called* on a plain load too — the
+Fourteen of the 25 `loader.*` calls, in call order; the sketch selects, it does
+not enumerate. Every one of the 25 is *called* on a plain load too — the
 "update only" phases return at their first line when `update_module` is false.
 The full sequence is `loading.py`'s; `tests/loading/test_load_modules_phases.py`
 pins it against a real load, and
