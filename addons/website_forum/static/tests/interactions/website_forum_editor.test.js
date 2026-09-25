@@ -47,6 +47,15 @@ describe("editor in forum", () => {
         expect(".note-editable").toHaveCount(1);
         expect(wysiwyg.props.fullEdit).toBe(false);
     });
+    for (const karma of [1, -1]) {
+        test(`the forum editor offers no file upload (karma ${karma})`, async () => {
+            await startInteractions(makeHtmlContent(karma));
+            const wysiwyg = await mountedWysiwyg;
+            const pluginIds = wysiwyg.editor.plugins.map((p) => p.constructor.id);
+            expect(pluginIds).toInclude("powerbox");
+            expect(pluginIds).not.toInclude("file");
+        });
+    }
     test("H1 to H3 are not available as fonts", async () => {
         await startInteractions(makeHtmlContent(1));
         const wysiwyg = await mountedWysiwyg;
