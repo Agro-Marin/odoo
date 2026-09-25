@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.tools import SQL, Query, get_lang
+from odoo.tools import SQL, Query, frozendict, get_lang
 
 
 class Im_LivechatReportChannel(models.Model):
@@ -7,6 +7,42 @@ class Im_LivechatReportChannel(models.Model):
     _description = "Livechat Support Channel Report"
     _order = "start_date, livechat_channel_id, channel_id"
     _auto = False
+    _depends = frozendict(
+        {
+            "chatbot.message": ["discuss_channel_id", "user_raw_script_answer_id"],
+            "chatbot.script.answer": ["name"],
+            "discuss.call.history": ["channel_id", "end_dt", "start_dt"],
+            "discuss.channel": [
+                "channel_type",
+                "country_id",
+                "create_date",
+                "livechat_channel_id",
+                "livechat_end_dt",
+                "livechat_failure",
+                "livechat_is_escalated",
+                "livechat_operator_id",
+                "name",
+                "rating_last_value",
+                "uuid",
+            ],
+            "im_livechat.channel.member.history": [
+                "channel_id",
+                "chatbot_script_id",
+                "guest_id",
+                "livechat_member_type",
+                "partner_id",
+                "agent_expertise_ids",
+            ],
+            "im_livechat.expertise": ["name"],
+            "mail.message": [
+                "author_guest_id",
+                "author_id",
+                "create_date",
+                "model",
+                "res_id",
+            ],
+        }
+    )
 
     uuid = fields.Char(
         string="UUID",

@@ -3,12 +3,42 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
 from odoo.libs.sql import SQL
+from odoo.tools import frozendict
 
 
 class HrLeaveAttendanceReport(models.Model):
     _name = "hr.leave.attendance.report"
     _description = "Attendance and Leave Analysis Report"
     _auto = False
+    _depends = frozendict(
+        {
+            "hr.attendance": ["check_in", "employee_id", "worked_hours"],
+            "hr.employee": ["company_id"],
+            "hr.leave": [
+                "date_from",
+                "date_to",
+                "employee_id",
+                "number_of_hours",
+                "state",
+            ],
+            "hr.version": [
+                "contract_date_end",
+                "contract_date_start",
+                "date_version",
+                "employee_id",
+                "resource_calendar_id",
+            ],
+            "resource.calendar": ["hours_per_day"],
+            "resource.calendar.attendance": ["calendar_id", "dayofweek"],
+            "resource.schedule.exception": [
+                "calendar_id",
+                "company_id",
+                "date_from",
+                "date_to",
+                "resource_id",
+            ],
+        }
+    )
 
     def _compute_display_name(self):
         for rec in self:
@@ -186,7 +216,7 @@ class HrLeaveAttendanceReport(models.Model):
     def _join_resource_calendar_attendance(self):
         return """
             LEFT JOIN (
-                        SELECT DISTINCT ON (calendar_id, dayofweek) *
+                        SELECT DISTINCT ON (calendar_id, dayofweek) id, calendar_id, dayofweek
                           FROM resource_calendar_attendance
                          ORDER BY calendar_id, dayofweek
                       ) AS rca
@@ -213,7 +243,7 @@ class HrLeaveAttendanceReport(models.Model):
                                                   )
                                                AS d(day)
                                        INNER JOIN (
-                                                    SELECT DISTINCT ON (calendar_id, dayofweek) *
+                                                    SELECT DISTINCT ON (calendar_id, dayofweek) id, calendar_id, dayofweek
                                                       FROM resource_calendar_attendance
                                                      ORDER BY calendar_id, dayofweek
                                                   ) AS rca2

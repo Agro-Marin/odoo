@@ -12,6 +12,53 @@ class SaleReport(models.Model):
     _inherit = "mixin.order.report"
     _description = "Sales Analysis Report"
     _auto = False
+    _depends = frozendict(
+        {
+            "product.product": ["product_tmpl_id", "volume", "weight"],
+            "product.template": ["categ_id", "uom_id"],
+            "res.partner": [
+                "commercial_partner_id",
+                "country_id",
+                "primary_industry_id",
+                "state_id",
+                "zip",
+            ],
+            "sale.order": [
+                "campaign_id",
+                "company_id",
+                "currency_rate",
+                "date_order",
+                "invoice_state",
+                "medium_id",
+                "name",
+                "partner_id",
+                "pricelist_id",
+                "sent",
+                "source_id",
+                "state",
+                "user_id",
+            ],
+            "sale.order.line": [
+                "amount_taxexc_invoiced",
+                "amount_taxexc_to_invoice",
+                "discount",
+                "display_type",
+                "invoice_state",
+                "is_downpayment",
+                "order_id",
+                "price_subtotal",
+                "price_total",
+                "price_unit",
+                "product_id",
+                "product_qty",
+                "product_uom_id",
+                "qty_invoiced",
+                "qty_to_invoice",
+                "qty_transferred",
+            ],
+            "uom.uom": ["factor"],
+        }
+    )
     _order = "date_order desc"
     _access_anchors = frozendict(
         {

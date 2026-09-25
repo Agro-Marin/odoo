@@ -146,6 +146,8 @@ class AccountInvoiceReport(models.Model):
             "invoice_payment_term_id",
             "bank_account_id",
             "invoice_currency_rate",
+            "commercial_partner_id",
+            "payment_state",
         ],
         "account.move.line": [
             "quantity",
@@ -162,12 +164,15 @@ class AccountInvoiceReport(models.Model):
             "company_id",
             "currency_id",
             "partner_id",
+            "display_type",
         ],
         "product.product": ["product_tmpl_id", "standard_price"],
-        "product.template": ["categ_id"],
+        "product.template": ["categ_id", "uom_id"],
         "uom.uom": ["factor", "name"],
         "res.currency.rate": ["currency_id", "name"],
         "res.partner": ["country_id"],
+        "account.account": ["account_type"],
+        "res.company": ["currency_id"],
     }
 
     @property

@@ -1,9 +1,18 @@
 from odoo import fields, models
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 
 class PurchaseReport(models.Model):
     _inherit = "purchase.report"
+    _depends = frozendict(
+        {
+            "purchase.order": ["date_effective", "picking_type_id"],
+            "stock.location": ["usage"],
+            "stock.move": ["picking_id", "purchase_line_id"],
+            "stock.picking": ["date_done", "location_dest_id", "state"],
+            "stock.picking.type": ["warehouse_id"],
+        }
+    )
 
     order_id = fields.Many2one(
         comodel_name="purchase.order",

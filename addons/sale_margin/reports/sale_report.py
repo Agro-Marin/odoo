@@ -1,8 +1,14 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 
 class SaleReport(models.Model):
     _inherit = "sale.report"
+    _depends = frozendict(
+        {
+            "sale.order.line": ["margin"],
+        }
+    )
 
     margin = fields.Float()
 

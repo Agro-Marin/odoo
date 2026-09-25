@@ -63,6 +63,11 @@ class CrmPartnerReportAssign(models.Model):
             "parent_id",
             "user_id",
         ],
+        "account.account": ["account_type"],
+        "account.move": ["commercial_partner_id", "payment_state", "team_id"],
+        "account.move.line": ["display_type"],
+        "product.template": ["uom_id"],
+        "res.company": ["currency_id"],
     }
 
     @property

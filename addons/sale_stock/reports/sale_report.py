@@ -1,8 +1,15 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 
 class SaleReport(models.Model):
     _inherit = "sale.report"
+    _depends = frozendict(
+        {
+            "sale.order": ["warehouse_id"],
+            "stock.picking.type": ["warehouse_id"],
+        }
+    )
 
     warehouse_id = fields.Many2one(
         comodel_name="stock.warehouse",

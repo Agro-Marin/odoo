@@ -595,6 +595,7 @@ class Registry(
                 env.flush_all()
 
                 self.check_tables_exist(cr)
+                self.check_view_depends(cr, model_names)
 
     def clear_all_caches(self) -> None:
         _debug.lifecycle(

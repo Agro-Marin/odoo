@@ -1,5 +1,6 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.tools import frozendict
 
 
 class HrLeaveReport(models.Model):
@@ -7,6 +8,32 @@ class HrLeaveReport(models.Model):
     _description = "Time Off Summary / Report"
     _inherit = ["mixin.hr.manager.department.report"]
     _auto = False
+    _depends = frozendict(
+        {
+            "hr.employee": ["active", "company_id", "current_version_id"],
+            "hr.leave": [
+                "date_from",
+                "date_to",
+                "employee_id",
+                "holiday_status_id",
+                "number_of_days",
+                "number_of_hours",
+                "private_name",
+                "state",
+            ],
+            "hr.leave.allocation": [
+                "date_from",
+                "date_to",
+                "employee_id",
+                "holiday_status_id",
+                "name",
+                "number_of_days",
+                "number_of_hours_display",
+                "state",
+            ],
+            "hr.version": ["department_id"],
+        }
+    )
     _order = "date_from DESC, employee_id"
 
     leave_id = fields.Many2one(

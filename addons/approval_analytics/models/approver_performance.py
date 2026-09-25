@@ -9,6 +9,19 @@ class ApproverPerformance(models.Model):
     _inherit = "mixin.sql.report"
     _description = "Approver Performance Metrics"
     _auto = False
+    _depends = frozendict(
+        {
+            "approval.approver": [
+                "decided_by_user_id",
+                "decision_date",
+                "pending_since",
+                "request_id",
+                "state",
+                "user_id",
+            ],
+            "approval.request": ["company_id", "date_confirmed"],
+        }
+    )
     _order = "avg_response_hours"
     _access_anchors = frozendict(
         {

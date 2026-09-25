@@ -27,7 +27,13 @@ class ReportStockQuantity(models.Model):
             "quantity",
             "state",
         ],
-        "stock.quant": ["company_id", "location_id", "product_id", "quantity"],
+        "stock.quant": [
+            "company_id",
+            "location_id",
+            "product_id",
+            "quantity",
+            "reserved_quantity",
+        ],
         "uom.uom": ["factor"],
     }
     _access_anchors = frozendict(

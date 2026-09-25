@@ -1,14 +1,17 @@
 import logging
 import typing
 import warnings
+from collections import defaultdict
 from collections.abc import Callable, Iterable
 
 import psycopg
 
 from odoo.db import FunctionStatus
 from odoo.db import schema as sql
+from odoo.db.errors import CURSOR_LOGGER_NAME
 from odoo.libs.debug_log import DebugLog
-from odoo.libs.sql import get_index_name
+from odoo.libs.logging import mute_logger
+from odoo.libs.sql import SQL, get_index_name
 from odoo.tools import OrderedSet
 
 from ..primitives import SUPERUSER_ID
@@ -389,6 +392,112 @@ class _RegistrySchemaMixin(_RegistryStubs):
             )
             for table in missing_tables:
                 _logger.error("Model %s has no table.", table2model[table])
+
+    def get_undeclared_view_reads(
+        self, cr: Cursor, model_names: Iterable[str]
+    ) -> dict[str, list[str]]:
+        from .environment import Environment
+
+        env = Environment(cr, SUPERUSER_ID, {})
+        views = [
+            env[name]
+            for name in model_names
+            if not self.models[name]._abstract
+            and (not self.models[name]._auto or self.models[name]._table_query)
+        ]
+        if not views:
+            return {}
+
+        reads: dict[str, set[tuple[str, str]]] = {}
+        query_flushes: dict[str, Iterable[Field]] = {}
+        table_views = {}
+        for model in views:
+            table_query = model._table_query
+            if not table_query:
+                table_views[model._table] = model._name
+                continue
+            query = table_query if isinstance(table_query, SQL) else SQL(table_query)
+            query_flushes[model._name] = query.to_flush
+            probe = "_undeclared_view_reads_probe"
+            try:
+                with cr.savepoint(flush=False), mute_logger(CURSOR_LOGGER_NAME):
+                    cr.execute(
+                        SQL(
+                            "CREATE TEMP VIEW %s AS %s",
+                            SQL.identifier(probe),
+                            query.inlined(cr),
+                        )
+                    )
+                    reads[model._name] = sql.get_view_column_reads(cr, [probe])[probe]
+                    cr.execute(SQL("DROP VIEW %s", SQL.identifier(probe)))
+            except psycopg.Error as exc:
+                _debug.logic(
+                    "registry.view_reads.unmeasurable",
+                    model=model._name,
+                    error=str(exc),
+                )
+        for table, table_reads in sql.get_view_column_reads(cr, table_views).items():
+            reads[table_views[table]] = table_reads
+
+        table_models: dict[str, list[BaseModel]] = defaultdict(list)
+        relation_fields: dict[str, list[Field]] = defaultdict(list)
+        for model in env.values():
+            if model._abstract:
+                continue
+            table_models[model._table].append(model)
+            for field in model._fields.values():
+                if field.is_many2many and field.store and field.relation:
+                    relation_fields[field.relation].append(field)
+
+        undeclared: dict[str, list[str]] = {}
+        for name, view_reads in reads.items():
+            try:
+                reached, flushed = env[name]._get_depends_closure()
+                flushed.update(query_flushes.get(name, ()))
+            except KeyError as exc:
+                undeclared[name] = [f"_depends names unknown {exc.args[0]!r}"]
+                continue
+            missing: OrderedSet[str] = OrderedSet()
+            for table, column in sorted(view_reads):
+                owners = table_models.get(table)
+                if not owners:
+                    fields = relation_fields.get(table, ())
+                    if fields and not any(field in flushed for field in fields):
+                        missing.add(min(f"{f.model_name}.{f.name}" for f in fields))
+                    continue
+                if any(not owner._auto or owner._table_query for owner in owners):
+                    if not any(owner._name in reached for owner in owners):
+                        missing.add(owners[0]._name)
+                    continue
+                fields = [
+                    owner._fields[column]
+                    for owner in owners
+                    if column != "id"
+                    and column in owner._fields
+                    and owner._fields[column].store
+                    and owner._fields[column].column_type
+                ]
+                if fields and not any(field in flushed for field in fields):
+                    missing.add(f"{fields[0].model_name}.{column}")
+            if missing:
+                undeclared[name] = list(missing)
+        _debug.pipeline(
+            "registry.undeclared_view_reads",
+            views=len(views),
+            measured=len(reads),
+            undeclared=len(undeclared),
+        )
+        return undeclared
+
+    def check_view_depends(self, cr: Cursor, model_names: Iterable[str]) -> None:
+        for name, missing in self.get_undeclared_view_reads(cr, model_names).items():
+            _schema.warning(
+                "SQL view model %s reads %s without naming them in _depends, "
+                "so a search does not flush them and reads a value written in "
+                "the same transaction as its previous one",
+                name,
+                ", ".join(missing),
+            )
 
     def is_an_ordinary_table(self, model: ModelLike) -> bool:
         table = model._table

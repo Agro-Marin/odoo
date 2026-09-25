@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 
 class TabA(models.Model):
@@ -60,6 +60,11 @@ class TabActionView(models.Model):
     _name = "tab.action.view"
     _description = "tab.action.view"
     _auto = False
+    _depends = frozendict(
+        {
+            "tab.action.holder": ["action_id"],
+        }
+    )
 
     action_id = fields.Many2one(comodel_name="ir.actions.actions", readonly=True)
 
@@ -78,6 +83,11 @@ class TabReferenceView(models.Model):
     _name = "tab.reference.view"
     _description = "tab.reference.view"
     _auto = False
+    _depends = frozendict(
+        {
+            "tab.action.holder": ["action_id"],
+        }
+    )
 
     res_model = fields.Char(readonly=True)
     res_id = fields.Many2oneReference(model_field="res_model", readonly=True)

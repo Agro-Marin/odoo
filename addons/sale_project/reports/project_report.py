@@ -1,8 +1,14 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 
 class ReportProjectTaskUser(models.Model):
     _inherit = "report.project.task.user"
+    _depends = frozendict(
+        {
+            "project.task": ["sale_line_id", "sale_order_id"],
+        }
+    )
 
     sale_line_id = fields.Many2one(
         comodel_name="sale.order.line",

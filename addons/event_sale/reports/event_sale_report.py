@@ -1,5 +1,6 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.tools import frozendict
 
 from odoo.addons.sale import const
 
@@ -10,6 +11,38 @@ class EventSaleReport(models.Model):
     _name = "event.sale.report"
     _description = "Event Sales Report"
     _auto = False
+    _depends = frozendict(
+        {
+            "event.event": ["company_id", "date_begin", "date_end", "event_type_id"],
+            "event.event.ticket": ["price"],
+            "event.registration": [
+                "active",
+                "create_date",
+                "event_id",
+                "event_slot_id",
+                "event_ticket_id",
+                "name",
+                "sale_order_id",
+                "sale_order_line_id",
+                "sale_status",
+                "state",
+            ],
+            "sale.order": [
+                "currency_rate",
+                "date_order",
+                "partner_id",
+                "partner_invoice_id",
+                "state",
+                "user_id",
+            ],
+            "sale.order.line": [
+                "price_subtotal",
+                "price_total",
+                "product_id",
+                "product_uom_qty",
+            ],
+        }
+    )
     _rec_name = "sale_order_line_id"
 
     event_type_id = fields.Many2one(

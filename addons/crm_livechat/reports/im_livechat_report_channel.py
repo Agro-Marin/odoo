@@ -1,9 +1,14 @@
 from odoo import fields, models
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 
 class Im_LivechatReportChannel(models.Model):
     _inherit = "im_livechat.report.channel"
+    _depends = frozendict(
+        {
+            "crm.lead": ["origin_channel_id"],
+        }
+    )
 
     leads_created = fields.Integer(
         string="Leads created",

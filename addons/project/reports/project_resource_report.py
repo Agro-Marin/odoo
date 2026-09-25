@@ -1,5 +1,6 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 from odoo.addons.project.models.project_task import CLOSED_STATES
@@ -9,6 +10,26 @@ class ProjectResourceReport(models.Model):
     _name = "project.resource.report"
     _description = "Resource Utilization"
     _auto = False
+    _depends = frozendict(
+        {
+            "project.task": [
+                "active",
+                "company_id",
+                "is_template",
+                "project_id",
+                "state",
+            ],
+            "resource.calendar": ["hours_per_week"],
+            "resource.reservation": [
+                "allocated_hours",
+                "date_start",
+                "res_id",
+                "res_model",
+                "resource_id",
+            ],
+            "resource.resource": ["calendar_id", "user_id"],
+        }
+    )
     _order = "allocated_hours desc"
 
     user_id = fields.Many2one(

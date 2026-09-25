@@ -9,6 +9,18 @@ class ApprovalMetrics(models.Model):
     _inherit = "mixin.sql.report"
     _description = "Approval Metrics"
     _auto = False
+    _depends = frozendict(
+        {
+            "approval.category": ["sla_target_hours"],
+            "approval.request": [
+                "category_id",
+                "company_id",
+                "date_approval_granted",
+                "date_confirmed",
+                "state",
+            ],
+        }
+    )
     _order = "category_id, avg_approval_hours"
     _access_anchors = frozendict(
         {

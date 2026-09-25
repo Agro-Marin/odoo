@@ -158,3 +158,4 @@ from . import test_service_principal
 from . import test_mixin_company_config
 from . import test_mixin_lifecycle
 from . import test_mixin_recurrence_anchored
+from . import test_view_depends

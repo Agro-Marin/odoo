@@ -1,8 +1,14 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 
 class ReportProjectTaskUser(models.Model):
     _inherit = "report.project.task.user"
+    _depends = frozendict(
+        {
+            "project.task": ["effective_hours", "overtime", "remaining_hours"],
+        }
+    )
 
     allocated_hours = fields.Float(
         string="Allocated Time",

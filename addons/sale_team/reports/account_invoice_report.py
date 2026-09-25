@@ -1,9 +1,14 @@
 from odoo import fields, models
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 
 class AccountInvoiceReport(models.Model):
     _inherit = "account.invoice.report"
+    _depends = frozendict(
+        {
+            "account.move": ["team_id"],
+        }
+    )
 
     team_id = fields.Many2one(
         comodel_name="team.team",

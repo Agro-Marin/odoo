@@ -1,5 +1,5 @@
 from odoo import fields, models
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 from odoo.addons.trade.tools import PURCHASE
 
@@ -9,6 +9,43 @@ class PurchaseReceiptLineMatch(models.Model):
     _inherit = ["mixin.order.line.stock.match"]
     _description = "Purchase Order Line & Receipt Move Matching"
     _auto = False
+    _depends = frozendict(
+        {
+            "product.product": ["product_tmpl_id"],
+            "product.template": ["type"],
+            "purchase.order": ["company_id", "state"],
+            "purchase.order.line": [
+                "date_commitment",
+                "display_type",
+                "is_downpayment",
+                "order_id",
+                "partner_id",
+                "product_id",
+                "product_qty",
+                "product_uom_id",
+                "qty_to_transfer",
+                "qty_transferred",
+                "transfer_state",
+            ],
+            "stock.location": ["usage"],
+            "stock.move": [
+                "company_id",
+                "date",
+                "is_inventory",
+                "location_id",
+                "partner_id",
+                "picking_id",
+                "product_id",
+                "product_uom_id",
+                "product_uom_qty",
+                "purchase_line_id",
+                "quantity",
+                "scrap_id",
+                "state",
+            ],
+            "stock.picking": ["partner_id"],
+        }
+    )
     _order = "product_id, move_id, order_line_id"
 
     _order_line_table = "purchase_order_line"

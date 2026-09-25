@@ -90,18 +90,7 @@ class _ModelMetadataMixin(_ModelStubs):
         if not self._depends:
             return table_sql
 
-        fields_to_flush: OrderedSet[Field] = OrderedSet()
-        seen: set[str] = {self._name}
-        models = [self]
-        while models:
-            current_model = models.pop()
-            for model_name, field_names in current_model._depends.items():
-                model = self.env[model_name]
-                if model_name not in seen:
-                    seen.add(model_name)
-                    models.append(model)
-                fields_to_flush.update(model._fields[fname] for fname in field_names)
-
+        seen, fields_to_flush = self._get_depends_closure()
         _debug.logic(
             "metadata.table_sql_flush_dependencies",
             model=self._name,
@@ -115,6 +104,20 @@ class _ModelMetadataMixin(_ModelStubs):
                 *(SQL(to_flush=field) for field in fields_to_flush),
             ]
         )
+
+    def _get_depends_closure(self) -> tuple[set[str], OrderedSet[Field]]:
+        fields_to_flush: OrderedSet[Field] = OrderedSet()
+        seen: set[str] = {self._name}
+        models = [self]
+        while models:
+            current_model = models.pop()
+            for model_name, field_names in current_model._depends.items():
+                model = self.env[model_name]
+                if model_name not in seen:
+                    seen.add(model_name)
+                    models.append(model)
+                fields_to_flush.update(model._fields[fname] for fname in field_names)
+        return seen, fields_to_flush
 
     def _is_an_ordinary_table(self) -> bool:
         return self.pool.is_an_ordinary_table(self)

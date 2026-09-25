@@ -293,7 +293,7 @@ moves a value between them:
 | Event | Flushes | Then |
 |---|---|---|
 | `env.flush_all()`, `flush_model()`, `flush_recordset()` | everything, the model's fields, the records' fields | recompute pending stored computes to a fixpoint, `UPDATE`/`INSERT` the dirty ones through the backend |
-| `env.execute_query(sql)` — every `_search`, `read_group`, fetch and port statement | exactly the fields the statement reads (`SQL.to_flush`), across a table-inheritance tree | so a read never sees a column older than its own cache |
+| `env.execute_query(sql)` — every `_search`, `read_group`, fetch and port statement | exactly the fields the statement reads (`SQL.to_flush`), across a table-inheritance tree; on a SQL-view model, the fields its `_depends` names, transitively | so a read never sees a column older than its own cache. A view reading a column its `_depends` omits reads the last flushed value; `Registry.check_view_depends` warns at install, from the columns PostgreSQL records the view reading (`pg_depend`) |
 | `invalidate_model()` / `invalidate_recordset()` with `flush=True` (the default) | the fields being dropped | then drops them; with `flush=False` it refuses a field that is dirty (`_check_no_pending_write`) rather than lose the write |
 | `unlink()` | everything | before the `DELETE`, so no dirty write targets a gone row |
 | a parent-store write | the parent field | before the path recomputation reads it |

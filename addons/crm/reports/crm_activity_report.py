@@ -6,6 +6,34 @@ from odoo.tools import SQL, frozendict
 class CrmActivityReport(models.Model):
     _name = "crm.activity.report"
     _auto = False
+    _depends = frozendict(
+        {
+            "crm.lead": [
+                "active",
+                "company_id",
+                "country_id",
+                "create_date",
+                "date_closed",
+                "date_conversion",
+                "date_deadline",
+                "partner_id",
+                "stage_id",
+                "team_id",
+                "type",
+                "user_id",
+                "won_status",
+            ],
+            "mail.message": [
+                "author_id",
+                "body",
+                "date",
+                "mail_activity_type_id",
+                "model",
+                "res_id",
+                "subtype_id",
+            ],
+        }
+    )
     _description = "CRM Activity Analysis"
     _rec_name = "id"
     _access_anchors = frozendict(

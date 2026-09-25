@@ -462,6 +462,39 @@ def get_views_depending_on_table(
     return cr.fetchall()
 
 
+def get_view_column_reads(
+    cr: BaseCursor, viewnames: Iterable[str]
+) -> dict[str, set[tuple[str, str]]]:
+    cr.execute(
+        SQL(
+            """
+            SELECT view.relname, source.relname, pg_attribute.attname
+            FROM pg_class AS view
+            JOIN pg_rewrite ON pg_rewrite.ev_class = view.oid
+            JOIN pg_depend ON pg_depend.objid = pg_rewrite.oid
+                AND pg_depend.classid = 'pg_rewrite'::regclass
+                AND pg_depend.refclassid = 'pg_class'::regclass
+            JOIN pg_class AS source ON source.oid = pg_depend.refobjid
+            JOIN pg_attribute ON pg_attribute.attrelid = pg_depend.refobjid
+                AND pg_attribute.attnum = pg_depend.refobjsubid
+            WHERE view.oid = ANY(
+                    SELECT to_regclass(quote_ident(name))
+                    FROM unnest(%s::text[]) AS name
+                )
+                AND view.relkind = 'v'
+                AND source.oid <> view.oid
+                AND pg_depend.refobjsubid > 0
+            """,
+            list(viewnames),
+        )
+    )
+    reads: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    for viewname, tablename, columnname in cr.fetchall():
+        reads[viewname].add((tablename, columnname))
+    _debug.logic("schema.view_column_reads", views=len(reads))
+    return reads
+
+
 def rename_column(
     cr: BaseCursor, tablename: str, columnname: str, newname: str
 ) -> None:

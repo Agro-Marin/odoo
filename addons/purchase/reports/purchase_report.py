@@ -9,6 +9,39 @@ class PurchaseReport(models.Model):
     _inherit = "mixin.order.report"
     _description = "Purchase Report"
     _auto = False
+    _depends = frozendict(
+        {
+            "product.product": ["product_tmpl_id", "volume", "weight"],
+            "product.template": ["bill_policy", "categ_id", "uom_id"],
+            "purchase.order": [
+                "company_id",
+                "currency_rate",
+                "date_confirmed",
+                "date_order",
+                "dest_address_id",
+                "fiscal_position_id",
+                "partner_id",
+                "state",
+                "user_id",
+            ],
+            "purchase.order.line": [
+                "date_commitment",
+                "display_type",
+                "order_id",
+                "price_subtotal",
+                "price_total",
+                "price_unit",
+                "product_id",
+                "product_qty",
+                "product_uom_id",
+                "qty_invoiced",
+                "qty_transferred",
+            ],
+            "res.company": ["currency_id"],
+            "res.partner": ["commercial_partner_id", "country_id"],
+            "uom.uom": ["factor"],
+        }
+    )
     _order = "date_order desc, price_total desc"
     _access_anchors = frozendict(
         {

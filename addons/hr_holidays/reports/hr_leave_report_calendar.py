@@ -1,6 +1,7 @@
 from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 from odoo.addons.base.models.res_partner import _selection_timezones
 
@@ -9,6 +10,30 @@ class HrLeaveReportCalendar(models.Model):
     _name = "hr.leave.report.calendar"
     _description = "Time Off Calendar"
     _auto = False
+    _depends = frozendict(
+        {
+            "hr.employee": [
+                "company_id",
+                "current_version_id",
+                "resource_id",
+                "user_id",
+            ],
+            "hr.leave": [
+                "date_from",
+                "date_to",
+                "department_id",
+                "employee_id",
+                "holiday_status_id",
+                "number_of_days",
+                "private_name",
+                "state",
+            ],
+            "hr.version": ["job_id", "resource_calendar_id"],
+            "resource.calendar": ["tz"],
+            "resource.config": ["company_id", "resource_calendar_id"],
+            "resource.resource": ["tz"],
+        }
+    )
     _order = "start_datetime DESC, employee_id"
 
     name = fields.Char(

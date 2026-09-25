@@ -1,10 +1,30 @@
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 from odoo.addons.sale_timesheet.models.hr_timesheet import TIMESHEET_INVOICE_TYPES
 
 
 class TimesheetsAnalysisReport(models.Model):
     _inherit = "timesheets.analysis.report"
+    _depends = frozendict(
+        {
+            "account.analytic.line": [
+                "so_line",
+                "timesheet_invoice_id",
+                "timesheet_invoice_type",
+            ],
+            "product.product": ["product_tmpl_id"],
+            "product.template": ["invoice_policy", "service_type"],
+            "sale.order.line": [
+                "order_id",
+                "price_subtotal",
+                "price_unit",
+                "product_id",
+                "product_uom_id",
+                "qty_transferred",
+            ],
+        }
+    )
 
     order_id = fields.Many2one(
         comodel_name="sale.order",

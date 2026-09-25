@@ -2731,7 +2731,7 @@ class TestOrmCustomView(models.Model):
     _auto = False
     _depends = {
         "test_orm.any.tag": ["name"],
-        "test_orm.any.child": ["quantity"],
+        "test_orm.any.child": ["quantity", "tag_ids"],
     }
 
     sum_quantity = fields.Integer()
@@ -2756,7 +2756,7 @@ class TestOrmCustomTable_Query(models.Model):
     _auto = False
     _depends = {
         "test_orm.any.tag": ["name"],
-        "test_orm.any.child": ["quantity"],
+        "test_orm.any.child": ["quantity", "tag_ids"],
     }
 
     sum_quantity = fields.Integer()
@@ -2779,7 +2779,7 @@ class TestOrmCustomTable_Query_Sql(models.Model):
     _auto = False
     _depends = {
         "test_orm.any.tag": ["name"],
-        "test_orm.any.child": ["quantity"],
+        "test_orm.any.child": ["quantity", "tag_ids"],
     }
 
     sum_quantity = fields.Integer()

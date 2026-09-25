@@ -1,8 +1,14 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 
 class EventSaleReport(models.Model):
     _inherit = "event.sale.report"
+    _depends = frozendict(
+        {
+            "event.event": ["is_published"],
+        }
+    )
 
     is_published = fields.Boolean(
         string="Published Events",

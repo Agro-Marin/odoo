@@ -288,3 +288,23 @@ class TestSaleReportQuotationSent(SaleCommon):
             ),
             1,
         )
+
+
+@tagged("-at_install", "post_install")
+class TestSaleReportReadsTheTransaction(SaleCommon):
+    def test_a_quantity_changed_in_the_transaction_is_reported(self):
+        order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner.id,
+                "line_ids": [
+                    Command.create({"product_id": self.product.id, "product_qty": 1})
+                ],
+            }
+        )
+        self.env.flush_all()
+        order.line_ids.product_qty = 3
+        row = self.env["sale.report"].search(
+            [("order_reference", "=", f"sale.order,{order.id}")]
+        )
+        self.assertEqual(row.product_uom_qty, 3)
+        self.assertAlmostEqual(row.price_subtotal, 3 * order.line_ids.price_unit)

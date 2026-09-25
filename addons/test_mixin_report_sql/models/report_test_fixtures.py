@@ -1,5 +1,6 @@
 from odoo import fields, models
 from odoo.libs.sql import SQL
+from odoo.tools import frozendict
 
 
 class ReportTestSource(models.Model):
@@ -18,6 +19,11 @@ class ReportTestPlain(models.Model):
     _inherit = ["mixin.sql.report"]
     _description = "SQL Report Test (not materialized)"
     _auto = False
+    _depends = frozendict(
+        {
+            "mixin.report.sql.test.source": ["grain", "value"],
+        }
+    )
 
     grain = fields.Char(readonly=True)
     total = fields.Float(readonly=True)

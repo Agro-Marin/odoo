@@ -1,9 +1,41 @@
 from odoo import api, fields, models
 from odoo.libs.sql import SQL
+from odoo.tools import frozendict
 
 
 class SaleReport(models.Model):
     _inherit = "sale.report"
+    _depends = frozendict(
+        {
+            "pos.config": ["picking_type_id"],
+            "pos.order": [
+                "account_move",
+                "company_id",
+                "currency_rate",
+                "date_order",
+                "name",
+                "partner_id",
+                "pricelist_id",
+                "session_id",
+                "state",
+                "team_id",
+                "user_id",
+            ],
+            "pos.order.line": [
+                "discount",
+                "margin",
+                "order_id",
+                "price_subtotal",
+                "price_subtotal_incl",
+                "price_unit",
+                "product_id",
+                "qty",
+                "qty_transferred",
+                "sale_order_line_id",
+            ],
+            "pos.session": ["config_id"],
+        }
+    )
 
     # ------------------------------------------------------------
     # FIELDS

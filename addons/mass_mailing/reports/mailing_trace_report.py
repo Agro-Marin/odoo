@@ -1,10 +1,31 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.tools import frozendict
 
 
 class MailingTraceReport(models.Model):
     _name = "mailing.trace.report"
     _auto = False
+    _depends = frozendict(
+        {
+            "mailing.mailing": [
+                "campaign_id",
+                "email_from",
+                "mailing_type",
+                "source_id",
+                "state",
+            ],
+            "mailing.trace": [
+                "create_date",
+                "links_click_datetime",
+                "mass_mailing_id",
+                "sent_datetime",
+                "trace_status",
+            ],
+            "utm.campaign": ["name"],
+            "utm.source": ["name"],
+        }
+    )
     _description = "Mass Mailing Statistics"
 
     # mailing

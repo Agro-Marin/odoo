@@ -1,11 +1,36 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.tools import frozendict
 
 
 class LunchCashmoveReport(models.Model):
     _name = "lunch.cashmove.report"
     _description = "Cashmoves report"
     _auto = False
+    _depends = frozendict(
+        {
+            "lunch.cashmove": [
+                "amount",
+                "currency_id",
+                "date",
+                "description",
+                "user_id",
+            ],
+            "lunch.order": [
+                "active",
+                "company_id",
+                "date",
+                "display_toppings",
+                "price",
+                "product_id",
+                "quantity",
+                "state",
+                "user_id",
+            ],
+            "lunch.product": ["name"],
+            "res.company": ["currency_id"],
+        }
+    )
     _order = "date desc"
 
     id = fields.Id(string="ID")

@@ -7,6 +7,28 @@ class TimesheetsAnalysisReport(models.Model):
     _inherit = ["mixin.hr.manager.department.report"]
     _description = "Timesheets Analysis Report"
     _auto = False
+    _depends = frozendict(
+        {
+            "account.analytic.line": [
+                "amount",
+                "company_id",
+                "date",
+                "department_id",
+                "employee_id",
+                "name",
+                "parent_task_id",
+                "partner_id",
+                "product_uom_id",
+                "project_id",
+                "task_id",
+                "unit_amount",
+                "user_id",
+            ],
+            "hr.employee": ["parent_id"],
+            "res.company": ["currency_id"],
+            "uom.uom": ["factor"],
+        }
+    )
     _access_anchors = frozendict(
         {
             "company": models.Anchor("company_id", shared=False),

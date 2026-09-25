@@ -1,4 +1,5 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 from odoo.addons.trade.tools import PURCHASE
 
@@ -8,6 +9,36 @@ class PurchaseBillLineMatch(models.Model):
     _inherit = ["mixin.order.line.match"]
     _description = "Purchase Order Line & Vendor Bill Line Matching"
     _auto = False
+    _depends = frozendict(
+        {
+            "account.move": ["move_type", "partner_id"],
+            "account.move.line": [
+                "amount_currency",
+                "company_id",
+                "currency_id",
+                "display_type",
+                "move_id",
+                "parent_state",
+                "product_id",
+                "product_uom_id",
+                "quantity",
+                "purchase_line_ids",
+            ],
+            "purchase.order": ["company_id", "currency_id", "state"],
+            "purchase.order.line": [
+                "display_type",
+                "is_downpayment",
+                "order_id",
+                "partner_id",
+                "price_subtotal",
+                "product_id",
+                "product_qty",
+                "product_uom_id",
+                "qty_invoiced",
+                "qty_to_invoice",
+            ],
+        }
+    )
     _order = "product_id, aml_id, order_line_id"
 
     _order_line_table = "purchase_order_line"

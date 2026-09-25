@@ -4,6 +4,11 @@ from odoo.tools import frozendict
 
 class SaleReport(models.Model):
     _inherit = "sale.report"
+    _depends = frozendict(
+        {
+            "sale.order": ["team_id"],
+        }
+    )
     _access_anchors = frozendict(
         {
             "team": models.Anchor("team_id", usage="sale"),

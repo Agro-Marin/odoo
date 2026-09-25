@@ -17,6 +17,40 @@ class ReportProjectTaskUser(models.Model):
             "owner": "user_ids",
         }
     )
+    _depends = frozendict(
+        {
+            "project.task": [
+                "allocated_hours",
+                "company_id",
+                "create_date",
+                "date_assign",
+                "date_closed",
+                "date_end",
+                "date_last_status_change",
+                "date_start",
+                "description",
+                "display_in_project",
+                "has_template_ancestor",
+                "is_template",
+                "lead_time_days",
+                "lead_time_hours",
+                "lost_reason_id",
+                "milestone_id",
+                "name",
+                "parent_id",
+                "partner_id",
+                "planned_hours",
+                "priority",
+                "project_id",
+                "queue_time_days",
+                "queue_time_hours",
+                "rating_last_value",
+                "state",
+                "step_id",
+            ],
+            "rating.rating": ["consumed", "rating", "res_id", "res_model"],
+        }
+    )
 
     name = fields.Char(
         string="Task Title",

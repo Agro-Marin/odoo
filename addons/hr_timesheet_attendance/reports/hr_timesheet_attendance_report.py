@@ -1,6 +1,7 @@
 from odoo import api, fields, models
 from odoo.db.schema import drop_view_if_exists
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -8,6 +9,22 @@ _debug = DebugLog(__name__)
 class HrTimesheetAttendanceReport(models.Model):
     _name = "hr.timesheet.attendance.report"
     _auto = False
+    _depends = frozendict(
+        {
+            "account.analytic.line": [
+                "amount",
+                "company_id",
+                "date",
+                "employee_id",
+                "project_id",
+                "unit_amount",
+            ],
+            "hr.attendance": ["check_in", "employee_id", "worked_hours"],
+            "hr.employee": ["company_id", "hourly_cost", "resource_id"],
+            "res.company": ["currency_id"],
+            "resource.resource": ["tz"],
+        }
+    )
     _description = "Timesheet Attendance Report"
 
     employee_id = fields.Many2one(
