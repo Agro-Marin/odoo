@@ -44,7 +44,7 @@ def test_a_ready_registry_freezes_what_survives():
     try:
         with (
             patch.object(reg_mod.gc, "freeze_survivors") as freeze,
-            patch.object(Registry, "_get_field_triggers"),
+            patch.object(Registry, "freeze_field_triggers"),
             patch.object(Registry, "signal_changes"),
             patch.object(Registry, "_evict_idle_registries"),
         ):

@@ -318,10 +318,15 @@ class _RegistryFieldsMixin(_RegistryStubs):
 
             self._publish_field_metadata()
 
-            graph.freeze()
+            if self.ready:
+                graph.freeze()
 
             span.set(published=True)
             return graph.published_triggers
+
+    def freeze_field_triggers(self) -> None:
+        self._get_field_triggers()
+        self.model_graph.freeze()
 
     def _link_tree_siblings(self) -> None:
         for names in self.model_names_by_inheritance_root.values():

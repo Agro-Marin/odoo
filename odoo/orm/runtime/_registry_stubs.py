@@ -13,6 +13,7 @@ class _RegistryStubs:
     if typing.TYPE_CHECKING:
         db_name: str
         models: dict[str, type[BaseModel]]
+        ready: bool
 
         def cursor(self, /, readonly: bool = False) -> BaseCursor: ...
 

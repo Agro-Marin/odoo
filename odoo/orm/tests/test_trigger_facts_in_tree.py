@@ -45,6 +45,7 @@ class _Registry(_RegistryFieldsMixin):
     def __init__(self, models, by_root):
         self.models = models
         self.model_graph = ModelGraph()
+        self.ready = True
         self._by_root = by_root
 
     @property

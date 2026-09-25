@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-__all__ = ["get_trigger_trees"]
+__all__ = ["get_trigger_tree", "get_trigger_trees"]
 
 Bucket = tuple[Sequence[int], Sequence[int]]
 # (is_many2one, is_one2many, name, inverse_name, model_name, comodel_name, fact):
@@ -120,3 +120,12 @@ def get_trigger_trees(
     if any(f >= n for f in fields):
         raise IndexError("get_trigger_trees: a field id is out of range of `meta`")
     return [(field, _get_tree(by_field, meta, field)) for field in fields]
+
+
+# The caller issued the ids, so they are in range by construction: re-validating
+# the whole payload, as `get_trigger_trees` does, costs more than the walk when a
+# single tree is wanted.
+def get_trigger_tree(
+    by_field: dict[int, Sequence[Bucket]], meta: Sequence[Meta], field: int
+) -> Node:
+    return _get_tree(by_field, meta, field)

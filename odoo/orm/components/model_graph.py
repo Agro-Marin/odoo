@@ -3,6 +3,7 @@ import threading
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
+from odoo.libs._trigger_trees import get_trigger_tree as _get_trigger_tree
 from odoo.libs.accel import get_trigger_trees as _get_trigger_trees
 from odoo.libs.collections import Collector
 from odoo.libs.debug_log import DebugLog
@@ -156,7 +157,7 @@ class TriggerTree(dict):
 
 
 class _TriggerIndex:
-    __slots__ = ("field_ids", "fields", "meta", "payload")
+    __slots__ = ("by_field", "field_ids", "fields", "meta", "payload")
 
     def __init__(
         self, triggers: defaultdict, fact_of: Callable[[Any], Any] | None = None
@@ -190,6 +191,7 @@ class _TriggerIndex:
             )
             for field in self.fields
         ]
+        self.by_field: dict[int, Any] | None = None
 
     def _get_or_create_field_id(self, field: Any) -> int:
         field_id = self.field_ids.get(field)
@@ -197,6 +199,12 @@ class _TriggerIndex:
             field_id = self.field_ids[field] = len(self.fields)
             self.fields.append(field)
         return field_id
+
+    def get_tree(self, field: Any) -> TriggerTree:
+        by_field = self.by_field
+        if by_field is None:
+            by_field = self.by_field = dict(self.payload)
+        return self._wrap(_get_trigger_tree(by_field, self.meta, self.field_ids[field]))
 
     def get_trees(self, fields: list[Any] | None) -> dict[Any, TriggerTree]:
         wanted = None if fields is None else [self.field_ids[f] for f in fields]
@@ -497,8 +505,11 @@ class ModelGraph:
         if field not in state.triggers:
             return TriggerTree()
 
-        self._add_missing_trees(state)
-        return state.trees[field]
+        # a registry being loaded is reset before most trees are asked for
+        # (a module install reads ~60 of ~9000), so one tree is built per miss;
+        # `freeze` builds the rest in one native call once the registry is final
+        tree = state.trees[field] = state.get_index().get_tree(field)
+        return tree
 
     @staticmethod
     def _add_missing_trees(state: _TriggerState) -> None:

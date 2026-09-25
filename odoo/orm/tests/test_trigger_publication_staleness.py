@@ -41,6 +41,7 @@ class _FakeRegistry(_RegistryFieldsMixin):
     def __init__(self, models):
         self.models = models
         self.model_graph = ModelGraph()
+        self.ready = True
 
     @property
     def model_names_by_inheritance_root(self):
@@ -120,3 +121,30 @@ def test_no_production_caller_reads_the_memo_directly():
         "read `_field_triggers` directly instead of calling "
         "`_get_field_triggers()`: " + ", ".join(leaking)
     )
+
+
+def _shape(tree):
+    return tuple(tree.root), {label: _shape(sub) for label, sub in tree.items()}
+
+
+def test_a_loading_registry_builds_only_the_trees_asked_for():
+    registry, dep = _registry_with(extra_trigger=True)
+    registry.ready = False
+    registry._get_field_triggers()
+    state = registry.model_graph._state
+    assert not state.trees, "a loading registry must not build every tree up front"
+
+    tree = registry.get_field_trigger_tree(dep)
+    assert set(state.trees) == {dep}
+    assert _shape(tree) == _shape(state.get_index().get_trees([dep])[dep])
+
+
+def test_freezing_a_loaded_registry_builds_every_tree():
+    registry, _dep = _registry_with(extra_trigger=True)
+    registry.ready = False
+    registry._get_field_triggers()
+    registry.ready = True
+    registry.freeze_field_triggers()
+    state = registry.model_graph._state
+    assert set(state.trees) == set(state.triggers)
+    assert state.recompute_order is not None

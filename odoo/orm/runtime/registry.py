@@ -111,7 +111,7 @@ class Registry(
         registry.ready = True
         registry.registry_invalidated = bool(update_module)
 
-        registry._get_field_triggers()
+        registry.freeze_field_triggers()
 
         if update_module:
             db.drain_all()
