@@ -25,3 +25,4 @@ from . import test_uninstall
 from . import test_receipt_line_match
 from . import test_warehouse_rule_roles
 from . import test_orderpoint_replenish_batch
+from . import test_delay_report_having_default

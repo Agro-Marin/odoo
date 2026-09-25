@@ -2,6 +2,7 @@ import math
 from typing import Any
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.libs.debug_log import DebugLog
 
 _debug = DebugLog(__name__)
@@ -37,7 +38,7 @@ class AccountMoveLine(models.Model):
         self.need_asset = False
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict[str, Any]]) -> models.Model:
+    def create(self, vals_list: list[ValuesType]) -> models.Model:
         lines = super().create(vals_list)
         lines._sync_asset_logs()
         return lines

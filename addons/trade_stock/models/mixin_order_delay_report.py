@@ -138,13 +138,13 @@ class MixinOrderDelayReport(models.AbstractModel):
         domain,
         groupby=(),
         aggregates=(),
-        having=(),
+        having=None,
         offset=0,
         limit=None,
         order=None,
     ):
         if "on_time_rate:sum" in aggregates:
-            having = Domain.AND([having, [("qty_total:sum", ">", 0)]])
+            having = Domain.AND([having or [], [("qty_total:sum", ">", 0)]])
         return super()._read_group(
             domain, groupby, aggregates, having, offset, limit, order
         )

@@ -2020,13 +2020,11 @@ class AccountReport(models.Model):
 
     @api.model
     @_debug.perf.timed
-    def _currency_table_aml_join(
-        self,
-        options,
-        aml_alias=SQL("account_move_line"),  # noqa: B008  SQL is immutable, one shared default is safe
-    ) -> SQL:
+    def _currency_table_aml_join(self, options, aml_alias=None) -> SQL:
         if not self._reads_ledger():
             return super()._currency_table_aml_join(options, aml_alias)
+        if aml_alias is None:
+            aml_alias = SQL("account_move_line")
         _debug.logic(
             "currency_table_join",
             table_type=options.get("currency_table", {}).get("type"),

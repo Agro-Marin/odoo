@@ -3,6 +3,7 @@ import logging
 from collections import defaultdict
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.libs.debug_log import DebugLog
 from odoo.tools.pdf import OdooPdfFileReader, OdooPdfFileWriter
 
@@ -146,7 +147,7 @@ class IrAttachment(models.Model):
         return True
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict]) -> IrAttachment:
+    def create(self, vals_list: list[ValuesType]) -> IrAttachment:
         attachments = super().create(vals_list)
         if self.env.context.get("no_document"):
             _debug.logic("auto_document_skipped", reason="no_document_context")

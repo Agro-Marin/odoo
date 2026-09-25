@@ -488,7 +488,7 @@ class CalendarEvent(models.Model):
             return self.env["res.partner"]
         return super()._get_scheduled_partners()
 
-    def _prepare_reservation_vals_list(self, partner_resources=None):
+    def _prepare_reservation_vals_list(self, *, partner_resources=None):
         vals_list = super()._prepare_reservation_vals_list(
             partner_resources=partner_resources
         )

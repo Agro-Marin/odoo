@@ -3,6 +3,7 @@ import logging
 from typing import Any
 
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 from odoo.fields import Command, Domain
 
@@ -364,7 +365,7 @@ class ApprovalCategory(models.Model):
         return defaults
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict[str, Any]]) -> Any:
+    def create(self, vals_list: list[ValuesType]) -> Any:
         batch_codes: set[str] = {
             vals["sequence_code"] for vals in vals_list if vals.get("sequence_code")
         }

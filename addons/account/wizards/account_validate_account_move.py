@@ -70,10 +70,10 @@ class ValidateAccountMove(models.TransientModel):
 
     @api.model
     @_debug.perf.timed
-    def default_get(self, fields_list):
+    def default_get(self, fields):
         _debug.lifecycle("default_get", records=self)
-        result = super().default_get(fields_list)
-        if "move_ids" in fields_list and not result.get("move_ids"):
+        result = super().default_get(fields)
+        if "move_ids" in fields and not result.get("move_ids"):
             if self.env.context.get("active_model") == "account.move":
                 domain = [
                     ("id", "in", self.env.context.get("active_ids", [])),

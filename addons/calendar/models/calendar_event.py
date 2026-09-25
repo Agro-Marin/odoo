@@ -1348,7 +1348,7 @@ class CalendarEvent(models.Model):
             for event in self
         }
 
-    def _prepare_reservation_vals_list(self, partner_resources=None):
+    def _prepare_reservation_vals_list(self, *, partner_resources=None):
         """Project busy, non-declined attendance, once per physical resource."""
         self.check_singleton()
         if not self.start or not self.stop or self.show_as != "busy":
@@ -1530,7 +1530,7 @@ class CalendarEvent(models.Model):
         to_sync.flush_recordset()
         to_sync._sync_reservations()
 
-    def write(self, values):
+    def write(self, vals):
         # `_attendees_values` derives the `attendee_ids` commands from
         # `self.partner_ids`, which over a multi-record write is the UNION of
         # every record's attendees. A partner already on one event then counts
@@ -1539,57 +1539,57 @@ class CalendarEvent(models.Model):
         # a partner only one event had emits an unlink for all. The derivation
         # is only sound when the records agree on who is currently invited, so
         # when they do not, do it one record at a time.
-        if "partner_ids" in values and len(self) > 1:
+        if "partner_ids" in vals and len(self) > 1:
             invited = {tuple(sorted(event.partner_ids.ids)) for event in self}
             if len(invited) > 1:
                 for event in self:
-                    event.write(dict(values))
+                    event.write(dict(vals))
                 return True
 
         self = self.with_context(skip_attendee_reservation_sync=True)
         # Snapshot before the pops below: the recurrence branches consume the
         # very keys the sync and the notification decisions need, and
         # ``_rewrite_recurrence`` can archive ``self`` out from under them.
-        written_fnames = set(values)
-        requested_start = values.get("start")
+        written_fnames = set(vals)
+        requested_start = vals.get("start")
         previous_attendees = self.attendee_ids
         previous_partners = self.partner_ids
         detached_events = self.env["calendar.event"]
-        policy = self._write_recurrence_policy(values)
+        policy = self._write_recurrence_policy(vals)
 
         # Check the privacy permissions of the events whose organizer is different from the current user.
         self.filtered(
             lambda ev: ev.user_id and self.env.user != ev.user_id
         )._check_calendar_privacy_write_permissions()
 
-        self._write_prepare_values(values)
+        self._write_prepare_values(vals)
 
-        touches_time = self._touches_time(values)
+        touches_time = self._touches_time(vals)
         # Alarms are rescheduled when the event moves, when its reminders change,
         # and when its attendees change -- a new attendee has a next-notification
         # of their own, and a removed one no longer has this event's.
-        update_alarms = touches_time or "alarm_ids" in values or "partner_ids" in values
+        update_alarms = touches_time or "alarm_ids" in vals or "partner_ids" in vals
 
         if (
             not policy.setting or policy.setting == "this"
-        ) and "follow_recurrence" not in values:
+        ) and "follow_recurrence" not in vals:
             if touches_time:
-                values["follow_recurrence"] = False
+                vals["follow_recurrence"] = False
 
         recurrence_values = {
-            field: values.pop(field)
+            field: vals.pop(field)
             for field in self._get_fields_recurrent()
-            if field in values
+            if field in vals
         }
         notify_from = self
         if policy.update:
             notify_from, detached = self._write_update_recurrence(
-                values, recurrence_values, policy
+                vals, recurrence_values, policy
             )
             detached_events |= detached
         else:
-            super().write(values)
-            self._sync_activities(fields=values.keys())
+            super().write(vals)
+            self._sync_activities(fields=vals.keys())
 
         # We reapply recurrence for future events and when we add a rrule and 'recurrency' == True on the event
         if (
@@ -1618,7 +1618,7 @@ class CalendarEvent(models.Model):
 
         # Change base event when the main base event is archived. If it isn't done when trying to modify
         # all events of the recurrence an error can be thrown or all the recurrence can be deleted.
-        if values.get("active") is False:
+        if vals.get("active") is False:
             self.env["calendar.recurrence"].search(
                 [("base_event_id", "in", self.ids)]
             )._select_new_base_event()
@@ -1873,7 +1873,7 @@ class CalendarEvent(models.Model):
         domain,
         groupby=(),
         aggregates=(),
-        having=(),
+        having=None,
         offset=0,
         limit=None,
         order=None,
@@ -1883,7 +1883,7 @@ class CalendarEvent(models.Model):
             for spec in itertools.chain(
                 groupby,
                 aggregates,
-                [cond[0] for cond in having if isinstance(cond, (list, tuple))],
+                [cond[0] for cond in having or () if isinstance(cond, (list, tuple))],
             )
         }
         for spec in (order or "").split(","):

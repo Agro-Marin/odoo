@@ -3,7 +3,7 @@ import typing
 from odoo import fields, models
 from odoo.libs.debug_log import DebugLog
 
-from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
+from odoo.addons.mail.tools.discuss import Store, StoreFieldSpec
 
 if typing.TYPE_CHECKING:
     from .mail_message import MailMessage
@@ -71,11 +71,11 @@ class MixinMailThreadMainAttachment(models.AbstractModel):
     def _thread_to_store(
         self,
         store: Store,
-        fields: StoreFieldsInput,
+        field_specs: list[StoreFieldSpec],
         *,
         request_list: list[str] | None = None,
     ) -> None:
-        super()._thread_to_store(store, fields, request_list=request_list)
+        super()._thread_to_store(store, field_specs, request_list=request_list)
         if request_list and "attachments" in request_list:
             store.add(
                 self,

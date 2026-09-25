@@ -214,10 +214,10 @@ class AccountAutomaticEntryWizard(models.TransientModel):
 
     @api.model
     @_debug.perf.timed
-    def default_get(self, fields_list):
+    def default_get(self, fields):
         _debug.lifecycle("default_get", records=self)
-        res = super().default_get(fields_list)
-        if not set(fields_list) & {"move_line_ids", "company_id"}:
+        res = super().default_get(fields)
+        if not set(fields) & {"move_line_ids", "company_id"}:
             return res
 
         if self.env.context.get(

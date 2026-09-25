@@ -209,7 +209,7 @@ class ResourceResource(models.Model):
 
         return calendars_within_period_per_resource
 
-    def _get_calendar_at(self, date_target, tz=False):
+    def _get_calendar_at(self, date_target, tz=None):
         result = super()._get_calendar_at(date_target, tz)
         resources_with_employee = self.filtered(lambda r: r.employee_id)
         if not resources_with_employee:

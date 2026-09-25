@@ -1,6 +1,7 @@
 from typing import Any
 
 from odoo import SUPERUSER_ID, api, fields, models
+from odoo.api import ValuesType
 
 
 class ResUsersDeletion(models.Model):
@@ -13,7 +14,7 @@ class ResUsersDeletion(models.Model):
     )
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict[str, Any]]):
+    def create(self, vals_list: list[ValuesType]):
         requests = super().create(vals_list)
         if self.env.context.get("approval_skip"):
             return requests

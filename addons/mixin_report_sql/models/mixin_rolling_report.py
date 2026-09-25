@@ -41,7 +41,7 @@ _logger = logging.getLogger(__name__)
 # A subclass declares the grain (``_rolling_key_field``), the window length
 # (``_rolling_window_days``) and the scope predicate, and consults
 # ``_rolling_scope_sql()`` wherever it builds its FROM.  ``refresh()`` then
-# does the window; ``refresh(full=True)`` rebuilds from scratch, which is what
+# does the window; ``refresh(force_rebuild=True)`` rebuilds from scratch, which is what
 # to call when something feeding the settled part changes.
 #
 # Why the scope travels in the context
@@ -174,10 +174,10 @@ class MixinRollingReport(models.AbstractModel):
     # REFRESH
     # ------------------------------------------------------------------
 
-    def refresh(self, full=False) -> bool:
+    def refresh(self, force_rebuild=False) -> bool:
         """Rewrite the trailing window, or every row when a full pass is needed.
 
-        :param full: rebuild from the source.  Required after anything that
+        :param force_rebuild: rebuild from the source.  Required after anything that
             changes already-settled periods.
         :return: True on success, False on a transient failure.
         """
@@ -190,7 +190,7 @@ class MixinRollingReport(models.AbstractModel):
         if not self._relation_exists(self._table):
             return super().refresh(force_rebuild=True)
         return super().refresh(
-            force_rebuild=full or stale or not self._is_populated(self._table)
+            force_rebuild=force_rebuild or stale or not self._is_populated(self._table)
         )
 
     def _refresh_contents(self) -> None:

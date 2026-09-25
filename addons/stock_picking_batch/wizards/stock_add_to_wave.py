@@ -10,8 +10,8 @@ class StockAddToWave(models.TransientModel):
     _description = "Wave Transfer Lines"
 
     @api.model
-    def default_get(self, fields_list):
-        res = super().default_get(fields_list)
+    def default_get(self, fields):
+        res = super().default_get(fields)
         if self.env.context.get("active_model") == "stock.move.line":
             lines = self.env["stock.move.line"].browse(
                 self.env.context.get("active_ids")

@@ -93,7 +93,7 @@ class TestWindowRefresh(RollingCase):
     def test_a_window_refresh_matches_a_full_rebuild(self):
         for day in range(12):
             self._seed(day, value=float(day + 1))
-        self.report.refresh(full=True)
+        self.report.refresh(force_rebuild=True)
         full = self._rows()
         self.assertTrue(self.report.refresh())
         self.assertEqual(self._rows(), full, "the window disagreed with a full rebuild")
@@ -101,7 +101,7 @@ class TestWindowRefresh(RollingCase):
     def test_a_window_refresh_picks_up_new_rows_in_the_window(self):
         self._seed(10, value=5.0)
         self._seed(0, value=1.0)
-        self.report.refresh(full=True)
+        self.report.refresh(force_rebuild=True)
         self._seed(0, value=2.0)
         self.assertTrue(self.report.refresh())
         by_date = {row[0]: row[2] for row in self._rows()}
@@ -109,7 +109,7 @@ class TestWindowRefresh(RollingCase):
 
     def test_periods_before_the_window_are_left_alone(self):
         self._seed(10, value=5.0)
-        self.report.refresh(full=True)
+        self.report.refresh(force_rebuild=True)
         # A late-arriving row outside the window must NOT appear: the window
         # refresh never revisits settled periods. That is the contract, and
         # _rolling_mark_stale is how a caller asks for the exception.
@@ -120,9 +120,9 @@ class TestWindowRefresh(RollingCase):
 
     def test_a_full_rebuild_picks_up_settled_periods(self):
         self._seed(10, value=5.0)
-        self.report.refresh(full=True)
+        self.report.refresh(force_rebuild=True)
         self._seed(10, value=7.0)
-        self.assertTrue(self.report.refresh(full=True))
+        self.assertTrue(self.report.refresh(force_rebuild=True))
         by_date = {row[0]: row[2] for row in self._rows()}
         self.assertEqual(by_date[self.today - dt.timedelta(days=10)], 12.0)
 
@@ -150,7 +150,7 @@ class TestSelfHealing(RollingCase):
 
     def test_refresh_rebuilds_when_the_definition_changed(self):
         self._seed(0, value=3.0)
-        self.report.refresh(full=True)
+        self.report.refresh(force_rebuild=True)
         with patch.object(
             type(self.report),
             "_get_where_conditions",
@@ -168,7 +168,7 @@ class TestSelfHealing(RollingCase):
         along with the refresh.
         """
         self._seed(0, value=1.0)
-        self.report.refresh(full=True)
+        self.report.refresh(force_rebuild=True)
         self.env.cr.execute(
             SQL("ALTER TABLE %s DROP COLUMN total", SQL.identifier(self.table))
         )
@@ -187,7 +187,7 @@ class TestStaleness(RollingCase):
 
     def test_a_settings_change_that_rewrites_history_forces_a_full_rebuild(self):
         self._seed(10, value=5.0)
-        self.report.refresh(full=True)
+        self.report.refresh(force_rebuild=True)
         self._seed(10, value=7.0)
         self.report._rolling_mark_stale()
         self.assertTrue(self.report.refresh())
@@ -228,7 +228,7 @@ class TestConcurrency(RollingCase):
 
     def test_a_refresh_that_overruns_its_timeout_is_a_transient_failure(self):
         self._seed(0, value=1.0)
-        self.report.refresh(full=True)
+        self.report.refresh(force_rebuild=True)
 
         def sleep_past_the_bound(report):
             report.env.cr.execute(SQL("SELECT pg_sleep(1)"))

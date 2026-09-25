@@ -1,6 +1,8 @@
 from datetime import datetime
+from typing import Literal
 
 from odoo import Command, api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
@@ -33,7 +35,7 @@ class MailActivity(models.Model):
             )
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict]) -> MailActivity:
+    def create(self, vals_list: list[ValuesType]) -> MailActivity:
         # No document names an activity before it exists: saying so spares the
         # compute a one2many read per batch; the link below sets it when made.
         for vals in vals_list:
@@ -200,7 +202,9 @@ class MailActivity(models.Model):
         return vals
 
     def _action_done(
-        self, feedback: str | bool = False, attachment_ids: list[int] | None = None
+        self,
+        feedback: str | Literal[False] = False,
+        attachment_ids: list[int] | None = None,
     ) -> tuple:
         # An activity knows whether a document names it as its request, from
         # its own row: closing any other activity asks the document table

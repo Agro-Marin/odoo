@@ -3,6 +3,7 @@ from collections import Counter
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.fields import Domain
 
 from . import approval_trace as trace
@@ -459,7 +460,7 @@ class ApprovalRequest(models.Model):
         return declared - self._get_routing_fields_live()
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict[str, Any]]) -> Self:
+    def create(self, vals_list: list[ValuesType]) -> Self:
         categories = self.env["approval.category"].browse(
             {vals["category_id"] for vals in vals_list if vals.get("category_id")},
         )
@@ -550,7 +551,7 @@ class ApprovalRequest(models.Model):
 
         return res
 
-    def copy(self, default: dict[str, Any] | None = None) -> Self:
+    def copy(self, default: ValuesType | None = None) -> Self:
         new_records = super().copy(default=default)
         for source, new in zip(self, new_records, strict=True):
             new._message_log(

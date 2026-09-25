@@ -2,8 +2,9 @@ import logging
 import re
 from bisect import bisect_left, bisect_right
 from collections import defaultdict
+from collections.abc import Collection
 from datetime import UTC, datetime, time, timedelta
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from dateutil.relativedelta import relativedelta
 from lxml import html
@@ -3554,11 +3555,11 @@ class ProjectTask(models.Model):
     def _notify_by_email_prepare_rendering_context(
         self,
         message: Any,
-        msg_vals: dict | bool = False,
-        model_description: str | bool = False,
+        msg_vals: dict | Literal[False] = False,
+        model_description: str | Literal[False] = False,
         force_email_company: Any = False,
-        force_email_lang: str | bool = False,
-        force_record_name: str | bool = False,
+        force_email_lang: str | Literal[False] = False,
+        force_record_name: str | Literal[False] = False,
         tracking_values: Any = None,
     ) -> dict:
         render_context = super()._notify_by_email_prepare_rendering_context(
@@ -3697,7 +3698,7 @@ class ProjectTask(models.Model):
             if user.partner_id
         ]
 
-    def _track_template(self, changes: dict[str, Any]) -> dict:
+    def _track_template(self, changes: Collection[str]) -> dict:
         res = super()._track_template(changes)
         test_task = self[0]
         if (
@@ -3772,7 +3773,7 @@ class ProjectTask(models.Model):
         self,
         message: Any,
         model_description: str,
-        msg_vals: dict | bool = False,
+        msg_vals: dict | Literal[False] = False,
     ) -> list:
         groups = super()._notify_get_recipients_groups(
             message, model_description, msg_vals=msg_vals
@@ -3866,8 +3867,8 @@ class ProjectTask(models.Model):
     @api.model
     def message_new(
         self,
-        msg_dict: dict[str, Any],
-        custom_values: dict[str, Any] | None = None,
+        msg_dict: dict,
+        custom_values: dict | None = None,
     ) -> Self:
         dbg.lifecycle.debug(
             "project.task.message_new: from=%s subject=%r custom=%s",
@@ -3944,8 +3945,8 @@ class ProjectTask(models.Model):
 
     def message_update(
         self,
-        msg_dict: dict[str, Any],
-        update_vals: dict[str, Any] | None = None,
+        msg_dict: dict,
+        update_vals: ValuesType | None = None,
     ) -> bool:
         for task in self:
             partners = task._partner_get_or_create_from_emails_single(

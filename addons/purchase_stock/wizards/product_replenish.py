@@ -6,8 +6,8 @@ class ProductReplenish(models.TransientModel):
     _inherit = "product.replenish"
 
     @api.model
-    def default_get(self, fields_list):
-        res = super().default_get(fields_list)
+    def default_get(self, fields):
+        res = super().default_get(fields)
         if res.get("product_id"):
             product_id = self.env["product.product"].browse(res["product_id"])
             product_tmpl_id = product_id.product_tmpl_id

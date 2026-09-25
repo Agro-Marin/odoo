@@ -8,7 +8,7 @@ class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
     def _purchase_service_prepare_line_values(
-        self, purchase_order, quantity=False, supplierinfo=None
+        self, purchase_order, quantity=None, supplierinfo=None
     ):
         purchase_line_vals = super()._purchase_service_prepare_line_values(
             purchase_order, quantity, supplierinfo=supplierinfo

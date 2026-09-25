@@ -20,11 +20,11 @@ class MixinAccountMerge(models.AbstractModel):
 
     @api.model
     @_debug.perf.timed
-    def default_get(self, fields_list):
+    def default_get(self, fields):
         _debug.lifecycle("default_get", records=self)
-        res = super().default_get(fields_list)
+        res = super().default_get(fields)
         requested = {self._merge_records_field, "wizard_line_ids"}
-        if not set(fields_list) & requested or set(res) & requested:
+        if not set(fields) & requested or set(res) & requested:
             _debug.logic(
                 "merge_defaults_skipped", reason="records_not_requested_or_set"
             )

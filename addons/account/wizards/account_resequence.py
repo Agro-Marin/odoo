@@ -43,10 +43,10 @@ class AccountResequenceWizard(models.TransientModel):
 
     @api.model
     @_debug.perf.timed
-    def default_get(self, fields_list):
+    def default_get(self, fields):
         _debug.lifecycle("default_get", records=self)
-        values = super().default_get(fields_list)
-        if "move_ids" not in fields_list:
+        values = super().default_get(fields)
+        if "move_ids" not in fields:
             return values
         active_move_ids = self.env["account.move"]
         if (

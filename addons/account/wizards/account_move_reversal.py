@@ -90,9 +90,9 @@ class AccountMoveReversal(models.TransientModel):
 
     @api.model
     @_debug.perf.timed
-    def default_get(self, fields_list):
+    def default_get(self, fields):
         _debug.lifecycle("default_get", records=self)
-        res = super().default_get(fields_list)
+        res = super().default_get(fields)
         move_ids = (
             self.env["account.move"].browse(self.env.context.get("active_ids"))
             if self.env.context.get("active_model") == "account.move"
@@ -116,9 +116,9 @@ class AccountMoveReversal(models.TransientModel):
             raise UserError(
                 self.env._("To reverse a journal entry, it has to be posted first.")
             )
-        if "company_id" in fields_list:
+        if "company_id" in fields:
             res["company_id"] = move_ids.company_id.id or self.env.company.id
-        if "move_ids" in fields_list:
+        if "move_ids" in fields:
             res["move_ids"] = [Command.set(move_ids.ids)]
         return res
 

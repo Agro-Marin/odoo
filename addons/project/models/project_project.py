@@ -1,7 +1,8 @@
 import json
 from collections import defaultdict, deque
+from collections.abc import Collection
 from datetime import datetime, time, timedelta
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
@@ -16,7 +17,7 @@ from odoo.tools.misc import unquote
 from ..tools import debug_log as dbg
 from .project_task import CLOSED_STATES, DELIVERED_STATES
 from .project_update import STATUS_COLOR
-from odoo.addons.mail.tools.discuss import Store
+from odoo.addons.mail.tools.discuss import Store, StoreFieldSpec
 from odoo.addons.rating.models import rating_data
 
 _lt = LazyTranslate(__name__)
@@ -2339,7 +2340,7 @@ class ProjectProject(models.Model):
             for field_name, group in self._get_project_features_mapping().items()
         }
 
-    def _track_template(self, changes: dict[str, Any]) -> dict:
+    def _track_template(self, changes: Collection[str]) -> dict:
         res = super()._track_template(changes)
         project = self[0]
         if (
@@ -2378,7 +2379,7 @@ class ProjectProject(models.Model):
         self,
         message: Any,
         model_description: str,
-        msg_vals: dict | bool = False,
+        msg_vals: dict | Literal[False] = False,
     ) -> list:
         groups = super()._notify_get_recipients_groups(
             message, model_description, msg_vals=msg_vals
@@ -3038,11 +3039,11 @@ class ProjectProject(models.Model):
     def _thread_to_store(
         self,
         store: Store,
-        fields: list[str],
+        field_specs: list[StoreFieldSpec],
         *,
         request_list: list[str] | None = None,
     ) -> None:
-        super()._thread_to_store(store, fields, request_list=request_list)
+        super()._thread_to_store(store, field_specs, request_list=request_list)
         if request_list and "followers" in request_list:
             store.add(
                 self,

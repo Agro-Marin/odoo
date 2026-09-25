@@ -2,6 +2,7 @@ from collections import Counter
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError
 
 from odoo.addons.approval.models import approval_trace as trace
@@ -126,7 +127,7 @@ class ApprovalRequest(models.Model):
             )
         return smart
 
-    def copy_data(self, default: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    def copy_data(self, default: ValuesType | None = None) -> list[dict[str, Any]]:
         explicit = dict(default or {})
         vals_list = super().copy_data(default=explicit)
         recent_by_owner = {

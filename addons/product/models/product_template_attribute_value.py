@@ -117,21 +117,21 @@ class ProductTemplateAttributeValue(models.Model):
             )
         return super().create(vals_list)
 
-    def write(self, values):
-        if "ptav_product_variant_ids" in values:
+    def write(self, vals):
+        if "ptav_product_variant_ids" in vals:
             raise UserError(
                 self.env._(
                     "You cannot update related variants from the values. Please update related values from the variants."
                 )
             )
-        pav_in_values = "product_attribute_value_id" in values
-        product_in_values = "product_tmpl_id" in values
+        pav_in_values = "product_attribute_value_id" in vals
+        product_in_values = "product_tmpl_id" in vals
         if pav_in_values or product_in_values:
             for ptav in self:
                 if (
                     pav_in_values
                     and ptav.product_attribute_value_id.id
-                    != values["product_attribute_value_id"]
+                    != vals["product_attribute_value_id"]
                 ):
                     raise UserError(
                         self.env._(
@@ -142,7 +142,7 @@ class ProductTemplateAttributeValue(models.Model):
                     )
                 if (
                     product_in_values
-                    and ptav.product_tmpl_id.id != values["product_tmpl_id"]
+                    and ptav.product_tmpl_id.id != vals["product_tmpl_id"]
                 ):
                     raise UserError(
                         self.env._(
@@ -151,8 +151,8 @@ class ProductTemplateAttributeValue(models.Model):
                             product=ptav.product_tmpl_id.display_name,
                         )
                     )
-        res = super().write(values)
-        if "exclude_for" in values:
+        res = super().write(vals)
+        if "exclude_for" in vals:
             self.product_tmpl_id._create_variant_ids()
         return res
 

@@ -1,6 +1,8 @@
+from collections.abc import Sequence
 from typing import Any
 
 from odoo import api, fields, models
+from odoo.api import DomainType
 from odoo.exceptions import UserError
 from odoo.tools import SQL, frozendict
 
@@ -312,14 +314,14 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
     @dbg.timed
     def _read_group(
         self,
-        domain: list,
-        groupby: tuple | list = (),
-        aggregates: tuple | list = (),
-        having: tuple | list = (),
+        domain: DomainType,
+        groupby: Sequence[str] = (),
+        aggregates: Sequence[str] = (),
+        having: DomainType | None = None,
         offset: int = 0,
         limit: int | None = None,
         order: str | None = None,
-    ) -> list:
+    ) -> list[tuple]:
         self._check_group_by(groupby)
         dbg.pipeline.debug(
             "[report:project_task_burndown_chart_report] _read_group: domain=%s groupby=%s aggregates=%s",

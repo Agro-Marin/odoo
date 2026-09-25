@@ -44,7 +44,7 @@ from odoo.tools.mail import (
 )
 
 from odoo.addons.integration.tools.admission import Resolution
-from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput, StoreFieldSpec
+from odoo.addons.mail.tools.discuss import Store, StoreFieldSpec
 from odoo.addons.mail.tools.html_body import (
     iter_fragment_elements,
     parse_body_fragments,
@@ -5607,13 +5607,13 @@ class MixinMailThread(models.AbstractModel):
     def _thread_to_store(
         self,
         store: Store,
-        fields: StoreFieldsInput,
+        field_specs: list[StoreFieldSpec],
         *,
         request_list: list[str] | None = None,
     ) -> None:
         is_request = request_list is not None
         request_list = request_list or []
-        store.add_records_fields(self, fields, as_thread=True)
+        store.add_records_fields(self, field_specs, as_thread=True)
         is_own_target = is_request and store.target.is_current_user(self.env)
         post_operations = (
             self._mail_get_operation_for_mail_message_operation("create")

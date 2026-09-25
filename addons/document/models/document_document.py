@@ -12,6 +12,7 @@ from dateutil.relativedelta import relativedelta
 
 import odoo
 from odoo import SUPERUSER_ID, Command, api, fields, models, modules
+from odoo.api import ValuesType
 from odoo.exceptions import AccessError, MissingError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
@@ -571,7 +572,7 @@ class DocumentsDocument(models.Model):
         return {key: vals.pop(key) for key in keys}
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict]) -> DocumentsDocument:
+    def create(self, vals_list: list[ValuesType]) -> DocumentsDocument:
         _debug.pipeline("create_start", count=len(vals_list), su=self.env.su)
         attachments = []
         for vals in vals_list:
@@ -1315,7 +1316,7 @@ class DocumentsDocument(models.Model):
                     render_values={"documents": documents},
                 )
 
-    def copy(self, default: dict | None = None) -> DocumentsDocument:
+    def copy(self, default: ValuesType | None = None) -> DocumentsDocument:
         if not self:
             return self
         if not all(self.mapped("active")):
@@ -1462,7 +1463,7 @@ class DocumentsDocument(models.Model):
             return {"res_model": res_model, "res_id": res_id}
         return {"res_model": False, "res_id": False}
 
-    def copy_data(self, default: dict | None = None) -> list[dict]:
+    def copy_data(self, default: ValuesType | None = None) -> list[dict]:
         default = dict(default or {})
         if "user_folder_id" in default:
             self._clean_vals_for_user_folder_id(default)
@@ -2516,7 +2517,7 @@ class DocumentsDocument(models.Model):
 
         return fields_to_recompute
 
-    def _prepare_create_values(self, vals_list: list[dict]) -> list[dict]:
+    def _prepare_create_values(self, vals_list: list[ValuesType]) -> list[dict]:
         old_vals_list = [vals.copy() for vals in vals_list]
         vals_list = super()._prepare_create_values(vals_list)
         _debug.pipeline("prepare_create_values", count=len(vals_list))

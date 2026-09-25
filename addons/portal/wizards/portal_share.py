@@ -13,13 +13,13 @@ class PortalShare(models.TransientModel):
     _description = "Portal Sharing"
 
     @api.model
-    def default_get(self, fields_list):
-        result = super().default_get(fields_list)
+    def default_get(self, fields):
+        result = super().default_get(fields)
         for name, context_key in (
             ("res_model", "active_model"),
             ("res_id", "active_id"),
         ):
-            if name in fields_list:
+            if name in fields:
                 result.setdefault(name, self.env.context.get(context_key, False))
         return result
 

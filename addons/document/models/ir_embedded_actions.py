@@ -1,4 +1,5 @@
 from odoo import api, models
+from odoo.api import ValuesType
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
 
@@ -9,7 +10,7 @@ class IrEmbeddedActions(models.Model):
     _inherit = "ir.embedded.actions"
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict]) -> IrEmbeddedActions:
+    def create(self, vals_list: list[ValuesType]) -> IrEmbeddedActions:
         records = super().create(vals_list)
         records._check_documents_can_pin()
         return records

@@ -1,5 +1,5 @@
 from ast import literal_eval
-from typing import Any
+from typing import Any, Literal
 
 from odoo import Command, api, fields, models
 from odoo.exceptions import ValidationError
@@ -42,8 +42,8 @@ class DocumentsDocument(models.Model):
     def _notify_get_recipients_groups(
         self,
         message: models.Model,
-        model_description: str | None,
-        msg_vals: dict | bool = False,
+        model_description: str,
+        msg_vals: dict | Literal[False] = False,
     ) -> list:
         groups = super()._notify_get_recipients_groups(
             message, model_description, msg_vals=msg_vals

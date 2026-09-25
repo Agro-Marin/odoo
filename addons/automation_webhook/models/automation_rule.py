@@ -286,7 +286,7 @@ class AutomationRule(models.Model):
             ).run()
         return True
 
-    def _prepare_eval_context(self, payload=None):
+    def _prepare_eval_context(self, *, payload=None):
         eval_context = super()._prepare_eval_context()
         if payload is not None:
             eval_context["payload"] = payload

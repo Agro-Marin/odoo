@@ -1,4 +1,5 @@
 from odoo import api, fields, models, tools
+from odoo.api import ValuesType
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import consteq
@@ -55,7 +56,7 @@ class DocumentsAccess(models.Model):
                 _debug.logic("member_refused", reason="public_partner", access=access)
                 raise ValidationError(self.env._("This user can not be member."))
 
-    def _prepare_create_values(self, vals_list: list[dict]) -> list[dict]:
+    def _prepare_create_values(self, vals_list: list[ValuesType]) -> list[dict]:
         vals_list = super()._prepare_create_values(vals_list)
         documents = self.env["document.document"].browse(
             [vals["document_id"] for vals in vals_list]

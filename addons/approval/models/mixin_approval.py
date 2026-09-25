@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from markupsafe import Markup, escape
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import SQL
@@ -434,7 +435,7 @@ class MixinApproval(models.AbstractModel):
     )
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict[str, Any]]):
+    def create(self, vals_list: list[ValuesType]):
         for vals in vals_list:
             self._check_no_forged_approval_outputs(vals)
         records = super().create(vals_list)

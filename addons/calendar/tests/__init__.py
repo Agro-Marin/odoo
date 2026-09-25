@@ -21,3 +21,4 @@ from .booking import *
 from . import test_booking_consolidation
 
 from . import test_booking_migration
+from . import test_base_signature_calls

@@ -1113,13 +1113,26 @@ class CrmLead(models.Model):
 
         return leads
 
-    def web_save(self, vals, specification, next_id=None, **kwargs):
+    def web_save(
+        self,
+        vals,
+        specification,
+        next_id=None,
+        last_write_date=None,
+        known_values=None,
+    ):
         to_sync = (
             self.filtered("partner_phone_update")
             if self and "phone_ids" not in vals
             else self.browse()
         )
-        result = super().web_save(vals, specification, next_id=next_id, **kwargs)
+        result = super().web_save(
+            vals,
+            specification,
+            next_id=next_id,
+            last_write_date=last_write_date,
+            known_values=known_values,
+        )
         to_sync._inverse_phone_ids()
         return result
 

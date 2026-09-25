@@ -505,8 +505,19 @@ class AccountTax(models.Model):
         return Markup().join(fragments)
 
     @_debug.perf.timed
-    def _message_log_batch(self, bodies, **kwargs):
-        tracking_values = kwargs.get("tracking_values") or {}
+    def _message_log_batch(
+        self,
+        bodies,
+        subject=False,
+        author_id=None,
+        email_from=None,
+        message_type="notification",
+        partner_ids=False,
+        attachment_ids=False,
+        authors=None,
+        tracking_values=None,
+    ):
+        tracking_values = tracking_values or {}
         snapshot_field_id = (
             self.env["ir.model.fields"]._get("account.tax", "repartition_lines_str").id
         )
@@ -554,7 +565,14 @@ class AccountTax(models.Model):
                 )
                 for id_ in loggable_ids
             },
-            **{**kwargs, "tracking_values": kept_per_id},
+            subject=subject,
+            author_id=author_id,
+            email_from=email_from,
+            message_type=message_type,
+            partner_ids=partner_ids,
+            attachment_ids=attachment_ids,
+            authors=authors,
+            tracking_values=kept_per_id,
         )
 
     @api.model

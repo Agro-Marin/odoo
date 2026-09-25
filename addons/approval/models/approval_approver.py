@@ -1,6 +1,7 @@
 from typing import Any, Self
 
 from odoo import api, fields, models
+from odoo.api import ValuesType
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.tools import TransactionMemo, frozendict
@@ -331,7 +332,7 @@ class ApprovalApprover(models.Model):
                 )
 
     @api.model_create_multi
-    def create(self, vals_list: list[dict]) -> Self:
+    def create(self, vals_list: list[ValuesType]) -> Self:
         if any("state" in vals for vals in vals_list):
             self._raise_state_is_derived()
         self._check_access_create(vals_list)

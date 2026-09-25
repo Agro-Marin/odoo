@@ -31,8 +31,8 @@ class AccountSplitJournalItemWizard(models.TransientModel):
                 wizard.amount = abs(wizard.line_ids.balance) / wizard.quantity
 
     @api.model
-    def default_get(self, fields_list):
-        defaults = super().default_get(fields_list)
+    def default_get(self, fields):
+        defaults = super().default_get(fields)
 
         if defaults.get("line_ids"):
             line_ids = self._fields["line_ids"].convert_to_cache(
