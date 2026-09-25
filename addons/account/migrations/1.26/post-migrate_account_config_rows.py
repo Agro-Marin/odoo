@@ -89,10 +89,28 @@ TRACKED = (
 )
 
 
+# settings account.config held when this script was written, which tax.config
+# owns since tax 1.4.0: on a database older than both, they go there directly,
+# an unset selection taking tax.config's default as the field would
+TAX_COLUMNS = {
+    "account_fiscal_country_id": "c.account_fiscal_country_id",
+    "account_price_include": "COALESCE(c.account_price_include, 'tax_excluded')",
+    "tax_calculation_rounding_method": (
+        "COALESCE(c.tax_calculation_rounding_method, 'round_globally')"
+    ),
+}
+
+
 def migrate(cr, version):
     if not version or not column_exists(cr, "res_company", "chart_template"):
         return
-    present = [column for column in COLUMNS if column_exists(cr, "res_company", column)]
+    _move_tax_settings(cr)
+    present = [
+        column
+        for column in COLUMNS
+        if column_exists(cr, "res_company", column)
+        and column_exists(cr, "account_config", column)
+    ]
     columns = ", ".join(present)
     selected = ", ".join(f"c.{column}" for column in present)
     cr.execute(
@@ -143,4 +161,28 @@ def migrate(cr, version):
            AND new.name = old.name
         """,
         [list(TRACKED)],
+    )
+
+
+def _move_tax_settings(cr):
+    present = [
+        column
+        for column in TAX_COLUMNS
+        if column_exists(cr, "res_company", column)
+        and not column_exists(cr, "account_config", column)
+        and column_exists(cr, "tax_config", column)
+    ]
+    if not present:
+        return
+    columns = ", ".join(present)
+    cr.execute(
+        f"""
+        INSERT INTO tax_config (company_id, {columns},
+                                create_uid, create_date, write_uid, write_date)
+             SELECT c.id, {", ".join(TAX_COLUMNS[column] for column in present)},
+                    1, now() at time zone 'UTC', 1, now() at time zone 'UTC'
+               FROM res_company c
+        ON CONFLICT (company_id) DO UPDATE
+               SET {", ".join(f"{column} = EXCLUDED.{column}" for column in present)}
+        """
     )
