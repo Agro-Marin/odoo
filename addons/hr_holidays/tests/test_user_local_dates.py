@@ -74,3 +74,22 @@ class TestUserLocalDates(TestHrHolidaysCommon):
         # "has it begun?" question a second time, on its own.
         leave._action_user_cancel("changed my mind")
         self.assertEqual(leave.state, "cancel")
+
+    @freeze_time(UTC_NIGHT)
+    def test_an_employee_on_leave_today_is_found_absent(self):
+        leave = self.env["hr.leave"].create(
+            {
+                "name": "Day off",
+                "employee_id": self.employee_emp_id,
+                "holiday_status_id": self.leave_type.id,
+                "request_date_from": LOCAL_DAY,
+                "request_date_to": LOCAL_DAY,
+            }
+        )
+        leave.sudo().state = "validate"
+        absent = (
+            self.env["hr.employee"]
+            .with_context(tz="America/Mexico_City")
+            .search([("is_absent", "=", True)])
+        )
+        self.assertIn(self.employee_emp, absent)

@@ -67,7 +67,7 @@ class EventEventConfigurator(models.TransientModel):
         product_ticket_data = self.env["event.event.ticket"]._read_group(
             [
                 ("product_id", "in", self.product_id.ids),
-                ("event_id.date_end", ">=", fields.Date.today()),
+                ("event_id.date_end", ">=", fields.Date.context_today(self)),
             ],
             ["product_id"],
             ["__count"],

@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
 
 from dateutil.relativedelta import relativedelta
 
@@ -397,7 +397,7 @@ class HrEmployee(models.Model):
     def _search_is_absent(self, operator, value):
         if operator != "in":
             return NotImplemented
-        today_start = date.today()
+        today_start = fields.Date.context_today(self)
         today_end = today_start + timedelta(1)
         holidays = (
             self.env["hr.leave"]

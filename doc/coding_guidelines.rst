@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 7.9
+:Version: 7.10
 :Date: 2026-09-25
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -123,9 +123,10 @@ floor moving in the same change.
        --test-enable --test-tags /test_lint --stop-after-init --no-http
 
 Exception: classes that read the installed registry (bundles, dark siblings, ESM
-specifiers, ``test_docstring``, ``TestSchemeDuplication``) are graded on a
-fuller install; at the narrow scope ``test_docstring`` under-counts and
-``TestSchemeDuplication`` measures too few modules to fail.
+specifiers, ``test_docstring``, ``TestSchemeDuplication``, ``TestViewDepends``)
+are graded on a fuller install; at the narrow scope ``test_docstring``
+under-counts and ``TestSchemeDuplication`` and ``TestViewDepends`` measure too
+few modules to fail.
 
 AST rules (registry ``_rules.RULES``; engine ``_py_scan``; gate name
 ``lint_<rule_with_underscores>``):
@@ -2732,6 +2733,28 @@ Split methods so an override replaces one piece without copying the rest.
    @api.deprecated("Since 19.0, use _prepare_invoice_vals instead")
    def _prepare_invoice(self):
        return self._prepare_invoice_vals()
+
+**A SQL-view model names in ``_depends`` every stored field its SQL reads**
+``[test_lint view_depends_undeclared_*]``. A model whose rows a SQL view computes
+-- ``_auto = False`` with the view created in ``init()``, or a ``_table_query``
+-- is searched like any table, and a search flushes only the fields
+``_depends`` names. A field the SQL reads and ``_depends`` omits is read at its
+last flushed value: a write earlier in the same transaction is invisible to the
+view, and a stored compute not yet written reads as NULL. The reads are taken
+from PostgreSQL's own view dependencies, so a join through a table the model
+never names still counts. ``TestViewDepends`` holds each repository
+(``odoo``, ``enterprise``, ``agromarin``) at zero; grade it on a fuller install
+(``./gates.sh --lint-full``), since the narrow scope installs few SQL views.
+
+.. code-block:: python
+
+   class OrderReport(models.Model):
+       _name = "x.order.report"
+       _auto = False
+       _depends = {
+           "x.order": ["date_order", "partner_id", "state"],
+           "x.order.line": ["order_id", "price_subtotal", "product_uom_qty"],
+       }
 
 ORM performance -- counts, aggregation, batching, N+1, indexing, locking,
 ``ormcache``, cron batching -- is **§11**.
@@ -5455,6 +5478,10 @@ collisions, so an eighth fails and so does a renumbering.
    * - Version
      - Date
      - Summary
+   * - 7.10
+     - 2026-09-25
+     - §2.6: a SQL-view model names in ``_depends`` every stored field its SQL
+       reads, held at zero per repository by ``TestViewDepends``.
    * - 7.9
      - 2026-09-25
      - §1.2: a demo file that fails to load is an error of a run with

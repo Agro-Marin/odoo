@@ -104,6 +104,14 @@ addon code outside tests must reach the ORM through `odoo.api` / `odoo.fields`
 a gate with no entry is a hard zero. `assert_ratchet` is exact: a count above
 the floor fails, and a count below it fails until the floor is lowered in the
 same change.
+`TestViewDepends` reads the installed registry: every SQL-view model
+(`_auto = False`, or a `_table_query`) must name in `_depends` every stored
+field its SQL reads, as PostgreSQL's view dependencies report them, because a
+search flushes only what `_depends` names and otherwise reads the last flushed
+value (`coding_guidelines.rst` §2.6). It is a zero rule per repository
+(`view_depends_undeclared_{odoo,enterprise,agromarin}`, no floor entry); the
+narrow scope installs few SQL views, so grade it on a fuller install
+(`--lint-full`).
 
 Four real-dependency pytest suites are in no `testpaths` and run only when
 named: `tests/contract` (`ODOO_CONTRACT_REQUIRE_DEPS=1`; PostgreSQL + psql +

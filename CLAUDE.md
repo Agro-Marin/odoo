@@ -186,6 +186,7 @@ Gates that read the *installed registry* rather than the tree cannot be graded a
 |---|---|
 | `test_docstring` | One-sided ratchet: measures 1 there, 32 on a fuller install. Do not floor it at the former. |
 | `TestSchemeDuplication` | Zero rule: no declaration of a module in this repository may resolve differently under `data-color-scheme="dark"` in the light bundle from what the dark bundle serves. At the narrow scope it measures only what is installed there, so it passes for want of modules. Grade it on a fuller install. |
+| `TestViewDepends` | Zero rule per repository (`view_depends_undeclared_{odoo,enterprise,agromarin}`): a SQL-view model names in `_depends` every stored field its SQL reads, or a search reads it stale (`coding_guidelines.rst` §2.6). The narrow scope installs few SQL views, so it passes there for want of them. Grade it on a fuller install. |
 | `TestFieldDeclarations`, `TestIndex`, `OrphanLabelLinter`, `DroppedViewTextLinter`, `TestBundleTokenDefs` | Floors are zero and pass at the narrow scope over the little installed there; point_of_sale's dead lock-date constraint read 0 narrow and 4 with point_of_sale installed. |
 
 The fuller-install grading is `./gates.sh --lint-full` (`odoo/addons/test_lint/lint_full_scope.sh`): installs a named module set with demo data into a scratch database, repeats `-i` until nothing more goes missing, fails if any installed module is left without its demo, runs `/test_lint`, drops the database.
