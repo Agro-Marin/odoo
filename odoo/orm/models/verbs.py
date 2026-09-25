@@ -10,6 +10,7 @@ if typing.TYPE_CHECKING:
     from .base import BaseModel
 
 ANY_STATE = "*"
+_Value = str | typing.Literal[False]
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,19 +29,28 @@ class Verb:
     requires: str = "write"
     methods: tuple[str, ...] = ()
     checkpoints: tuple[str, ...] = ()
-    transition: tuple[str, str | tuple[str, ...], str] | None = None
+    transition: tuple[str, _Value | tuple[_Value, ...], _Value] | None = None
     amount: str | None = None
     at_create: bool = True
 
     def moves(self, before: typing.Any, after: typing.Any) -> bool:
+        # a field's cache holds its unset value as None where a declaration
+        # names it False
+        before, after = _unset(before), _unset(after)
         if self.transition is None or before == after:
             return False
         _field, sources, target = self.transition
-        if after != target:
+        if after != _unset(target):
             return False
         if sources == ANY_STATE:
             return True
-        return before in (sources if isinstance(sources, tuple) else (sources,))
+        return before in tuple(
+            map(_unset, sources if isinstance(sources, tuple) else (sources,))
+        )
+
+
+def _unset(value: typing.Any) -> typing.Any:
+    return False if value is None else value
 
 
 def collect_verbs(model_cls: type[BaseModel]) -> dict[str, Verb]:
@@ -73,7 +83,7 @@ def collect_verbs(model_cls: type[BaseModel]) -> dict[str, Verb]:
                     f"{model_cls._name}: verb {name!r} moves {verb.transition[0]!r}, "
                     f"which is not a stored field"
                 )
-    targets: dict[tuple[str, str], str] = {}
+    targets: dict[tuple[str, _Value], str] = {}
     for name, verb in verbs.items():
         if verb.transition is None:
             continue

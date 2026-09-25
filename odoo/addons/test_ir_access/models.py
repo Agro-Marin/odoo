@@ -112,6 +112,7 @@ class TestIrAccessDocument(models.Model):
             transition=("state", "*", "retired"),
             at_create=False,
         ),
+        "clear": models.Verb(transition=("state", "*", False), at_create=False),
     }
 
     name = fields.Char()

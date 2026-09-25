@@ -81,6 +81,17 @@ class TestVerbs(TransactionCase):
         document.with_user(self.admin).write({"state": "retired"})
         self.assertEqual(document.state, "retired")
 
+    def test_a_move_into_the_unset_value_is_its_verb(self):
+        landings = []
+        document = self._document().with_context(verb_landings=landings)
+        with (
+            mute_logger("odoo.addons.base.models.ir_access"),
+            self.assertRaises(AccessError),
+        ):
+            document.with_user(self.clerk).write({"state": False})
+        document.with_user(self.admin).write({"state": False})
+        self.assertEqual(landings, [("clear", document.ids, [False])])
+
     def test_the_obligation_is_told_once_the_move_has_landed(self):
         landings = []
         document, other = (
