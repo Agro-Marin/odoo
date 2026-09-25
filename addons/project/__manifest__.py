@@ -131,6 +131,10 @@
             "base/static/src/css/modules.css",
             "web/static/src/core/**/*",
             "web/static/src/components/**/*",
+            (
+                "remove",
+                "web/static/src/components/emoji_picker/emoji_data.js",
+            ),
             "web/static/src/ui/**/*",
             "web/static/src/model/**/*",
             "web/static/src/search/**/*",
@@ -211,6 +215,9 @@
         "bundles": [
             "project.webclient",
         ],
+        "dynamic_children_from": {
+            "project.webclient": "web.assets_web",
+        },
         "secondary_import_map_includes": {
             "project.webclient": [
                 "web.assets_tests",
