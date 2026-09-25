@@ -86,6 +86,7 @@ from . import test_marin_bank_rec_fixes
 from . import test_marin_journal_account_fixes
 from . import test_marin_payment_fixes
 from . import test_marin_reconcile_wizard_fixes
+from . import test_marin_report_fixes
 from . import test_unexpected_invoice
 from . import test_mail_tracking_value
 from . import test_res_partner_merge

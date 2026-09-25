@@ -366,12 +366,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         }
 
     @_debug.perf.timed
-    def open_unallocated_items_journal_items(self, options, params):
-        _debug.lifecycle("open_unallocated_items_journal_items", records=self)
-        report = self.env["report.formula"].browse(options["report_id"])
-        return report.open_unallocated_items_journal_items(options, params)
-
-    @_debug.perf.timed
     def _report_custom_engine_trial_balance(
         self,
         expressions,
@@ -734,13 +728,6 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         return report._report_expand_unfoldable_line_with_groupby(
             line_dict_id, groupby, options, progress, offset, unfold_all_batch_data
         )
-
-    def _get_account_ids_type_map(self, report, options):
-        company_ids = report.get_report_company_ids(options)
-        accounts = self.env["account.account"].search_fetch(
-            [("company_ids", "in", company_ids)], ["account_type"]
-        )
-        return {account.id: account.account_type for account in accounts}
 
     def _get_fiscalyear_start_date(self, options):
         return options.get("trial_balance_block_fiscalyear_start")

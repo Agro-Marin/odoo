@@ -1,4 +1,5 @@
 import calendar
+import json
 from collections import defaultdict
 
 from dateutil.relativedelta import relativedelta
@@ -56,14 +57,12 @@ class AccountDeferredReportHandler(models.AbstractModel):
         self, report, options, filter_already_generated=False, filter_not_started=False
     ):
         domain = report._get_domain_options(options, "from_beginning")
-        account_types = (
-            ("expense", "expense_depreciation", "expense_direct_cost")
-            if self._get_deferred_report_type() == "expense"
-            else ("income", "income_other")
+        internal_group = (
+            "expense" if self._get_deferred_report_type() == "expense" else "income"
         )
         domain &= Domain(
             [
-                ("account_id.account_type", "in", account_types),
+                ("account_id.internal_group", "in", [internal_group]),
                 ("deferred_start_date", "!=", False),
                 ("deferred_end_date", "!=", False),
                 ("deferred_end_date", ">=", options["date"]["date_from"]),
@@ -96,7 +95,7 @@ class AccountDeferredReportHandler(models.AbstractModel):
         _debug.logic(
             "deferred_domain_built",
             report=report,
-            account_types=account_types,
+            internal_group=internal_group,
             filter_already_generated=filter_already_generated,
             filter_not_started=filter_not_started,
         )
@@ -153,26 +152,22 @@ class AccountDeferredReportHandler(models.AbstractModel):
 
     @_debug.perf.timed
     def _get_lines(self, report, options, filter_already_generated=False):
-        if "report_deferred_lines" not in self.env.cr.cache:
-            self._update_deferred_lines_cache(report, options, filter_already_generated)
-
-        if not filter_already_generated:
-            # No more filtering needed, we can reuse the cached result
-            return self.env.cr.cache["report_deferred_lines"].values()
-        else:
-            # Filter the cached result to only keep the lines that are not already generated
-            cached_lines = self.env.cr.cache["report_deferred_lines"].values()
-            return [
-                cached_line
-                for cached_line in cached_lines
-                if not cached_line["is_already_generated"]
-            ]
-
-    def _update_deferred_lines_cache(self, report, options, filter_already_generated):
-        """Fetch the lines that need to be deferred from the DB and store them in the cache for later reuse"""
-        domain = self._get_domain_deferred_lines(
-            report, options, filter_already_generated
+        cache = self.env.cr.cache.setdefault("report_deferred_lines", {})
+        cache_key = (self._name, json.dumps(options, sort_keys=True, default=str))
+        if cache_key not in cache:
+            cache[cache_key] = self._fetch_deferred_lines(report, options)
+        _debug.logic(
+            "deferred_lines_cache",
+            report=report,
+            cached_keys=len(cache),
+            filter_already_generated=filter_already_generated,
         )
+        if not filter_already_generated:
+            return cache[cache_key]
+        return [line for line in cache[cache_key] if not line["is_already_generated"]]
+
+    def _fetch_deferred_lines(self, report, options):
+        domain = self._get_domain_deferred_lines(report, options)
         query = report._get_report_query(
             options, domain=domain, date_scope="from_beginning"
         )
@@ -193,12 +188,9 @@ class AccountDeferredReportHandler(models.AbstractModel):
         )
 
         self.env.cr.execute(query)
-        # Cache the result so that it can be reused to check whether a warning banner should be shown
-        # only if it's the generic query (so without filtering already generated deferrals)
-        self.env.cr.cache["report_deferred_lines"] = {
-            r["line_id"]: r for r in self.env.cr.dictfetchall()
-        }
-        _debug.perf.count("deferred_lines_fetched", rows=self.env.cr.rowcount)
+        lines = self.env.cr.dictfetchall()
+        _debug.perf.count("deferred_lines_fetched", rows=len(lines))
+        return lines
 
     @api.model
     def _get_grouping_fields_deferred_lines(
@@ -771,9 +763,7 @@ class AccountDeferredReportHandler(models.AbstractModel):
                     "You cannot generate entries for a period that does not end at the end of the month."
                 )
             )
-        options["all_entries"] = (
-            False  # We only want to create deferrals for posted moves
-        )
+        options = {**options, "all_entries": False}
         report = self.env["report.formula"].browse(options["report_id"])
         self.env["account.move.line"].flush_model()
         lines = self._get_lines(report, options, filter_already_generated=True)

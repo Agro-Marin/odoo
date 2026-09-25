@@ -481,6 +481,34 @@ class TestMultiCurrenciesRevaluationReport(TestAccountReportsCommon):
                 }
             )
 
+    def test_other_expense_accounts_are_not_revalued(self):
+        other_expense = self.env["account.account"].create(
+            {
+                "name": "Other expense",
+                "code": "OEXP9",
+                "account_type": "expense_other",
+                "currency_id": self.other_currency.id,
+            }
+        )
+        self.create_move_one_line(
+            partner_id=self.partner_a.id,
+            move_type="in_invoice",
+            journal_id=self.company_data["default_journal_purchase"].id,
+            date="2023-01-21",
+            invoice_date="2023-01-21",
+            currency_id=self.other_currency.id,
+            account_id=other_expense.id,
+            quantity=1,
+            price_unit=1000.0,
+        )
+
+        options = self._generate_options(self.report, "2023-01-30", "2023-01-30")
+        options["unfold_all"] = True
+
+        names = [line["name"] for line in self.report._get_lines(options)]
+        self.assertTrue(any("Account Payable" in name for name in names))
+        self.assertFalse(any("OEXP9" in name for name in names))
+
     def test_changing_rate_between_move_and_payment(self):
         """The currency rate changes between the creation of a move and its payment.
 

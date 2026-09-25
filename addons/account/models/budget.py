@@ -3,7 +3,7 @@ from itertools import zip_longest
 from dateutil.relativedelta import relativedelta
 
 from odoo import Command, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import date_utils, float_is_zero, float_round, frozendict
 
@@ -69,6 +69,12 @@ class AccountReportBudget(models.Model):
         )
         if date_from != date_utils.start_of(date_from, "month"):
             date_from = date_from.replace(day=1) + relativedelta(months=1)
+        if date_from > date_to:
+            raise UserError(
+                self.env._(
+                    "Budget amounts are set per month: the selected period must include the first day of a month."
+                )
+            )
         existing_budget_items = self.env["account.report.budget.item"].search_fetch(
             [
                 ("budget_id", "=", self.id),

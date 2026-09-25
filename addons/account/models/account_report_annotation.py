@@ -8,7 +8,9 @@ class AccountReportAnnotation(models.Model):
     # This field is a OneToOne to a mail.message.
     message_id = fields.Many2one(
         comodel_name="mail.message",
+        index=True,
         required=True,
+        ondelete="cascade",
     )
     date = fields.Date(
         required=True,

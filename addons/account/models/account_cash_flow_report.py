@@ -554,7 +554,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
                 WHERE account_move_line.move_id IN (SELECT unnest(payment_move_ids.move_id) FROM payment_move_ids)
                     AND account_move_line.account_id != ALL(%(payment_account_ids)s)
                 GROUP BY account_move_line.account_id, %(code_store_col)s, %(name_col)s, account_account_type, account_account_account_tag.account_account_tag_id)
-                """,
+                    """,
                     column_group_key=column_group_key,
                     move_ids_query=move_ids_query,
                     account_code=account_code,
@@ -646,55 +646,60 @@ class AccountCashFlowReportHandler(models.AbstractModel):
             queries.append(
                 SQL(
                     """
-                (WITH payment_move_ids AS (%(move_ids_query)s)
-                SELECT
-                    %(column_group_key)s AS column_group_key,
-                    debit_line.move_id,
-                    debit_line.account_id,
-                    SUM(%(partial_amount)s) AS balance
-                FROM account_move_line AS credit_line
-                LEFT JOIN account_partial_reconcile
-                    ON account_partial_reconcile.credit_move_id = credit_line.id
-                JOIN %(currency_table)s
-                    ON account_currency_table.company_id = account_partial_reconcile.company_id
-                    AND account_currency_table.rate_type = 'current' -- For payable/receivable accounts it'll always be 'current' anyway
-                INNER JOIN account_move_line AS debit_line
-                    ON debit_line.id = account_partial_reconcile.debit_move_id
-                WHERE credit_line.move_id IN (SELECT unnest(payment_move_ids.move_id) FROM payment_move_ids)
-                    AND credit_line.account_id != ALL(%(payment_account_ids)s)
-                    AND credit_line.credit > 0.0
-                    AND debit_line.move_id NOT IN (SELECT unnest(payment_move_ids.move_id) FROM payment_move_ids)
-                    AND account_partial_reconcile.max_date BETWEEN %(date_from)s AND %(date_to)s
-                GROUP BY debit_line.move_id, debit_line.account_id
+                    (WITH payment_move_ids AS (%(move_ids_query)s)
+                    SELECT
+                        %(column_group_key)s AS column_group_key,
+                        debit_line.move_id,
+                        debit_line.account_id,
+                        SUM(%(partial_amount)s) AS balance
+                    FROM account_move_line AS credit_line
+                    LEFT JOIN account_partial_reconcile
+                        ON account_partial_reconcile.credit_move_id = credit_line.id
+                    JOIN %(currency_table)s
+                        ON account_currency_table.company_id = account_partial_reconcile.company_id
+                        AND account_currency_table.rate_type = 'current' -- For payable/receivable accounts it'll always be 'current' anyway
+                        AND (account_currency_table.period_key = %(period_key)s OR account_currency_table.period_key IS NULL)
+                    INNER JOIN account_move_line AS debit_line
+                        ON debit_line.id = account_partial_reconcile.debit_move_id
+                    WHERE credit_line.move_id IN (SELECT unnest(payment_move_ids.move_id) FROM payment_move_ids)
+                        AND credit_line.account_id != ALL(%(payment_account_ids)s)
+                        AND credit_line.credit > 0.0
+                        AND debit_line.move_id NOT IN (SELECT unnest(payment_move_ids.move_id) FROM payment_move_ids)
+                        AND account_partial_reconcile.max_date BETWEEN %(date_from)s AND %(date_to)s
+                    GROUP BY debit_line.move_id, debit_line.account_id
 
-                UNION ALL
+                    UNION ALL
 
-                SELECT
-                    %(column_group_key)s AS column_group_key,
-                    credit_line.move_id,
-                    credit_line.account_id,
-                    -SUM(%(partial_amount)s) AS balance
-                FROM account_move_line AS debit_line
-                LEFT JOIN account_partial_reconcile
-                    ON account_partial_reconcile.debit_move_id = debit_line.id
-                JOIN %(currency_table)s
-                    ON account_currency_table.company_id = account_partial_reconcile.company_id
-                    AND account_currency_table.rate_type = 'current' -- For payable/receivable accounts it'll always be 'current' anyway
-                INNER JOIN account_move_line AS credit_line
-                    ON credit_line.id = account_partial_reconcile.credit_move_id
-                WHERE debit_line.move_id IN (SELECT unnest(payment_move_ids.move_id) FROM payment_move_ids)
-                    AND debit_line.account_id != ALL(%(payment_account_ids)s)
-                    AND debit_line.debit > 0.0
-                    AND credit_line.move_id NOT IN (SELECT unnest(payment_move_ids.move_id) FROM payment_move_ids)
-                    AND account_partial_reconcile.max_date BETWEEN %(date_from)s AND %(date_to)s
-                GROUP BY credit_line.move_id, credit_line.account_id)
-                """,
+                    SELECT
+                        %(column_group_key)s AS column_group_key,
+                        credit_line.move_id,
+                        credit_line.account_id,
+                        -SUM(%(partial_amount)s) AS balance
+                    FROM account_move_line AS debit_line
+                    LEFT JOIN account_partial_reconcile
+                        ON account_partial_reconcile.debit_move_id = debit_line.id
+                    JOIN %(currency_table)s
+                        ON account_currency_table.company_id = account_partial_reconcile.company_id
+                        AND account_currency_table.rate_type = 'current' -- For payable/receivable accounts it'll always be 'current' anyway
+                        AND (account_currency_table.period_key = %(period_key)s OR account_currency_table.period_key IS NULL)
+                    INNER JOIN account_move_line AS credit_line
+                        ON credit_line.id = account_partial_reconcile.credit_move_id
+                    WHERE debit_line.move_id IN (SELECT unnest(payment_move_ids.move_id) FROM payment_move_ids)
+                        AND debit_line.account_id != ALL(%(payment_account_ids)s)
+                        AND debit_line.debit > 0.0
+                        AND credit_line.move_id NOT IN (SELECT unnest(payment_move_ids.move_id) FROM payment_move_ids)
+                        AND account_partial_reconcile.max_date BETWEEN %(date_from)s AND %(date_to)s
+                    GROUP BY credit_line.move_id, credit_line.account_id)
+                    """,
                     move_ids_query=move_ids_query,
                     column_group_key=column_group_key,
                     payment_account_ids=list(payment_account_ids),
                     date_from=column_group_options["date"]["date_from"],
                     date_to=column_group_options["date"]["date_to"],
                     currency_table=currency_table,
+                    period_key=column_group_options["date"][
+                        "currency_table_period_key"
+                    ],
                     partial_amount=report._currency_table_apply_rate(
                         SQL("account_partial_reconcile.amount")
                     ),
@@ -743,6 +748,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
 
         queries = []
 
+        options_per_column_group = report._split_options_per_column_group(options)
         for column in options["columns"]:
             queries.append(
                 SQL(
@@ -756,12 +762,16 @@ class AccountCashFlowReportHandler(models.AbstractModel):
                 JOIN %(currency_table)s
                     ON account_currency_table.company_id = account_move_line.company_id
                     AND account_currency_table.rate_type = 'current' -- For payable/receivable accounts it'll always be 'current' anyway
+                    AND (account_currency_table.period_key = %(period_key)s OR account_currency_table.period_key IS NULL)
                 WHERE account_move_line.move_id = ANY(%(move_ids)s)
                     AND account_move_line.account_id = ANY(%(account_ids)s)
                 GROUP BY account_move_line.move_id, account_move_line.account_id
                 """,
                     column_group_key=column["column_group_key"],
                     currency_table=currency_table,
+                    period_key=options_per_column_group[column["column_group_key"]][
+                        "date"
+                    ]["currency_table_period_key"],
                     balance_select=report._currency_table_apply_rate(
                         SQL("account_move_line.balance")
                     ),
@@ -808,6 +818,7 @@ class AccountCashFlowReportHandler(models.AbstractModel):
         account_name = self.env["account.account"]._field_to_sql(account_alias, "name")
         account_type = SQL.identifier(account_alias, "account_type")
 
+        options_per_column_group = report._split_options_per_column_group(options)
         for column in options["columns"]:
             queries.append(
                 SQL(
@@ -836,7 +847,9 @@ class AccountCashFlowReportHandler(models.AbstractModel):
                     code_store_col=SQL.identifier(account_alias, "code_store"),
                     name_col=SQL.identifier(account_alias, "name"),
                     from_clause=query.from_clause,
-                    currency_table_join=report._currency_table_aml_join(options),
+                    currency_table_join=report._currency_table_aml_join(
+                        options_per_column_group[column["column_group_key"]]
+                    ),
                     balance_select=report._currency_table_apply_rate(
                         SQL("account_move_line.balance")
                     ),

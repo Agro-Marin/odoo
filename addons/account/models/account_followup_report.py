@@ -4,6 +4,8 @@ from odoo.tools import SQL
 
 _debug = DebugLog(__name__)
 
+FOLLOWUP_STATUS_PROGRESS_KEY = "followup_status"
+
 
 class AccountFollowupCustomHandler(models.AbstractModel):
     _name = "account.followup.report.handler"
@@ -64,25 +66,20 @@ class AccountFollowupCustomHandler(models.AbstractModel):
         )
 
     def _filter_overdue_amls_from_results(self, aml_results):
-        return list(
-            filter(
-                lambda aml: (
-                    aml["date_maturity"] and aml["date_maturity"] < fields.Date.today()
-                ),
-                aml_results,
-            )
-        )
+        today = fields.Date.context_today(self)
+        return [
+            aml
+            for aml in aml_results
+            if aml["date_maturity"] and aml["date_maturity"] < today
+        ]
 
     def _filter_due_amls_from_results(self, aml_results):
-        return list(
-            filter(
-                lambda aml: (
-                    not aml["date_maturity"]
-                    or aml["date_maturity"] >= fields.Date.today()
-                ),
-                aml_results,
-            )
-        )
+        today = fields.Date.context_today(self)
+        return [
+            aml
+            for aml in aml_results
+            if not aml["date_maturity"] or aml["date_maturity"] >= today
+        ]
 
     @_debug.perf.timed
     def _get_partner_aml_report_lines(
@@ -96,29 +93,35 @@ class AccountFollowupCustomHandler(models.AbstractModel):
         level_shift=0,
     ):
 
-        def create_status_line(status_name):
-            return {
-                "id": report._get_generic_line_id(
-                    None, None, markup=status_name, parent_line_id=partner_line_id
-                ),
-                "name": status_name,
-                "level": 3 + level_shift,
-                "parent_id": partner_line_id,
-                "columns": [{} for _col in options["columns"]],
-                "unfolded": True,
-            }
+        def get_status_line_id(status_markup):
+            return report._get_generic_line_id(
+                None, None, markup=status_markup, parent_line_id=partner_line_id
+            )
 
         def get_aml_lines_with_status_line(
-            status_name, status_line_id, aml_values, treated_results_count, progress
+            status_markup,
+            status_name,
+            aml_values,
+            treated_results_count,
+            progress,
         ):
             lines = []
             next_progress = progress
             has_more = False
+            status_line_id = get_status_line_id(status_markup)
 
-            if not status_line_id or offset == 0:
-                status_line = create_status_line(status_name)
-                lines.append(status_line)
-                status_line_id = status_line["id"]
+            section_already_started = bool(offset) and previous_status == status_markup
+            if not section_already_started:
+                lines.append(
+                    {
+                        "id": status_line_id,
+                        "name": status_name,
+                        "level": 3 + level_shift,
+                        "parent_id": partner_line_id,
+                        "columns": [{} for _col in options["columns"]],
+                        "unfolded": True,
+                    }
+                )
 
             for aml_value in aml_values:
                 if self._is_report_limit_reached(
@@ -136,7 +139,10 @@ class AccountFollowupCustomHandler(models.AbstractModel):
                     level_shift=level_shift + 1,
                 )
                 lines.append(aml_report_line)
-                next_progress = self._init_load_more_progress(options, aml_report_line)
+                next_progress = {
+                    **self._init_load_more_progress(options, aml_report_line),
+                    FOLLOWUP_STATUS_PROGRESS_KEY: status_markup,
+                }
                 treated_results_count += 1
 
             return lines, next_progress, treated_results_count, has_more
@@ -145,9 +151,7 @@ class AccountFollowupCustomHandler(models.AbstractModel):
         next_progress = progress
         has_more = False
         treated_results_count = 0
-        due_line_id, overdue_line_id = self._get_unfolded_partner_status_lines(
-            report, options, partner_line_id
-        )
+        previous_status = (progress or {}).get(FOLLOWUP_STATUS_PROGRESS_KEY)
 
         overdue_aml_values = self._filter_overdue_amls_from_results(aml_results)
         due_aml_values = self._filter_due_amls_from_results(aml_results)
@@ -159,15 +163,14 @@ class AccountFollowupCustomHandler(models.AbstractModel):
             overdue=len(overdue_aml_values),
             due=len(due_aml_values),
             offset=offset,
-            overdue_line_unfolded=bool(overdue_line_id),
-            due_line_unfolded=bool(due_line_id),
+            previous_status=previous_status,
         )
 
         if overdue_aml_values:
             overdue_lines, next_progress, treated_results_count, has_more = (
                 get_aml_lines_with_status_line(
+                    "overdue",
                     self.env._("Overdue"),
-                    overdue_line_id,
                     overdue_aml_values,
                     treated_results_count,
                     next_progress,
@@ -183,8 +186,8 @@ class AccountFollowupCustomHandler(models.AbstractModel):
         if due_aml_values and not has_more:
             due_lines, next_progress, treated_results_count, has_more = (
                 get_aml_lines_with_status_line(
+                    "due",
                     self.env._("Due"),
-                    due_line_id,
                     due_aml_values,
                     treated_results_count,
                     next_progress,
@@ -201,25 +204,6 @@ class AccountFollowupCustomHandler(models.AbstractModel):
             has_more=has_more,
         )
         return lines, next_progress, treated_results_count, has_more
-
-    def _get_unfolded_partner_status_lines(self, report, options, partner_line_id):
-        _dummy1, _dummy2, partner_id = report._parse_line_id(partner_line_id)[-1]
-        due_line_id, overdue_line_id = None, None
-        for line_id in options["unfolded_lines"]:
-            res_ids_map = report._get_res_ids_from_line_id(
-                line_id, ["report.formula", "res.partner"]
-            )
-            if (
-                "res.partner" in res_ids_map
-                and res_ids_map["report.formula"] == report.id
-                and res_ids_map["res.partner"] == partner_id
-            ):
-                markup, _dummy1, _dummy2 = report._parse_line_id(line_id)[-1]
-                if markup == "Due":
-                    due_line_id = line_id
-                if markup == "Overdue":
-                    overdue_line_id = line_id
-        return due_line_id, overdue_line_id
 
     def _prepare_aml_order_by_sql(self):
         return SQL(
@@ -243,7 +227,7 @@ class AccountFollowupCustomHandler(models.AbstractModel):
             "res_model": "account.report.send",
             "target": "new",
             "context": {
-                "default_mail_template_id": template.id,
+                "default_mail_template_id": template.id if template else False,
                 "default_report_options": options,
             },
         }

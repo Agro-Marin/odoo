@@ -17,11 +17,10 @@ from odoo.tools.misc import format_date
 
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.account.tools.report_engines import (
-    ACCOUNT_CODES_ENGINE_SPLIT_REGEX,
-    ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX,
-    ACCOUNT_CODES_ENGINE_TERM_REGEX,
     LEDGER_ENGINES,
     UNDISTR_LINE_NAME,
+    AccountCodesFormulaError,
+    parse_account_codes_formula,
 )
 from odoo.addons.report_formula.models.account_report import (
     report_option_filter_field,
@@ -1739,41 +1738,33 @@ class AccountReport(models.Model):
         prefix_details_by_formula = {}  # in the form {formula: [(1, prefix1), (-1, prefix2)]}
         for formula in formulas_dict:
             prefix_details_by_formula[formula] = []
-            for token in filter(
-                None, ACCOUNT_CODES_ENGINE_SPLIT_REGEX.split(formula.replace(" ", ""))
-            ):
-                token_match = ACCOUNT_CODES_ENGINE_TERM_REGEX.match(token)
-
-                if not token_match:
-                    raise UserError(
-                        self.env._(
-                            "Invalid token '%(token)s' in account_codes formula '%(formula)s'",
-                            token=token,
-                            formula=formula,
-                        )
+            try:
+                terms = parse_account_codes_formula(formula)
+            except AccountCodesFormulaError as error:
+                raise UserError(
+                    self.env._(
+                        "Invalid token '%(token)s' in account_codes formula '%(formula)s'",
+                        token=error.token,
+                        formula=formula,
                     )
-
-                multiplicator = -1 if token_match["sign"] == "-" else 1
-                excluded_prefixes_match = token_match["excluded_prefixes"]
-                excluded_prefixes = (
-                    tuple(excluded_prefixes_match.split(","))
-                    if excluded_prefixes_match
-                    else ()
-                )
-                prefix = token_match["prefix"]
+                ) from None
+            for term in terms:
+                excluded_prefixes = term.excluded_prefixes
+                prefix = term.prefix
 
                 # We group using both prefix and excluded_prefixes as keys, for the case where two expressions would
                 # include the same prefix, but exlcude different prefixes (example 104\(1041) and 104\(1042))
                 prefix_key = (prefix, *excluded_prefixes)
                 prefix_details_by_formula[formula].append(
-                    (multiplicator, prefix_key, token_match["balance_character"])
+                    (term.sign, prefix_key, term.balance_character)
                 )
 
-                if tag := ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX.match(prefix):
-                    if tag["ref"]:
-                        tag_id = self.env["ir.model.data"]._xmlid_to_res_id(tag["ref"])
-                    else:
-                        tag_id = int(tag["id"])
+                if term.is_tag:
+                    tag_id = (
+                        self.env["ir.model.data"]._xmlid_to_res_id(term.tag_ref)
+                        if term.tag_ref
+                        else term.tag_id
+                    )
                     accs = tags_map[tag_id]
                 else:
                     idx = bisect.bisect_left(
@@ -1984,44 +1975,24 @@ class AccountReport(models.Model):
             formula = expression_to_audit.formula.replace(" ", "")
 
             account_codes_domains = []
-            for token in ACCOUNT_CODES_ENGINE_SPLIT_REGEX.split(
-                formula.replace(" ", "")
-            ):
-                if token:
-                    match_dict = ACCOUNT_CODES_ENGINE_TERM_REGEX.match(
-                        token
-                    ).groupdict()
-                    tag_match = ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX.match(
-                        match_dict["prefix"]
+            for term in parse_account_codes_formula(formula):
+                if term.is_tag:
+                    tag_id = (
+                        self.env["ir.model.data"]._xmlid_to_res_id(term.tag_ref)
+                        if term.tag_ref
+                        else term.tag_id
                     )
-                    account_codes_domain = []
-
-                    if tag_match:
-                        if tag_match["ref"]:
-                            tag_id = self.env["ir.model.data"]._xmlid_to_res_id(
-                                tag_match["ref"]
-                            )
-                        else:
-                            tag_id = int(tag_match["id"])
-
-                        account_codes_domain.append(
-                            ("account_id.tag_ids", "in", [tag_id])
-                        )
-                    else:
-                        account_codes_domain.append(
-                            ("account_id.code", "=like", f"{match_dict['prefix']}%")
-                        )
-
-                    excluded_prefix_str = match_dict["excluded_prefixes"]
-                    if excluded_prefix_str:
-                        for excluded_prefix in excluded_prefix_str.split(","):
-                            # "'not like', prefix%" doesn't work
-                            account_codes_domain += [
-                                "!",
-                                ("account_id.code", "=like", f"{excluded_prefix}%"),
-                            ]
-
-                    account_codes_domains.append(account_codes_domain)
+                    account_codes_domain = [("account_id.tag_ids", "in", [tag_id])]
+                else:
+                    account_codes_domain = [
+                        ("account_id.code", "=like", f"{term.prefix}%")
+                    ]
+                for excluded_prefix in term.excluded_prefixes:
+                    account_codes_domain += [
+                        "!",
+                        ("account_id.code", "=like", f"{excluded_prefix}%"),
+                    ]
+                account_codes_domains.append(account_codes_domain)
 
             _debug.pipeline(
                 "account_codes_audit_domain",
@@ -2370,14 +2341,16 @@ class AccountReport(models.Model):
             "account.move.line"
         ]._prepare_aml_shadowing_for_report(
             {
-                "id": SQL.identifier("id"),
-                "balance": SQL.identifier("amount"),
-                "company_id": self.env.company.id,
+                "id": SQL.identifier("item", "id"),
+                "balance": SQL.identifier("item", "amount"),
+                "company_id": SQL.identifier("budget", "company_id"),
                 "parent_state": "posted",
-                "date": SQL.identifier("date"),
-                "account_id": SQL.identifier("account_id"),
-                "debit": SQL("CASE WHEN (amount > 0) THEN amount else 0 END"),
-                "credit": SQL("CASE WHEN (amount < 0) THEN -amount else 0 END"),
+                "date": SQL.identifier("item", "date"),
+                "account_id": SQL.identifier("item", "account_id"),
+                "debit": SQL("CASE WHEN (item.amount > 0) THEN item.amount else 0 END"),
+                "credit": SQL(
+                    "CASE WHEN (item.amount < 0) THEN -item.amount else 0 END"
+                ),
             },
             prefix_fields_to_insert=False,
         )
@@ -2388,9 +2361,10 @@ class AccountReport(models.Model):
         queries = [
             SQL(
                 """
-                SELECT %(fields_to_insert)s, budget_id
-                FROM account_report_budget_item
-                WHERE budget_id IN %(available_budget_ids)s
+                SELECT %(fields_to_insert)s, item.budget_id
+                FROM account_report_budget_item item
+                JOIN account_report_budget budget ON budget.id = item.budget_id
+                WHERE item.budget_id IN %(available_budget_ids)s
             """,
                 fields_to_insert=fields_to_insert,
                 available_budget_ids=available_budget_ids,
@@ -2402,10 +2376,9 @@ class AccountReport(models.Model):
                 "account.move.line"
             ]._prepare_aml_shadowing_for_report(
                 {
-                    # Using nextval will consume a sequence number, we decide to do it to avoid comparing apples and oranges
-                    "id": SQL("(SELECT nextval('account_report_budget_item_id_seq'))"),
+                    "id": SQL("-(ROW_NUMBER() OVER ())"),
                     "balance": SQL("0"),
-                    "company_id": self.env.company.id,
+                    "company_id": SQL.identifier("budgets", "company_id"),
                     "parent_state": "posted",
                     "date": SQL("%s", options["date"]["date_from"]),
                     "account_id": SQL.identifier("accounts", "id"),
@@ -2431,7 +2404,7 @@ class AccountReport(models.Model):
                     SELECT %(fields_to_insert)s, budgets.id AS budget_id
                     FROM (%(accounts_subquery)s) AS accounts
                     CROSS JOIN (
-                        SELECT id
+                        SELECT id, company_id
                         FROM account_report_budget
                         WHERE id IN %(available_budget_ids)s
                     ) AS budgets
@@ -3546,7 +3519,11 @@ class AccountReport(models.Model):
 
         date_from = datetime.datetime.strptime(options["date"]["date_from"], "%Y-%m-%d")
         if options["date"]["period_type"] == "fiscalyear":
-            period_date_from, _ = date_utils.get_fiscal_year(date_from)
+            period_date_from, _ = date_utils.get_fiscal_year(
+                date_from,
+                day=self.env.company.account_config_id.fiscalyear_last_day,
+                month=int(self.env.company.account_config_id.fiscalyear_last_month),
+            )
         elif options["date"]["period_type"] in [
             "year",
             "quarter",
@@ -3721,14 +3698,10 @@ class AccountReportExpression(models.Model):
     @api.constrains("formula")
     def _check_formula_account_codes(self):
         for expression in self.filtered(lambda x: x.engine == "account_codes"):
-            for token in ACCOUNT_CODES_ENGINE_SPLIT_REGEX.split(
-                expression.formula.replace(" ", "")
-            ):
-                if token:
-                    token_match = ACCOUNT_CODES_ENGINE_TERM_REGEX.match(token)
-                    prefix = token_match and token_match["prefix"]
-                    if not prefix:
-                        expression._raise_formula_error()
+            try:
+                parse_account_codes_formula(expression.formula)
+            except AccountCodesFormulaError:
+                expression._raise_formula_error()
 
     @api.model_create_multi
     def create(self, vals_list):

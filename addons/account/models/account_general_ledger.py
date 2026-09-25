@@ -2,13 +2,12 @@ import csv
 import io
 import json
 from collections import defaultdict
-from itertools import groupby
 from textwrap import shorten
 
 from odoo import fields, models
 from odoo.exceptions import UserError
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL, float_repr
+from odoo.tools import SQL, float_repr, groupby
 
 _debug = DebugLog(__name__)
 
@@ -85,12 +84,6 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
                 },
             ],
         }
-
-    @_debug.perf.timed
-    def open_unallocated_items_journal_items(self, options, params):
-        _debug.lifecycle("open_unallocated_items_journal_items", records=self)
-        report = self.env["report.formula"].browse(options["report_id"])
-        return report.open_unallocated_items_journal_items(options, params)
 
     def caret_option_open_record_form_custom_id_groupby(self, options, params):
         report = self.env["report.formula"].browse(options["report_id"])
@@ -233,7 +226,10 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
                         rows_by_key[aml_key]["account_code"] = row["account_code"]
                         rows_by_key[aml_key]["account_name"] = row["account_name"]
                         rows_by_key[aml_key]["move_name"] = row["move_name"]
-                    if row["currency_id"] != self.env.company.currency_id.id:
+                    if (
+                        row["currency_id"]
+                        and row["currency_id"] != self.env.company.currency_id.id
+                    ):
                         rows_by_key[aml_key]["amount_currency"] = row["amount_currency"]
                         rows_by_key[aml_key]["currency_id"] = row["currency_id"]
                 elif current_groupby == "account_id":
@@ -245,8 +241,6 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
                 rows_by_key[aml_key]["debit"] += row["debit"]
                 rows_by_key[aml_key]["credit"] += row["credit"]
                 rows_by_key[aml_key]["balance"] += row["balance"]
-                if row.get("currency_id"):
-                    rows_by_key[aml_key]["currency_id"] += row["currency_id"]
 
         _debug.pipeline(
             "gl_engine_rows_grouped",
@@ -330,9 +324,15 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
                 END AS date,
                 MIN(move.name) AS move_name,
 
-                SUM(account_move_line.amount_currency) AS amount_currency,
+                CASE
+                    WHEN COUNT(DISTINCT account_move_line.currency_id) = 1
+                    THEN SUM(account_move_line.amount_currency)
+                END AS amount_currency,
                 MIN(partner.name) AS partner_name,
-                MIN(account_move_line.currency_id) AS currency_id,
+                CASE
+                    WHEN COUNT(DISTINCT account_move_line.currency_id) = 1
+                    THEN MIN(account_move_line.currency_id)
+                END AS currency_id,
                 MIN(account_move_line__account_id.id) AS account_id,
 
                 MIN(account_move_line.name) AS line_name,
@@ -482,15 +482,8 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
         for idx, col in enumerate(options.get("columns", [])):
             colname_to_idx[col["column_group_key"]][col["expression_label"]] = idx
 
-        if options["export_mode"] is None:
-            limit_to_load = report.load_more_limit or None
-        else:
-            limit_to_load = None
-            offset = 0
-
         processed_lines = result["lines"]
 
-        has_balance_line = False
         col_group_keys = options["column_groups"]
         accumulated_balance_by_colgroup = progress.get(
             "accumulated_balance_by_colgroup", dict.fromkeys(col_group_keys, 0.0)
@@ -503,33 +496,25 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
                     colname_to_idx[col_group_key]["balance"]
                 ]["no_format"]
                 accumulated_balance_by_colgroup[col_group_key] += line_balance
-                if line["name"] == "balance_line":
-                    has_balance_line = True
-                    line["name"] = self.env._("Initial Balance")
-                else:
-                    line["columns"][colname_to_idx[col_group_key]["balance"]] = (
-                        report._prepare_column_dict(
-                            accumulated_balance_by_colgroup[col_group_key],
-                            line["columns"][colname_to_idx[col_group_key]["balance"]],
-                            options,
-                        )
+                line["columns"][colname_to_idx[col_group_key]["balance"]] = (
+                    report._prepare_column_dict(
+                        accumulated_balance_by_colgroup[col_group_key],
+                        line["columns"][colname_to_idx[col_group_key]["balance"]],
+                        options,
                     )
+                )
 
         _debug.pipeline(
             "accumulated_balance_applied",
             report=report,
             lines=len(processed_lines),
-            has_balance_line=has_balance_line,
-            limit_to_load=limit_to_load,
             export_mode=options["export_mode"],
             column_groups=len(col_group_keys),
         )
         return {
             **result,
             "lines": processed_lines,
-            "offset_increment": limit_to_load - 1
-            if has_balance_line and limit_to_load
-            else len(processed_lines),
+            "offset_increment": len(processed_lines),
             "progress": {
                 **progress,
                 "accumulated_balance_by_colgroup": accumulated_balance_by_colgroup,
@@ -710,7 +695,6 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
                 for date_scope, expressions_by_date_scope in groupby(
                     expressions, lambda e: e.date_scope
                 ):
-                    expressions_by_date_scope = list(expressions_by_date_scope)
                     # Get the custom engine results for the given groupby level.
                     engine_account_lines = self._report_custom_engine_general_ledger(
                         expressions_by_date_scope,

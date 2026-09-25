@@ -642,12 +642,6 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                 GROUP BY account_move_line.partner_id
                 """,
                     column_group_key=column_group_key,
-                    debit_select=report._currency_table_apply_rate(
-                        SQL("account_move_line.debit")
-                    ),
-                    credit_select=report._currency_table_apply_rate(
-                        SQL("account_move_line.credit")
-                    ),
                     balance_select=report._currency_table_apply_rate(
                         SQL("account_move_line.balance")
                     ),
@@ -707,7 +701,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
         fields2inverse = {
             "balance": ("balance", -1),
             "debit": ("credit", 1),
-            "amount": ("amount", 1),
+            "amount": ("amount", -1),
             "credit": ("debit", 1),
         }
         query = self._get_sums_without_partner(options)
@@ -1045,6 +1039,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                         %(journal_name)s                                                 AS journal_name,
                         %(column_group_key)s                                             AS column_group_key,
                         'directly_linked_aml'                                            AS key,
+                        ROW_NUMBER() OVER (ORDER BY %(order_by)s)                        AS sort_rank,
                         0                                                                AS partial_id
                     FROM %(table_references)s
                     JOIN account_move ON account_move.id = account_move_line.move_id
@@ -1109,6 +1104,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                         %(journal_name)s                                                 AS journal_name,
                         %(column_group_key)s                                             AS column_group_key,
                         'indirectly_linked_aml'                                          AS key,
+                        ROW_NUMBER() OVER (ORDER BY %(order_by)s, partial.id)            AS sort_rank,
                         partial.id                                                       AS partial_id
                     FROM %(table_references)s
                         %(currency_table_join)s,
@@ -1157,7 +1153,13 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                 )
             )
 
-        query = SQL(" UNION ALL ").join(SQL("(%s)", query) for query in queries)
+        query = SQL(
+            "SELECT * FROM (%s) AS amls ORDER BY amls.source_rank, amls.sort_rank",
+            SQL(" UNION ALL ").join(
+                SQL("(SELECT %s AS source_rank, sub.* FROM (%s) AS sub)", rank, query)
+                for rank, query in enumerate(queries)
+            ),
+        )
 
         if offset:
             query = SQL("%s OFFSET %s ", query, offset)

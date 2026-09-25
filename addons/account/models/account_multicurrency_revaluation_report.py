@@ -152,7 +152,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
             elif res_model_name == "account.account":
                 # Mark the included/excluded lines, so that the custom component templates knows what label to put on them
                 line["is_included_line"] = (
-                    report._get_res_id_from_line_id(line["id"], "account.account")
+                    report._get_res_id_from_line_id(line["id"], "report.formula.line")
                     == line_to_adjust_id
                 )
 
@@ -469,7 +469,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
                    AND account_move_line.company_id = aml_company.id
                    AND aml_company.currency_id = aml_comp_currency.id
                    AND account_move_line.currency_id = custom_currency_table.currency_id
-                   AND account.account_type NOT IN ('income', 'income_other', 'expense', 'expense_depreciation', 'expense_direct_cost', 'off_balance')
+                   AND account.account_type NOT IN ('income', 'income_other', 'expense', 'expense_other', 'expense_depreciation', 'expense_direct_cost', 'off_balance')
                    AND (
                         account.currency_id != aml_company.currency_id
                         OR (
@@ -503,7 +503,7 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
                   JOIN custom_currency_table ON custom_currency_table.currency_id = account_move_line.currency_id
                   JOIN res_company aml_company ON aml_company.id = account_move_line.company_id
                  WHERE %(search_condition)s
-                   AND account.account_type NOT IN ('income', 'income_other', 'expense', 'expense_depreciation', 'expense_direct_cost', 'off_balance')
+                   AND account.account_type NOT IN ('income', 'income_other', 'expense', 'expense_other', 'expense_depreciation', 'expense_direct_cost', 'off_balance')
                    AND (
                         account.currency_id != aml_company.currency_id
                         OR (

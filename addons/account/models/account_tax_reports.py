@@ -89,16 +89,10 @@ class AccountTaxUnit(models.Model):
         generic_ec_sales_report = self.env.ref("account.generic_ec_sales_report")
         generic_ec_sales_report.horizontal_group_ids |= horizontal_groups
 
-        for tax_unit in res:
+        for tax_unit, horizontal_group in zip(res, horizontal_groups, strict=True):
             generic_tax_report.variant_report_ids.filtered_domain(
                 [("country_id", "=", tax_unit.country_id.id)]
-            ).write(
-                {
-                    "horizontal_group_ids": [
-                        Command.link(group.id) for group in horizontal_groups
-                    ],
-                }
-            )
+            ).write({"horizontal_group_ids": [Command.link(horizontal_group.id)]})
 
         _debug.pipeline(
             "tax_unit_returns_sync",

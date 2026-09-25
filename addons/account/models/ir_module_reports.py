@@ -14,12 +14,7 @@ class IrModuleModule(models.Model):
     @_debug.perf.timed
     def _load_module_terms(self, modules, langs, overwrite=False):
         super()._load_module_terms(modules, langs, overwrite=overwrite)
-        if (
-            not langs
-            or langs == ["en_US"]
-            or not modules
-            or "account_reports" not in modules
-        ):
+        if not langs or langs == ["en_US"] or not modules or "account" not in modules:
             return
 
         recent_returns = self.env["account.return"].search(

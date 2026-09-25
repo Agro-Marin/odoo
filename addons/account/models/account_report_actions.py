@@ -13,10 +13,8 @@ from odoo.tools import SQL
 
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
 from odoo.addons.account.tools.report_engines import (
-    ACCOUNT_CODES_ENGINE_SPLIT_REGEX,
-    ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX,
-    ACCOUNT_CODES_ENGINE_TERM_REGEX,
     UNDISTR_LINE_NAME,
+    parse_account_codes_formula,
 )
 from odoo.addons.web.controllers.utils import clean_action
 
@@ -642,31 +640,10 @@ class AccountReportActions(models.Model):
             value_to_set *= -1
         elif target_expression.engine == "account_codes":
             account = self.env["account.account"].browse(account_id)
-
-            # Search for the sign to apply to this account
-            for token in ACCOUNT_CODES_ENGINE_SPLIT_REGEX.split(
-                target_expression.formula.replace(" ", "")
-            ):
-                if not token:
-                    continue
-
-                token_match = ACCOUNT_CODES_ENGINE_TERM_REGEX.match(token)
-                multiplicator = -1 if token_match["sign"] == "-" else 1
-                prefix = token_match["prefix"]
-
-                tag_match = ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX.match(prefix)
-                if tag_match:
-                    if tag_match["ref"]:
-                        tag = self.env.ref(tag_match["ref"])
-                    else:
-                        tag = self.env["account.account.tag"].browse(tag_match["id"])
-
-                    account_matches = tag in account.tag_ids
-                else:
-                    account_matches = account.code.startswith(prefix)
-
-                if account_matches:
-                    value_to_set *= multiplicator
+            for term in parse_account_codes_formula(target_expression.formula):
+                tag_id = self.env.ref(term.tag_ref).id if term.tag_ref else term.tag_id
+                if term.matches_account(account.code, account.tag_ids.ids, tag_id):
+                    value_to_set *= term.sign
                     break
 
         _debug.logic(
@@ -694,10 +671,9 @@ class AccountReportActions(models.Model):
         :param options: the report's `options` dict containing `date_from`, `date_to` and `deferred_report_type`
         :return: a search domain that can be used to get the deferral entries
         """
-        if options.get("deferred_report_type") == "expense":
-            account_types = ("expense", "expense_depreciation", "expense_direct_cost")
-        else:
-            account_types = ("income", "income_other")
+        internal_group = (
+            "expense" if options.get("deferred_report_type") == "expense" else "income"
+        )
         date_to = fields.Date.from_string(options["date"]["date_to"])
         date_to_next_reversal = fields.Date.to_string(
             date_to + datetime.timedelta(days=1)
@@ -709,6 +685,6 @@ class AccountReportActions(models.Model):
             # We include the reversal entries of the current period that fall on the first day of the next period
             ("date", "<=", date_to_next_reversal),
             ("deferred_original_move_ids", "!=", False),
-            ("line_ids.account_id.account_type", "in", account_types),
+            ("line_ids.account_id.internal_group", "in", [internal_group]),
             ("state", "!=", "cancel"),
         ]

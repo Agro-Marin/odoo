@@ -143,8 +143,21 @@ class ResPartner(models.Model):
         self.check_singleton()
 
         main_partner = self
-        duplicated_partners = self.env["res.partner"].search(
-            [("vat", "=", main_partner.vat), ("id", "!=", main_partner.id)]
+        Partner = self.env["res.partner"]
+        main_hierarchy = Partner.search(
+            [("id", "child_of", main_partner.id)]
+        ) | Partner.search([("id", "parent_of", main_partner.id)])
+        duplicated_partners = Partner.search(
+            [
+                ("vat", "=", main_partner.vat),
+                ("id", "not in", main_hierarchy.ids),
+            ]
+        ).filtered(lambda partner: partner.commercial_partner_id == partner)
+        _debug.logic(
+            "commercial_partner_main_duplicates",
+            main=main_partner,
+            hierarchy=main_hierarchy,
+            duplicates=duplicated_partners,
         )
         # Update commercial partner of all duplicates
         duplicated_partners.write(

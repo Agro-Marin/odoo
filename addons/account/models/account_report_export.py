@@ -15,9 +15,8 @@ from odoo.tools import html2plaintext
 from odoo.tools.misc import format_date
 
 from odoo.addons.account.tools.report_engines import (
-    ACCOUNT_CODES_ENGINE_SPLIT_REGEX,
     ACCOUNT_CODES_ENGINE_TAG_ID_PREFIX_REGEX,
-    ACCOUNT_CODES_ENGINE_TERM_REGEX,
+    parse_account_codes_formula,
 )
 from odoo.addons.report_formula.models.account_report_custom_handler import (
     AccountReportFileDownloadException,
@@ -466,27 +465,15 @@ class AccountReportExport(models.Model):
                     Domain(domain).map_conditions(get_condition_rewriter(expr))
                 )
             elif expr.engine == "account_codes":
-                account_codes = []
-                for token in ACCOUNT_CODES_ENGINE_SPLIT_REGEX.split(
-                    expr.formula.replace(" ", "")
-                ):
-                    if not token:
-                        continue
-                    token_match = ACCOUNT_CODES_ENGINE_TERM_REGEX.match(token)
-                    if not token_match:
-                        continue
-
-                    parsed_token = token_match.groupdict()
-                    account_codes.append(
-                        {
-                            "prefix": parsed_token["prefix"],
-                            "balance": parsed_token["balance_character"],
-                            "exclude": parsed_token["excluded_prefixes"].split(",")
-                            if parsed_token["excluded_prefixes"]
-                            else [],
-                            "line": expr.report_line_id,
-                        }
-                    )
+                account_codes = [
+                    {
+                        "prefix": term.prefix,
+                        "balance": term.balance_character,
+                        "exclude": list(term.excluded_prefixes),
+                        "line": expr.report_line_id,
+                    }
+                    for term in parse_account_codes_formula(expr.formula)
+                ]
 
                 for account_code in account_codes:
                     reported_account_codes.append(account_code)

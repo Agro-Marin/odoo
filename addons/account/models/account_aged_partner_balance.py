@@ -615,7 +615,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             "total": 0,
         }
 
-    def aged_partner_balance_audit(self, options, params, journal_type):
+    def aged_partner_balance_audit(self, options, params, journal_type, internal_type):
         """Open a list of invoices/bills for the clicked cell
 
         :param dict options: the report's `options`
@@ -632,6 +632,7 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
         if options:
             domain = [
                 ("account_id.reconcile", "=", True),
+                ("account_id.account_type", "=", internal_type),
                 ("journal_id.type", "!=", journal_type_to_exclude.get(journal_type)),
                 *self._prepare_domain_from_period(options, params["expression_label"]),
                 *report._get_domain_options(options, "from_beginning"),
@@ -640,54 +641,54 @@ class AccountAgedPartnerBalanceReportHandler(models.AbstractModel):
             action["domain"] = domain
         return action
 
+    def _get_aging_date_domain(self, options, operator, value):
+        aging_field = (
+            "move_id.invoice_date"
+            if options["aging_based_on"] == "base_on_invoice_date"
+            else "date_maturity"
+        )
+        return [
+            "|",
+            (aging_field, operator, value),
+            "&",
+            (aging_field, "=", False),
+            ("date", operator, value),
+        ]
+
     @_debug.perf.timed
     def _prepare_domain_from_period(self, options, period):
+        domain = []
         if period != "total" and period[-1].isdigit():
             period_number = int(period[-1])
-            if period_number == 0:
-                domain = [
-                    "|",
-                    ("date_maturity", ">=", options["date"]["date_to"]),
-                    "&",
-                    ("date_maturity", "=", False),
-                    ("date", ">=", options["date"]["date_to"]),
-                ]
-            else:
-                options_date_to = datetime.datetime.strptime(
-                    options["date"]["date_to"], "%Y-%m-%d"
+            last_period_number = (
+                len(
+                    [
+                        column
+                        for column in options["columns"]
+                        if column["expression_label"].startswith("period")
+                    ]
                 )
-                aging_interval = options["aging_interval"]
-                period_end = options_date_to - datetime.timedelta(
+                - 1
+            )
+            date_to = fields.Date.from_string(options["date"]["date_to"])
+            aging_interval = options["aging_interval"]
+            if period_number == 0:
+                domain = self._get_aging_date_domain(options, ">=", date_to)
+            else:
+                period_end = date_to - datetime.timedelta(
                     aging_interval * (period_number - 1) + 1
                 )
-                period_start = options_date_to - datetime.timedelta(
-                    aging_interval * (period_number)
-                )
-                domain = [
-                    "|",
-                    "&",
-                    ("date_maturity", ">=", period_start),
-                    ("date_maturity", "<=", period_end),
-                    "&",
-                    "&",
-                    ("date_maturity", "=", False),
-                    ("date", ">=", period_start),
-                    ("date", "<=", period_end),
-                ]
-                if period_number == 5:
-                    domain = [
-                        "|",
-                        ("date_maturity", "<=", period_end),
-                        "&",
-                        ("date_maturity", "=", False),
-                        ("date", "<=", period_end),
-                    ]
-        else:
-            domain = []
+                domain = self._get_aging_date_domain(options, "<=", period_end)
+                if period_number < last_period_number:
+                    period_start = date_to - datetime.timedelta(
+                        aging_interval * period_number
+                    )
+                    domain += self._get_aging_date_domain(options, ">=", period_start)
         _debug.logic(
             "audit_period_domain",
             report=options.get("report_id"),
             period=period,
+            aging_based_on=options.get("aging_based_on"),
             aging_interval=options.get("aging_interval"),
             domain_leaves=len(domain),
         )
@@ -734,7 +735,7 @@ class AccountAgedSideReportHandler(models.AbstractModel):
     def action_audit_cell(self, options, params):
         _debug.lifecycle("action_audit_cell", records=self)
         return super().aged_partner_balance_audit(
-            options, params, self._aged_audit_journal_type
+            options, params, self._aged_audit_journal_type, self._aged_internal_type
         )
 
 

@@ -91,9 +91,8 @@ class ResCompany(models.Model):
         companies = self.exists()
         root_companies_before = companies.root_id
         res = super().write(vals)
-        if (
-            set(vals) & {"child_ids", "parent_id"}
-            and self.account_config_id.account_opening_date
+        if set(vals) & {"child_ids", "parent_id"} and any(
+            companies.account_config_id.mapped("account_opening_date")
         ):
             self.env["account.return.type"]._sync_all_returns(
                 root_companies_before | companies.root_id

@@ -59,14 +59,12 @@ class AccountTaxReportHandler(models.AbstractModel):
         )
 
     def _get_domain_amls_with_archived_tags(self, options):
-        domain = [
+        return [
             ("tax_tag_ids.active", "=", False),
             ("parent_state", "=", "posted"),
             ("date", ">=", options["date"]["date_from"]),
+            ("date", "<=", options["date"]["date_to"]),
         ]
-        if options["date"]["mode"] == "single":
-            domain.append(("date", "<=", options["date"]["date_to"]))
-        return domain
 
     @_debug.perf.timed
     def action_view_amls_with_archived_tags(self, options, params=None):
@@ -896,23 +894,13 @@ class AccountGenericTaxReportHandler(models.AbstractModel):
             else:
                 report_line["name"] = tax.name
 
-            if options.get("multi-company"):
-                report_line["name"] = (
-                    f"{report_line['name']} - {self.env.company.display_name}"
-                )
-
         elif groupby_key == "account_id":
             account = value
             report_line["id"] = report._get_generic_line_id(
                 account._name, account.id, parent_line_id=parent_line_id
             )
 
-            if options.get("multi-company"):
-                report_line["name"] = (
-                    f"{account.display_name} - {account.company_id.display_name}"
-                )
-            else:
-                report_line["name"] = account.display_name
+            report_line["name"] = account.display_name
 
         return report_line
 
