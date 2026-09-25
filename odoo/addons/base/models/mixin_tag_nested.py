@@ -1,4 +1,4 @@
-from odoo import _lt, api, models
+from odoo import _lt, api, fields, models
 from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.base.models.mixin_catalog import name_uniq_index
@@ -18,7 +18,9 @@ class MixinTagNested(models.AbstractModel):
         message="A tag with this name already exists under the same parent.",
     )
 
-    @api.depends("name", "parent_id.name")
+    display_name = fields.Char(recursive=True)
+
+    @api.depends("name", "parent_id.display_name")
     def _compute_display_name(self):
         paths = {}
         ancestor_ids = set()
@@ -29,8 +31,11 @@ class MixinTagNested(models.AbstractModel):
                 ]
                 ancestor_ids.update(ids)
         ancestors = self.browse(ancestor_ids)
-        ancestors.fetch(["name"])
+        ancestors.fetch(["name", "parent_id", "parent_path"])
         names = {tag.id: tag.name or "" for tag in ancestors}
+        # a rename invalidates only descendants whose display_name is cached,
+        # walking down through cached ones: every ancestor's must be cached too
+        (ancestors - self).mapped("display_name")
         _debug.perf.count(
             "nested_display_names",
             model=self._name,

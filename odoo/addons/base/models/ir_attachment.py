@@ -39,6 +39,7 @@ from odoo.libs.hashing import (
 )
 from odoo.models import PREFETCH_MAX
 from odoo.tools import (
+    SQL,
     OrderedSet,
     config,
     consteq,
@@ -590,7 +591,10 @@ class IrAttachment(models.Model):
                 active_test=active_test,
             )
 
-        domain &= self._get_domain_security_prefilter(sec_domain)
+        if _get_condition_values(self, "id", domain) is None:
+            domain &= self._get_domain_security_prefilter(sec_domain)
+        else:
+            _debug.logic("security_prefilter_skipped", reason="id_pinned")
         domain = domain.optimize_full(self)
         ordered = bool(order)
         _debug.logic(
@@ -1147,10 +1151,6 @@ class IrAttachment(models.Model):
         return backend_cls(self.env)
 
     @api.model
-    def _remove_stored_file(self, fname: str) -> None:
-        self._remove_stored_file_multi((fname,))
-
-    @api.model
     def _remove_stored_file_multi(self, fnames: Collection[str]) -> None:
         plain_fnames = []
         remote_fnames = []
@@ -1332,16 +1332,35 @@ class IrAttachment(models.Model):
     @ormcache()
     def _get_model_names_attached(self) -> tuple[list[str], bool]:
         limit = self._SEARCH_MODEL_DISCOVERY_LIMIT + 1
-        groups = (
-            self.sudo()
-            .with_context(skip_res_field_check=True)
-            ._read_group([], ["res_model"], limit=limit)
-        )
-        rows = [res_model for (res_model,) in groups]
+        self.flush_model(["res_model"])
+        # a loose index scan over ir_attachment_res_field_idx: one probe per
+        # distinct model instead of a scan of the whole table
+        names = [
+            res_model
+            for (res_model,) in self.env.execute_query(
+                SQL(
+                    """
+                    WITH RECURSIVE attached AS (
+                        (SELECT res_model FROM ir_attachment
+                          WHERE res_model > '' ORDER BY res_model LIMIT 1)
+                        UNION ALL
+                        SELECT (SELECT a.res_model FROM ir_attachment a
+                                 WHERE a.res_model > attached.res_model
+                                 ORDER BY a.res_model LIMIT 1)
+                          FROM attached WHERE attached.res_model IS NOT NULL
+                    )
+                    SELECT res_model FROM attached
+                     WHERE res_model IS NOT NULL
+                     LIMIT %s
+                    """,
+                    limit,
+                )
+            )
+        ]
         _debug.perf.count(
-            "model_names_attached", models=len(rows), capped=len(rows) >= limit
+            "model_names_attached", models=len(names), capped=len(names) >= limit
         )
-        return sorted(name for name in rows if name), len(rows) >= limit
+        return names, len(names) >= limit
 
     @api.model
     def _get_domain_security_by_model(
@@ -1858,7 +1877,7 @@ class IrAttachment(models.Model):
                 ICP.set_param(_REHASH_CURSOR_PARAM, 0)
             return 0, 0
         ICP.set_param(_REHASH_CURSOR_PARAM, legacy[-1].id)
-        rekeyed = 0
+        released_fnames = []
         backend = self._get_storage_backend()
         for attach in legacy:
             raw = attach._with_bin_size_disabled().raw
@@ -1875,12 +1894,13 @@ class IrAttachment(models.Model):
             super(IrAttachment, attach.sudo()).write(
                 {**backend.write(raw, checksum), "checksum": checksum}
             )
-            attach._remove_stored_file(old_fname)
+            released_fnames.append(old_fname)
             attach.invalidate_recordset()
             _debug.lifecycle(
                 "legacy_key_rehashed", attachment=attach.id, old_key=old_fname
             )
-            rekeyed += 1
+        self._remove_stored_file_multi(released_fnames)
+        rekeyed = len(released_fnames)
         _debug.lifecycle(
             "legacy_keys_rehashed", candidates=len(legacy), rekeyed=rekeyed
         )

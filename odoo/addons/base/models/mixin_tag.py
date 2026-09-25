@@ -2,7 +2,7 @@ import re
 
 from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL
+from odoo.tools import SQL, remove_accents
 
 _debug = DebugLog(__name__)
 
@@ -76,4 +76,5 @@ class MixinTag(models.AbstractModel):
 
     @api.model
     def _name_to_code(self, name):
-        return _CODE_SEPARATORS.sub("_", (name or "").upper()).strip("_")[:64]
+        letters = remove_accents(name or "").upper()
+        return _CODE_SEPARATORS.sub("_", letters).strip("_")[:64]

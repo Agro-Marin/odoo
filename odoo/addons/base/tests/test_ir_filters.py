@@ -3,8 +3,9 @@ import logging
 
 import psycopg.errors
 
-from odoo.exceptions import ValidationError
-from odoo.tests.common import ADMIN_USER_ID, TransactionCase, tagged
+from odoo import Command
+from odoo.exceptions import AccessError, ValidationError
+from odoo.tests.common import ADMIN_USER_ID, TransactionCase, new_test_user, tagged
 from odoo.tools import mute_logger
 
 from odoo.addons.base.tests.common import TransactionCaseWithUserDemo
@@ -424,7 +425,11 @@ class TestCreateFilterValidation(FiltersCase):
             )
 
     def test_create_filter_rejects_a_python_repr_sort(self):
-        with self.assertRaises(ValidationError):
+        with (
+            mute_logger("odoo.db"),
+            self.assertRaises(psycopg.errors.IntegrityError) as caught,
+            self.env.cr.savepoint(),
+        ):
             self.env["ir.filters"].create_filter(
                 {
                     "name": "python sort",
@@ -434,6 +439,10 @@ class TestCreateFilterValidation(FiltersCase):
                     "sort": "['name asc']",
                 }
             )
+        self.assertEqual(
+            self.env["ir.filters"]._sql_error_to_message(caught.exception),
+            "Invalid sort definition",
+        )
 
     def test_create_filter_accepts_a_json_sort(self):
         ir_filter = self.env["ir.filters"].create_filter(
@@ -607,6 +616,50 @@ class TestCrossUserWrite(FiltersCase):
         )
         global_filter.with_user(self.USER_ID).write({"name": "edited by demo"})
         self.assertEqual(global_filter.name, "edited by demo")
+
+    def test_internal_user_cannot_move_own_filter_to_another_user(self):
+        victim = new_test_user(self.env, login="irf_victim", groups="base.group_user")
+        own = (
+            self.env["ir.filters"]
+            .with_user(self.USER_ID)
+            .create(
+                {
+                    "name": "mine",
+                    "model_id": "ir.filters",
+                    "user_ids": [Command.set([self.USER_ID])],
+                    "is_default": True,
+                }
+            )
+        )
+
+        with self.assertRaises(AccessError), self.env.cr.savepoint():
+            own.write({"user_ids": [Command.set([victim.id])]})
+        self.env.invalidate_all()
+
+        self.assertEqual(own.sudo().user_ids.ids, [self.USER_ID])
+        victim_filters = (
+            self.env["ir.filters"].with_user(victim).get_filters("ir.filters")
+        )
+        self.assertNotIn(own.id, [f["id"] for f in victim_filters])
+
+    def test_internal_user_can_share_own_filter(self):
+        other = new_test_user(self.env, login="irf_other", groups="base.group_user")
+        own = (
+            self.env["ir.filters"]
+            .with_user(self.USER_ID)
+            .create(
+                {
+                    "name": "mine",
+                    "model_id": "ir.filters",
+                    "user_ids": [Command.set([self.USER_ID])],
+                }
+            )
+        )
+
+        own.write({"user_ids": [Command.link(other.id)]})
+        own.write({"user_ids": [Command.clear()]})
+
+        self.assertFalse(own.user_ids)
 
 
 class TestSortColumnCheck(TransactionCase):

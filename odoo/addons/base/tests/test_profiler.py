@@ -850,7 +850,6 @@ class TestProfiling(TransactionCase):
         self.assertEqual(first_query["stack"][-1][0].split("/")[-1], "metrics.py")
 
     def test_profiler_return(self):
-        self.registry_enter_test_mode()
         self.startClassPatcher(patch("odoo.db.db_connect", return_value=self.registry))
         with self.profile(collectors=["sql"]) as p:
             self.env.cr.execute("SELECT 1")

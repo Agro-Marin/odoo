@@ -1514,12 +1514,26 @@ class IrModelFields(models.Model):
         }
 
     def _reflect_fields(self, model_names: list[str]) -> None:
+        module = self.env.context.get("module")
         for model_name in model_names:
             model = self.env[model_name]
             by_label = {}
             for field in model._fields.values():
                 if field.string in by_label:
                     other = by_label[field.string]
+                    if (
+                        module
+                        and module not in field._modules
+                        and module not in other._modules
+                    ):
+                        _debug.logic(
+                            "reflect_fields.duplicate_label_elsewhere",
+                            model=model_name,
+                            field=field.name,
+                            other=other.name,
+                            module=module,
+                        )
+                        continue
                     _debug.logic(
                         "reflect_fields.duplicate_label",
                         model=model_name,
@@ -1589,7 +1603,6 @@ class IrModelFields(models.Model):
                 generation=ids_cache_generation,
             )
 
-        module = self.env.context.get("module")
         if not module:
             _debug.logic("reflect_fields.no_xmlids", reason="no_module_in_context")
             return

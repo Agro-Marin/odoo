@@ -365,6 +365,7 @@ class IrModuleAutoInstallCase(TransactionCase):
 
 
 class IrModuleConcurrencyGuardCase(TransactionCase):
+    registry_test_mode = False
     PROBE = "airm_committed_elsewhere"
 
     def _side_execute(self, sql, params):
@@ -792,6 +793,9 @@ class IrModuleStableCacheCase(TransactionCase):
 
     def test_a_summary_change_does_not(self):
         self.assertFalse(self._cleared_by({"summary": "irmod stable"}))
+
+    def test_rewriting_the_current_state_does_not(self):
+        self.assertFalse(self._cleared_by({"state": "uninstalled"}))
 
     def test_installed_sees_a_state_flip(self):
         Module = self.env["ir.module.module"]

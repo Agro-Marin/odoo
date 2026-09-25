@@ -135,8 +135,6 @@ class TestIrModel(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.registry_enter_test_mode_cls()
-
         cls.env["ir.model"].create(
             {
                 "name": "Banana Ripeness",

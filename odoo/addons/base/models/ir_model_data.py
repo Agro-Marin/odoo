@@ -1,7 +1,9 @@
 import logging
 import random
+import types
 import typing
 from collections import defaultdict
+from collections.abc import Collection, Mapping
 from operator import itemgetter
 from typing import Any, Self
 
@@ -13,7 +15,7 @@ from odoo.exceptions import AccessError, MissingError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
 from odoo.models import add_field
-from odoo.tools import SQL, groupby, reset_cached_properties, unique
+from odoo.tools import SQL, Query, groupby, reset_cached_properties, unique
 
 from .ir_model_common import MODULE_UNINSTALL_FLAG
 
@@ -26,6 +28,7 @@ class IrModelData(models.Model):
     _is_registry_metadata = True
     _description = "Model Data"
     _order = "module, model, name"
+    _rec_names_search = ["complete_name", "name"]
     _allow_sudo_commands = False
 
     name = fields.Char(
@@ -36,6 +39,7 @@ class IrModelData(models.Model):
     complete_name = fields.Char(
         string="Complete ID",
         compute="_compute_complete_name",
+        search="_search_complete_name",
     )
     model = fields.Char(
         string="Model Name",
@@ -70,6 +74,56 @@ class IrModelData(models.Model):
     def _compute_complete_name(self) -> None:
         for res in self:
             res.complete_name = ".".join(n for n in [res.module, res.name] if n)
+
+    def _search_complete_name(
+        self, operator: str, value: Any
+    ) -> Domain | types.NotImplementedType:
+        if operator == "in":
+            return self._get_domain_complete_name_in(value)
+        if operator.endswith("like") and operator not in Domain.NEGATIVE_OPERATORS:
+            field = self._fields["complete_name"]
+            return Domain.custom(
+                to_sql=lambda model, alias, query: field._condition_like_to_sql(
+                    model._complete_name_to_sql(alias, query),
+                    operator,
+                    value,
+                    model,
+                    can_be_null=False,
+                )
+            )
+        return NotImplemented
+
+    @api.model
+    def _get_domain_complete_name_in(self, xmlids: Collection[Any]) -> Domain:
+        names_by_module: dict[str, set[str]] = defaultdict(set)
+        for xmlid in xmlids:
+            if not isinstance(xmlid, str):
+                continue
+            names_by_module[""].add(xmlid)
+            module, dot, name = xmlid.partition(".")
+            if dot:
+                names_by_module[module].add(name)
+        _debug.logic(
+            "complete_name.search_in", xmlids=len(xmlids), modules=len(names_by_module)
+        )
+        return self._get_domain_module_names(names_by_module)
+
+    @api.model
+    def _get_domain_module_names(
+        self, names_by_module: Mapping[str, Collection[str]]
+    ) -> Domain:
+        return Domain.OR(
+            Domain("module", "=", module) & Domain("name", "in", sorted(names))
+            for module, names in names_by_module.items()
+        )
+
+    @api.model
+    def _complete_name_to_sql(self, alias: str, query: Query) -> SQL:
+        return SQL(
+            "concat_ws('.', NULLIF(%s, ''), %s)",
+            self._field_to_sql(alias, "module", query),
+            self._field_to_sql(alias, "name", query),
+        )
 
     @api.depends("model", "res_id")
     def _compute_reference(self) -> None:
@@ -197,12 +251,9 @@ class IrModelData(models.Model):
             prefix, suffix = xml_id.split(".", 1)
             bymodule[prefix].add(suffix)
 
-        domain = Domain.OR(
-            Domain("module", "=", prefix) & Domain("name", "in", list(suffixes))
-            for prefix, suffixes in bymodule.items()
-        )
         rows = self.sudo().search_fetch(
-            domain, ["module", "name", "model", "res_id", "noupdate"]
+            self._get_domain_module_names(bymodule),
+            ["module", "name", "model", "res_id", "noupdate"],
         )
         target_ids = set(
             model.browse(row.res_id for row in rows if row.model == model._name)
@@ -250,10 +301,7 @@ class IrModelData(models.Model):
         existing = {
             (data.module, data.name): data
             for data in self.sudo().search_fetch(
-                Domain.OR(
-                    Domain("module", "=", prefix) & Domain("name", "in", names)
-                    for prefix, names in bymodule.items()
-                ),
+                self._get_domain_module_names(bymodule),
                 ["module", "name", "model", "res_id", "noupdate"],
             )
         }
@@ -398,6 +446,7 @@ class IrModelData(models.Model):
             module_data,
             undeletable_ids,
         )
+        self.env["ir.model.constraint"]._unlink_dropped_foreign_keys(modules)
 
         _logger.info("ir.model.data could not be deleted (%s)", undeletable_ids)
         _debug.pipeline("uninstall_module_data_done", undeletable=len(undeletable_ids))

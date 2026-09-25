@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from psycopg.errors import UniqueViolation
 
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 from odoo.libs.colors import TAG_COLORS
 from odoo.tests.common import TransactionCase
 from odoo.tools import mute_logger
@@ -80,6 +80,29 @@ class TestTagTag(TransactionCase):
         self.root.name = "Renamedtag"
         self.assertEqual(self.leaf.display_name, "Renamedtag / Midtag / Leaftag")
 
+    def test_display_name_follows_a_grandparent_rename_already_read(self):
+        self.assertEqual(self.leaf.display_name, "Rootag / Midtag / Leaftag")
+        self.root.name = "Renamedtag"
+        self.assertEqual(self.leaf.display_name, "Renamedtag / Midtag / Leaftag")
+
+    def test_display_name_follows_a_moved_parent_already_read(self):
+        self.assertEqual(self.leaf.display_name, "Rootag / Midtag / Leaftag")
+        self.mid.parent_id = self.other
+        self.assertEqual(self.leaf.display_name, "Loosetag / Midtag / Leaftag")
+
+    def test_a_cycle_is_refused_with_the_tag_message(self):
+        with self.assertRaisesRegex(UserError, "recursive tags"):
+            self.root.parent_id = self.leaf
+            self.env.flush_all()
+
+    def test_a_copy_is_renamed_under_the_same_parent(self):
+        copy = self.leaf.copy()
+        self.assertEqual(copy.name, "Leaftag (copy)")
+        self.assertEqual(copy.parent_id, self.mid)
+        self.assertNotEqual(copy.code, self.leaf.code)
+        self.assertEqual(self.other.copy({"name": "Given"}).name, "Given")
+        self.env.flush_all()
+
     def test_display_name_includes_archived_ancestor(self):
         self.root.active = False
         (self.mid + self.leaf).invalidate_recordset(["display_name"])
@@ -153,7 +176,11 @@ class TestTagCode(TransactionCase):
         self.assertEqual(self._tag(name="Hot Lead").code, "HOT_LEAD")
 
     def test_punctuation_and_case_are_normalised(self):
-        self.assertEqual(self._tag(name="  très-Chaud!! ").code, "TR_S_CHAUD")
+        self.assertEqual(self._tag(name="  très-Chaud!! ").code, "TRES_CHAUD")
+
+    def test_accents_are_removed_not_split(self):
+        self.assertEqual(self._tag(name="Límite de crédito").code, "LIMITE_DE_CREDITO")
+        self.assertEqual(self._tag(name="Économie").code, "ECONOMIE")
 
     def test_name_create_gets_a_code(self):
         tag_id, _label = self.env["tag.tag"].name_create("Widget Made")

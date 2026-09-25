@@ -126,7 +126,7 @@ class IrModelConstraint(models.Model):
                     data.model.model,
                     table,
                 )
-            if not tables:
+            if not tables and data.type != "f":
                 _debug.lifecycle("index_dropped", name=name)
                 self.env.execute_query(
                     SQL("DROP INDEX IF EXISTS %s", SQL.identifier(hname))
@@ -134,6 +134,30 @@ class IrModelConstraint(models.Model):
                 _logger.info("Dropped INDEX %s@%s", name, data.model.model)
 
         return super().unlink()
+
+    def _unlink_dropped_foreign_keys(self, modules: models.BaseModel) -> None:
+        dropped = self.browse(
+            id_
+            for (id_,) in self.env.execute_query(
+                SQL(
+                    """SELECT c.id FROM ir_model_constraint c
+                       WHERE c.type = 'f' AND c.module = ANY(%s)
+                       AND NOT EXISTS (
+                           SELECT 1 FROM pg_constraint cs
+                           JOIN pg_class cl ON cs.conrelid = cl.oid
+                           WHERE cs.conname = c.name
+                           AND cl.relnamespace = current_schema::regnamespace)""",
+                    modules.ids,
+                )
+            )
+        )
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "unlink_dropped_foreign_keys",
+                modules=modules.mapped("name"),
+                constraints=dropped.mapped("name"),
+            )
+        dropped.unlink()
 
     def copy_data(self, default: ValuesType | None = None) -> list[ValuesType]:
         vals_list = super().copy_data(default=default)
@@ -230,30 +254,37 @@ class IrModelConstraint(models.Model):
             _debug.logic("reflect_constraints.skipped", models=len(model_names))
             return
 
-        changed = self._get_changed_constraints(expected)
-        cons_ids = self._merge_constraints(changed) if changed else {}
+        existing = self._get_existing_constraints(expected)
+        changed = {
+            key: vals
+            for key, vals in expected.items()
+            if existing.get(key, (None,))[1:]
+            != (vals["type"], vals["definition"], vals["message"])
+        }
+        cons_ids = {key: row[0] for key, row in existing.items()}
+        _debug.perf.count(
+            "constraints_reflected",
+            expected=len(expected),
+            existing=len(existing),
+            changed=sorted(name for name, _module in changed),
+        )
+        if changed:
+            cons_ids.update(self._merge_constraints(changed))
         _debug.pipeline(
             "reflect_constraints",
             models=len(model_names),
             expected=len(expected),
             changed=len(changed),
         )
-
-        data_list = []
-        for name, module in expected:
-            xml_id = f"{module}.constraint_{name}"
-            cons_id = cons_ids.get((name, module))
-            if cons_id:
-                data_list.append({"xml_id": xml_id, "record": self.browse(cons_id)})
-            else:
-                self.env["ir.model.data"]._load_xmlid(xml_id)
-        _debug.pipeline(
-            "reflect_constraints.xmlids",
-            updated=len(data_list),
-            loaded=len(expected) - len(data_list),
+        self.env["ir.model.data"]._update_xmlids(
+            [
+                {
+                    "xml_id": f"{module}.constraint_{name}",
+                    "record": self.browse(cons_ids[name, module]),
+                }
+                for name, module in expected
+            ]
         )
-        if data_list:
-            self.env["ir.model.data"]._update_xmlids(data_list)
 
     def _prepare_expected_constraints(
         self, model_names: list[str]
@@ -283,14 +314,14 @@ class IrModelConstraint(models.Model):
                 }
         return expected
 
-    def _get_changed_constraints(
+    def _get_existing_constraints(
         self, expected: dict[tuple[str, str], dict[str, Any]]
-    ) -> dict[tuple[str, str], dict[str, Any]]:
-        existing = {
-            (name, module): row
-            for name, module, *row in self.env.execute_query(
+    ) -> dict[tuple[str, str], tuple[int, str, str | None, str | None]]:
+        return {
+            (name, module): (id_, *row)
+            for id_, name, module, *row in self.env.execute_query(
                 SQL(
-                    """SELECT c.name, m.name, c.type, c.definition,
+                    """SELECT c.id, c.name, m.name, c.type, c.definition,
                               c.message->>'en_US'
                        FROM ir_model_constraint c
                        JOIN ir_module_module m ON c.module = m.id
@@ -298,11 +329,7 @@ class IrModelConstraint(models.Model):
                     list({name for name, _module in expected}),
                 )
             )
-        }
-        return {
-            key: vals
-            for key, vals in expected.items()
-            if existing.get(key) != [vals["type"], vals["definition"], vals["message"]]
+            if (name, module) in expected
         }
 
     def _merge_constraints(

@@ -289,6 +289,21 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 )
             )
 
+        anchored_ids = self._get_anchored_partner_ids()
+        anchored = partner_ids.filtered(lambda partner: partner.id in anchored_ids)
+        if len(anchored) > 1:
+            _debug.logic(
+                "merge_refused", reason="several_anchored", anchored=anchored.ids
+            )
+            raise UserError(
+                self.env._(
+                    "You cannot merge %(partners)s: each of them is the contact of "
+                    "a company or a bank, and merging them would leave several "
+                    "companies or banks sharing one contact.",
+                    partners=", ".join(anchored.mapped("display_name")),
+                )
+            )
+
         if extra_checks and len({partner.email for partner in partner_ids}) > 1:
             raise UserError(
                 self.env._(
@@ -296,6 +311,13 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                 )
             )
 
+        if anchored:
+            _debug.logic(
+                "merge_destination_anchored",
+                requested=dst_partner.id if dst_partner else None,
+                anchored=anchored.id,
+            )
+            dst_partner = anchored
         if dst_partner and dst_partner in partner_ids:
             src_partners = partner_ids - dst_partner
         else:
@@ -378,23 +400,22 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
     @api.model
     def _generate_query(self, fields: list[str], maximum_group: int = 100) -> SQL:
         sql_fields = []
+        filters = []
         for field in fields:
             if field not in self._GROUPBY_ALLOWED_FIELDS:
                 raise ValueError(f"Field {field!r} is not allowed in merge grouping")
             col = SQL.identifier(field)
             if field in ("email", "name"):
                 sql_fields.append(SQL("lower(%s)", col))
+                filters.append(SQL("trim(%s) <> ''", col))
             elif field == "vat":
-                sql_fields.append(SQL("replace(%s, ' ', '')", col))
+                # '/' states that the partner is not subject to tax, not a tax id
+                vat = SQL("replace(%s, ' ', '')", col)
+                sql_fields.append(vat)
+                filters.append(SQL("%s NOT IN ('', '/')", vat))
             else:
                 sql_fields.append(col)
         group_fields = SQL(", ").join(sql_fields)
-
-        filters = [
-            SQL("%s IS NOT NULL", SQL.identifier(field))
-            for field in fields
-            if field in ("email", "name", "vat")
-        ]
 
         parts = [
             SQL("SELECT min(id), array_agg(id)"),
@@ -428,14 +449,8 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
                     "extension, which this database does not have."
                 )
             )
-        self.env["res.partner"].flush_model(["active", "complete_name"])
-
-        self.env.cr.execute(
-            SQL(
-                "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
-                str(self._get_recall_threshold()),
-            )
-        )
+        Partner = self.env["res.partner"]
+        Partner.flush_model(["active", "complete_name"])
 
         left = SQL('left_partner."complete_name"')
         right = SQL('right_partner."complete_name"')
@@ -463,8 +478,9 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
             limit,
         )
         with _debug.perf("similar_name_pairs", cr=self.env.cr, limit=limit) as span:
-            self.env.cr.execute(query)  # noqa: E8501  built via SQL(), no user input
-            pairs = self.env.cr.fetchall()
+            pairs = Partner._fetch_under_trigram_threshold(
+                query, self._get_recall_threshold()
+            )
             span.set(pairs=len(pairs))
         return pairs
 
@@ -588,12 +604,21 @@ class BasePartnerMergeAutomaticWizard(models.TransientModel):
         )
 
     @api.model
+    def _get_anchored_partner_ids(self) -> set[int]:
+        return {
+            *self.env["res.company"]._get_company_partner_ids(),
+            *self.env["res.bank"]._get_bank_partner_ids(),
+        }
+
+    @api.model
     def _get_ordered_partner(self, partner_ids: list[int]) -> models.BaseModel:
+        anchored_ids = self._get_anchored_partner_ids()
         return (
             self.env["res.partner"]
             .browse(partner_ids)
             .sorted(
                 key=lambda p: (
+                    p.id not in anchored_ids,
                     not p.active,
                     (p.create_date or datetime.datetime(1970, 1, 1)),
                 ),

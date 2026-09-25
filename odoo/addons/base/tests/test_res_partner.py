@@ -112,6 +112,16 @@ class TestPartner(TransactionCaseWithUserDemo):
             test_partner.active, "Activating user must active related partner"
         )
 
+    def test_deleting_the_partner_of_an_archived_user_is_refused_by_name(self):
+        partner = self.env["res.partner"].create({"name": "Archived User Partner"})
+        user = self.env["res.users"].create(
+            {"login": "archived_user_partner", "partner_id": partner.id}
+        )
+        user.action_archive()
+
+        with self.assertRaisesRegex(RedirectWarning, "even an archived one"):
+            partner.unlink()
+
     def test_barcode_unicity(self):
         Partner = self.env["res.partner"]
         Partner.create({"name": "Barcode A", "barcode": "BARCODE-DUP"})
@@ -665,9 +675,9 @@ class TestPartnerWriteContract(TransactionCase):
         seen = []
         original = type(Partner)._fields_sync
 
-        def spy(self, values):
+        def spy(self, values, **kwargs):
             seen.append(set(values))
-            return original(self, values)
+            return original(self, values, **kwargs)
 
         self.patch(type(Partner), "_fields_sync", spy)
 
@@ -1064,6 +1074,26 @@ class TestPartnerSimilarNameDuplicates(TransactionCase):
 
         self.assertNotIn(elsewhere, first.duplicate_ids)
 
+    def test_the_recall_limit_keeps_the_closest_names(self):
+        self.Partner.create(
+            [{"name": f"Agricola del Norte Sucursal {i:03d}"} for i in range(10)]
+        )
+        closest = self.Partner.create({"name": "Agricola del Norte S.A."})
+        searched = self.Partner.new({"name": "Agricola del Norte SA"})
+
+        with patch.object(res_partner_module, "SIMILAR_NAME_RECALL_LIMIT", 3):
+            recalled = self.Partner._get_similar_name_recall(searched)
+
+        self.assertIn(closest.id, recalled[0])
+
+    def test_the_recall_restores_the_trigram_threshold(self):
+        self.env.cr.execute("SET LOCAL pg_trgm.similarity_threshold = 0.42")
+        self.Partner._get_similar_name_recall(
+            self.Partner.new({"name": "Threshold Probe"})
+        )
+        self.env.cr.execute("SHOW pg_trgm.similarity_threshold")
+        self.assertEqual(self.env.cr.fetchone()[0], "0.42")
+
     def test_an_archived_contact_is_not_offered(self):
         first = self.Partner.create({"name": "Rathmore Glassworks"})
         archived = self.Partner.create({"name": "Rathmore Glassworks"})
@@ -1395,9 +1425,10 @@ class TestPartnerAddressCompany(TransactionCase):
         )
         for fname, fvalue in self.test_address_values_cmp.items():
             self.assertEqual(ct1[fname], fvalue)
-            self.assertFalse(
+            self.assertEqual(
                 ct1_1[fname],
-                "Descendants are not updated, only direct children",
+                fvalue,
+                "a contact-type descendant follows the address its parent took",
             )
         self.assertEqual(
             ct1.email,
@@ -1442,11 +1473,13 @@ class TestPartnerAddressCompany(TransactionCase):
             "1367",
             "Address fields not changed in write should have kept their value",
         )
-        for fname in self.base_address_fields:
+        for fname, fvalue in self.test_address_values_cmp.items():
             if fname == "street":
                 self.assertEqual(ct1_1[fname], ct1_street)
-            else:
+            elif fname == "state_id":
                 self.assertFalse(ct1_1[fname])
+            else:
+                self.assertEqual(ct1_1[fname], fvalue)
         self.assertEqual(ct1.type, "invoice")
         self.assertEqual(
             ct1.parent_id,
@@ -1462,10 +1495,7 @@ class TestPartnerAddressCompany(TransactionCase):
         ct1.write({"type": "contact"})
         for fname, fvalue in self.test_address_values_cmp.items():
             self.assertEqual(ct1[fname], fvalue)
-            if fname == "street":
-                self.assertEqual(ct1_1[fname], ct1_street)
-            else:
-                self.assertFalse(ct1_1[fname])
+            self.assertEqual(ct1_1[fname], fvalue)
         self.assertEqual(
             ct1.type, "contact", "Type should be preserved after address sync"
         )
@@ -1479,18 +1509,9 @@ class TestPartnerAddressCompany(TransactionCase):
             self.assertEqual(ct1[fname], fvalue)
             self.assertEqual(ct2[fname], fvalue)
             self.assertEqual(self.existing[fname], fvalue)
-        for fname in self.base_address_fields:
-            if fname == "street":
-                self.assertEqual(
-                    ct1_1[fname],
-                    ct1_street,
-                    "Updated only through P1 direct update",
-                )
-            else:
-                self.assertFalse(
-                    ct1_1[fname],
-                    "Still holding base creation values, no descendants update",
-                )
+            self.assertEqual(
+                ct1_1[fname], fvalue, "a contact-type grandchild follows too"
+            )
         for child in inv, deli, other:
             self.assertEqual(
                 child.street, f"{child.name} Street", "Should not be updated"

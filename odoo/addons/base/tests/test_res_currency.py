@@ -2,6 +2,7 @@ from lxml import etree
 
 from odoo import Command
 from odoo.tests.common import TransactionCase
+from odoo.tools import SQL
 
 
 class TestResCurrency(TransactionCase):
@@ -449,9 +450,11 @@ class TestResCurrency(TransactionCase):
         self.assertAlmostEqual(rate.rate, 3.0)
 
     def test_company_rate_history_fallbacks(self):
-        currency = self.env["res.currency"].create({"name": "DDD", "symbol": "D"})
+        company_currency, currency = self.env["res.currency"].create(
+            [{"name": "DDC", "symbol": "C"}, {"name": "DDD", "symbol": "D"}]
+        )
         company = self.env["res.company"].create(
-            {"name": "company DDD", "currency_id": currency.id}
+            {"name": "company DDD", "currency_id": company_currency.id}
         )
         rate_old, rate_new = self.env["res.currency.rate"].create(
             [
@@ -469,8 +472,8 @@ class TestResCurrency(TransactionCase):
                 },
             ]
         )
-        self.assertAlmostEqual(rate_new.company_rate, 1.0)
-        self.assertAlmostEqual(rate_old.company_rate, 0.5)
+        self.assertAlmostEqual(rate_new.company_rate, 4.0)
+        self.assertAlmostEqual(rate_old.company_rate, 2.0)
         empty_between = self.env["res.currency.rate"].create(
             {
                 "name": "2020-01-15",
@@ -478,7 +481,7 @@ class TestResCurrency(TransactionCase):
                 "company_id": company.id,
             }
         )
-        self.assertAlmostEqual(empty_between.company_rate, 2 / 4)
+        self.assertAlmostEqual(empty_between.company_rate, 2.0)
         empty_first = self.env["res.currency.rate"].create(
             {
                 "name": "2019-01-01",
@@ -486,7 +489,7 @@ class TestResCurrency(TransactionCase):
                 "company_id": company.id,
             }
         )
-        self.assertAlmostEqual(empty_first.company_rate, 1 / 4)
+        self.assertAlmostEqual(empty_first.company_rate, 1.0)
 
     def test_amount_to_text_unsupported_lang_falls_back_with_warning(self):
         self.env["res.lang"].create(
@@ -619,6 +622,156 @@ class TestResCurrencyRateMemoScope(TransactionCase):
                 self._rates(su, sql=True),
                 f"memo/SQL divergence for su={su}",
             )
+
+
+class TestResCurrencyCompanyScope(TransactionCase):
+    def _view_rates(self, currency, company, date):
+        self.env.flush_all()
+        return [
+            rate
+            for (rate,) in self.env.execute_query(
+                SQL(
+                    """
+                    WITH currency_rate AS (%s)
+                    SELECT rate FROM currency_rate
+                    WHERE currency_id = %s
+                      AND company_id = %s
+                      AND date_start <= %s
+                      AND (date_end IS NULL OR date_end > %s)
+                    """,
+                    SQL(self.env["res.currency"]._select_companies_rates()),
+                    currency.id,
+                    company.id,
+                    date,
+                    date,
+                )
+            )
+        ]
+
+    def test_select_companies_rates_matches_get_rates(self):
+        main = self.env.company
+        branch = self.env["res.company"].create(
+            {"name": "rate view branch", "parent_id": main.id}
+        )
+        other = self.env["res.company"].create({"name": "rate view other"})
+        currency = self.env["res.currency"].create({"name": "RV1", "symbol": "R"})
+        Rate = self.env["res.currency.rate"]
+        for vals in [
+            {"name": "2019-01-01", "rate": 1.5, "company_id": False},
+            {"name": "2020-06-01", "rate": 2.0, "company_id": False},
+            {"name": "2021-03-01", "rate": 3.0, "company_id": False},
+            {"name": "2021-03-01", "rate": 3.5, "company_id": False},
+            {"name": "2020-06-01", "rate": 4.0, "company_id": main.id},
+            {"name": "2021-06-01", "company_id": main.id},
+            {"name": "2022-01-01", "rate": 6.0, "company_id": other.id},
+        ]:
+            Rate.create({**vals, "currency_id": currency.id})
+        dates = [
+            "2018-01-01",
+            "2019-06-01",
+            "2020-06-01",
+            "2021-03-01",
+            "2021-04-01",
+            "2021-06-01",
+            "2022-06-01",
+        ]
+        for company in (main, branch, other):
+            for date in dates:
+                expected = currency._get_rates(company, date)[currency.id]
+                self.assertEqual(
+                    self._view_rates(currency, company, date),
+                    [expected],
+                    f"{company.name} at {date}",
+                )
+        self.assertEqual(self._view_rates(currency, branch, "2021-04-01"), [4.0])
+        self.assertEqual(self._view_rates(currency, other, "2018-01-01"), [6.0])
+        self.assertEqual(self._view_rates(currency, other, "2021-04-01"), [3.5])
+
+    def test_company_rate_uses_company_currency_rate_of_its_date(self):
+        company_currency, currency = self.env["res.currency"].create(
+            [{"name": "CR1", "symbol": "C"}, {"name": "CR2", "symbol": "E"}]
+        )
+        company = self.env["res.company"].create(
+            {"name": "company rate dating", "currency_id": company_currency.id}
+        )
+        Rate = self.env["res.currency.rate"].with_company(company)
+        Rate.create(
+            [
+                {
+                    "name": "2020-01-01",
+                    "rate": 20.0,
+                    "currency_id": company_currency.id,
+                    "company_id": company.id,
+                },
+                {
+                    "name": "2020-06-01",
+                    "rate": 18.0,
+                    "currency_id": company_currency.id,
+                    "company_id": company.id,
+                },
+            ]
+        )
+        january, july = Rate.create(
+            [
+                {
+                    "name": "2020-01-02",
+                    "company_rate": 0.045,
+                    "currency_id": currency.id,
+                    "company_id": company.id,
+                },
+                {
+                    "name": "2020-07-01",
+                    "company_rate": 0.05,
+                    "currency_id": currency.id,
+                    "company_id": company.id,
+                },
+            ]
+        )
+        self.assertAlmostEqual(january.rate, 0.045 * 20)
+        self.assertAlmostEqual(july.rate, 0.05 * 18)
+        january.invalidate_recordset(["company_rate"])
+        self.assertAlmostEqual(january.company_rate, 0.045)
+        self.assertAlmostEqual(july.company_rate, 0.05)
+        self.assertAlmostEqual(
+            currency._convert(100, company_currency, company, "2020-01-02"),
+            round(100 / 0.045, 2),
+        )
+
+    def test_conversion_uses_the_given_company_over_context_company_id(self):
+        company_currency, currency = self.env["res.currency"].create(
+            [{"name": "CC1", "symbol": "C"}, {"name": "CC2", "symbol": "E"}]
+        )
+        company_a, company_b = self.env["res.company"].create(
+            [
+                {"name": "conversion A", "currency_id": company_currency.id},
+                {"name": "conversion B", "currency_id": company_currency.id},
+            ]
+        )
+        self.env["res.currency.rate"].create(
+            [
+                {
+                    "name": "2020-01-01",
+                    "rate": 2.0,
+                    "currency_id": currency.id,
+                    "company_id": company_a.id,
+                },
+                {
+                    "name": "2020-01-01",
+                    "rate": 4.0,
+                    "currency_id": currency.id,
+                    "company_id": company_b.id,
+                },
+            ]
+        )
+        self.assertEqual(
+            currency._convert(100, company_currency, company_b, "2020-06-01"), 25.0
+        )
+        self.assertEqual(
+            currency.with_context(company_id=company_a.id)._convert(
+                100, company_currency, company_b, "2020-06-01"
+            ),
+            25.0,
+        )
 
 
 class TestResCurrencyViewsAndGuards(TransactionCase):

@@ -290,3 +290,99 @@ class TestPartnerSyncCharacterization(TransactionCase):
         )
         self.assertEqual(co2.city, "ContactCity")
         self.assertEqual(ct2.street, "Contact Street")
+
+    def test_a_contact_moved_to_another_company_takes_its_values_even_empty(self):
+        industry = self.env["res.partner.industry"].create({"name": "Move Industry"})
+        old_company = self.Partner.create(
+            {
+                "name": "Move Old Co",
+                "is_company": True,
+                "vat": "VOLD",
+                "company_registry": "ROLD",
+                "industry_ids": industry.ids,
+            }
+        )
+        new_company = self.Partner.create({"name": "Move New Co", "is_company": True})
+        contact = self.Partner.create({"name": "Mover", "parent_id": old_company.id})
+        grandchild = self.Partner.create({"name": "Mover Kid", "parent_id": contact.id})
+        self.assertEqual(contact.vat, "VOLD")
+
+        contact.write({"parent_id": new_company.id})
+
+        for partner in contact | grandchild:
+            self.assertFalse(partner.vat, "the old company's vat is not the contact's")
+            self.assertFalse(partner.company_registry)
+            self.assertFalse(partner.industry_ids)
+        self.assertFalse(
+            new_company.vat, "the old company's vat must not climb onto the new one"
+        )
+        self.assertEqual(old_company.vat, "VOLD")
+
+    def test_a_demoted_company_takes_its_new_commercial_entity_values(self):
+        group = self.Partner.create(
+            {"name": "Demote Group", "is_company": True, "vat": "VG"}
+        )
+        sub = self.Partner.create(
+            {
+                "name": "Demote Sub",
+                "is_company": True,
+                "vat": "VC",
+                "parent_id": group.id,
+            }
+        )
+        kid = self.Partner.create({"name": "Demote Kid", "parent_id": sub.id})
+        self.assertEqual(kid.vat, "VC")
+
+        sub.write({"is_company": False})
+
+        self.assertEqual(sub.commercial_partner_id, group)
+        self.assertEqual(sub.vat, "VG")
+        self.assertEqual(kid.vat, "VG")
+        self.assertEqual(group.vat, "VG")
+
+    def test_a_promoted_contact_hands_its_own_values_to_its_contacts(self):
+        company = self.Partner.create(
+            {
+                "name": "Promote Co",
+                "is_company": True,
+                "vat": "VX",
+                "company_registry": "RX",
+            }
+        )
+        contact = self.Partner.create({"name": "Promoted", "parent_id": company.id})
+        kid = self.Partner.create({"name": "Promoted Kid", "parent_id": contact.id})
+        contact.write({"company_registry": "RP"})
+        self.assertEqual(kid.company_registry, "RX")
+
+        contact.write({"is_company": True})
+
+        self.assertEqual(kid.commercial_partner_id, contact)
+        self.assertEqual(kid.company_registry, "RP")
+        self.assertEqual(company.company_registry, "RX")
+
+    def test_a_company_address_reaches_contact_grandchildren(self):
+        company = self.Partner.create(
+            {"name": "Addr Walk Co", "is_company": True, "street": "Old St"}
+        )
+        child = self.Partner.create({"name": "Addr Walk C", "parent_id": company.id})
+        grandchild = self.Partner.create({"name": "Addr Walk G", "parent_id": child.id})
+        delivery = self.Partner.create(
+            {
+                "name": "Addr Walk D",
+                "parent_id": child.id,
+                "type": "delivery",
+                "street": "Dock",
+            }
+        )
+        below_delivery = self.Partner.create(
+            {"name": "Addr Walk DC", "parent_id": delivery.id}
+        )
+
+        company.write({"street": "New St"})
+
+        self.assertEqual(child.street, "New St")
+        self.assertEqual(grandchild.street, "New St")
+        self.assertEqual(delivery.street, "Dock", "a delivery address is its own")
+        self.assertEqual(
+            below_delivery.street, "Dock", "the walk stops at a non-contact address"
+        )

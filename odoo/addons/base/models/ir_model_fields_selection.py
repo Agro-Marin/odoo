@@ -2,7 +2,6 @@ import logging
 from typing import Any, Self
 
 import psycopg
-from psycopg.types.json import Json
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
@@ -13,8 +12,6 @@ from odoo.tools import SQL, OrderedSet
 from .ir_model_common import (
     MODULE_UNINSTALL_FLAG,
     mark_modified,
-    query_insert,
-    query_update,
     selection_xmlid,
     upsert_en,
 )
@@ -168,8 +165,7 @@ class IrModelFieldsSelection(models.Model):
             for index, (value, label) in enumerate(selection)
         }
 
-        rows_to_insert = []
-        rows_to_update = []
+        rows_to_upsert = []
         rows_to_remove = []
         for value in new_rows.keys() | cur_rows.keys():
             new_row, cur_row = new_rows.get(value), cur_rows.get(value)
@@ -182,26 +178,26 @@ class IrModelFieldsSelection(models.Model):
                         field_name,
                     )
                     rows_to_remove.append(cur_row["id"])
-            elif cur_row is None:
-                new_row["name"] = Json({"en_US": new_row["name"]})
-                rows_to_insert.append(dict(new_row, field_id=field_id))
-            elif any(new_row[key] != cur_row[key] for key in new_row):
-                new_row["name"] = Json({"en_US": new_row["name"]})
-                rows_to_update.append(dict(new_row, id=cur_row["id"]))
+            elif cur_row is None or any(
+                new_row[key] != cur_row[key] for key in new_row
+            ):
+                rows_to_upsert.append(
+                    (field_id, value, new_row["name"], new_row["sequence"])
+                )
 
         _debug.lifecycle(
             "update_selection",
             model=model_name,
             field=field_name,
-            inserted=len(rows_to_insert),
-            updated=len(rows_to_update),
+            upserted=len(rows_to_upsert),
             removed=len(rows_to_remove),
         )
-        if rows_to_insert:
-            query_insert(self.env.cr, self._table, rows_to_insert)
-
-        for row in rows_to_update:
-            query_update(self.env.cr, self._table, row, ["id"])
+        upsert_en(
+            self,
+            ["field_id", "value", "name", "sequence"],
+            rows_to_upsert,
+            ["field_id", "value"],
+        )
 
         if rows_to_remove:
             self.browse(rows_to_remove).unlink()
@@ -404,11 +400,6 @@ class IrModelFieldsSelection(models.Model):
                     selection.value,
                 )
 
-    @api.ondelete(at_uninstall=False)
-    def _unlink_except_base_field(self) -> None:
-        if self.pool.ready:
-            self._check_base_field_mutation(self.field_id)
-
     def unlink(self) -> bool:
         model_names = self.field_id.model_id.mapped("model")
         uninstalling = self.env.context.get(MODULE_UNINSTALL_FLAG)
@@ -418,6 +409,14 @@ class IrModelFieldsSelection(models.Model):
             models=model_names,
             uninstalling=bool(uninstalling),
         )
+        _debug.lifecycle(
+            "unlink",
+            selections=self.ids,
+            uninstalling=bool(uninstalling),
+            guarded=not uninstalling and self.pool.ready,
+        )
+        if not uninstalling and self.pool.ready:
+            self._check_base_field_mutation(self.field_id)
         self._process_ondelete()
         if not uninstalling:
             self._discard_defaults()

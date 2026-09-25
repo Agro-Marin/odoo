@@ -73,3 +73,13 @@ class TestCatalogMixin(TransactionCase):
         with self.assertRaises(psycopg.errors.UniqueViolation):
             with self.cr.savepoint():
                 self.Tag.with_context(lang="es_MX").create({"name": "Whitefly"})
+
+    def test_a_copy_gets_a_free_name_in_every_language(self):
+        self.env["res.lang"]._activate_lang("es_MX")
+        tag = self.Tag.create({"name": "Greenfly"})
+        tag.with_context(lang="es_MX").name = "Pulgón"
+        copy = tag.copy()
+        self.env.flush_all()
+        self.assertEqual(copy.name, "Greenfly (copy)")
+        spanish = copy.with_context(lang="es_MX")
+        self.assertEqual(spanish.name, spanish.env._("%s (copy)", "Pulgón"))

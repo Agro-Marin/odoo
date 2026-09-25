@@ -304,6 +304,23 @@ class TestIrDefault(TransactionCase):
         IrDefault.discard_records(country)
         self.assertEqual(IrDefault._get_model_defaults("res.partner"), {})
 
+    def test_unlink_reads_no_default_of_an_unreferenced_model(self):
+        self.assertFalse(
+            [
+                field
+                for field in self.registry.fields_by_comodel.get(
+                    "decimal.precision", ()
+                )
+                if field.type == "many2one"
+            ]
+        )
+        precision = self.env["decimal.precision"].create(
+            {"name": "Unreferenced", "digits": 3}
+        )
+        with self.capturedQueries() as queries:
+            precision.unlink()
+        self.assertFalse([query for query in queries if '"ir_default"' in query])
+
     def test_discard_values(self):
         IrDefault = self.env["ir.default"]
         IrDefault.search([("field_id.model", "=", "res.partner")]).unlink()
@@ -367,3 +384,69 @@ class TestIrDefault(TransactionCase):
         self.assertEqual(
             IrDefaultAsUser._get("res.partner", "comment", user_id=True), "hello"
         )
+
+    def _create_personal_default(self, user):
+        field = self.env["ir.model.fields"]._get("res.partner", "comment")
+        default = (
+            self.env["ir.default"]
+            .with_user(user)
+            .create({"field_id": field.id, "user_id": user.id, "json_value": '"mine"'})
+        )
+        self.env.flush_all()
+        self.env.invalidate_all()
+        return default
+
+    def test_plain_user_cannot_move_own_default_to_another_user(self):
+        owner = new_test_user(self.env, login="ird_owner", groups="base.group_user")
+        victim = new_test_user(self.env, login="ird_victim", groups="base.group_user")
+        default = self._create_personal_default(owner)
+
+        for vals in (
+            {"user_id": victim.id},
+            {"user_id": victim.id, "json_value": '"planted"'},
+        ):
+            with self.subTest(vals=vals):
+                with self.assertRaises(AccessError), self.env.cr.savepoint():
+                    default.write(vals)
+                self.env.invalidate_all()
+                self.assertEqual(default.sudo().user_id, owner)
+                self.assertEqual(default.sudo().json_value, '"mine"')
+        victim_defaults = (
+            self.env["ir.default"].with_user(victim)._get_model_defaults("res.partner")
+        )
+        self.assertNotIn(victim_defaults.get("comment"), ("mine", "planted"))
+
+    def test_plain_user_writes_scope_of_own_default(self):
+        owner = new_test_user(self.env, login="ird_scoper", groups="base.group_user")
+        default = self._create_personal_default(owner)
+
+        default.write({"condition": "is_company=True"})
+        self.env.invalidate_all()
+        default.write({"company_id": owner.company_id.id})
+
+        self.assertEqual(default.sudo().condition, "is_company=True")
+        self.assertEqual(default.sudo().company_id, owner.company_id)
+
+
+class TestIrDefaultOfManualReference(TransactionCase):
+    def test_unlink_discards_default_of_a_manual_many2one_target(self):
+        self.env["ir.model.fields"].create(
+            {
+                "model_id": self.env["ir.model"]._get_id("res.partner"),
+                "name": "x_precision_id",
+                "ttype": "many2one",
+                "relation": "decimal.precision",
+                "state": "manual",
+            }
+        )
+        precision = self.env["decimal.precision"].create(
+            {"name": "Referenced", "digits": 3}
+        )
+        IrDefault = self.env["ir.default"]
+        IrDefault.set("res.partner", "x_precision_id", precision.id)
+        self.assertEqual(
+            IrDefault._get_model_defaults("res.partner").get("x_precision_id"),
+            precision.id,
+        )
+        precision.unlink()
+        self.assertNotIn("x_precision_id", IrDefault._get_model_defaults("res.partner"))

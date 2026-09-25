@@ -1798,6 +1798,36 @@ class TestIrModelReflectionIdempotence(TransactionCase):
         self.assertEqual(unexpected, [])
 
 
+class TestIrModelFieldsDuplicateLabelWarning(TransactionCase):
+    LOGGER = "odoo.addons.base.models.ir_model_fields"
+
+    def _reflect(self, module, **field_attrs):
+        fields_ = self.env["res.country"]._fields
+        code = fields_["code"]
+        with (
+            patch.object(type(self.env.registry), "post_init", lambda *args: None),
+            patch.object(code, "string", fields_["name"].string),
+        ):
+            for attr, value in field_attrs.items():
+                self.enterContext(patch.object(code, attr, value))
+            self.env["ir.model.fields"].with_context(module=module)._reflect_fields(
+                ["res.country"]
+            )
+
+    def test_the_module_owning_a_field_is_warned(self):
+        with self.assertLogs(self.LOGGER, "WARNING") as logs:
+            self._reflect("base")
+        self.assertIn("(code, name) of res.country", logs.output[0])
+
+    def test_a_module_owning_neither_field_is_not_warned(self):
+        with self.assertNoLogs(self.LOGGER, "WARNING"):
+            self._reflect("web")
+
+    def test_a_module_extending_a_field_is_warned(self):
+        with self.assertLogs(self.LOGGER, "WARNING"):
+            self._reflect("web", _modules=("base", "web"))
+
+
 class TestIrModelRelationReflection(TransactionCase):
     def test_model_table_reflection_is_removed_without_dropping_payload(self):
         relations = self.env["ir.model.relation"]
@@ -2292,6 +2322,77 @@ class TestIrModelFieldsSelection(TransactionCase):
 
         self.assertFalse(self._read_jsonb(Model, field, healthy))
 
+    def _selection_names(self, field):
+        return dict(
+            self.env.execute_query(
+                SQL(
+                    "SELECT value, name FROM ir_model_fields_selection"
+                    " WHERE field_id = %s",
+                    field.id,
+                )
+            )
+        )
+
+    def test_reordering_keeps_translations(self):
+        _model, field = self._make_selection_field(
+            "reorder_tr", values=[("a", "Alpha"), ("b", "Beta")]
+        )
+        self.env.flush_all()
+        self.env.cr.execute(
+            SQL(
+                "UPDATE ir_model_fields_selection"
+                " SET name = name || jsonb_build_object('fr_FR', 'FR-' || (name->>'en_US'))"
+                " WHERE field_id = %s",
+                field.id,
+            )
+        )
+
+        field.selection = "[('b', 'Beta'), ('a', 'Alpha')]"
+        self.env.flush_all()
+        self.assertEqual(
+            self._selection_names(field),
+            {
+                "a": {"en_US": "Alpha", "fr_FR": "FR-Alpha"},
+                "b": {"en_US": "Beta", "fr_FR": "FR-Beta"},
+            },
+        )
+        field.invalidate_recordset(["selection_ids"])
+        self.assertEqual(
+            field.selection_ids.sorted("sequence").mapped("value"), ["b", "a"]
+        )
+
+        field.selection = "[('b', 'Beta'), ('a', 'Apple')]"
+        self.env.flush_all()
+        self.assertEqual(
+            self._selection_names(field),
+            {
+                "a": {"en_US": "Apple"},
+                "b": {"en_US": "Beta", "fr_FR": "FR-Beta"},
+            },
+        )
+
+    def test_refused_base_selection_unlink_touches_nothing(self):
+        selection = self.env["ir.model.fields.selection"].search(
+            [
+                ("field_id.model", "=", "res.partner"),
+                ("field_id.name", "=", "type"),
+                ("value", "=", "invoice"),
+            ]
+        )
+        self.assertEqual(selection.field_id.state, "base")
+        partner = self.env["res.partner"].create(
+            {"name": "Invoice address", "type": "invoice"}
+        )
+        self.env["ir.default"].set("res.partner", "type", "invoice")
+
+        with self.assertRaisesRegex(UserError, "Properties of base fields"):
+            selection.unlink()
+
+        self.assertEqual(self.env["ir.default"]._get("res.partner", "type"), "invoice")
+        partner.invalidate_recordset(["type"])
+        self.assertEqual(partner.type, "invoice")
+        self.assertTrue(selection.exists())
+
 
 class TestIrModelDataCacheInvalidation(TransactionCase):
     def _groups_cleared(self, mock):
@@ -2682,6 +2783,33 @@ class TestIrModelConstraintReflection(TransactionCase):
         after = self._constraint_rows(names)
         self.assertNotEqual(after[drifted][2], "bogus", "drifted row repaired")
         self.assertEqual(after[drifted][0], before[drifted][0])
+
+    def test_reflect_constraints_resolves_xmlids_in_one_lookup(self):
+        Constraint = self.env["ir.model.constraint"]
+        model_names = list(self.env.registry.models)
+        Constraint._reflect_constraints(model_names)
+        cons = self.env[self.MODEL]._table_objects
+        name = next(iter(cons))
+        module = cons[name]._module
+        self.env.flush_all()
+        self.env.cr.execute(
+            SQL(
+                "DELETE FROM ir_model_data WHERE module = %s AND name = %s",
+                module,
+                f"constraint_{name}",
+            )
+        )
+        self.env.invalidate_all()
+        self.env.registry.clear_cache("xmlid")
+
+        with self.assertQueryCount(6):
+            Constraint._reflect_constraints(model_names)
+
+        self.assertEqual(
+            self.env.ref(f"{module}.constraint_{name}").name,
+            name,
+            "a missing constraint xmlid is recreated",
+        )
 
 
 class TestIrModelInfoStopsAtTheOrmBoundary(TransactionCase):

@@ -69,7 +69,7 @@ class MixinLifecycle(models.AbstractModel):
         pass
 
     def _action_cancel(self):
-        self.write({"state": "cancel"})
+        self.with_context(bypass_locked_check=True).write({"state": "cancel"})
         _debug.lifecycle("cancelled", records=self)
         return True
 
@@ -203,7 +203,7 @@ class MixinLifecycle(models.AbstractModel):
         if not locked:
             return
         candidate = (
-            set(vals) & locked._get_fields_user_editable()
+            set(vals) & (locked._get_fields_user_editable() | {"state"})
         ) - self._LOCKED_WRITABLE_FIELDS
         _debug.logic(
             "locked_check",

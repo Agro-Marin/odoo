@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from odoo.tests.common import TransactionCase, tagged
+from odoo.tools import SQL
 
 
 @tagged("post_install", "-at_install")
@@ -150,3 +151,113 @@ class TestIrModelDataCacheInvalidation(TransactionCase):
             [("model", "=", "ir.ui.menu"), ("res_id", "=", menu.id)]
         ).unlink()
         self.assertEqual(Menu.load_menus(False)[menu.id]["xmlid"], "")
+
+
+class TestUninstallModuleDataForeignKeys(TransactionCase):
+    def _fk_row(self, module, name):
+        self.env.cr.execute(
+            SQL(
+                """INSERT INTO ir_model_constraint (name, module, model, type)
+                   VALUES (%s, %s, %s, 'f') RETURNING id""",
+                name,
+                module.id,
+                self.env["ir.model"]._get_id("res.partner"),
+            )
+        )
+        return self.env["ir.model.constraint"].browse(self.env.cr.fetchone()[0])
+
+    def test_a_foreign_key_postgres_dropped_leaves_no_row(self):
+        module = self.env["ir.module.module"].create(
+            {"name": "test_fk_probe", "state": "installed"}
+        )
+        dropped = self._fk_row(module, "res_partner_x_fk_probe_id_fkey")
+        live = self._fk_row(module, "res_partner_parent_id_fkey")
+
+        self.env["ir.model.data"]._uninstall_module_data(["test_fk_probe"])
+
+        self.assertFalse(dropped.exists())
+        self.assertTrue(live.exists())
+        self.env.cr.execute(
+            "SELECT 1 FROM pg_constraint WHERE conname = 'res_partner_parent_id_fkey'"
+        )
+        self.assertTrue(self.env.cr.fetchone())
+
+
+class TestCompleteNameSearch(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Data = cls.env["ir.model.data"]
+        partner = cls.env["res.partner"].create({"name": "xmlid probe"})
+        cls.dotted, cls.bare = cls.Data.create(
+            [
+                {
+                    "module": "test_xmlid_probe",
+                    "name": "probe_partner",
+                    "model": "res.partner",
+                    "res_id": partner.id,
+                },
+                {
+                    "module": "",
+                    "name": "bare.probe_partner",
+                    "model": "res.partner",
+                    "res_id": partner.id,
+                },
+            ]
+        )
+
+    def _search(self, field, operator, value):
+        return self.Data.search(
+            [("id", "in", (self.dotted | self.bare).ids), (field, operator, value)]
+        )
+
+    def assertSearch(self, operator, value, expected, field="complete_name"):
+        self.assertEqual(self._search(field, operator, value), expected)
+
+    def test_exact(self):
+        self.assertSearch("=", "test_xmlid_probe.probe_partner", self.dotted)
+        self.assertSearch("=", "bare.probe_partner", self.bare)
+        self.assertSearch("=", "probe_partner", self.Data)
+        self.assertSearch("=", "other.probe_partner", self.Data)
+
+    def test_in(self):
+        self.assertSearch(
+            "in",
+            ["test_xmlid_probe.probe_partner", "bare.probe_partner", "no.such"],
+            self.dotted | self.bare,
+        )
+        self.assertSearch("in", [], self.Data)
+
+    def test_like_across_the_dot(self):
+        self.assertSearch("ilike", "PROBE.probe_part", self.dotted)
+        self.assertSearch("like", "e.probe", self.dotted | self.bare)
+        self.assertSearch("like", "PROBE.probe", self.Data)
+        self.assertSearch("=like", "test%.probe_partner", self.dotted)
+        self.assertSearch("=ilike", "BARE.%", self.bare)
+
+    def test_negations(self):
+        self.assertSearch("!=", "bare.probe_partner", self.dotted)
+        self.assertSearch("not in", ["test_xmlid_probe.probe_partner"], self.bare)
+        self.assertSearch("not ilike", "probe.probe", self.bare)
+        self.assertSearch("not like", "e.probe", self.Data)
+        self.assertSearch("not =like", "bare.%", self.dotted)
+        self.assertSearch("not =ilike", "TEST_XMLID_PROBE.%", self.bare)
+
+    def test_name_search_accepts_full_xmlids(self):
+        self.assertSearch(
+            "=", "test_xmlid_probe.probe_partner", self.dotted, field="display_name"
+        )
+        self.assertSearch("=", "probe_partner", self.dotted, field="display_name")
+        self.assertSearch(
+            "ilike", "xmlid_probe.probe", self.dotted, field="display_name"
+        )
+        self.assertSearch(
+            "not in",
+            ["test_xmlid_probe.probe_partner"],
+            self.bare,
+            field="display_name",
+        )
+        self.assertIn(
+            (self.dotted.id, self.dotted.display_name),
+            self.Data.name_search("test_xmlid_probe.probe_partner"),
+        )

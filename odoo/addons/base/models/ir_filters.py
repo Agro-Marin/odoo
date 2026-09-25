@@ -81,13 +81,9 @@ class IrFilters(models.Model):
     @api.constrains("domain", "context", "sort")
     def _check_serialized_fields(self) -> None:
         for filter_ in self:
-            self._check_serialized_vals(
-                {
-                    "domain": filter_.domain,
-                    "context": filter_.context,
-                    "sort": filter_.sort,
-                }
-            )
+            self._check_domain_expression(filter_.domain)
+            self._check_context_expression(filter_.context)
+            self._check_sort_expression(filter_.sort)
 
     @api.model
     def create_filter(self, vals: dict[str, Any]) -> Self:
@@ -95,7 +91,6 @@ class IrFilters(models.Model):
         if not embedded_action_id and "embedded_parent_res_id" in vals:
             _debug.logic("create_filter_parent_dropped", reason="no_embedded_action")
             del vals["embedded_parent_res_id"]
-        self._check_serialized_vals(vals)
         _debug.lifecycle(
             "create_filter",
             model=vals.get("model_id"),
@@ -128,6 +123,12 @@ class IrFilters(models.Model):
             dict(vals, name=self.env._("%s (copy)", ir_filter.name))
             for ir_filter, vals in zip(self, vals_list, strict=True)
         ]
+
+    def write(self, vals: dict[str, Any]) -> bool:
+        result = super().write(vals)
+        _debug.logic("write_rechecked", filters=self.ids, fields=sorted(vals))
+        self.check_access("write")
+        return result
 
     def _get_domain_evaluated(self) -> list:
         try:
@@ -209,21 +210,7 @@ class IrFilters(models.Model):
         )
 
     @api.model
-    def _check_serialized_vals(self, vals: dict[str, Any]) -> None:
-        _debug.pipeline(
-            "serialized_vals_checked",
-            fields=[
-                f for f in ("domain", "context", "sort") if vals.get(f) is not None
-            ],
-        )
-        self._check_domain_expression(vals.get("domain"))
-        self._check_context_expression(vals.get("context"))
-        self._check_sort_expression(vals.get("sort"))
-
-    @api.model
     def _check_context_expression(self, raw: Any) -> None:
-        if raw is None or isinstance(raw, dict):
-            return
         if not isinstance(raw, str):
             _debug.logic("context_rejected", reason="type", type=type(raw).__name__)
             raise ValidationError(
@@ -252,44 +239,33 @@ class IrFilters(models.Model):
 
     @api.model
     def _check_sort_expression(self, raw: Any) -> None:
-        if raw is None:
-            return
-        if isinstance(raw, (list, tuple)):
-            parsed = list(raw)
-        elif not isinstance(raw, str):
+        if not isinstance(raw, str):
             _debug.logic("sort_rejected", reason="type", type=type(raw).__name__)
             raise ValidationError(
                 self.env._(
                     "Filter %(field)s must be a %(type)s.", field="sort", type="list"
                 )
             )
-        else:
-            try:
-                parsed = json.loads(raw)
-            except json.JSONDecodeError as e:
-                _debug.logic("sort_rejected", reason="unparsable")
-                raise ValidationError(
-                    self.env._(
-                        "Invalid filter %(field)s: %(error)s", field="sort", error=e
-                    )
-                ) from e
-            if not isinstance(parsed, list):
-                _debug.logic("sort_rejected", reason="not_list")
-                raise ValidationError(
-                    self.env._(
-                        "Filter %(field)s must be a %(type)s.",
-                        field="sort",
-                        type="list",
-                    )
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as e:
+            _debug.logic("sort_rejected", reason="unparsable")
+            raise ValidationError(
+                self.env._("Invalid filter %(field)s: %(error)s", field="sort", error=e)
+            ) from e
+        if not isinstance(parsed, list):
+            _debug.logic("sort_rejected", reason="not_list")
+            raise ValidationError(
+                self.env._(
+                    "Filter %(field)s must be a %(type)s.", field="sort", type="list"
                 )
+            )
         if not all(isinstance(item, str) for item in parsed):
             _debug.logic("sort_rejected", reason="non_string_item", items=len(parsed))
             raise ValidationError(self.env._("Filter sort must be a list of strings."))
 
     @api.model
     def _check_domain_expression(self, raw: Any) -> None:
-        if raw is None or isinstance(raw, (list, tuple)):
-            return
         if not isinstance(raw, str):
             _debug.logic("domain_rejected", reason="type", type=type(raw).__name__)
             raise ValidationError(

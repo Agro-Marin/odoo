@@ -627,11 +627,26 @@ class ResPartner(models.Model):
         # defaults for everything else were already applied inside `super()`
         synced = self._synced_field_names()
         missing_defaults_cache: dict[frozenset[str], list[str]] = {}
+        # partners created with the same synced values sync as one batch
+        batches: dict[str, tuple[dict[str, Any], list[int]]] = {}
         for partner, vals in zip(partners, vals_list, strict=True):
             vals = self.env["res.partner"]._add_missing_default_values(
                 vals, _missing_defaults_cache=missing_defaults_cache, only=synced
             )
-            partner._fields_sync(vals, new=True)
+            synced_vals = {fname: vals[fname] for fname in synced if fname in vals}
+            key = repr(sorted(synced_vals.items()))
+            batches.setdefault(key, (synced_vals, []))[1].append(partner.id)
+        _debug.perf.count(
+            "create_sync_batches",
+            partners=len(partners),
+            batches=len(batches),
+        )
+        for synced_vals, batch_ids in batches.values():
+            partners.browse(batch_ids)._fields_sync(
+                synced_vals,
+                new=True,
+                commercial_changed=bool(synced_vals.get("parent_id")),
+            )
         return partners
 
     def write(self, vals: dict[str, Any]) -> bool:
@@ -649,6 +664,10 @@ class ResPartner(models.Model):
             self._rename_bank_holders(vals["name"])
 
         tracked_fields = vals.keys() & self._synced_field_names()
+        if {"parent_id", "is_company"} & vals.keys():
+            tracked_fields.add("commercial_partner_id")
+        if tracked_fields:
+            self.fetch(tracked_fields)
         pre_values_list = [
             {fname: partner[fname] for fname in tracked_fields} for partner in self
         ]
@@ -693,7 +712,12 @@ class ResPartner(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_user(self) -> None:
-        users = self.env["res.users"].sudo().search([("partner_id", "in", self.ids)])
+        users = (
+            self.env["res.users"]
+            .sudo()
+            .with_context(active_test=False)
+            .search([("partner_id", "in", self.ids)])
+        )
         if users:
             _debug.logic("unlink_refused", partners=self.ids, users=len(users))
             raise self._prepare_linked_user_error(users, "delete")
@@ -1324,8 +1348,9 @@ class ResPartner(models.Model):
         )
         return matches
 
-    def _get_similar_name_recall(self, named: ResPartner) -> dict[int, list[int]]:
-        self.flush_model(["active", "complete_name"])
+    def _fetch_under_trigram_threshold(
+        self, query: SQL, threshold: float
+    ) -> list[tuple]:
         self.env.cr.execute(
             "SELECT current_setting('pg_trgm.similarity_threshold', true)"
         )
@@ -1333,9 +1358,30 @@ class ResPartner(models.Model):
         self.env.cr.execute(
             SQL(
                 "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
-                str(self._get_similar_name_recall_threshold()),
+                str(threshold),
             )
         )
+        self.env.cr.execute(query)  # noqa: E8501  built via SQL() by the caller
+        rows = self.env.cr.fetchall()
+        _debug.logic(
+            "trigram_threshold_scoped",
+            threshold=threshold,
+            restored=previous_threshold,
+            rows=len(rows),
+        )
+        if previous_threshold is None:
+            self.env.cr.execute("SET LOCAL pg_trgm.similarity_threshold TO DEFAULT")
+        else:
+            self.env.cr.execute(
+                SQL(
+                    "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
+                    previous_threshold,
+                )
+            )
+        return rows
+
+    def _get_similar_name_recall(self, named: ResPartner) -> dict[int, list[int]]:
+        self.flush_model(["active", "complete_name"])
         stored = SQL('candidate."complete_name"')
         searched = SQL("source.name")
         if self.env.registry.unaccent_status == FunctionStatus.INDEXABLE:
@@ -1348,7 +1394,7 @@ class ResPartner(models.Model):
             )
         )
         with _debug.perf("similar_name_recall", cr=self.env.cr, named=len(named)):
-            self.env.cr.execute(  # noqa: E8501  built via SQL(), no user input
+            rows = self._fetch_under_trigram_threshold(
                 SQL(
                     """
                 SELECT source.index, candidate.id
@@ -1360,27 +1406,22 @@ class ResPartner(models.Model):
                           AND candidate.active
                           AND candidate.complete_name IS NOT NULL
                           AND candidate.id != source.id
+                        ORDER BY similarity(%s, %s) DESC, candidate.id
                         LIMIT %s
                        ) AS candidate
                 """,
                     sources,
                     stored,
                     searched,
+                    stored,
+                    searched,
                     SIMILAR_NAME_RECALL_LIMIT,
-                )
+                ),
+                self._get_similar_name_recall_threshold(),
             )
         recalled_by_index: dict[int, list[int]] = defaultdict(list)
-        for index, candidate_id in self.env.cr.fetchall():
+        for index, candidate_id in rows:
             recalled_by_index[index].append(candidate_id)
-        if previous_threshold is None:
-            self.env.cr.execute("SET LOCAL pg_trgm.similarity_threshold TO DEFAULT")
-        else:
-            self.env.cr.execute(
-                SQL(
-                    "SELECT set_config('pg_trgm.similarity_threshold', %s, true)",
-                    previous_threshold,
-                )
-            )
         return recalled_by_index
 
     @api.model
@@ -1447,14 +1488,17 @@ class ResPartner(models.Model):
             for company_key in value
         }
 
-    def _get_contact_descendants(self, *, new: bool = False) -> ResPartner:
+    def _get_contact_descendants(
+        self, *, new: bool = False, sharing_address: bool = False
+    ) -> ResPartner:
         descendants = self.browse()
-        frontier = self._get_contact_children(self, new=new)
+        frontier = self
         while frontier:
+            children = self._get_contact_children(frontier, new=new)
+            if sharing_address:
+                children = children.filtered(lambda c: c.type == "contact")
+            frontier = children - self - descendants
             descendants |= frontier
-            frontier = (
-                self._get_contact_children(frontier, new=new) - self - descendants
-            )
         return descendants
 
     @api.model
@@ -1544,13 +1588,15 @@ class ResPartner(models.Model):
             lead = self.env._("You cannot archive contacts linked to an active user.")
             remedy_self = self.env._("You first need to archive their associated user.")
         else:
-            lead = self.env._("You cannot delete contacts linked to an active user.")
+            lead = self.env._(
+                "You cannot delete contacts linked to a user, even an archived one."
+            )
             remedy_self = self.env._(
                 "You should rather archive them after archiving their associated user."
             )
         if self.env["res.users"].sudo(False).has_access("write"):
             error_msg = self.env._(
-                "%(lead)s\n%(remedy)s\n\nLinked active users : %(names)s",
+                "%(lead)s\n%(remedy)s\n\nLinked users: %(names)s",
                 lead=lead,
                 remedy=remedy_self,
                 names=names,
@@ -1560,7 +1606,7 @@ class ResPartner(models.Model):
             )
         return ValidationError(
             self.env._(
-                "%(lead)s\n%(remedy)s\n\nLinked active users :\n%(names)s",
+                "%(lead)s\n%(remedy)s\n\nLinked users:\n%(names)s",
                 lead=lead,
                 remedy=self.env._(
                     "Ask an administrator to archive their associated user first."
@@ -1625,20 +1671,30 @@ class ResPartner(models.Model):
     def _synced_commercial_fields(self) -> list[str]:
         return ["vat"]
 
-    def _sync_commercial_fields_from_company(self) -> None:
-        commercial_partner = self.commercial_partner_id
-        if commercial_partner != self:
-            sync_vals = commercial_partner._prepare_commercial_vals()
+    def _sync_commercial_fields_from_company(self, *, keep_own_values: bool) -> None:
+        for commercial_partner, partners in self.grouped(
+            "commercial_partner_id"
+        ).items():
+            partners -= commercial_partner
+            if not partners:
+                continue
+            sync_vals = (
+                commercial_partner._prepare_commercial_vals()
+                if keep_own_values
+                else commercial_partner._convert_fields_to_values(
+                    self._commercial_fields()
+                )
+            )
             _debug.pipeline(
                 "commercial_fields_from_company",
-                partner=self.id,
+                partners=partners.ids,
                 commercial=commercial_partner.id,
                 fields=list(sync_vals),
             )
             if sync_vals:
-                self.write(sync_vals)
-                self._sync_commercial_fields_to_descendants(list(sync_vals))
-            self._sync_company_dependent_commercial_fields()
+                partners.write(sync_vals)
+                partners._sync_commercial_fields_to_descendants(list(sync_vals))
+            partners._sync_company_dependent_commercial_fields()
 
     def _sync_company_dependent_commercial_fields(self) -> None:
         if not (fields_to_sync := self._company_dependent_commercial_fields()):
@@ -1719,23 +1775,41 @@ class ResPartner(models.Model):
         for key, stale in stale_by_values.items():
             stale.write(sync_vals_by_key[key])
 
-    def _sync_from_parent(self, values: dict[str, Any]) -> None:
+    def _sync_from_parent(
+        self,
+        values: dict[str, Any],
+        *,
+        new: bool,
+        commercial_changed: bool,
+        was_commercial: bool,
+    ) -> None:
+        if commercial_changed:
+            self.sudo()._sync_commercial_fields_from_company(
+                keep_own_values=was_commercial
+            )
         if not (values.get("parent_id") or values.get("type") == "contact"):
             return
-        if values.get("parent_id"):
-            self.sudo()._sync_commercial_fields_from_company()
-        if self.parent_id and self.type == "contact":
-            address_values = self.parent_id._prepare_address_vals()
+        contacts = self.filtered(
+            lambda partner: partner.parent_id and partner.type == "contact"
+        )
+        for parent, children in contacts.grouped("parent_id").items():
+            address_values = parent._prepare_address_vals()
             _debug.pipeline(
                 "address_from_parent",
-                partner=self.id,
-                parent=self.parent_id.id,
+                partners=children.ids,
+                parent=parent.id,
                 fields=list(address_values),
             )
             if address_values:
-                self._update_address(address_values)
+                followers = children
+                # a new partner's children were created from it, already in sync
+                if not new:
+                    followers |= children._get_contact_descendants(sharing_address=True)
+                followers._update_address(address_values)
 
-    def _sync_to_parent(self, values: dict[str, Any]) -> None:
+    def _sync_to_parent(
+        self, values: dict[str, Any], *, joined_with_own_values: bool
+    ) -> None:
         if not self.parent_id:
             return
         address_fields = self._address_fields()
@@ -1752,7 +1826,7 @@ class ResPartner(models.Model):
         synced_fields = self._synced_commercial_fields()
         if (
             self.commercial_partner_id != self
-            and ("parent_id" in values or any(f in values for f in synced_fields))
+            and (joined_with_own_values or any(f in values for f in synced_fields))
             and any(self[f] != self.parent_id[f] for f in synced_fields)
             and (synced_vals := self._prepare_commercial_vals_synced())
         ):
@@ -1764,8 +1838,18 @@ class ResPartner(models.Model):
             )
             self.parent_id.write(synced_vals)
 
-    def _sync_children(self, values: dict[str, Any], *, new: bool = False) -> None:
-        fields_to_sync = values.keys() & self._commercial_fields()
+    def _sync_children(
+        self,
+        values: dict[str, Any],
+        *,
+        new: bool = False,
+        commercial_changed: bool = False,
+    ) -> None:
+        fields_to_sync = (
+            self._commercial_fields()
+            if commercial_changed
+            else values.keys() & self._commercial_fields()
+        )
         if fields_to_sync:
             commercial_selves = self.filtered(
                 lambda partner: partner.commercial_partner_id == partner
@@ -1776,9 +1860,7 @@ class ResPartner(models.Model):
                 )
         address_fields = self._address_fields()
         if any(field in values for field in address_fields):
-            contacts = self._get_contact_children(self, new=new).filtered(
-                lambda c: c.type == "contact"
-            )
+            contacts = self._get_contact_descendants(new=new, sharing_address=True)
             _debug.logic(
                 "address_synced_to_children", partners=self.ids, contacts=len(contacts)
             )
@@ -1800,15 +1882,31 @@ class ResPartner(models.Model):
         pre_values_list: list[dict[str, Any]],
     ) -> None:
         # partners whose same fields changed took the same values: one sync
-        groups: dict[frozenset[str], ResPartner] = {}
+        groups: dict[tuple[frozenset[str], bool, bool], ResPartner] = {}
         for partner, pre_values in zip(self, pre_values_list, strict=True):
             changed = frozenset(
                 fname for fname in tracked_fields if partner[fname] != pre_values[fname]
             )
             if changed:
-                groups[changed] = groups.get(changed, self.browse()) | partner
-        for changed, partners in groups.items():
-            partners._fields_sync({fname: vals[fname] for fname in changed})
+                key = (
+                    changed - {"commercial_partner_id"},
+                    "commercial_partner_id" in changed,
+                    pre_values.get("commercial_partner_id") == partner,
+                )
+                groups[key] = groups.get(key, self.browse()) | partner
+        for (changed, commercial_changed, was_commercial), partners in groups.items():
+            _debug.logic(
+                "write_sync_group",
+                partners=partners.ids,
+                fields=sorted(changed),
+                commercial_changed=commercial_changed,
+                was_commercial=was_commercial,
+            )
+            partners._fields_sync(
+                {fname: vals[fname] for fname in changed},
+                commercial_changed=commercial_changed,
+                was_commercial=was_commercial,
+            )
         _debug.pipeline(
             "write_fields_synced",
             partners=len(self),
@@ -1912,19 +2010,33 @@ class ResPartner(models.Model):
             _debug.logic("parent_address_filled", partner=self.id, parent=parent.id)
             parent._update_address(addr_vals)
 
-    def _fields_sync(self, values: dict[str, Any], *, new: bool = False) -> None:
-        # parent-side syncs are per record; the children sync takes the batch
+    def _fields_sync(
+        self,
+        values: dict[str, Any],
+        *,
+        new: bool = False,
+        commercial_changed: bool = False,
+        was_commercial: bool = True,
+    ) -> None:
+        _debug.logic(
+            "fields_sync",
+            partners=self.ids,
+            fields=list(values),
+            commercial_changed=commercial_changed,
+            was_commercial=was_commercial,
+        )
+        self._sync_from_parent(
+            values,
+            new=new,
+            commercial_changed=commercial_changed,
+            was_commercial=was_commercial,
+        )
+        # pushing up is per record: each parent compares against one child
         for partner in self:
-            _debug.logic(
-                "fields_sync",
-                partner=partner.id,
-                parent=partner.parent_id.id,
-                type=partner.type,
-                fields=list(values),
+            partner._sync_to_parent(
+                values, joined_with_own_values=commercial_changed and was_commercial
             )
-            partner._sync_from_parent(values)
-            partner._sync_to_parent(values)
-        self._sync_children(values, new=new)
+        self._sync_children(values, new=new, commercial_changed=commercial_changed)
 
     def _clean_website(self, website: str) -> str:
         url = urlsplit(website)

@@ -692,6 +692,12 @@ class TestMergePartnerSimilarNames(TransactionCase):
         param.set_param("base.partner_name_similarity_threshold", "0.999")
         self.assertFalse(grouped_together())
 
+    def test_pairing_restores_the_trigram_threshold(self):
+        self.env.cr.execute("SET LOCAL pg_trgm.similarity_threshold = 0.42")
+        self._wizard()._get_similar_name_pairs(10)
+        self.env.cr.execute("SHOW pg_trgm.similarity_threshold")
+        self.assertEqual(self.env.cr.fetchone()[0], "0.42")
+
     def test_an_unusable_threshold_falls_back_to_the_default(self):
         wizard = self._wizard()
         param = self.env["ir.config_parameter"].sudo()
@@ -948,3 +954,162 @@ class TestMergePartnerSingleSourceClash(TransactionCase):
             "the source's other account must not be dropped with it",
         )
         self.assertEqual(bank_keep.partner_id, dst)
+
+
+@tagged("post_install", "-at_install")
+class TestMergePartnerIntegrity(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Partner = cls.env["res.partner"]
+        cls.Wizard = cls.env["base.partner.merge.automatic.wizard"]
+
+    def _grouped_ids(self, fields):
+        self.env.flush_all()
+        self.env.cr.execute(self.Wizard._generate_query(fields, 0))
+        return {pid for _min_id, ids in self.env.cr.fetchall() for pid in ids}
+
+    def test_two_company_partners_are_never_merged(self):
+        first, second = self.env["res.company"].create(
+            [{"name": "Merge Co A"}, {"name": "Merge Co B"}]
+        )
+        with self.assertRaises(UserError):
+            self.Wizard.create({})._merge(
+                [first.partner_id.id, second.partner_id.id], second.partner_id
+            )
+        self.assertNotEqual(first.partner_id, second.partner_id)
+
+    def test_a_company_partner_and_a_bank_partner_are_never_merged(self):
+        company = self.env["res.company"].create({"name": "Merge Co Bank"})
+        bank = self.env["res.bank"].create({"name": "Merge Bank"})
+        with self.assertRaises(UserError):
+            self.Wizard.create({})._merge([company.partner_id.id, bank.partner_id.id])
+
+    def test_a_company_partner_is_always_the_destination(self):
+        company = self.env["res.company"].create({"name": "Merge Co Dst"})
+        stray = self.Partner.create({"name": "Merge Co Dst Stray"})
+        wizard = self.Wizard.create({})
+        self.assertEqual(
+            wizard._get_ordered_partner([company.partner_id.id, stray.id])[-1],
+            company.partner_id,
+        )
+
+        wizard._merge([company.partner_id.id, stray.id], stray)
+
+        self.assertTrue(company.partner_id.exists())
+        self.assertFalse(stray.exists())
+
+    def test_grouping_by_vat_skips_the_no_tax_marker_and_blanks(self):
+        exempt = self.Partner.create(
+            [{"name": f"No Tax {i}", "vat": vat} for i, vat in enumerate("//")]
+        )
+        spaced = self.Partner.create(
+            [{"name": "Spaced 1", "vat": " / "}, {"name": "Spaced 2", "vat": "/"}]
+        )
+        blank = self.Partner.create(
+            [{"name": "Blank 1", "vat": " "}, {"name": "Blank 2", "vat": "  "}]
+        )
+        taxed = self.Partner.create(
+            [
+                {"name": "Taxed 1", "vat": "BE 0477"},
+                {"name": "Taxed 2", "vat": "BE0477"},
+            ]
+        )
+
+        grouped = self._grouped_ids(["vat"])
+
+        self.assertFalse(grouped & set((exempt | spaced | blank).ids))
+        self.assertLessEqual(set(taxed.ids), grouped)
+
+    def test_grouping_by_name_or_email_skips_blanks(self):
+        blank = self.Partner.create(
+            [
+                {"name": "Blank Mail 1", "email": " "},
+                {"name": "Blank Mail 2", "email": " "},
+            ]
+        )
+        self.assertFalse(self._grouped_ids(["email"]) & set(blank.ids))
+
+    def _define_properties(self, definitions):
+        self.env["properties.base.definition"]._get_definition_for_property_field(
+            "res.partner", "properties"
+        ).properties_definition = definitions
+
+    def test_a_property_pointing_at_the_source_is_repointed(self):
+        self._define_properties(
+            [
+                {
+                    "name": "manager",
+                    "type": "many2one",
+                    "comodel": "res.partner",
+                    "string": "Manager",
+                },
+                {
+                    "name": "peers",
+                    "type": "many2many",
+                    "comodel": "res.partner",
+                    "string": "Peers",
+                },
+            ]
+        )
+        src, dst, other = self.Partner.create(
+            [
+                {"name": "Prop Src", "email": "prop@example.com"},
+                {"name": "Prop Dst", "email": "prop@example.com"},
+                {"name": "Prop Other"},
+            ]
+        )
+        holder = self.Partner.create(
+            {
+                "name": "Prop Holder",
+                "properties": {
+                    "manager": src.id,
+                    "peers": [src.id, other.id, dst.id],
+                },
+            }
+        )
+        self.env.flush_all()
+
+        self.Wizard.create({})._merge([src.id, dst.id], dst)
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT properties FROM res_partner WHERE id = %s", [holder.id]
+        )
+
+        self.assertEqual(
+            self.env.cr.fetchone()[0],
+            {"manager": dst.id, "peers": [dst.id, other.id]},
+        )
+
+    def test_property_values_are_merged_key_by_key(self):
+        self._define_properties(
+            [
+                {"name": "note", "type": "char", "string": "Note"},
+                {"name": "code", "type": "char", "string": "Code"},
+            ]
+        )
+        src, dst = self.Partner.create(
+            [
+                {
+                    "name": "Merge Prop Src",
+                    "email": "mprop@example.com",
+                    "properties": {"note": "from source", "code": "SRC"},
+                },
+                {
+                    "name": "Merge Prop Dst",
+                    "email": "mprop@example.com",
+                    "properties": {"note": False, "code": "DST"},
+                },
+            ]
+        )
+        self.env.flush_all()
+
+        self.Wizard.create({})._merge([src.id, dst.id], dst)
+        self.env.flush_all()
+        self.env.cr.execute(
+            "SELECT properties FROM res_partner WHERE id = %s", [dst.id]
+        )
+
+        self.assertEqual(
+            self.env.cr.fetchone()[0], {"note": "from source", "code": "DST"}
+        )

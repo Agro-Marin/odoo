@@ -560,8 +560,20 @@ class IrModuleModule(models.Model):
             _debug.lifecycle(
                 "write_state", modules=self.mapped("name"), state=vals["state"]
             )
+        stable_changed = any(
+            module[fname] != vals[fname]
+            for fname in STABLE_CACHE_FIELDS.intersection(vals)
+            for module in self
+        )
         res = super().write(vals)
-        if not STABLE_CACHE_FIELDS.isdisjoint(vals):
+        if STABLE_CACHE_FIELDS.intersection(vals):
+            _debug.logic(
+                "stable_cache",
+                modules=self.ids,
+                fields=sorted(STABLE_CACHE_FIELDS.intersection(vals)),
+                cleared=stable_changed,
+            )
+        if stable_changed:
             self.env.registry.clear_cache("stable")
         return res
 

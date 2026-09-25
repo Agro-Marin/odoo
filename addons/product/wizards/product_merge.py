@@ -8,9 +8,11 @@ from odoo import api, fields, models, modules, tools
 from odoo.db.errors import PG_USER_FAULT_EXCEPTIONS
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
 _logger = logging.getLogger("odoo.addons.product.merge")
+_debug = DebugLog(__name__)
 
 
 def _can_commit() -> bool:
@@ -393,7 +395,11 @@ class ProductMergeWizard(models.TransientModel):
             else:
                 expression = column
             group_expressions.append(expression)
-            filters.append(SQL("%s IS NOT NULL", expression))
+            if field in self._CASE_INSENSITIVE_GROUPBY_FIELDS:
+                # a blank code or name is no identity: it groups nothing
+                filters.append(SQL("trim(%s) <> ''", expression))
+            else:
+                filters.append(SQL("%s IS NOT NULL", expression))
 
         parts = [
             SQL("SELECT min(%s.id), array_agg(DISTINCT %s.id)", template, template),
@@ -408,6 +414,12 @@ class ProductMergeWizard(models.TransientModel):
                     template,
                 )
             )
+        _debug.logic(
+            "duplicate_query",
+            fields=fields,
+            blank_excluded=sorted(set(fields) & self._CASE_INSENSITIVE_GROUPBY_FIELDS),
+            maximum_group=maximum_group,
+        )
         if filters:
             parts.append(SQL("WHERE %s", SQL(" AND ").join(filters)))
         parts.extend(

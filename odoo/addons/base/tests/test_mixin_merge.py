@@ -54,6 +54,34 @@ class TestMixinMergeSidecars(TransactionCase):
         )
         self.assertFalse(src.message_partner_ids)
 
+    def test_sidecar_rows_of_every_source_move_with_one_search_per_sidecar(self):
+        Partner = self.env["res.partner"]
+        dst, *sources = Partner.create([{"name": f"sidecar {i}"} for i in range(3)])
+        attachments = self.env["ir.attachment"].create(
+            [
+                {
+                    "name": f"sidecar {src.id}",
+                    "res_model": "res.partner",
+                    "res_id": src.id,
+                }
+                for src in sources
+            ]
+        )
+        calls = []
+        original = type(self.wizard)._repoint_model_rows
+
+        def counting(wizard, *args, **kwargs):
+            calls.append(args[0])
+            return original(wizard, *args, **kwargs)
+
+        self.patch(type(self.wizard), "_repoint_model_rows", counting)
+        self.wizard._repoint_sidecar_rows(
+            "res.partner", Partner.browse([s.id for s in sources]), dst
+        )
+
+        self.assertEqual(len(calls), len(self.wizard._get_sidecar_reference_fields()))
+        self.assertEqual(set(attachments.mapped("res_id")), {dst.id})
+
     def test_a_reference_on_an_archived_record_is_repointed(self):
         Action = self.env["ir.actions.act_window"]
         src, dst = (

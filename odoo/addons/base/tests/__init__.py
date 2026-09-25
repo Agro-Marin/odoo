@@ -154,3 +154,6 @@ from . import test_mixin_recurrence_rrule
 from . import test_res_users_grant
 from . import test_with_privilege
 from . import test_service_principal
+from . import test_mixin_company_config
+from . import test_mixin_lifecycle
+from . import test_mixin_recurrence_anchored

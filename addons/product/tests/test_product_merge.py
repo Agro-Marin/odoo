@@ -314,6 +314,27 @@ class TestProductMerge(ProductVariantsCommon):
             "the product nobody duplicates is left alone",
         )
 
+    def test_blank_references_are_not_duplicates(self):
+        blanks = self._create_template("Blank One") | self._create_template("Blank Two")
+        self.env.cr.execute(
+            "UPDATE product_template SET default_code = ' ' WHERE id = ANY(%s)",
+            [blanks.ids],
+        )
+
+        wizard = self.env["product.merge.wizard"].create(
+            {"group_by_default_code": True}
+        )
+        wizard.action_start_manual_process()
+
+        self.assertFalse(
+            [
+                line
+                for line in wizard.line_ids
+                if set(blanks.ids) <= set(literal_eval(line.aggr_ids))
+            ],
+            "A blank internal reference identifies no product",
+        )
+
     def test_automatic_process_skips_a_group_it_refuses(self):
         refused = [
             self._create_template("Refused", default_code="REFUSED-REF")

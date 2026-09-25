@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Collection, Mapping
+from collections.abc import Callable, Collection
 from itertools import batched
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from psycopg.types.json import Jsonb
 
@@ -13,9 +13,6 @@ from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 from odoo.tools.safe_eval import datetime, dateutil, safe_eval, time
 from odoo.tools.translate import LazyTranslate
-
-if TYPE_CHECKING:
-    from odoo.db.cursor import BaseCursor
 
 _lt = LazyTranslate(__name__)
 _debug = DebugLog(__name__)
@@ -188,53 +185,6 @@ def field_xmlid(module: str, model_name: str, field_name: str) -> str:
 def selection_xmlid(module: str, model_name: str, field_name: str, value: str) -> str:
     xvalue = value.replace(".", "_").replace(" ", "_").lower()
     return f"{module}.selection__{_model_slug(model_name)}__{field_name}__{xvalue}"
-
-
-def query_insert(
-    cr: BaseCursor, table: str, rows: list[dict[str, Any]] | Mapping[str, Any]
-) -> list[int]:
-    if isinstance(rows, Mapping):
-        rows = [rows]
-    if not rows:
-        return []
-    cols = list(rows[0])
-    _debug.perf.count("query_insert", table=table, rows=len(rows), columns=len(cols))
-    return cr.copy_from(
-        table,
-        cols,
-        [tuple(row[col] for col in cols) for row in rows],
-        returning_ids=True,
-    )
-
-
-def query_update(
-    cr: BaseCursor, table: str, values: dict[str, Any], selectors: list[str]
-) -> list[int]:
-    selector_set = set(selectors)
-    assignments = [
-        SQL("%s = %s", SQL.identifier(key), val)
-        for key, val in values.items()
-        if key not in selector_set
-    ]
-    if not assignments:
-        _debug.logic("query_update.rejected", table=table, reason="no_assignments")
-        raise ValueError(
-            f"query_update: no columns to update on {table!r}; every key in "
-            f"{list(values)} is a selector ({selectors}), so the SET clause "
-            "would be empty."
-        )
-    query = SQL(
-        "UPDATE %s SET %s WHERE %s RETURNING id",
-        SQL.identifier(table),
-        SQL(", ").join(assignments),
-        SQL(" AND ").join(
-            SQL("%s = %s", SQL.identifier(key), values[key]) for key in selectors
-        ),
-    )
-    cr.execute(query)
-    ids = [row[0] for row in cr.fetchall()]
-    _debug.perf.count("query_update", table=table, rows=len(ids))
-    return ids
 
 
 def select_en(

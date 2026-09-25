@@ -2770,6 +2770,51 @@ class TestPermissions(TransactionCaseWithUserDemo):
                 sec_domain | Domain("res_model", "!=", False),
             )
 
+    def test_model_discovery_lists_every_distinct_named_model(self):
+        self.Attachments.sudo().create(
+            [
+                {"name": "on-partner-1", "res_model": "res.partner", "res_id": 1},
+                {"name": "on-partner-2", "res_model": "res.partner", "res_id": 2},
+                {"name": "on-view", "res_model": "ir.ui.view", "res_id": 1},
+                {"name": "unlinked"},
+            ]
+        )
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE ir_attachment SET res_model = '' WHERE name = 'unlinked'"
+        )
+        self.env.registry.clear_cache()
+        self.env.cr.execute(
+            "SELECT DISTINCT res_model FROM ir_attachment WHERE res_model <> ''"
+        )
+        expected = {name for (name,) in self.env.cr.fetchall()}
+
+        names, capped = self.Attachments._get_model_names_attached()
+
+        self.assertFalse(capped)
+        self.assertEqual(len(names), len(set(names)))
+        self.assertEqual(set(names), expected)
+        self.assertTrue({"res.partner", "ir.ui.view"} <= set(names))
+
+    def test_model_discovery_reports_the_cap(self):
+        self.env.registry.clear_cache()
+        with patch.object(IrAttachment, "_SEARCH_MODEL_DISCOVERY_LIMIT", 0):
+            names, capped = self.Attachments._get_model_names_attached()
+        self.env.registry.clear_cache()
+        self.assertTrue(capped)
+        self.assertEqual(len(names), 1)
+
+    def test_search_by_id_skips_model_discovery(self):
+        attachment = self.Attachments.create({"name": "by-id.txt", "raw": b"x"})
+        with patch.object(
+            IrAttachment,
+            "_get_model_names_attached",
+            side_effect=AssertionError("model discovery ran for an id search"),
+        ):
+            self.assertEqual(
+                self.Attachments.search([("id", "in", attachment.ids)]), attachment
+            )
+
     def test_res_field_cannot_outlive_its_res_model(self):
         backed = self.Attachments.create(
             {

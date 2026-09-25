@@ -320,13 +320,10 @@ class ResCurrency(models.Model):
             currency.is_current_company_currency = company_currency == currency
 
     @api.depends("name", "rate_ids.rate", "rate_ids.name", "rate_ids.company_id")
-    @api.depends_context("to_currency", "date", "company", "company_id")
+    @api.depends_context("to_currency", "date", "company")
     def _compute_current_rate(self) -> None:
         date = self.env.context.get("date") or fields.Date.context_today(self)
-        company = (
-            self.env["res.company"].browse(self.env.context.get("company_id"))
-            or self.env.company
-        )
+        company = self.env.company
         company_currency = company.currency_id
         to_currency = (
             self.browse(self.env.context.get("to_currency")) or company_currency
@@ -503,28 +500,69 @@ class ResCurrency(models.Model):
         return to_currency.round(to_amount) if round else to_amount
 
     def _select_companies_rates(self) -> str:
+        # Mirrors _get_rate_from_history: from its root's first own rate on, a
+        # company sees only its root's rates; a missing rate, and any date
+        # before the first rate, take the earliest rate of the history in use.
         return """
+            WITH candidate AS (
+                SELECT
+                    r.id,
+                    r.currency_id,
+                    c.id AS company_id,
+                    r.company_id AS rate_company_id,
+                    r.rate,
+                    r.name,
+                    MIN(r.name) FILTER (WHERE r.company_id IS NOT NULL) OVER (
+                        PARTITION BY r.currency_id, c.id
+                    ) AS first_company_date,
+                    FIRST_VALUE(r.rate) OVER (
+                        PARTITION BY r.currency_id, c.id
+                        ORDER BY r.company_id IS NULL, r.name, r.id
+                    ) AS fallback_rate
+                FROM res_company c
+                JOIN res_currency_rate r ON (
+                    r.company_id IS NULL
+                    OR r.company_id = split_part(c.parent_path, '/', 1)::int
+                )
+            ),
+            series AS (
+                SELECT DISTINCT ON (currency_id, company_id, name)
+                    currency_id,
+                    company_id,
+                    COALESCE(rate, fallback_rate, 1.0) AS rate,
+                    COALESCE(fallback_rate, 1.0) AS fallback_rate,
+                    name
+                FROM candidate
+                WHERE rate_company_id IS NOT NULL
+                   OR first_company_date IS NULL
+                   OR name < first_company_date
+                ORDER BY currency_id, company_id, name, id DESC
+            )
             SELECT
-                r.currency_id,
-                COALESCE(r.company_id, c.id) as company_id,
-                r.rate,
-                r.name AS date_start,
-                (SELECT name FROM res_currency_rate r2
-                 WHERE r2.name > r.name AND
-                       r2.currency_id = r.currency_id AND
-                       (r2.company_id is null or r2.company_id = c.id)
-                 ORDER BY r2.name ASC
-                 LIMIT 1) AS date_end
-            FROM res_currency_rate r
-            JOIN res_company c ON (r.company_id is null or r.company_id = c.id)
+                currency_id,
+                company_id,
+                rate,
+                name AS date_start,
+                LEAD(name) OVER (
+                    PARTITION BY currency_id, company_id ORDER BY name
+                ) AS date_end
+            FROM series
+            UNION ALL
+            (
+                SELECT DISTINCT ON (currency_id, company_id)
+                    currency_id,
+                    company_id,
+                    fallback_rate,
+                    '-infinity'::date,
+                    name
+                FROM series
+                ORDER BY currency_id, company_id, name
+            )
         """
 
     @api.model
     def _get_context_company_currency_name(self) -> str:
-        return (
-            self.env["res.company"].browse(self.env.context.get("company_id"))
-            or self.env.company
-        ).currency_id.name
+        return self.env.company.currency_id.name
 
     @api.model
     def _get_view_cache_key(
@@ -675,20 +713,22 @@ class ResCurrencyRate(models.Model):
         )
         return self.browse()
 
-    def _get_last_rates_for_companies(self, companies: Any) -> dict:
+    def _get_company_currency_rates(self) -> dict[Self, float]:
+        env_company_root = self.env.company.root_id
+        today = fields.Date.context_today(self)
+        rates_per_key = {}
         result = {}
-        for company in companies:
-            last = max(
-                (
-                    rate
-                    for rate in company.sudo().currency_id.rate_ids
-                    if (rate.rate and rate.company_id == company) or not rate.company_id
-                ),
-                key=lambda rate: (rate.name, rate.id),
-                default=None,
+        for currency_rate in self:
+            key = (
+                currency_rate.company_id or env_company_root,
+                currency_rate.name or today,
             )
-            result[company] = (last.rate if last else 0) or 1
-        _debug.perf.count("last_rates_for_companies", companies=len(result))
+            if key not in rates_per_key:
+                company, date = key
+                currency = company.sudo().currency_id
+                rates_per_key[key] = currency._get_rates(company, date)[currency.id]
+            result[currency_rate] = rates_per_key[key]
+        _debug.perf.count("company_currency_rates", keys=len(rates_per_key))
         return result
 
     @api.depends(
@@ -697,9 +737,7 @@ class ResCurrencyRate(models.Model):
     @api.depends_context("company")
     def _compute_company_rate(self) -> None:
         env_company_root = self.env.company.root_id
-        last_rate = self.env["res.currency.rate"]._get_last_rates_for_companies(
-            self.company_id | env_company_root
-        )
+        company_currency_rates = self._get_company_currency_rates()
         rates_per_key = {}
         derived = 0  # debuglog
         for currency_rate in self:
@@ -727,7 +765,7 @@ class ResCurrencyRate(models.Model):
                     candidates.reverse()
                 index = bisect_left(candidates, (currency_rate.name,)) - 1
                 rate = candidates[index][1] if index >= 0 else 1.0
-            currency_rate.company_rate = rate / last_rate[company]
+            currency_rate.company_rate = rate / company_currency_rates[currency_rate]
         _debug.perf.count(
             "company_rates_computed",
             rates=len(self),
@@ -737,13 +775,11 @@ class ResCurrencyRate(models.Model):
 
     @api.onchange("company_rate")
     def _inverse_company_rate(self) -> None:
-        env_company_root = self.env.company.root_id
-        last_rate = self.env["res.currency.rate"]._get_last_rates_for_companies(
-            self.company_id | env_company_root
-        )
+        company_currency_rates = self._get_company_currency_rates()
         for currency_rate in self:
-            company = currency_rate.company_id or env_company_root
-            currency_rate.rate = currency_rate.company_rate * last_rate[company]
+            currency_rate.rate = (
+                currency_rate.company_rate * company_currency_rates[currency_rate]
+            )
 
     @api.depends("company_rate")
     def _compute_inverse_company_rate(self) -> None:

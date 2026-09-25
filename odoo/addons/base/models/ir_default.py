@@ -125,7 +125,7 @@ class IrDefault(models.Model):
         if self.env.su:
             return
         for record in self:
-            if field := record.field_id:
+            if field := record.sudo().field_id:
                 model = self.env[field.model]
                 _debug.logic(
                     "field_access_checked",
@@ -156,6 +156,8 @@ class IrDefault(models.Model):
     def write(self, vals: dict[str, Any]) -> bool:
         _debug.lifecycle("write", count=len(self), fields=list(vals))
         result = super().write(vals)
+        _debug.logic("write_rechecked", defaults=self.ids, fields=sorted(vals))
+        self.check_access("write")
         self._check_accessible_field_id()
         if self:
             self._invalidate_defaults_cache()
@@ -355,6 +357,12 @@ class IrDefault(models.Model):
 
     @api.model
     def discard_records(self, records: Self) -> bool:
+        if not any(
+            field.type == "many2one"
+            for field in self.env.registry.fields_by_comodel.get(records._name, ())
+        ):
+            _debug.logic("discard_records_skipped", model=records._name)
+            return True
         json_vals = [json.dumps(id) for id in records.ids]
         domain = [
             ("field_id.ttype", "=", "many2one"),

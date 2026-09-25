@@ -1,6 +1,7 @@
 import psycopg.errors
 
 from odoo import Command
+from odoo.db import db_connect
 from odoo.exceptions import AccessError, LockError
 from odoo.tests.common import TransactionCase, tagged
 from odoo.tools import mute_logger
@@ -161,7 +162,7 @@ class TestORM(TransactionCase):
         p1.lock_for_update(allow_referencing=True)
         p1.lock_for_update(allow_referencing=False)
 
-        with self.env.registry.cursor() as cr:
+        with db_connect(self.env.cr.dbname).cursor() as cr:
             recs = (p1 + p2).with_env(partner.env(cr=cr))
             with self.assertRaises(LockError):
                 recs.lock_for_update()
@@ -189,7 +190,7 @@ class TestORM(TransactionCase):
         p1 = partner.search([("name", "!=", False)], limit=1)
         p1.lock_for_update()
 
-        with self.env.registry.cursor() as cr:
+        with db_connect(self.env.cr.dbname).cursor() as cr:
             other = p1.with_env(partner.env(cr=cr))
             cr.execute("SET LOCAL lock_timeout = '200ms'")
             with self.assertRaises(psycopg.errors.LockNotAvailable):
@@ -224,22 +225,22 @@ class TestORM(TransactionCase):
         # unlocked: each sees the same free seats, each takes one, and the
         # cap is broken with no error anywhere
         with (
-            self.env.registry.cursor() as cr_a,
-            self.env.registry.cursor() as cr_b,
+            db_connect(self.env.cr.dbname).cursor() as cr_a,
+            db_connect(self.env.cr.dbname).cursor() as cr_b,
         ):
             self.assertTrue(admit(self.env(cr=cr_a), lock=False))
             self.assertTrue(admit(self.env(cr=cr_b), lock=False))
             cr_a.commit()
             cr_b.commit()
-        with self.env.registry.cursor() as cr:
+        with db_connect(self.env.cr.dbname).cursor() as cr:
             cr.execute("SELECT count(*) FROM res_partner WHERE ref = 'capped'")
             self.assertEqual(cr.fetchone()[0], 2)
 
         # locked: the second transaction cannot read the set until the first
         # has finished writing it, which is the conflict there was none of
         with (
-            self.env.registry.cursor() as cr_a,
-            self.env.registry.cursor() as cr_b,
+            db_connect(self.env.cr.dbname).cursor() as cr_a,
+            db_connect(self.env.cr.dbname).cursor() as cr_b,
         ):
             self.env(cr=cr_a)["res.partner"].browse(gate.id).lock_for_update(wait=True)
             cr_b.execute("SET LOCAL lock_timeout = '300ms'")
@@ -249,7 +250,7 @@ class TestORM(TransactionCase):
             cr_a.rollback()
 
     def _drop_capped_partners(self):
-        with self.env.registry.cursor() as cr:
+        with db_connect(self.env.cr.dbname).cursor() as cr:
             cr.execute("DELETE FROM res_partner WHERE ref = 'capped'")
             cr.commit()
 
@@ -273,7 +274,7 @@ class TestORM(TransactionCase):
         self.assertEqual(p1.try_lock_for_update(allow_referencing=True), p1)
         self.assertEqual(p1.try_lock_for_update(allow_referencing=False), p1)
 
-        with self.env.registry.cursor() as cr:
+        with db_connect(self.env.cr.dbname).cursor() as cr:
             sub_recs = (p1 + p2).with_env(partner.env(cr=cr))
             self.assertEqual(sub_recs.try_lock_for_update(), sub_recs[1])
 

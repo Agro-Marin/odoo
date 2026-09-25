@@ -1,4 +1,5 @@
 import itertools
+import json
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
@@ -8,7 +9,7 @@ import psycopg
 
 from odoo import api, models
 from odoo.db import schema as sql_tools
-from odoo.fields import Domain
+from odoo.fields import Domain, Field
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, mute_logger
 
@@ -421,6 +422,8 @@ class MixinMerge(models.AbstractModel):
             "repoint_reference_fields", cr=self.env.cr, model=referenced_model
         ):
             self._repoint_reference_fields(referenced_model, src_records, dst_record)
+        with _debug.perf("repoint_properties", cr=self.env.cr, model=referenced_model):
+            self._repoint_properties(referenced_model, src_records, dst_record)
         with _debug.perf(
             "repoint_company_dependent", cr=self.env.cr, model=referenced_model
         ):
@@ -456,17 +459,16 @@ class MixinMerge(models.AbstractModel):
             sidecars=len(sidecars),
             sources=len(src_records),
         )
-        for record in src_records:
-            for model, field_model, field_id in sidecars:
-                self._repoint_model_rows(
-                    model, referenced_model, record, dst_record, field_model, field_id
-                )
+        for model, field_model, field_id in sidecars:
+            self._repoint_model_rows(
+                model, referenced_model, src_records, dst_record, field_model, field_id
+            )
 
     def _repoint_model_rows(
         self,
         model: str,
         referenced_model: str,
-        src: models.BaseModel,
+        src_records: models.BaseModel,
         dst_record: models.BaseModel,
         field_model: str = "model",
         field_id: str = "res_id",
@@ -478,7 +480,12 @@ class MixinMerge(models.AbstractModel):
         records = (
             Model.sudo()
             .with_context(active_test=False)
-            .search([(field_model, "=", referenced_model), (field_id, "=", src.id)])
+            .search(
+                [
+                    (field_model, "=", referenced_model),
+                    (field_id, "in", src_records.ids),
+                ]
+            )
         )
         if not records:
             return
@@ -512,13 +519,15 @@ class MixinMerge(models.AbstractModel):
                 rows=len(records),
                 strategy="one_by_one",
             )
-            self._repoint_model_rows_one_by_one(records, field_id, src, dst_record)
+            self._repoint_model_rows_one_by_one(
+                records, field_id, src_records, dst_record
+            )
 
     def _repoint_model_rows_one_by_one(
         self,
         records: models.BaseModel,
         field_id: str,
-        src: models.BaseModel,
+        src_records: models.BaseModel,
         dst_record: models.BaseModel,
     ) -> None:
         for record in records:
@@ -530,7 +539,7 @@ class MixinMerge(models.AbstractModel):
                 _logger.warning(
                     "Merging %s into %s: re-pointing %s#%s.%s failed (%s); "
                     "dropping only that clashing row",
-                    src.id,
+                    src_records.ids,
                     dst_record.id,
                     record._name,
                     record.id,
@@ -628,6 +637,149 @@ class MixinMerge(models.AbstractModel):
                     rec.id,
                 )
                 rec.sudo().unlink()
+
+    def _get_properties_referencing(
+        self, referenced_model: str
+    ) -> list[tuple[models.BaseModel, Field, list[int], list[str], list[str]]]:
+        references = []
+        for model in self.env.values():
+            if model._abstract or not model._is_an_ordinary_table():
+                continue
+            for field in model._fields.values():
+                if field.type != "properties" or not field.store:
+                    continue
+                container_field = model._fields.get(field.definition_record or "")
+                if container_field is None:
+                    continue
+                Container = self.env[container_field.comodel_name]
+                definition_field = Container._fields.get(field.definition_record_field)
+                if definition_field is None or not definition_field.store:
+                    continue
+                Container.flush_model([definition_field.name])
+                self.env.cr.execute(
+                    SQL(
+                        """
+                    SELECT container.id,
+                           COALESCE(array_agg(definition->>'name')
+                               FILTER (WHERE definition->>'type' = 'many2one'), '{}'),
+                           COALESCE(array_agg(definition->>'name')
+                               FILTER (WHERE definition->>'type' = 'many2many'), '{}')
+                      FROM %(table)s AS container,
+                           jsonb_array_elements(
+                               CASE WHEN jsonb_typeof(container.%(column)s) = 'array'
+                                    THEN container.%(column)s END
+                           ) AS definition
+                     WHERE definition->>'comodel' = %(model)s
+                       AND definition->>'type' IN ('many2one', 'many2many')
+                     GROUP BY container.id
+                    """,
+                        table=SQL.identifier(Container._table),
+                        column=SQL.identifier(definition_field.name),
+                        model=referenced_model,
+                    )
+                )
+                containers_by_names = defaultdict(list)
+                for container_id, many2ones, many2manys in self.env.cr.fetchall():
+                    key = (tuple(sorted(many2ones)), tuple(sorted(many2manys)))
+                    containers_by_names[key].append(container_id)
+                references.extend(
+                    (model, field, container_ids, list(many2ones), list(many2manys))
+                    for (many2ones, many2manys), container_ids in (
+                        containers_by_names.items()
+                    )
+                )
+        return references
+
+    def _repoint_properties(
+        self,
+        referenced_model: str,
+        src_records: models.BaseModel,
+        dst_record: models.BaseModel,
+    ) -> None:
+        references = self._get_properties_referencing(referenced_model)
+        _debug.perf.count(
+            "properties_referencing", model=referenced_model, fields=len(references)
+        )
+        src_ids = json.dumps(src_records.ids)
+        dst_id = json.dumps(dst_record.id)
+        for model, field, container_ids, many2ones, many2manys in references:
+            model.flush_model([field.name])
+            rows = (
+                model.sudo()
+                .with_context(active_test=False)
+                ._search([(field.definition_record, "in", container_ids)])
+            )
+            column = SQL.identifier(field.name)
+            self.env.cr.execute(
+                SQL(
+                    """
+                UPDATE %(table)s
+                   SET %(column)s = (
+                       SELECT jsonb_object_agg(key,
+                           CASE
+                               WHEN key = ANY(%(many2ones)s)
+                                    AND value <@ %(src_ids)s::jsonb
+                               THEN %(dst_id)s::jsonb
+                               WHEN key = ANY(%(many2manys)s)
+                                    AND jsonb_typeof(value) = 'array'
+                               THEN (
+                                   SELECT COALESCE(
+                                       jsonb_agg(id ORDER BY position), '[]'::jsonb
+                                   )
+                                   FROM (
+                                       SELECT DISTINCT ON (id) id, position
+                                         FROM (
+                                             SELECT CASE
+                                                        WHEN element <@ %(src_ids)s::jsonb
+                                                        THEN %(dst_id)s::jsonb
+                                                        ELSE element
+                                                    END,
+                                                    position
+                                               FROM jsonb_array_elements(value)
+                                                    WITH ORDINALITY AS item(element, position)
+                                         ) AS repointed(id, position)
+                                        ORDER BY id, position
+                                   ) AS deduplicated
+                               )
+                               ELSE value
+                           END
+                       )
+                       FROM jsonb_each(%(table)s.%(column)s)
+                   )
+                 WHERE %(table)s.id IN %(rows)s
+                   AND jsonb_typeof(%(table)s.%(column)s) = 'object'
+                   AND EXISTS (
+                       SELECT 1
+                         FROM jsonb_each(%(table)s.%(column)s) AS stored(key, value)
+                        WHERE (key = ANY(%(many2ones)s) AND value <@ %(src_ids)s::jsonb)
+                           OR (key = ANY(%(many2manys)s) AND EXISTS (
+                               SELECT 1
+                                 FROM jsonb_array_elements(
+                                     CASE WHEN jsonb_typeof(value) = 'array'
+                                          THEN value ELSE '[]'::jsonb END
+                                 ) AS element
+                                WHERE element <@ %(src_ids)s::jsonb
+                           ))
+                   )
+                """,
+                    table=SQL.identifier(model._table),
+                    column=column,
+                    rows=rows.subselect(),
+                    many2ones=many2ones,
+                    many2manys=many2manys,
+                    src_ids=src_ids,
+                    dst_id=dst_id,
+                )
+            )
+            _debug.logic(
+                "repoint_properties",
+                model=model._name,
+                field=field.name,
+                containers=len(container_ids),
+                rows=self.env.cr.rowcount,
+            )
+            if self.env.cr.rowcount:
+                model.invalidate_model([field.name])
 
     def _repoint_company_dependent_many2ones(
         self,
@@ -746,6 +898,26 @@ class MixinMerge(models.AbstractModel):
         )
 
     @api.model
+    def _merge_property_values(
+        self, field: Field, records: Iterable[models.BaseModel]
+    ) -> dict[str, Any]:
+        merged: dict[str, Any] = {}
+        for record in records:
+            if not record._has_field_access(field, "read"):
+                continue
+            stored = field.convert_to_cache(record[field.name], record, validate=False)
+            for name, value in (stored or {}).items():
+                if value or name not in merged:
+                    merged[name] = value
+        _debug.logic(
+            "property_values_merged",
+            field=field.name,
+            keys=sorted(merged),
+            empty=sorted(name for name, value in merged.items() if not value),
+        )
+        return merged
+
+    @api.model
     def _update_values_generic(
         self,
         src_records: models.BaseModel,
@@ -799,6 +971,13 @@ class MixinMerge(models.AbstractModel):
                     values_by_company[company][column] = sum(
                         records.with_company(company).mapped(column)
                     )
+                continue
+            if field.type == "properties":
+                merged = self._merge_property_values(
+                    field, itertools.chain(src_records, [dst_record])
+                )
+                if merged:
+                    values[column] = merged
                 continue
             for item in itertools.chain(src_records, [dst_record]):
                 if not item._has_field_access(field, "read"):
