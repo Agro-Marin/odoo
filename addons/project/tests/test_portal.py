@@ -68,6 +68,16 @@ class TestPortalProject(TestProjectPortalCommon, HttpCase):
             partner_ids=[self.user_portal.partner_id.id]
         )
 
+    def test_a_project_manager_closing_a_project_clears_its_tokens(self) -> None:
+        self.project_pigs.privacy_visibility = "portal"
+        self.project_pigs._portal_get_or_create_token()
+        self.task_1._portal_get_or_create_token()
+        self.project_pigs.with_user(
+            self.user_projectmanager
+        ).privacy_visibility = "followers"
+        self.assertFalse(self.project_pigs.access_token)
+        self.assertFalse(self.task_1.access_token)
+
     def test_reset_access_token_when_privacy_visibility_changes(self) -> None:
         self.assertNotEqual(
             self.project_pigs.privacy_visibility,
