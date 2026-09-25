@@ -1,3 +1,5 @@
+from markupsafe import Markup
+
 from odoo import models
 from odoo.libs.debug_log import DebugLog
 
@@ -29,8 +31,8 @@ class MixinPaymentQrCode(models.AbstractModel):
         )
         if not qr_code:
             return False
-        return f'''
-            <img class="border border-dark rounded" src="{qr_code}"/>
-            <br/>
-            <strong class="text-center">{self.env._("Scan me with your banking app.")}</strong>
-        '''
+        return Markup(
+            '<img class="border border-dark rounded" src="%s"/>'
+            "<br/>"
+            '<strong class="text-center">%s</strong>'
+        ) % (qr_code, self.env._("Scan me with your banking app."))

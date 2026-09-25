@@ -35,6 +35,10 @@ class AccountPaymentRegister(models.TransientModel):
         store=True,
         readonly=False,
     )
+    group_communication_preview = fields.Char(
+        compute="_compute_communication",
+        store=True,
+    )
     group_payment = fields.Boolean(
         string="Group Payments",
         compute="_compute_group_payment",
@@ -264,19 +268,22 @@ class AccountPaymentRegister(models.TransientModel):
     )
 
     @api.model
-    def _get_communication(self, lines):
-        if len(lines.move_id) == 1:
-            move = lines.move_id
-            label = move.payment_reference or move.ref or move.name
-        elif any(move.is_outbound() for move in lines.move_id):
+    def _is_group_communication(self, lines):
+        return len(lines.move_id) > 1 and not any(
+            move.is_outbound() for move in lines.move_id
+        )
+
+    @api.model
+    def _get_communication(self, lines, preview=False):
+        if not self._is_group_communication(lines):
             labels = {
                 move.payment_reference or move.ref or move.name
                 for move in lines.move_id
             }
-            return ", ".join(sorted(filter(lambda l: l, labels)))
-        else:
-            label = self.company_id.get_next_batch_payment_communication()
-        return label
+            return ", ".join(sorted(filter(None, labels))) or False
+        if preview:
+            return self.company_id.preview_next_batch_payment_communication()
+        return self.company_id.get_next_batch_payment_communication()
 
     @api.model
     def _get_batch_available_journals(self, batch_result, company=None):
@@ -421,6 +428,7 @@ class AccountPaymentRegister(models.TransientModel):
         return min(companies, key=lambda c: len(c.sudo().parent_ids))
 
     @api.depends(
+        "payment_difference",
         "early_payment_discount_mode",
         "can_edit_wizard",
         "can_group_payments",
@@ -634,7 +642,10 @@ class AccountPaymentRegister(models.TransientModel):
                 lines = wizard.line_ids
             else:
                 lines = wizard.total_amounts_to_pay["lines"]
-            wizard.communication = wizard._get_communication(lines)
+            wizard.communication = wizard._get_communication(lines, preview=True)
+            wizard.group_communication_preview = (
+                wizard.communication if wizard._is_group_communication(lines) else False
+            )
 
     @api.depends("can_edit_wizard")
     def _compute_group_payment(self):
@@ -1224,11 +1235,7 @@ class AccountPaymentRegister(models.TransientModel):
         for wizard in self:
             if wizard.payment_date:
                 total_amount_values = wizard.total_amounts_to_pay
-                if wizard.installments_mode in ("overdue", "next", "before_date"):
-                    wizard.payment_difference = (
-                        total_amount_values["amount_for_difference"] - wizard.amount
-                    )
-                elif wizard.installments_mode == "full":
+                if wizard.installments_mode == "full":
                     wizard.payment_difference = (
                         total_amount_values["full_amount_for_difference"]
                         - wizard.amount
@@ -1297,11 +1304,19 @@ class AccountPaymentRegister(models.TransientModel):
         for pay in self:
             pay.qr_code = pay._render_payment_qr_code(pay.amount, pay.communication)
 
-    @api.depends("partner_id", "amount", "payment_date", "payment_type", "line_ids")
+    @api.depends(
+        "partner_id",
+        "amount",
+        "payment_date",
+        "payment_type",
+        "line_ids",
+        "currency_id",
+        "journal_id",
+    )
     def _compute_duplicate_payment_ids(self):
         for wizard in self:
             if wizard.can_edit_wizard:
-                wizard.duplicate_payment_ids = self._get_duplicate_reference().get(
+                wizard.duplicate_payment_ids = wizard._get_duplicate_reference().get(
                     0, self.env["account.payment"]
                 )
             else:
@@ -1314,7 +1329,7 @@ class AccountPaymentRegister(models.TransientModel):
                 l.parent_state == "draft" for l in wizard.line_ids
             )
 
-    def _get_duplicate_reference(self, matching_states=("draft", "posted")):
+    def _get_duplicate_reference(self, matching_states=("draft", "in_process", "paid")):
         dummy = self.env["account.payment"].new(
             {
                 "company_id": self.company_id,
@@ -1322,6 +1337,8 @@ class AccountPaymentRegister(models.TransientModel):
                 "date": self.payment_date,
                 "amount": self.amount,
                 "payment_type": self.payment_type,
+                "journal_id": self.journal_id,
+                "currency_id": self.currency_id,
             }
         )
         return dummy._get_duplicate_reference(matching_states)
@@ -1448,13 +1465,28 @@ class AccountPaymentRegister(models.TransientModel):
         return [vals for vals_list in counterpart_vals.values() for vals in vals_list]
 
     @_debug.perf.timed
+    def _get_final_communication(self):
+        is_group_preview = (
+            self.communication
+            and self.communication == self.group_communication_preview
+        )
+        _debug.logic(
+            "final_communication",
+            wizard=self,
+            group_preview=self.group_communication_preview,
+            draws_group_number=bool(is_group_preview),
+        )
+        if is_group_preview:
+            return self.company_id.get_next_batch_payment_communication()
+        return self.communication
+
     def _create_payment_vals_from_wizard(self, batch_result):
         payment_vals = {
             "date": self.payment_date,
             "amount": self.amount,
             "payment_type": self.payment_type,
             "partner_type": self.partner_type,
-            "memo": self.communication,
+            "memo": self._get_final_communication(),
             "journal_id": self.journal_id.id,
             "company_id": self.company_id.id,
             "currency_id": self.currency_id.id,

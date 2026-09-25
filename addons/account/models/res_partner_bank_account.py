@@ -1,6 +1,5 @@
 import base64
 from collections import defaultdict
-from urllib.parse import urlencode
 
 import werkzeug.exceptions
 
@@ -84,20 +83,10 @@ class ResPartnerBankAccount(models.Model):
                     self.env._("A bank account can belong to only one journal.")
                 )
 
-    @_debug.perf.timed
-    def _check_allow_out_payment(self):
-        for bank in self:
-            if bank.allow_out_payment and not bank._can_user_trust():
-                raise ValidationError(
-                    self.env._(
-                        "You do not have the right to trust or un-trust a bank account."
-                    )
-                )
-
-    @api.depends("acc_number", "active", "company_id", "partner_id")
+    @api.depends("sanitized_acc_number", "active", "company_id", "partner_id")
     @_debug.perf.timed
     def _compute_duplicate_bank_partner_ids(self):
-        self.flush_model(["acc_number", "active", "company_id", "partner_id"])
+        self.flush_model(["sanitized_acc_number", "active", "company_id", "partner_id"])
         id2duplicates = dict(
             self.env.execute_query(
                 SQL(
@@ -105,11 +94,11 @@ class ResPartnerBankAccount(models.Model):
                 SELECT this.id,
                        ARRAY_AGG(other.partner_id)
                   FROM res_partner_bank_account this
-             LEFT JOIN res_partner_bank_account other ON this.acc_number = other.acc_number
+                  JOIN res_partner_bank_account other ON this.sanitized_acc_number = other.sanitized_acc_number
                                              AND this.id != other.id
                                              AND other.active = TRUE
                  WHERE this.id = ANY(%(ids)s)
-                 AND other.partner_id IS NOT NULL
+                   AND other.partner_id IS NOT NULL
                    AND this.active = TRUE
                    AND (
                         ((this.company_id = other.company_id) OR (this.company_id IS NULL AND other.company_id IS NULL))
@@ -262,29 +251,6 @@ class ResPartnerBankAccount(models.Model):
         _debug.logic("qr_no_method", bank=self, candidates=len(candidate_methods))
         return None
 
-    def prepare_qr_code_url(
-        self,
-        amount,
-        free_communication,
-        structured_communication,
-        currency,
-        debtor_partner,
-        qr_method=None,
-        silent_errors=True,
-    ):
-        vals = self._prepare_qr_code_vals(
-            amount,
-            free_communication,
-            structured_communication,
-            currency,
-            debtor_partner,
-            qr_method,
-            silent_errors,
-        )
-        if vals:
-            return self._get_qr_code_url(**vals)
-        return None
-
     def prepare_qr_code_base64(
         self,
         amount,
@@ -329,25 +295,6 @@ class ResPartnerBankAccount(models.Model):
         structured_communication,
     ):
         raise NotImplementedError
-
-    def _get_qr_code_url(
-        self,
-        qr_method,
-        amount,
-        currency,
-        debtor_partner,
-        free_communication,
-        structured_communication,
-    ):
-        params = self._prepare_qr_rendering_params(
-            qr_method,
-            amount,
-            currency,
-            debtor_partner,
-            free_communication,
-            structured_communication,
-        )
-        return "/report/barcode/?" + urlencode(params) if params else None
 
     def _get_qr_code_base64(
         self,
@@ -561,9 +508,6 @@ class ResPartnerBankAccount(models.Model):
             )
 
         res = super().write(vals)
-
-        if "allow_out_payment" in vals:
-            self._check_allow_out_payment()
 
         for account, initial_values in account_initial_values.items():
             tracking_value_ids = account._mail_track(fields_definition, initial_values)[

@@ -20,8 +20,10 @@ class AccountPaymentTerm(models.Model):
     @_debug.perf.timed
     def _unlink_except_referenced_terms(self):
         _debug.lifecycle("_unlink_except_referenced_terms", records=self)
-        if self.env["account.move"].search_count(
-            [("invoice_payment_term_id", "in", self.ids)], limit=1
+        if (
+            self.env["account.move"]
+            .sudo()
+            .search_count([("invoice_payment_term_id", "in", self.ids)], limit=1)
         ):
             raise UserError(
                 self.env._(

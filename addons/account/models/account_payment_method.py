@@ -69,7 +69,7 @@ class AccountPaymentMethod(models.Model):
     def _get_domain_payment_method(self, code, with_currency=True, with_country=True):
         if not code:
             return Domain.TRUE
-        information = self._get_payment_method_information().get(code)
+        information = self._get_payment_method_information().get(code, {})
         journal_types = information.get("type", ("bank", "cash", "credit"))
         domain = Domain("type", "in", journal_types)
 

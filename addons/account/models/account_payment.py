@@ -1126,6 +1126,14 @@ class AccountPayment(models.Model):
 
     @_debug.perf.timed
     def _get_duplicate_reference(self, matching_states=("draft", "in_process")):
+        if len(self) > 1 and not all(self._ids):
+            return {
+                payment_id: duplicates
+                for payment in self
+                for payment_id, duplicates in payment._get_duplicate_reference(
+                    matching_states
+                ).items()
+            }
         payments = self.filtered(
             lambda p: p.partner_id and p.amount and p.state != "in_process"
         )
@@ -1133,7 +1141,7 @@ class AccountPayment(models.Model):
             "duplicate_candidates_filtered",
             payment=self,
             candidates=len(payments),
-            unsaved=not self.ids,
+            unsaved=not all(self._ids),
             matching_states=matching_states,
         )
         if not payments:
@@ -1150,7 +1158,7 @@ class AccountPayment(models.Model):
         self.flush_model((*matched_fields, "state"))
 
         payment_table_and_alias = SQL("account_payment AS payment")
-        if not self.ids:
+        if not all(self._ids):
             self.check_singleton()
             values = {
                 field_name: self._fields[field_name].convert_to_write(
@@ -1330,8 +1338,8 @@ class AccountPayment(models.Model):
             draft_moves.action_post()
 
         res = super().write(vals)
-        if self.move_id:
-            self._sync_to_moves(set(vals.keys()))
+        if with_move := self.filtered("move_id"):
+            with_move._sync_to_moves(set(vals.keys()))
         return res
 
     @_debug.perf.timed
@@ -1553,16 +1561,19 @@ class AccountPayment(models.Model):
                         partner=payment.partner_id.display_name,
                     )
                 )
-        cash_payments = self.filtered(
+        postable = self.filtered(
+            lambda pay: pay.state in {False, "draft", "in_process"}
+        )
+        cash_payments = postable.filtered(
             lambda pay: pay.outstanding_account_id.account_type == "asset_cash"
         )
         _debug.logic(
-            "action_post_cash_payments_straight_paid", cash_payments=cash_payments
+            "action_post_cash_payments_straight_paid",
+            cash_payments=cash_payments,
+            skipped=self - postable,
         )
         cash_payments.state = "paid"
-        self.filtered(
-            lambda pay: pay.state in {False, "draft", "in_process"}
-        ).state = "in_process"
+        (postable - cash_payments).state = "in_process"
 
     @_debug.perf.timed
     def action_validate(self):

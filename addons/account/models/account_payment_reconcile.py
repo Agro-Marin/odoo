@@ -109,20 +109,16 @@ class AccountPayment(models.Model):
                     line_to_create = line._prepare_aml_values(
                         name=payment.name,
                         balance=balance,
+                        currency_id=payment.currency_id.id,
                         amount_currency=amount,
                         reconciled_lines_ids=[Command.set(line.ids)],
                         payment_lines_ids=[Command.set(payment.ids)],
                     )
                 else:
-                    partner_account = (
-                        payment.partner_id.property_account_payable_id
-                        if payment.payment_type == "outbound"
-                        else payment.partner_id.property_account_receivable_id
-                    )
                     line_to_create = {
                         "name": payment.name,
                         "partner_id": payment.partner_id.id,
-                        "account_id": partner_account.id,
+                        "account_id": payment.destination_account_id.id,
                         "currency_id": payment.currency_id.id,
                         "amount_currency": amount,
                         "balance": balance,
@@ -178,7 +174,7 @@ class AccountPayment(models.Model):
             )
         else:
             self.invoice_ids -= line.move_id
-            self.amount -= current_amount
+            self.amount -= abs(current_amount)
             self.message_post(
                 subject=self.env._("Modified amount during reconciliation"),
                 body=self.env._(
@@ -232,7 +228,7 @@ class AccountPayment(models.Model):
                         balance=-(
                             payment_move_line.amount_residual + exchange_diff_balance
                         ),
-                        amount_currency=-payment_move_line.amount_currency,
+                        amount_currency=-payment_move_line.amount_residual_currency,
                         reconciled_lines_ids=[Command.set(payment_move_line.ids)],
                         payment_lines_ids=[Command.set(payment.ids)],
                     ),
@@ -320,16 +316,11 @@ class AccountPayment(models.Model):
                     to_partner_account=not payment.currency_id.is_zero(remaining),
                 )
             if not payment.currency_id.is_zero(remaining):
-                partner_account = (
-                    payment.partner_id.property_account_payable_id
-                    if payment.payment_type == "outbound"
-                    else payment.partner_id.property_account_receivable_id
-                )
                 amls_to_create.append(
                     {
                         "name": payment.name,
                         "partner_id": payment.partner_id.id,
-                        "account_id": partner_account.id,
+                        "account_id": payment.destination_account_id.id,
                         "currency_id": payment.currency_id.id,
                         "amount_currency": -remaining,
                         "balance": payment.currency_id._convert(
