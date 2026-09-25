@@ -8,6 +8,7 @@ import {
     useExternalListener,
     useSubEnv,
 } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useProps } from "@web/core/utils/owl_bridge";
 
@@ -93,15 +94,15 @@ export function useCallbackRecorder(callbackRecorder, callback) {
  * @returns {{ setScrollFromState: Function }}
  */
 export function useSetupAction(params = {}) {
-    const env = useEnv();
     const props = useProps();
+    const ui = useService("ui");
     const {
         __beforeLeave__,
         __getGlobalState__,
         __getLocalState__,
         __getContext__,
         __getOrderBy__,
-    } = env;
+    } = useActionCallbackRecorders();
 
     const {
         beforeVisibilityChange,
@@ -139,7 +140,7 @@ export function useSetupAction(params = {}) {
         const { state } = props;
         const scrolling = state && state[scrollSymbol];
         if (scrolling && rootRef?.el) {
-            if (env.isSmall) {
+            if (ui.isSmall) {
                 rootRef.el.scrollTop = (scrolling.root && scrolling.root.top) || 0;
                 rootRef.el.scrollLeft = (scrolling.root && scrolling.root.left) || 0;
             } else if (scrolling.content) {
@@ -162,7 +163,7 @@ export function useSetupAction(params = {}) {
             }
             const rootEl = rootRef?.el;
             if (rootEl) {
-                if (env.isSmall) {
+                if (ui.isSmall) {
                     state[scrollSymbol] = {
                         root: {
                             left: rootEl.scrollLeft,

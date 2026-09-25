@@ -12,11 +12,10 @@ import {
     onWillUpdateProps,
     reactive,
     toRaw,
-    useEnv,
     useRef,
     useState,
 } from "@odoo/owl";
-import { useBus, useIsDestroyed } from "@web/core/utils/hooks";
+import { useBus, useIsDestroyed, useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useProps } from "@web/core/utils/owl_bridge";
 import { effect } from "@web/core/utils/reactive";
@@ -34,10 +33,10 @@ function isConnectedElement(el) {
 
 export function useDomState(getState, { checkEditingElement = true } = {}) {
     const isDestroyed = useIsDestroyed();
-    const env = useEnv();
+    const builderContext = useBuilderContext();
     const isValid = (el) => (!el && !checkEditingElement) || isConnectedElement(el);
     const handler = async (ev) => {
-        const editingElement = env.getEditingElement();
+        const editingElement = builderContext.getEditingElement();
         if (isValid(editingElement)) {
             try {
                 const newStatePromise = getState(editingElement);
@@ -61,17 +60,17 @@ export function useDomState(getState, { checkEditingElement = true } = {}) {
     };
     const state = useState({});
     onWillStart(handler);
-    useBus(env.editorBus, "DOM_UPDATED", handler);
+    useBus(builderContext.editorBus, "DOM_UPDATED", handler);
     return state;
 }
 
 export function useActionInfo() {
-    const env = useEnv();
+    const builderContext = useBuilderContext();
     const props = useProps();
 
     const getParam = (paramName) => {
         let param = props[paramName];
-        param = param === undefined ? env.weContext[paramName] : param;
+        param = param === undefined ? builderContext.weContext[paramName] : param;
         if (typeof param === "object") {
             param = JSON.stringify(param);
         }
@@ -81,7 +80,7 @@ export function useActionInfo() {
     const actionParam = getParam("actionParam");
 
     return {
-        actionId: props.action || env.weContext.action,
+        actionId: props.action || builderContext.weContext.action,
         actionParam,
         actionValue: props.actionValue,
         classAction: getParam("classAction"),
@@ -104,32 +103,35 @@ function querySelectorAll(targets, selector) {
 
 export function useBuilderComponent() {
     const props = useProps();
-    const newEnv = {};
-    const oldEnv = useEnv();
+    const childContext = {};
+    const parentContext = useBuilderContext();
     let editingElements;
     let applyTo = props.applyTo;
     const updateEditingElements = () => {
         editingElements = applyTo
-            ? querySelectorAll(oldEnv.getEditingElements(), applyTo)
-            : oldEnv.getEditingElements();
+            ? querySelectorAll(parentContext.getEditingElements(), applyTo)
+            : parentContext.getEditingElements();
     };
     updateEditingElements();
-    oldEnv.editorBus.addEventListener("UPDATE_EDITING_ELEMENT", updateEditingElements);
+    parentContext.editorBus.addEventListener(
+        "UPDATE_EDITING_ELEMENT",
+        updateEditingElements,
+    );
     onWillUpdateProps(async (nextProps) => {
         if (props.applyTo !== nextProps.applyTo) {
             applyTo = nextProps.applyTo;
-            oldEnv.editorBus.trigger("UPDATE_EDITING_ELEMENT");
-            await oldEnv.triggerDomUpdated();
+            parentContext.editorBus.trigger("UPDATE_EDITING_ELEMENT");
+            await parentContext.triggerDomUpdated();
         }
     });
     onWillDestroy(() => {
-        oldEnv.editorBus.removeEventListener(
+        parentContext.editorBus.removeEventListener(
             "UPDATE_EDITING_ELEMENT",
             updateEditingElements,
         );
     });
-    newEnv.getEditingElements = () => editingElements;
-    newEnv.getEditingElement = () => editingElements[0];
+    childContext.getEditingElements = () => editingElements;
+    childContext.getEditingElement = () => editingElements[0];
     const weContext = {};
     for (const key in basicContainerBuilderComponentProps) {
         if (key in props) {
@@ -137,35 +139,35 @@ export function useBuilderComponent() {
         }
     }
     if (Object.keys(weContext).length) {
-        newEnv.weContext = { ...oldEnv.weContext, ...weContext };
+        childContext.weContext = { ...parentContext.weContext, ...weContext };
     }
-    provideBuilderContext(newEnv);
+    provideBuilderContext(childContext);
 }
 export function useDependencyDefinition(id, item, { onReady } = {}) {
-    const env = useEnv();
-    const ignore = env.ignoreBuilderItem;
+    const builderContext = useBuilderContext();
+    const ignore = builderContext.ignoreBuilderItem;
     if (onReady) {
         onReady.then(() => {
-            env.dependencyManager.add(id, item, ignore);
+            builderContext.dependencyManager.add(id, item, ignore);
         });
     } else {
-        env.dependencyManager.add(id, item, ignore);
+        builderContext.dependencyManager.add(id, item, ignore);
     }
 
     onWillDestroy(() => {
-        env.dependencyManager.removeByValue(item);
+        builderContext.dependencyManager.removeByValue(item);
     });
 }
 
 export function useDependencies(dependencies) {
-    const env = useEnv();
+    const builderContext = useBuilderContext();
     const isDependenciesVisible = () => {
         const deps = Array.isArray(dependencies) ? dependencies : [dependencies];
         return deps.filter(Boolean).every((dependencyId) => {
             const match = dependencyId.match(/(!)?(.*)/);
             const inverse = !!match[1];
             const id = match[2];
-            const isActiveFn = env.dependencyManager.get(id)?.isActive;
+            const isActiveFn = builderContext.dependencyManager.get(id)?.isActive;
             if (!isActiveFn) {
                 return false;
             }
@@ -177,11 +179,11 @@ export function useDependencies(dependencies) {
 }
 
 function useIsActiveItem() {
-    const env = useEnv();
+    const builderContext = useBuilderContext();
     const listenedKeys = new Set();
 
     function isActive(itemId) {
-        const isActiveFn = env.dependencyManager.get(itemId)?.isActive;
+        const isActiveFn = builderContext.dependencyManager.get(itemId)?.isActive;
         if (!isActiveFn) {
             return false;
         }
@@ -200,9 +202,12 @@ function useIsActiveItem() {
         const newState = getState();
         Object.assign(state, newState);
     };
-    env.dependencyManager.addEventListener("dependency-updated", listener);
+    builderContext.dependencyManager.addEventListener("dependency-updated", listener);
     onWillDestroy(() => {
-        env.dependencyManager.removeEventListener("dependency-updated", listener);
+        builderContext.dependencyManager.removeEventListener(
+            "dependency-updated",
+            listener,
+        );
     });
     return function isActiveItem(itemId) {
         listenedKeys.add(itemId);
@@ -214,11 +219,11 @@ function useIsActiveItem() {
 }
 
 export function useGetItemValue() {
-    const env = useEnv();
+    const builderContext = useBuilderContext();
     const listenedKeys = new Set();
 
     function getValue(itemId) {
-        const getValueFn = env.dependencyManager.get(itemId)?.getValue;
+        const getValueFn = builderContext.dependencyManager.get(itemId)?.getValue;
         if (!getValueFn) {
             return null;
         }
@@ -237,9 +242,12 @@ export function useGetItemValue() {
         const newState = getState();
         Object.assign(state, newState);
     };
-    env.dependencyManager.addEventListener("dependency-updated", listener);
+    builderContext.dependencyManager.addEventListener("dependency-updated", listener);
     onWillDestroy(() => {
-        env.dependencyManager.removeEventListener("dependency-updated", listener);
+        builderContext.dependencyManager.removeEventListener(
+            "dependency-updated",
+            listener,
+        );
     });
     return function getItemValue(itemId) {
         listenedKeys.add(itemId);
@@ -256,14 +264,17 @@ export function useSelectableComponent(id, { onItemChange } = {}) {
     const refreshCurrentItemDebounced = useDebounced(refreshCurrentItem, 0, {
         immediate: true,
     });
-    const env = useEnv();
+    const builderContext = useBuilderContext();
 
     const state = reactive({
         currentSelectedItem: null,
     });
 
     function refreshCurrentItem() {
-        if (env.editor.isDestroyed || env.editor.shared.history.getIsPreviewing()) {
+        if (
+            builderContext.editor.isDestroyed ||
+            builderContext.editor.shared.history.getIsPreviewing()
+        ) {
             return;
         }
         let currentItem;
@@ -276,7 +287,7 @@ export function useSelectableComponent(id, { onItemChange } = {}) {
         }
         if (currentItem && currentItem !== toRaw(state.currentSelectedItem)) {
             state.currentSelectedItem = currentItem;
-            env.dependencyManager.triggerDependencyUpdated();
+            builderContext.dependencyManager.triggerDependencyUpdated();
         }
         if (currentItem) {
             onItemChange?.(currentItem);
@@ -291,7 +302,7 @@ export function useSelectableComponent(id, { onItemChange } = {}) {
     }
 
     onMounted(refreshCurrentItem);
-    useBus(env.editorBus, "DOM_UPDATED", refreshCurrentItem);
+    useBus(builderContext.editorBus, "DOM_UPDATED", refreshCurrentItem);
     function cleanSelectedItem(...args) {
         if (state.currentSelectedItem) {
             return state.currentSelectedItem.clean(...args);
@@ -321,14 +332,14 @@ export function useSelectableComponent(id, { onItemChange } = {}) {
 export function useSelectableItemComponent(id, { getLabel = () => {} } = {}) {
     const { operation, isApplied, getActions, priority, clean, onReady } =
         useClickableBuilderComponent();
-    const env = useEnv();
+    const builderContext = useBuilderContext();
 
     let isSelectableActive = isApplied;
     let state;
-    if (env.selectableContext) {
-        const selectableState = env.selectableContext.getSelectableState();
+    if (builderContext.selectableContext) {
+        const selectableState = builderContext.selectableContext.getSelectableState();
         isSelectableActive = () => {
-            env.selectableContext.refreshCurrentItem();
+            builderContext.selectableContext.refreshCurrentItem();
             return (
                 toRaw(selectableState.currentSelectedItem) === selectableItem ||
                 (id && selectableState.currentSelectedItem?.id === id)
@@ -344,7 +355,7 @@ export function useSelectableItemComponent(id, { getLabel = () => {} } = {}) {
             id,
         };
 
-        env.selectableContext.addSelectableItem(selectableItem);
+        builderContext.selectableContext.addSelectableItem(selectableItem);
         state = useState({
             isActive: false,
         });
@@ -356,10 +367,10 @@ export function useSelectableItemComponent(id, { getLabel = () => {} } = {}) {
             },
             [selectableState],
         );
-        env.selectableContext.refreshCurrentItem();
-        onMounted(env.selectableContext.update);
+        builderContext.selectableContext.refreshCurrentItem();
+        onMounted(builderContext.selectableContext.update);
         onWillDestroy(() => {
-            env.selectableContext.removeSelectableItem(selectableItem);
+            builderContext.selectableContext.removeSelectableItem(selectableItem);
         });
     } else {
         state = useDomState(async () => {
@@ -376,7 +387,7 @@ export function useSelectableItemComponent(id, { getLabel = () => {} } = {}) {
             {
                 isActive: isSelectableActive,
                 getActions,
-                cleanSelectedItem: env.selectableContext?.cleanSelectedItem,
+                cleanSelectedItem: builderContext.selectableContext?.cleanSelectedItem,
             },
             { onReady },
         );
@@ -386,8 +397,8 @@ export function useSelectableItemComponent(id, { getLabel = () => {} } = {}) {
 }
 
 function usePrepareAction(getAllActions) {
-    const env = useEnv();
-    const getAction = env.editor.shared.builderActions.getAction;
+    const builderContext = useBuilderContext();
+    const getAction = builderContext.editor.shared.builderActions.getAction;
     const asyncActions = [];
     for (const descr of getAllActions()) {
         if (descr.actionId) {
@@ -428,8 +439,8 @@ function usePrepareAction(getAllActions) {
 }
 
 function useReloadAction(getAllActions) {
-    const env = useEnv();
-    const getAction = env.editor.shared.builderActions.getAction;
+    const builderContext = useBuilderContext();
+    const getAction = builderContext.editor.shared.builderActions.getAction;
     let reload = false;
     for (const descr of getAllActions()) {
         if (descr.actionId) {
@@ -443,9 +454,9 @@ function useReloadAction(getAllActions) {
 }
 
 export function useHasPreview(getAllActions) {
-    const env = useEnv();
+    const builderContext = useBuilderContext();
     const props = useProps();
-    const getAction = env.editor.shared.builderActions.getAction;
+    const getAction = builderContext.editor.shared.builderActions.getAction;
 
     let hasPreview = true;
     for (const descr of getAllActions()) {
@@ -460,13 +471,13 @@ export function useHasPreview(getAllActions) {
     return (
         hasPreview &&
         (props.preview === true ||
-            (props.preview === undefined && env.weContext.preview !== false))
+            (props.preview === undefined && builderContext.weContext.preview !== false))
     );
 }
 
 function useWithLoadingEffect(getAllActions) {
-    const env = useEnv();
-    const getAction = env.editor.shared.builderActions.getAction;
+    const builderContext = useBuilderContext();
+    const getAction = builderContext.editor.shared.builderActions.getAction;
     let withLoadingEffect = true;
     for (const descr of getAllActions()) {
         if (descr.actionId) {
@@ -481,8 +492,8 @@ function useWithLoadingEffect(getAllActions) {
 }
 
 function useCanTimeout(getAllActions) {
-    const env = useEnv();
-    const getAction = env.editor.shared.builderActions.getAction;
+    const builderContext = useBuilderContext();
+    const getAction = builderContext.editor.shared.builderActions.getAction;
     let canTimeout = true;
     for (const descr of getAllActions()) {
         if (descr.actionId) {
@@ -508,19 +519,19 @@ export function revertPreview(editor) {
 export function useClickableBuilderComponent() {
     useBuilderComponent();
     const props = useProps();
-    const env = useEnv();
-    const host = { props, env };
+    const builderContext = useBuilderContext();
+    const host = { props, builderContext };
     const { getAllActions, callOperation, isApplied } =
         getAllActionsAndOperations(host);
-    const getAction = env.editor.shared.builderActions.getAction;
+    const getAction = builderContext.editor.shared.builderActions.getAction;
 
     const onReady = usePrepareAction(getAllActions);
     const { reload } = useReloadAction(getAllActions);
 
     const applyOperation =
-        env.editor.shared.history.makePreviewableAsyncOperation(callApply);
+        builderContext.editor.shared.history.makePreviewableAsyncOperation(callApply);
     const inheritedActionIds =
-        props.inheritedActions || env.weContext.inheritedActions || [];
+        props.inheritedActions || builderContext.weContext.inheritedActions || [];
 
     const hasPreview = useHasPreview(getAllActions);
     const operationWithReload = useOperationWithReload(callApply, reload);
@@ -565,7 +576,7 @@ export function useClickableBuilderComponent() {
         },
         revert: () => {
             preventNextPreview = false;
-            revertPreview(env.editor);
+            revertPreview(builderContext.editor);
         },
     };
 
@@ -576,7 +587,7 @@ export function useClickableBuilderComponent() {
     function clean(nextApplySpecs, isPreviewing) {
         const proms = [];
         for (const { actionId, actionParam, actionValue } of getAllActions()) {
-            for (const editingElement of env.getEditingElements()) {
+            for (const editingElement of builderContext.getEditingElements()) {
                 let nextAction;
                 proms.push(
                     getAction(actionId).clean?.({
@@ -584,8 +595,8 @@ export function useClickableBuilderComponent() {
                         editingElement,
                         params: actionParam,
                         value: actionValue,
-                        dependencyManager: env.dependencyManager,
-                        selectableContext: env.selectableContext,
+                        dependencyManager: builderContext.dependencyManager,
+                        selectableContext: builderContext.selectableContext,
                         get nextAction() {
                             nextAction =
                                 nextAction ||
@@ -604,9 +615,15 @@ export function useClickableBuilderComponent() {
     }
 
     async function callApply(applySpecs, isPreviewing) {
-        await env.selectableContext?.cleanSelectedItem(applySpecs, isPreviewing);
+        await builderContext.selectableContext?.cleanSelectedItem(
+            applySpecs,
+            isPreviewing,
+        );
         const cleans = inheritedActionIds
-            .map((actionId) => env.dependencyManager.get(actionId).cleanSelectedItem)
+            .map(
+                (actionId) =>
+                    builderContext.dependencyManager.get(actionId).cleanSelectedItem,
+            )
             .filter(Boolean);
         const cleanPromises = [];
         for (const clean of new Set(cleans)) {
@@ -626,8 +643,8 @@ export function useClickableBuilderComponent() {
                         params: applySpec.actionParam,
                         value: applySpec.actionValue,
                         loadResult: applySpec.loadOnClean ? applySpec.loadResult : null,
-                        dependencyManager: env.dependencyManager,
-                        selectableContext: env.selectableContext,
+                        dependencyManager: builderContext.dependencyManager,
+                        selectableContext: builderContext.selectableContext,
                     }),
                 );
             } else {
@@ -638,8 +655,8 @@ export function useClickableBuilderComponent() {
                         params: applySpec.actionParam,
                         value: applySpec.actionValue,
                         loadResult: applySpec.loadResult,
-                        dependencyManager: env.dependencyManager,
-                        selectableContext: env.selectableContext,
+                        dependencyManager: builderContext.dependencyManager,
+                        selectableContext: builderContext.selectableContext,
                     }),
                 );
             }
@@ -670,22 +687,25 @@ export function useClickableBuilderComponent() {
     };
 }
 function useOperationWithReload(callApply, reload) {
-    const env = useEnv();
+    const builderContext = useBuilderContext();
+    const ui = useService("ui");
     return async (...args) => {
         const { editingElement } = args[0][0];
-        env.services.ui.block();
+        ui.block();
         try {
             const applyResults = await callApply(...args);
             if (!applyResults.includes(BuilderAction.cancelReload)) {
-                env.editor.shared.history.addStep();
-                await env.editor.shared.savePlugin.save();
+                builderContext.editor.shared.history.addStep();
+                await builderContext.editor.shared.savePlugin.save();
                 const target =
-                    env.editor.shared.builderOptions.getReloadSelector(editingElement);
+                    builderContext.editor.shared.builderOptions.getReloadSelector(
+                        editingElement,
+                    );
                 const url = reload.getReloadUrl?.();
-                await env.editor.config.reloadEditor({ target, url });
+                await builderContext.editor.config.reloadEditor({ target, url });
             }
         } finally {
-            env.services.ui.unblock();
+            ui.unblock();
         }
     };
 }
@@ -716,7 +736,9 @@ function handleBuilderActionError(error, editingElement, comp) {
     // Check if editingElement belongs to an outdated snippet, and displays a
     // warning notification if yes.
     const isOutdated =
-        comp.env.editor.shared.versionError.checkNotifyOutdatedSnippet(editingElement);
+        comp.builderContext.editor.shared.versionError.checkNotifyOutdatedSnippet(
+            editingElement,
+        );
     if (!isOutdated) {
         throw error;
     }
@@ -729,10 +751,10 @@ export function useInputBuilderComponent({
     parseDisplayValue = (displayValue) => displayValue,
 } = {}) {
     const props = useProps();
-    const env = useEnv();
-    const host = { props, env };
+    const builderContext = useBuilderContext();
+    const host = { props, builderContext };
     const { getAllActions, callOperation } = getAllActionsAndOperations(host);
-    const getAction = env.editor.shared.builderActions.getAction;
+    const getAction = builderContext.editor.shared.builderActions.getAction;
     const state = useDomState(getState);
 
     const onReady = usePrepareAction(getAllActions);
@@ -757,7 +779,7 @@ export function useInputBuilderComponent({
                     params: applySpec.actionParam,
                     value: applySpec.actionValue,
                     loadResult: applySpec.loadResult,
-                    dependencyManager: env.dependencyManager,
+                    dependencyManager: builderContext.dependencyManager,
                 }),
             );
         }
@@ -765,7 +787,7 @@ export function useInputBuilderComponent({
     }
 
     const applyOperation =
-        env.editor.shared.history.makePreviewableAsyncOperation(callApply);
+        builderContext.editor.shared.history.makePreviewableAsyncOperation(callApply);
     const operationWithReload = useOperationWithReload(callApply, reload);
     function getState(editingElement) {
         if (!isConnectedElement(editingElement)) {
@@ -958,10 +980,12 @@ export const clickableBuilderComponentProps = {
 
 export function getAllActionsAndOperations(comp) {
     const inheritedActionIds =
-        comp.props.inheritedActions || comp.env.weContext.inheritedActions || [];
+        comp.props.inheritedActions ||
+        comp.builderContext.weContext.inheritedActions ||
+        [];
 
     function getActionsSpecs(actions, userInputValue) {
-        const getAction = comp.env.editor.shared.builderActions.getAction;
+        const getAction = comp.builderContext.editor.shared.builderActions.getAction;
         const overridableMethods = ["apply", "clean", "load", "loadOnClean"];
         const specs = [];
         for (let { actionId, actionParam, actionValue } of actions) {
@@ -969,7 +993,7 @@ export function getAllActionsAndOperations(comp) {
             // Take the action value defined by the clickable or the input given
             // by the user.
             actionValue = actionValue === undefined ? userInputValue : actionValue;
-            for (const editingElement of comp.env.getEditingElements()) {
+            for (const editingElement of comp.builderContext.getEditingElements()) {
                 const spec = {
                     editingElement,
                     actionId,
@@ -998,7 +1022,8 @@ export function getAllActionsAndOperations(comp) {
             ["styleAction", "styleActionValue"],
         ];
         for (const [actionId, actionValue] of shorthands) {
-            const actionParam = comp.env.weContext[actionId] || comp.props[actionId];
+            const actionParam =
+                comp.builderContext.weContext[actionId] || comp.props[actionId];
             if (actionParam !== undefined) {
                 actions.push({
                     actionId,
@@ -1010,10 +1035,10 @@ export function getAllActionsAndOperations(comp) {
         return actions;
     }
     function getCustomAction() {
-        const actionId = comp.props.action || comp.env.weContext.action;
+        const actionId = comp.props.action || comp.builderContext.weContext.action;
         if (actionId) {
             const actionParam =
-                comp.props.actionParam ?? comp.env.weContext.actionParam;
+                comp.props.actionParam ?? comp.builderContext.weContext.actionParam;
             return {
                 actionId: actionId,
                 actionParam: convertParamToObject(actionParam),
@@ -1032,7 +1057,7 @@ export function getAllActionsAndOperations(comp) {
             inheritedActionIds
                 .map(
                     (actionId) =>
-                        comp.env.dependencyManager
+                        comp.builderContext.dependencyManager
                             // The dependency might not be loaded yet.
                             .get(actionId)
                             ?.getActions?.() || [],
@@ -1044,12 +1069,16 @@ export function getAllActionsAndOperations(comp) {
         const isPreviewing = !!params.preview;
         const actionsSpecs = getActionsSpecs(getAllActions(), params.userInputValue);
 
-        comp.env.editor.shared.operation.next(
+        comp.builderContext.editor.shared.operation.next(
             async () => {
                 try {
                     await fn(actionsSpecs, isPreviewing);
                 } catch (error) {
-                    handleBuilderActionError(error, comp.env.getEditingElement(), comp);
+                    handleBuilderActionError(
+                        error,
+                        comp.builderContext.getEditingElement(),
+                        comp,
+                    );
                 }
             },
             {
@@ -1079,7 +1108,7 @@ export function getAllActionsAndOperations(comp) {
                     } catch (error) {
                         handleBuilderActionError(
                             error,
-                            comp.env.getEditingElement(),
+                            comp.builderContext.getEditingElement(),
                             comp,
                         );
                     }
@@ -1089,8 +1118,8 @@ export function getAllActionsAndOperations(comp) {
         );
     }
     function isApplied() {
-        const getAction = comp.env.editor.shared.builderActions.getAction;
-        const editingElements = comp.env.getEditingElements();
+        const getAction = comp.builderContext.editor.shared.builderActions.getAction;
+        const editingElements = comp.builderContext.getEditingElements();
         if (!editingElements.length) {
             return;
         }
@@ -1133,7 +1162,7 @@ function _shouldClean(comp, hasClean, isApplied) {
     if (!hasClean) {
         return false;
     }
-    const shouldToggle = !comp.env.selectableContext;
+    const shouldToggle = !comp.builderContext.selectableContext;
     const shouldClean = shouldToggle && isApplied;
     return comp.props.inverseAction ? !shouldClean : shouldClean;
 }
@@ -1184,7 +1213,7 @@ export class BaseOptionComponent extends Component {
 
         this.isActiveItem = useIsActiveItem();
         const comp = this;
-        const editor = comp.env.editor;
+        const editor = comp.builderContext.editor;
 
         // Give the class its OWN `components` before assigning into it.
         // `components` is a static, so a subclass that declares none resolves

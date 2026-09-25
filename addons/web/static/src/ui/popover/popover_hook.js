@@ -1,10 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillUnmount, useEnv } from "@odoo/owl";
+import { onWillUnmount } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { reportUncaught } from "@web/core/errors/error_utils";
-import { useIsDestroyed, useService } from "@web/core/utils/hooks";
+import { useIsDestroyed, useOptionalService, useService } from "@web/core/utils/hooks";
 
 /** @import { PopoverServiceAddFunction, PopoverServiceAddOptions } from "@web/ui/popover/popover_service" */
 
@@ -76,7 +76,7 @@ export function makePopover(addFn, component, options) {
  */
 export function usePopover(component, options = {}) {
     const popoverService = useService("popover");
-    const env = useEnv();
+    const sheetService = useOptionalService("bottom_sheet");
     const isDestroyed = useIsDestroyed();
 
     const { useBottomSheet } = options;
@@ -85,7 +85,6 @@ export function usePopover(component, options = {}) {
             ? useBottomSheet
             : () => Boolean(useBottomSheet);
     const add = (/** @type {any[]} */ ...args) => {
-        const sheetService = env.services.bottom_sheet;
         const service = (wantsBottomSheet() && sheetService) || popoverService;
         return service.add(...args);
     };

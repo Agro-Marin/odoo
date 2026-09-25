@@ -123,8 +123,7 @@ export function useDebugMode() {
  * @param {Object} [context={}]
  */
 export function useDebugCategory(category, context = {}) {
-    const env = useEnv();
-    if (env.debug) {
+    if (useDebugMode()) {
         const debugContext = useEnvDebugContext();
         useLayoutEffect(
             () => debugContext.activateCategory(category, context),

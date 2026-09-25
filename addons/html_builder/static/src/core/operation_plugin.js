@@ -1,6 +1,6 @@
 /** @odoo-module native */
+import { useBuilderContext } from "@html_builder/core/builder_context";
 import { Plugin } from "@html_editor/plugin";
-import { useEnv } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 
 import { Operation } from "./operation.js";
@@ -73,11 +73,11 @@ export class OperationPlugin extends Plugin {
 }
 
 export function useOperation() {
-    const env = useEnv();
+    const builderContext = useBuilderContext();
     return (apply) => {
-        env.editor.shared.operation.next(async () => {
+        builderContext.editor.shared.operation.next(async () => {
             await apply();
-            env.editor.shared.history.addStep();
+            builderContext.editor.shared.history.addStep();
         });
     };
 }

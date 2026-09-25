@@ -23,27 +23,28 @@ import { BuilderComponent } from "./builder_component.js";
 // TODO replace by useInputBuilderComponent after extracting unit handling
 export function useColorPickerBuilderComponent(comp) {
     const { getAllActions, callOperation } = getAllActionsAndOperations(comp);
-    const getAction = comp.env.editor.shared.builderActions.getAction;
+    const getAction = comp.builderContext.editor.shared.builderActions.getAction;
     let selectedTab;
     const state = useDomState(getState);
-    const applyOperation = comp.env.editor.shared.history.makePreviewableAsyncOperation(
-        (applySpecs, isPreviewing) => {
-            const proms = [];
-            for (const applySpec of applySpecs) {
-                proms.push(
-                    applySpec.action.apply({
-                        isPreviewing,
-                        editingElement: applySpec.editingElement,
-                        params: applySpec.actionParam,
-                        value: applySpec.actionValue,
-                        loadResult: applySpec.loadResult,
-                        dependencyManager: comp.env.dependencyManager,
-                    }),
-                );
-            }
-            return Promise.all(proms);
-        },
-    );
+    const applyOperation =
+        comp.builderContext.editor.shared.history.makePreviewableAsyncOperation(
+            (applySpecs, isPreviewing) => {
+                const proms = [];
+                for (const applySpec of applySpecs) {
+                    proms.push(
+                        applySpec.action.apply({
+                            isPreviewing,
+                            editingElement: applySpec.editingElement,
+                            params: applySpec.actionParam,
+                            value: applySpec.actionValue,
+                            loadResult: applySpec.loadResult,
+                            dependencyManager: comp.builderContext.dependencyManager,
+                        }),
+                    );
+                }
+                return Promise.all(proms);
+            },
+        );
     function getState(editingElement) {
         // if (!editingElement || !editingElement.isConnected) {
         //     // TODO try to remove it. We need to move hook in BuilderComponent
@@ -63,10 +64,11 @@ export function useColorPickerBuilderComponent(comp) {
             defaultTab: comp.props.selectedTab,
             mode: actionParam.mainParam || actionId,
             selectedColor: actionValue || comp.props.defaultColor,
-            selectedColorCombination: comp.env.editor.shared.color.getColorCombination(
-                editingElement,
-                actionParam,
-            ),
+            selectedColorCombination:
+                comp.builderContext.editor.shared.color.getColorCombination(
+                    editingElement,
+                    actionParam,
+                ),
             getTargetedElements: () => [editingElement],
             selectedTab,
         };
@@ -108,7 +110,7 @@ export function useColorPickerBuilderComponent(comp) {
         onPreview,
         onPreviewRevert: () => {
             previewValue = null;
-            revertPreview(comp.env.editor);
+            revertPreview(comp.builderContext.editor);
         },
     };
 }

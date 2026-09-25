@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useEnv, useExternalListener } from "@odoo/owl";
+import { useExternalListener } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
@@ -10,7 +10,7 @@ import { usePopover } from "@web/ui/popover/popover_hook";
  * @returns {{ close: Function, open: Function }}
  */
 export function useCalendarPopover(component) {
-    const env = useEnv();
+    const ui = useService("ui");
     let popoverClasses = "";
     /** @type {any} */
     const popoverOptions = {
@@ -48,7 +48,7 @@ export function useCalendarPopover(component) {
         close,
         open(target, props, classToUse) {
             const targetFcPopover = target.closest(".fc-popover");
-            if (env.isSmall) {
+            if (ui.isSmall) {
                 close();
                 removeDialog = dialog.add(component, props, {
                     onClose: cleanup,

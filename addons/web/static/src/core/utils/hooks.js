@@ -253,7 +253,7 @@ export function useOptionalService(serviceName) {
  * @returns {any}
  */
 function _useService(serviceName, optional) {
-    const { services } = useEnv();
+    const services = useServices();
     if (!(serviceName in services)) {
         if (optional) {
             return null;

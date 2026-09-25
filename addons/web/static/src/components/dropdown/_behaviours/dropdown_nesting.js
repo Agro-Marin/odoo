@@ -4,7 +4,7 @@
 import { onWillDestroy, useChildSubEnv, useEnv } from "@odoo/owl";
 import { DropdownEvent } from "@web/core/events";
 import { localization } from "@web/core/l10n/localization";
-import { useBus, useService } from "@web/core/utils/hooks";
+import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { effect } from "@web/core/utils/reactive";
 const DROPDOWN_NESTING = Symbol("dropdownNesting");
@@ -96,11 +96,11 @@ class DropdownNestingState {
 
 /** @param {import("@web/components/dropdown/dropdown_hook").DropdownState} state */
 export function useDropdownNesting(state) {
-    const env = useEnv();
+    const bus = useEventBus();
     const current = new DropdownNestingState({
         parent: useParentDropdownNesting(),
         close: () => state.close(),
-        bus: env.bus,
+        bus,
     });
 
     const uiService = useService("ui");
@@ -115,7 +115,7 @@ export function useDropdownNesting(state) {
     );
 
     provideDropdownNesting(current);
-    useBus(env.bus, DropdownEvent.OPENED, (/** @type {any} */ { detail: other }) =>
+    useBus(bus, DropdownEvent.OPENED, (/** @type {any} */ { detail: other }) =>
         current.handleChange(other),
     );
 

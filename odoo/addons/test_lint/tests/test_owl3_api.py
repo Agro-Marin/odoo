@@ -18,6 +18,12 @@ _PROPS_WRITE = re.compile(
 )
 _PATCH_CLASS = re.compile(r"(?<![\w.$])patch\(\s*[A-Z]\w*\s*,\s*\{")
 _PROPS_KEY = re.compile(r"(?<![\w$])(?:props|defaultProps)\s*:")
+_USE_ENV = re.compile(r"(?<![\w.$])useEnv\s*\(")
+_ACCESSOR = re.compile(
+    r"^(?:export\s+)?function\s+(?:use|provide)[A-Z]\w*\s*\([^)]*\)\s*\{",
+    re.MULTILINE,
+)
+_SINGLE_RETURN = re.compile(r"\{\s*return\b[^;{}]*;\s*\}", re.DOTALL)
 _PROVIDER = re.compile(
     r"^(?:export\s+)?function\s+provide[A-Z]\w*\s*\([^)]*\)\s*\{", re.MULTILINE
 )
@@ -116,6 +122,20 @@ def patched_props_calls(source: str) -> list[int]:
     return sorted(code.count("\n", 0, start) + 1 for start in starts)
 
 
+def raw_use_env_calls(source: str) -> list[int]:
+    code = _COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), source)
+    accessors = []
+    for m in _ACCESSOR.finditer(code):
+        end = _body_end(code, m.end() - 1)
+        if _SINGLE_RETURN.fullmatch(code, m.end() - 1, end + 1):
+            accessors.append((m.start(), end))
+    return [
+        code.count("\n", 0, m.start()) + 1
+        for m in _USE_ENV.finditer(code)
+        if not any(start <= m.start() < end for start, end in accessors)
+    ]
+
+
 def raw_sub_env_calls(source: str) -> list[int]:
     code = _COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), source)
     providers = [
@@ -174,6 +194,7 @@ def _findings(gate: str) -> dict[str, tuple[str, ...]]:
 _SCANNERS = {
     "owl_sub_env_raw": raw_sub_env_calls,
     "owl_patched_props": patched_props_calls,
+    "owl_use_env_raw": raw_use_env_calls,
 }
 
 
@@ -379,6 +400,16 @@ class TestOwl3Api(lint_case.LintCase):
             "each pair becomes a plugin",
         )
 
+    def test_no_raw_use_env(self):
+        self._assert_per_repo(
+            _scan_findings("owl_use_env_raw"),
+            "owl_use_env_raw",
+            "useEnv() calls outside a use* / provide* accessor that only returns it",
+            "A hook reads what its scope provides through that scope's accessor "
+            "(useServices, useEventBus, useBuilderContext, ...); OWL 3 has no env, "
+            "so each accessor becomes a plugin read",
+        )
+
     def test_no_patched_props(self):
         self._assert_per_repo(
             _scan_findings("owl_patched_props"),
@@ -445,3 +476,19 @@ class TestOwl3ApiScan(BaseCase):
             "// Foo.props = {};\n"
         )
         self.assertEqual(patched_props_calls(source), [1, 2, 5])
+
+    def test_a_use_env_is_raw_unless_an_accessor_only_returns_it(self):
+        source = (
+            "export function useThing() {\n"
+            "    return useEnv().thing;\n"
+            "}\n"
+            "function useBus() {\n"
+            "    const env = useEnv();\n"
+            "    return env.bus;\n"
+            "}\n"
+            "class C extends Component {\n"
+            "    setup() { this.env = useEnv(); }\n"
+            "}\n"
+            "// useEnv();\n"
+        )
+        self.assertEqual(raw_use_env_calls(source), [5, 9])
