@@ -351,6 +351,7 @@ class TestMrpReplenish(TestMrpCommon):
                 "product_max_qty": 50,
             }
         )
+        self._without_vendor_pull(orderpoint.warehouse_id)
         self.product_4.bom_ids.active = False
         self.assertTrue(orderpoint.show_supply_warning)
 

@@ -188,9 +188,6 @@ class StockWarehouse(models.Model):
                     ],
                 }
             )
-            result[warehouse.id].update(
-                warehouse._prepare_internal_reception_routings()
-            )
         return result
 
     def _prepare_route_vals(self):
@@ -219,7 +216,6 @@ class StockWarehouse(models.Model):
                 }
             }
         )
-        routes.update(self._prepare_receive_route_vals("manufacture_to_resupply"))
         return routes
 
     def _get_fields_route_trigger(self):

@@ -553,8 +553,13 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
         pickings_component = self.env["stock.picking"].search(
             [("product_id", "=", self.wood_product.id)]
         )
-        self.assertTrue(pickings_component)
-        self.assertTrue(rr_raw.name in pickings_component.origin)
+        pick_components = pickings_component.filtered(
+            lambda picking: picking.picking_type_id == self.warehouse.pbm_type_id
+        )
+        self.assertTrue(pick_components)
+        self.assertIn(rr_raw.name, pick_components.origin)
+        receipt = pickings_component - pick_components
+        self.assertEqual(receipt.picking_type_id, self.warehouse.in_type_id)
 
     def test_2_steps_and_additional_moves(self):
         self.warehouse.manufacture_steps = "pbm"

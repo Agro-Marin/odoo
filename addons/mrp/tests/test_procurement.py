@@ -125,6 +125,7 @@ class TestProcurement(TestMrpCommon):
             self.assertEqual(len(bom_line_id.product_id.route_ids), 0)
             bom_line_id.product_id.categ_id = child_categ_id
 
+        self._without_vendor_pull(self.warehouse_1)
         mto_route = self.warehouse_1.mto_pull_id.route_id
         mto_route.active = True
         mto_route.product_categ_selectable = True
@@ -141,6 +142,7 @@ class TestProcurement(TestMrpCommon):
     def test_procurement_3(self):
         warehouse = self.warehouse_1
         warehouse.reception_steps = "three_steps"
+        self._without_vendor_pull(warehouse)
         warehouse.mto_pull_id.route_id.active = True
         self.env["stock.location"]._update_parent_path_of_table()
         warehouse.reception_route_id.rule_ids.filtered(

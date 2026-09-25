@@ -439,3 +439,67 @@ class TestStockIntegration(TestMrpCommon):
         self.manufacture_route.rule_ids.active = False
         orderpoint.invalidate_recordset(["show_bom"])
         self.assertFalse(orderpoint.show_bom)
+
+
+@tagged("post_install", "-at_install")
+class TestReplenishmentWithoutPurchase(TestMrpCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.warehouse = cls.warehouse_1
+        cls.suppliers = cls.env.ref("stock.stock_location_suppliers")
+
+    def setUp(self):
+        super().setUp()
+        if "buy_pull_id" in self.env["stock.warehouse"]._fields:
+            self.skipTest("purchase_stock replaces the vendor pull with its Buy route")
+
+    def test_a_bought_in_component_is_received_from_vendors(self):
+        component = self.env["product.product"].create(
+            {"name": "Bought in", "is_storable": True}
+        )
+        rule = self.env["stock.rule"]._get_rule(
+            component, self.warehouse.lot_stock_id, {"warehouse_id": self.warehouse}
+        )
+        self.assertEqual(rule.location_src_id, self.suppliers)
+        self.assertEqual(rule.route_id, self.warehouse.reception_route_id)
+        orderpoint = self.env["stock.warehouse.orderpoint"].create(
+            {
+                "product_id": component.id,
+                "location_id": self.warehouse.lot_stock_id.id,
+                "product_min_qty": 5,
+                "product_max_qty": 10,
+            }
+        )
+        orderpoint.action_replenish()
+        receipt = self.env["stock.move"].search([("product_id", "=", component.id)])
+        self.assertEqual(receipt.location_id, self.suppliers)
+        self.assertEqual(receipt.product_uom_qty, 10)
+
+    def test_a_product_with_a_bom_is_still_manufactured(self):
+        product = self.env["product.product"].create(
+            {"name": "Made here", "is_storable": True}
+        )
+        self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": product.product_tmpl_id.id,
+                "bom_line_ids": [
+                    Command.create({"product_id": self.product_1.id, "product_qty": 1})
+                ],
+            }
+        )
+        orderpoint = self.env["stock.warehouse.orderpoint"].create(
+            {
+                "product_id": product.id,
+                "location_id": self.warehouse.lot_stock_id.id,
+                "product_min_qty": 5,
+                "product_max_qty": 10,
+            }
+        )
+        self.assertEqual(
+            orderpoint.effective_route_id, self.warehouse.manufacture_pull_id.route_id
+        )
+        orderpoint.action_replenish()
+        self.assertTrue(
+            self.env["mrp.production"].search([("product_id", "=", product.id)])
+        )
