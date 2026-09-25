@@ -16,6 +16,10 @@ _debug = DebugLog(__name__)
 MANUFACTURABLE = TransactionMemo(
     "mrp.stock.rule.manufacturable", invalidated_by=("mrp.bom",)
 )
+MANUFACTURE_RULE_IDS = TransactionMemo(
+    "mrp.stock.rule.manufacture_rule_ids",
+    invalidated_by={"stock.rule": ("action", "active", "company_id", "route_id")},
+)
 
 
 class StockRule(models.Model):
@@ -115,33 +119,78 @@ class StockRule(models.Model):
                 procurements_without_kit.append(procurement)
         return super().run(procurements_without_kit, raise_user_error=raise_user_error)
 
+    @api.model
+    def _get_valid_route_ids(
+        self, route_ids, packaging_uom_id, product_id, warehouse_ids
+    ):
+        # `_is_route_usable_for` takes no warehouse, so each warehouse's company
+        # reaches it as `env.company`: a route shared by the warehouses of two
+        # companies is usable in the one whose company can manufacture
+        if not warehouse_ids:
+            return super()._get_valid_route_ids(
+                route_ids, packaging_uom_id, product_id, warehouse_ids
+            )
+        valid_route_ids = set()
+        for company, warehouses in warehouse_ids.grouped("company_id").items():
+            valid_route_ids |= super(
+                StockRule, self.with_company(company)
+            )._get_valid_route_ids(route_ids, packaging_uom_id, product_id, warehouses)
+        return valid_route_ids
+
     def _is_route_usable_for(self, product, route):
         if route._has_manufacture_rule():
             product = product._origin
             batch = product.browse(product._prefetch_ids) | product
-            if not self._get_manufacturable(batch).get(product.id):
+            company = route.company_id or self.env.company
+            if not self._get_manufacturable(batch, company).get(product.id):
                 return False
         return super()._is_route_usable_for(product, route)
 
     @api.model
-    def _get_manufacturable(self, products):
+    def _get_manufacturable(self, products, company):
         memo = MANUFACTURABLE(self.env)
-        scope = (self.env.uid, self.env.su, tuple(self.env.companies.ids))
-        missing = products.filtered(lambda product: (scope, product.id) not in memo)
-        for company, company_products in missing.grouped("company_id").items():
-            boms = self.env["mrp.bom"]._get_bom_by_product(
-                company_products,
-                bom_type="normal",
-                company_id=(company or self.env.company).id,
+        scope = (self.env.uid, self.env.su, frozenset(self.env.companies.ids))
+        by_owner = products.grouped(lambda product: product.company_id or company)
+        missing = 0
+        for owner, owned in by_owner.items():
+            unknown = owned.browse(
+                [
+                    product.id
+                    for product in owned
+                    if (scope, owner.id, product.id) not in memo
+                ]
             )
-            for product in company_products:
-                memo[scope, product.id] = bool(boms.get(product))
+            missing += len(unknown)
+            if not unknown:
+                continue
+            boms = self.env["mrp.bom"]._get_bom_by_product(
+                unknown, bom_type="normal", company_id=owner.id
+            )
+            for product in unknown:
+                memo[scope, owner.id, product.id] = bool(boms.get(product))
         _debug.perf.count(
             "manufacturable_memo",
             products=len(products),
-            misses=len(missing),
+            misses=missing,
         )
-        return {product.id: memo[scope, product.id] for product in products}
+        return {
+            product.id: memo[scope, owner.id, product.id]
+            for owner, owned in by_owner.items()
+            for product in owned
+        }
+
+    @api.model
+    def _get_manufacture_rules(self):
+        memo = MANUFACTURE_RULE_IDS(self.env)
+        key = (
+            self.env.uid,
+            self.env.su,
+            frozenset(self.env.companies.ids),
+            self.env.context.get("active_test", True),
+        )
+        if key not in memo:
+            memo[key] = self.search([("action", "=", "manufacture")]).ids
+        return self.browse(memo[key])
 
     @api.model
     def _get_action_runners(self):
@@ -497,21 +546,26 @@ class StockRule(models.Model):
                     self.env._("+ %d day(s)", manufacture_delay),
                 )
             )
-        if bom.type == "normal":
-            warehouse = self.location_dest_id.warehouse_id
-            for wh in warehouse:
-                if wh.manufacture_steps != "mrp_one_step":
-                    wh_manufacture_rules = product._get_rules_from_location(
-                        product.property_stock_production, route_ids=wh.pbm_route_id
-                    )
-                    extra_delays, extra_delay_description = (
-                        (wh_manufacture_rules - self)
-                        .with_context(global_horizon_days=0)
-                        ._get_lead_days(product, **values)
-                    )
-                    for key, value in extra_delays.items():
-                        delays[key] += value
-                    delay_description += extra_delay_description
+        warehouse = (
+            manufacture_rule.warehouse_id
+            or manufacture_rule.location_dest_id.warehouse_id
+        )
+        if (
+            bom.type == "normal"
+            and warehouse
+            and warehouse.manufacture_steps != "mrp_one_step"
+        ):
+            wh_manufacture_rules = product._get_rules_from_location(
+                product.property_stock_production, route_ids=warehouse.pbm_route_id
+            )
+            extra_delays, extra_delay_description = (
+                (wh_manufacture_rules - self)
+                .with_context(global_horizon_days=0)
+                ._get_lead_days(product, **values)
+            )
+            for key, value in extra_delays.items():
+                delays[key] += value
+            delay_description += extra_delay_description
         days_to_order = values.get("days_to_order", bom.days_to_prepare_mo)
         _debug.logic(
             "lead_days_manufacture",
@@ -549,5 +603,10 @@ class StockRoute(models.Model):
 
     def _is_valid_resupply_route_for_product(self, product):
         if self._has_manufacture_rule():
-            return any(bom.type == "normal" for bom in product.bom_ids)
+            company = self.company_id or self.env.company
+            return bool(
+                self.env["stock.rule"]
+                ._get_manufacturable(product, company)
+                .get(product.id)
+            )
         return super()._is_valid_resupply_route_for_product(product)

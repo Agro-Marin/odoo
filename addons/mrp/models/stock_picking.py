@@ -237,8 +237,13 @@ class StockPicking(models.Model):
     @api.depends("production_ids")
     def _compute_production_count(self):
         for picking in self:
-            mo = picking.production_ids.filtered(lambda mo: mo.picking_type_id.active)
-            picking.production_count = len(mo)
+            picking.production_count = len(picking._get_visible_productions())
+
+    def _get_visible_productions(self):
+        self.check_singleton()
+        return self.production_ids.filtered(
+            lambda production: production.picking_type_id.active
+        )
 
     def action_detailed_operations(self):
         action = super().action_detailed_operations()
@@ -246,19 +251,19 @@ class StockPicking(models.Model):
         return action
 
     def action_view_mrp_production(self):
-        self.check_singleton()
+        productions = self._get_visible_productions()
         action = {
             "name": self.env._("Manufacturing Orders"),
             "res_model": "mrp.production",
             "type": "ir.actions.act_window",
-            "domain": [("id", "in", self.production_ids.ids)],
+            "domain": [("id", "in", productions.ids)],
             "view_mode": "list,form",
         }
-        if self.production_count == 1:
+        if len(productions) == 1:
             action.update(
                 {
                     "view_mode": "form",
-                    "res_id": self.production_ids.id,
+                    "res_id": productions.id,
                 }
             )
         return action

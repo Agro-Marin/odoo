@@ -38,7 +38,7 @@ class MrpProductionGroup(models.Model):
         string="Parent Manufacturing Orders",
     )
 
-    @api.constrains("child_ids")
+    @api.constrains("child_ids", "parent_ids")
     def _check_no_cyclic_dependencies(self):
         if self._has_cycle("child_ids"):
             _debug.logic("production_group_cycle", groups=self)

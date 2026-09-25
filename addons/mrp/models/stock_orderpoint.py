@@ -54,9 +54,23 @@ class StockWarehouseOrderpoint(models.Model):
             )
         return super()._prepare_action_replenishment_order_notification()
 
-    @api.depends("bom_id", "product_id.bom_ids.produce_delay")
+    @api.depends(
+        "bom_id.produce_delay",
+        "bom_id.days_to_prepare_mo",
+        "product_id.bom_ids.produce_delay",
+        "product_id.bom_ids.days_to_prepare_mo",
+    )
     def _compute_deadline_date(self):
         super()._compute_deadline_date()
+
+    @api.depends(
+        "bom_id.produce_delay",
+        "bom_id.days_to_prepare_mo",
+        "product_id.bom_ids.produce_delay",
+        "product_id.bom_ids.days_to_prepare_mo",
+    )
+    def _compute_lead_time(self):
+        super()._compute_lead_time()
 
     def _prepare_lead_time_params(self):
         values = super()._prepare_lead_time_params()
@@ -66,11 +80,22 @@ class StockWarehouseOrderpoint(models.Model):
 
     def _prepare_lead_time_params_map(self):
         result = super()._prepare_lead_time_params_map()
+        for orderpoint, bom in (
+            self.filtered(lambda orderpoint: not orderpoint.bom_id)
+            ._get_manufacture_bom_map()
+            .items()
+        ):
+            result[orderpoint.id]["bom"] = bom
+        return result
+
+    def _get_manufacture_bom_map(self):
+        result = {}
         orderpoints_by_lookup = defaultdict(
             lambda: self.env["stock.warehouse.orderpoint"],
         )
         for orderpoint in self:
             if orderpoint.bom_id:
+                result[orderpoint] = orderpoint.bom_id
                 continue
             manufacture_rule = orderpoint.rule_ids.filtered(
                 lambda rule: rule.action == "manufacture",
@@ -88,14 +113,20 @@ class StockWarehouseOrderpoint(models.Model):
                 company_id=company.id,
             )
             for orderpoint in orderpoints:
-                result[orderpoint.id]["bom"] = boms[orderpoint.product_id]
-        return result
+                result[orderpoint] = boms[orderpoint.product_id]
+        prefetch_ids = [bom.id for bom in result.values() if bom]
+        return {
+            orderpoint: bom.with_prefetch(prefetch_ids)
+            for orderpoint, bom in result.items()
+        }
 
     @api.depends(
-        "bom_id",
         "bom_id.product_uom_id",
-        "product_id.bom_ids",
+        "bom_id.produce_delay",
+        "bom_id.days_to_prepare_mo",
         "product_id.bom_ids.product_uom_id",
+        "product_id.bom_ids.produce_delay",
+        "product_id.bom_ids.days_to_prepare_mo",
     )
     def _compute_qty_to_order_computed(self):
         super()._compute_qty_to_order_computed()
@@ -122,25 +153,15 @@ class StockWarehouseOrderpoint(models.Model):
 
     @api.depends("effective_route_id")
     def _compute_show_bom(self):
-        manufacture_route = [
-            res["route_id"][0]
-            for res in self.env["stock.rule"].search_read(
-                [("action", "=", "manufacture")], ["route_id"]
-            )
-        ]
+        manufacture_routes = self.env["stock.rule"]._get_manufacture_rules().route_id
         for orderpoint in self:
-            orderpoint.show_bom = orderpoint.effective_route_id.id in manufacture_route
+            orderpoint.show_bom = orderpoint.effective_route_id in manufacture_routes
 
     def _inverse_bom_id(self):
         orderpoints = self.filtered(lambda op: op.bom_id and not op.route_id)
         if not orderpoints:
             return
-        manufacture_rules = self.env["stock.rule"].search(
-            [
-                ("action", "=", "manufacture"),
-                ("company_id", "in", [*orderpoints.company_id.ids, False]),
-            ]
-        )
+        manufacture_rules = self.env["stock.rule"]._get_manufacture_rules()
         _debug.pipeline("orderpoint_route_from_bom", orderpoints=orderpoints)
         for orderpoint in orderpoints:
             manufacture_rule = next(
@@ -189,30 +210,23 @@ class StockWarehouseOrderpoint(models.Model):
         matching = Domain("bom_id", "in", boms.ids) | Domain("id", "in", resolved_ids)
         return matching if operator == "in" else ~matching
 
+    @api.depends(
+        "rule_ids",
+        "bom_id.days_to_prepare_mo",
+        "product_id.bom_ids.days_to_prepare_mo",
+    )
     def _compute_days_to_order(self):
-        res = super()._compute_days_to_order()
-        if not self.env["stock.rule"].search([("action", "=", "manufacture")]):
-            return res
-        orderpoints_with_bom = self.filtered(
-            lambda orderpoint: (
-                orderpoint.product_id.variant_bom_ids or orderpoint.product_id.bom_ids
-            )
+        super()._compute_days_to_order()
+        manufactured = self.filtered(
+            lambda orderpoint: "manufacture" in orderpoint.rule_ids.mapped("action")
         )
-        for orderpoint in orderpoints_with_bom:
-            if "manufacture" in orderpoint.rule_ids.mapped("action"):
-                boms = (
-                    orderpoint.bom_id
-                    or orderpoint.product_id.variant_bom_ids
-                    or orderpoint.product_id.bom_ids
-                )
-                orderpoint.days_to_order = (boms and boms[0].days_to_prepare_mo) or 0
-        return res
+        for orderpoint, bom in manufactured._get_manufacture_bom_map().items():
+            if bom:
+                orderpoint.days_to_order = bom.days_to_prepare_mo
 
     def _get_default_route_map(self):
         routes = super()._get_default_route_map()
-        manufacture_routes = (
-            self.env["stock.rule"].search([("action", "=", "manufacture")]).route_id
-        )
+        manufacture_routes = self.env["stock.rule"]._get_manufacture_rules().route_id
         for orderpoint in self.filtered("location_id"):
             route_id = orderpoint.rule_ids.route_id & manufacture_routes
             if orderpoint.product_id.bom_ids and route_id:
@@ -278,21 +292,16 @@ class StockWarehouseOrderpoint(models.Model):
         )._get_replenishment_multiple_alternative_map(qty_by_orderpoint)
         if not manufactured:
             return result
-        boms_by_product = defaultdict(lambda: self.env["mrp.bom"])
-        manufactured_by_company = manufactured.grouped("company_id")
-        for company in manufactured.company_id:
-            in_company = manufactured_by_company[company]
-            boms_by_product.update(
-                self.env["mrp.bom"]._get_bom_by_product(
-                    in_company.product_id,
-                    picking_type=False,
-                    bom_type="normal",
-                    company_id=company.id,
-                ),
+        for company, in_company in manufactured.grouped("company_id").items():
+            boms_by_product = self.env["mrp.bom"]._get_bom_by_product(
+                in_company.product_id,
+                picking_type=False,
+                bom_type="normal",
+                company_id=company.id,
             )
-        for orderpoint in manufactured:
-            bom = orderpoint.bom_id or boms_by_product[orderpoint.product_id]
-            result[orderpoint.id] = bom.product_uom_id
+            for orderpoint in in_company:
+                bom = orderpoint.bom_id or boms_by_product[orderpoint.product_id]
+                result[orderpoint.id] = bom.product_uom_id
         return result
 
     def _get_quantity_in_progress(self):

@@ -152,18 +152,15 @@ class StockMoveLine(models.Model):
         return move_vals
 
     def _get_linkable_moves(self):
-        self.check_singleton()
-        if self.product_id and self.product_id.is_kit:
-            moves = self.picking_id.move_ids.filtered(
-                lambda move: (
-                    move.product_id == self.product_id
-                    and move.location_id == self.location_id
-                    and move.location_dest_id == self.location_dest_id
-                )
+        moves = super()._get_linkable_moves()
+        if not self.product_id.is_kit:
+            return moves
+        return moves.filtered(
+            lambda move: (
+                move.location_id == self.location_id
+                and move.location_dest_id == self.location_dest_id
             )
-            return sorted(moves, key=lambda m: m.quantity < m.product_qty, reverse=True)
-        else:
-            return super()._get_linkable_moves()
+        )
 
     def _has_lot_context(self):
         return (

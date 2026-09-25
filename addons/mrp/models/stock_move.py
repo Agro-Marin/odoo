@@ -151,7 +151,7 @@ class StockMove(models.Model):
     def _compute_packaging_uom_id(self):
         super()._compute_packaging_uom_id()
         for move in self:
-            if move.production_id:
+            if move.production_id and move.product_id == move.production_id.product_id:
                 move.packaging_uom_id = move.production_id.product_uom_id
 
     @api.depends("product_id", "bom_line_id", "bom_line_id.operation_id")
@@ -169,12 +169,14 @@ class StockMove(models.Model):
     def _compute_location_id(self):
         ids_to_super = set()
         for move in self:
-            if move.production_id:
-                move.location_id = move.production_id.production_location_id
-            elif move.raw_material_production_id:
-                move.location_id = move.raw_material_production_id.location_src_id
-            else:
+            if not move._get_production():
                 ids_to_super.add(move.id)
+            elif move.location_id and move.state in ("done", "cancel"):
+                move.location_id = move.location_id
+            elif move.production_id:
+                move.location_id = move.production_id.production_location_id
+            else:
+                move.location_id = move.raw_material_production_id.location_src_id
         return super(StockMove, self.browse(ids_to_super))._compute_location_id()
 
     @api.depends(
@@ -184,14 +186,19 @@ class StockMove(models.Model):
     def _compute_location_dest_id(self):
         ids_to_super = set()
         for move in self:
-            if move.production_id:
+            if not move._get_production():
+                ids_to_super.add(move.id)
+            elif move.location_dest_id and (
+                move.state in ("done", "cancel")
+                or move.location_dest_id.usage == "inventory"
+            ):
+                move.location_dest_id = move.location_dest_id
+            elif move.production_id:
                 move.location_dest_id = move.production_id.location_dest_id
-            elif move.raw_material_production_id:
+            else:
                 move.location_dest_id = (
                     move.raw_material_production_id.production_location_id
                 )
-            else:
-                ids_to_super.add(move.id)
         return super(StockMove, self.browse(ids_to_super))._compute_location_dest_id()
 
     @api.depends("bom_line_id")
@@ -788,7 +795,7 @@ class StockMove(models.Model):
         ) or self.env.context.get("is_scrap")
         vals_list = []
         for bom_line, line_data in exploded_lines_data:
-            if bom_line.product_id.type != "consu":
+            if not self._is_kit_component_moved(bom_line):
                 continue
             if record_what_was_done:
                 product_qty, quantity_done = 0, line_data["qty"]
@@ -893,7 +900,7 @@ class StockMove(models.Model):
                 return move.product_qty
 
         for bom_line, bom_line_data in bom_sub_lines:
-            if bom_line.product_id.type == "service":
+            if not self._is_kit_component_moved(bom_line):
                 continue
             if bom_line.product_uom_id.is_zero(bom_line_data["qty"]):
                 continue
@@ -931,6 +938,10 @@ class StockMove(models.Model):
             return min(qty_ratios) // 1
         else:
             return 0.0
+
+    @api.model
+    def _is_kit_component_moved(self, bom_line):
+        return bom_line.product_id.type == "consu"
 
     def _update_candidate_moves_list(self, candidate_moves_set):
         super()._update_candidate_moves_list(candidate_moves_set)
