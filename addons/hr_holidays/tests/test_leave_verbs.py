@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from odoo.exceptions import AccessError
 from odoo.tests import TransactionCase, new_test_user, tagged
 from odoo.tools import mute_logger
+from odoo.tools.authority_keys import strip_authority_keys
 
 # row, persona, model, validation type, whose record, state, verb: a cell the
 # row alone grants, so switching the row off takes exactly that move away
@@ -150,6 +151,12 @@ class TestLeaveVerbs(TransactionCase):
         self.assertEqual(leave.state, "confirm")
         leave.with_user(self.users["officer"]).action_approve()
         self.assertEqual(leave.state, "validate")
+
+    def test_a_client_cannot_send_the_fast_create_key(self):
+        self.assertEqual(
+            strip_authority_keys({"leave_fast_create": True, "lang": "en_US"}),
+            {"lang": "en_US"},
+        )
 
     def test_a_record_created_in_a_decided_state_is_not_the_move(self):
         leave = (

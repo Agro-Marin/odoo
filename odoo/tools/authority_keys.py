@@ -62,6 +62,7 @@ declare_authority_keys("mrp", "allow_more")
 declare_authority_keys("maintenance", "skip_maintenance_reservations")
 declare_authority_keys(
     "hr_holidays",
+    "leave_fast_create",
     "leave_skip_date_check",
     "leave_skip_state_check",
     "allocation_skip_state_check",
