@@ -38,8 +38,8 @@ const log = makeLogger("web.model");
 
 /**
  * @typedef {{
- * searchModel: import("@web/search/search_model").SearchModel | undefined;
- * config: import("@web/views/view_config").ViewConfig & Record<string, any>;
+ * searchModel: ReturnType<typeof useSearchModel> | undefined;
+ * config: ReturnType<typeof useViewConfig>;
  * services: Record<string, any>;
  * debug: string;
  * readonly isSmall: boolean;
