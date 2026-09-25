@@ -50,8 +50,6 @@ class TestCreatePurchaseOrder(AccountTestInvoicingCommon):
 
         result = bill.create_purchase_order()
 
-        self.assertTrue(result, "Should return True on success")
-
         po = self.env["purchase.order"].search(
             [
                 ("partner_id", "=", self.vendor.id),
@@ -61,6 +59,7 @@ class TestCreatePurchaseOrder(AccountTestInvoicingCommon):
         )
 
         self.assertTrue(po, "Purchase order should be created")
+        self.assertEqual(result, po)
         self.assertEqual(po.partner_id, self.vendor, "PO should have correct vendor")
         self.assertEqual(len(po.line_ids), 1, "PO should have one line")
         self.assertEqual(

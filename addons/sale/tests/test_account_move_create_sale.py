@@ -50,8 +50,6 @@ class TestCreateSaleOrder(AccountTestInvoicingCommon):
 
         result = invoice.create_sale_order()
 
-        self.assertTrue(result, "Should return True on success")
-
         so = self.env["sale.order"].search(
             [
                 ("partner_id", "=", self.customer.id),
@@ -61,6 +59,7 @@ class TestCreateSaleOrder(AccountTestInvoicingCommon):
         )
 
         self.assertTrue(so, "Sale order should be created")
+        self.assertEqual(result, so)
         self.assertEqual(
             so.partner_id, self.customer, "SO should have correct customer"
         )

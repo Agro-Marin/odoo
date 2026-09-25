@@ -1,8 +1,6 @@
 from odoo import api, fields, models
-from odoo.exceptions import UserError
-from odoo.fields import Command
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import OrderedSet, frozendict
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -76,15 +74,12 @@ class AccountMove(models.Model):
     @api.depends("line_ids.sale_line_ids")
     def _compute_sale_order_count(self):
         for move in self:
-            move.sale_order_count = len(move.line_ids.sale_line_ids.order_id)
+            move.sale_order_count = len(move._get_source_orders("sale.order"))
 
     @api.depends("line_ids.sale_line_ids")
     def _compute_is_sale_matched(self):
         for move in self:
-            move.is_sale_matched = not any(
-                line.display_type == "product" and not line.sale_line_ids
-                for line in move.invoice_line_ids
-            )
+            move.is_sale_matched = move._is_matched_to_orders("sale.order")
 
     @api.depends(
         "sale_order_count",
@@ -92,86 +87,18 @@ class AccountMove(models.Model):
     )
     def _compute_sale_order_name(self):
         for move in self:
-            if move.sale_order_count == 1:
-                move.sale_order_name = (
-                    move.invoice_line_ids.sale_line_ids.order_id.display_name
-                )
-            else:
-                move.sale_order_name = False
+            move.sale_order_name = move._get_source_order_name("sale.order")
 
     @api.onchange("sale_customer_invoice_id", "sale_id")
     def _onchange_sale_auto_complete(self):
-        if self.sale_customer_invoice_id.move_id:
-            self.invoice_vendor_bill_id = self.sale_customer_invoice_id.move_id
-            self._onchange_invoice_vendor_bill()
-        elif self.sale_customer_invoice_id.order_id:
-            self.sale_id = self.sale_customer_invoice_id.order_id
-        self.sale_customer_invoice_id = False
-
-        if not self.sale_id:
-            _debug.logic("sale_auto_complete_skipped", reason="no_order")
-            return
-
-        invoice_vals = self.sale_id.with_company(
-            self.sale_id.company_id,
-        )._prepare_invoice_vals()
-        has_invoice_lines = bool(
-            self.invoice_line_ids.filtered(
-                lambda line: (
-                    line.display_type
-                    not in ("line_section", "line_subsection", "line_note")
-                ),
-            ),
-        )
-        new_currency_id = (
-            self.currency_id if has_invoice_lines else invoice_vals.get("currency_id")
-        )
-        del invoice_vals["company_id"]
-        if self.move_type == invoice_vals["move_type"]:
-            del invoice_vals["move_type"]
-        self.update(invoice_vals)
-        self.currency_id = new_currency_id
-
-        order_lines = self.sale_id.line_ids - self.invoice_line_ids.mapped(
-            "sale_line_ids",
-        )
-        _debug.pipeline(
-            "sale_auto_complete",
-            move=self._origin,
-            order=self.sale_id,
-            added_lines=order_lines,
-            had_lines=has_invoice_lines,
-        )
-        self._add_order_lines(order_lines)
-
-        origins = set(self.invoice_line_ids.mapped("sale_line_ids.order_id.name"))
-        self.invoice_origin = ",".join(list(origins))
-
-        if self.company_id != self.sale_id.company_id:
-            self.company_id = self.sale_id.company_id
-
-        self.sale_id = False
+        self._auto_complete_from_order("sale_customer_invoice_id", "sale_id")
 
     def action_sale_matching(self):
-        self.check_singleton()
-        return {
-            "type": "ir.actions.act_window",
-            "name": self.env._("Sale Matching"),
-            "res_model": "sale.invoice.line.match",
-            "domain": [
-                (
-                    "partner_id",
-                    "in",
-                    (self.partner_id | self.partner_id.commercial_partner_id).ids,
-                ),
-                ("company_id", "in", self.env.companies.ids),
-                ("company_id", "child_of", self.company_id.ids),
-                ("account_move_id", "in", [self.id, False]),
-            ],
-            "views": [
-                (self.env.ref("sale.sale_invoice_line_match_list").id, "list"),
-            ],
-        }
+        return self._action_order_line_matching(
+            self.env._("Sale Matching"),
+            "sale.invoice.line.match",
+            "sale.sale_invoice_line_match_list",
+        )
 
     @api.depends(
         "partner_id.name",
@@ -187,25 +114,9 @@ class AccountMove(models.Model):
             _debug.logic("sale_warnings_skipped", reason="no_warning_group")
             return
         for move in self:
-            if move.move_type != "out_invoice":
-                move.sale_warning_text = ""
-                continue
-            warnings = OrderedSet()
-            if partner_msg := move.partner_id.sale_warn_msg:
-                warnings.add(
-                    (move.partner_id.name or move.partner_id.display_name)
-                    + " - "
-                    + partner_msg,
-                )
-            if partner_parent_msg := move.partner_id.parent_id.sale_warn_msg:
-                parent = move.partner_id.parent_id
-                warnings.add(
-                    (parent.name or parent.display_name) + " - " + partner_parent_msg
-                )
-            for product in move.invoice_line_ids.product_id:
-                if product_msg := product.sale_line_warn_msg:
-                    warnings.add(product.display_name + " - " + product_msg)
-            move.sale_warning_text = "\n".join(warnings)
+            move.sale_warning_text = move._get_order_warning_text(
+                "out_invoice", "sale_warn_msg", "sale_line_warn_msg"
+            )
 
     def action_cancel(self):
         res = super().action_cancel()
@@ -259,63 +170,12 @@ class AccountMove(models.Model):
         return res
 
     def action_view_source_sale_orders(self):
-        self.check_singleton()
-        source_orders = self.line_ids.sale_line_ids.order_id
-        result = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
-            "sale.action_sale_order"
+        return self._action_view_source_orders(
+            "sale.order", "sale.action_sale_order", "sale.view_sale_order_form"
         )
-        if len(source_orders) > 1:
-            result["domain"] = [("id", "in", source_orders.ids)]
-        elif len(source_orders) == 1:
-            result["views"] = [(self.env.ref("sale.view_sale_order_form").id, "form")]
-            result["res_id"] = source_orders.id
-        else:
-            result = {"type": "ir.actions.act_window_close"}
-        return result
 
     def create_sale_order(self):
-        self.check_singleton()
-        if any(not line.product_id for line in self.invoice_line_ids):
-            _debug.logic(
-                "create_sale_order_refused", move=self, reason="line_no_product"
-            )
-            raise UserError(
-                self.env._(
-                    "Some move lines does not have a product set. Please review",
-                ),
-            )
-
-        sale_exist = self.env["sale.order"].search(
-            [
-                ("partner_id", "=", self.commercial_partner_id.id),
-                ("company_id", "=", self.company_id.id),
-                ("origin", "=", self.name),
-            ],
-        )
-        if len(sale_exist) > 1:
-            _debug.logic(
-                "create_sale_order_refused",
-                move=self,
-                reason="ambiguous_origin",
-                orders=sale_exist,
-            )
-            raise UserError(
-                self.env._(
-                    "More than one Sale Orders with the same origin have been found."
-                    " Please review",
-                ),
-            )
-
-        if sale_exist:
-            _debug.logic("create_sale_order_reused", move=self, order=sale_exist)
-            return sale_exist
-
-        sale = self.env["sale.order"].create(self._prepare_sale_order_vals())
-        _debug.lifecycle("sale_order_created_from_move", move=self, order=sale)
-        for move_line_id, vals in self._prepare_sale_line_vals(sale).items():
-            move_line = self.env["account.move.line"].browse(move_line_id)
-            move_line.sale_line_ids = self.env["sale.order.line"].create(vals)
-        return sale
+        return self._create_order_from_invoice("sale.order")
 
     def _post_entries(self):
         posted = super()._post_entries()
@@ -416,48 +276,3 @@ class AccountMove(models.Model):
                 sale_line.is_downpayment for sale_line in self.line_ids.sale_line_ids
             )
         ) or False
-
-    def _prepare_sale_order_vals(self) -> dict:
-        self.check_singleton()
-        return {
-            "company_id": self.company_id.id,
-            "currency_id": self.currency_id.id,
-            "partner_id": self.commercial_partner_id.id,
-            "date_order": self.invoice_date,
-            "fiscal_position_id": (
-                self.fiscal_position_id
-                or self.env["account.fiscal.position"]._get_fiscal_position(
-                    self.commercial_partner_id,
-                )
-            ).id,
-            "payment_term_id": self.invoice_payment_term_id.id,
-            "origin": self.name,
-            "invoice_state": "done",
-        }
-
-    def _prepare_sale_line_vals(self, sale) -> dict:
-        self.check_singleton()
-        sale_line_vals = {}
-        fpos = sale.fiscal_position_id
-        company_domain = self.env["account.tax"]._check_company_domain(self.company_id)
-        for line in self.invoice_line_ids.filtered(
-            lambda ln: ln.display_type == "product",
-        ):
-            taxes = fpos.map_tax(line.product_id.sudo().taxes_id)
-            if taxes:
-                taxes = taxes.filtered_domain(company_domain)
-            sale_line_vals[line.id] = {
-                "order_id": sale.id,
-                "product_id": line.product_id.id,
-                "name": (
-                    f"[{line.product_id.default_code}] {line.name}"
-                    if line.product_id.default_code
-                    else line.name
-                ),
-                "product_qty": line.quantity,
-                "product_uom_id": line.product_uom_id.id,
-                "price_unit": line.price_unit,
-                "tax_ids": [Command.set(taxes.ids)],
-                "analytic_distribution": line.analytic_distribution,
-            }
-        return sale_line_vals

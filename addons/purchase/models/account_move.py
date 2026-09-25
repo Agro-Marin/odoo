@@ -5,9 +5,8 @@ import time
 from markupsafe import Markup
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError
 from odoo.fields import Command
-from odoo.tools import OrderedSet, frozendict
+from odoo.tools import frozendict
 
 from odoo.addons.purchase import const
 
@@ -110,18 +109,12 @@ class AccountMove(models.Model):
     @api.depends("line_ids.purchase_line_ids")
     def _compute_is_purchase_matched(self):
         for move in self:
-            if any(
-                il.display_type == "product" and not bool(il.purchase_line_ids)
-                for il in move.invoice_line_ids
-            ):
-                move.is_purchase_matched = False
-                continue
-            move.is_purchase_matched = True
+            move.is_purchase_matched = move._is_matched_to_orders("purchase.order")
 
     @api.depends("line_ids.purchase_line_ids")
     def _compute_purchase_order_count(self):
         for move in self:
-            move.purchase_order_count = len(move.line_ids.purchase_line_ids.order_id)
+            move.purchase_order_count = len(move._get_source_orders("purchase.order"))
 
     @api.depends(
         "purchase_order_count",
@@ -129,16 +122,13 @@ class AccountMove(models.Model):
     )
     def _compute_purchase_order_name(self):
         for move in self:
-            if move.purchase_order_count == 1:
-                move.purchase_order_name = (
-                    move.invoice_line_ids.purchase_line_ids.order_id.display_name
-                )
-            else:
-                move.purchase_order_name = False
+            move.purchase_order_name = move._get_source_order_name("purchase.order")
 
     @api.depends(
         "partner_id.name",
         "partner_id.purchase_warn_msg",
+        "partner_id.parent_id.name",
+        "partner_id.parent_id.purchase_warn_msg",
         "invoice_line_ids.product_id.purchase_line_warn_msg",
         "invoice_line_ids.product_id.display_name",
     )
@@ -147,70 +137,13 @@ class AccountMove(models.Model):
             self.purchase_warning_text = ""
             return
         for move in self:
-            if move.move_type != "in_invoice":
-                move.purchase_warning_text = ""
-                continue
-            warnings = OrderedSet()
-            if partner_msg := move.partner_id.purchase_warn_msg:
-                warnings.add(
-                    (move.partner_id.name or move.partner_id.display_name)
-                    + " - "
-                    + partner_msg,
-                )
-            if partner_parent_msg := move.partner_id.parent_id.purchase_warn_msg:
-                parent = move.partner_id.parent_id
-                warnings.add(
-                    (parent.name or parent.display_name) + " - " + partner_parent_msg,
-                )
-            for product in move.invoice_line_ids.product_id:
-                if product_msg := product.purchase_line_warn_msg:
-                    warnings.add(product.display_name + " - " + product_msg)
-            move.purchase_warning_text = "\n".join(warnings)
+            move.purchase_warning_text = move._get_order_warning_text(
+                "in_invoice", "purchase_warn_msg", "purchase_line_warn_msg"
+            )
 
     @api.onchange("purchase_vendor_bill_id", "purchase_id")
     def _onchange_purchase_auto_complete(self):
-        if self.purchase_vendor_bill_id.move_id:
-            self.invoice_vendor_bill_id = self.purchase_vendor_bill_id.move_id
-            self._onchange_invoice_vendor_bill()
-        elif self.purchase_vendor_bill_id.order_id:
-            self.purchase_id = self.purchase_vendor_bill_id.order_id
-        self.purchase_vendor_bill_id = False
-
-        if not self.purchase_id:
-            return
-
-        invoice_vals = self.purchase_id.with_company(
-            self.purchase_id.company_id,
-        )._prepare_invoice_vals()
-        has_invoice_lines = bool(
-            self.invoice_line_ids.filtered(
-                lambda x: (
-                    x.display_type
-                    not in ("line_section", "line_subsection", "line_note")
-                ),
-            ),
-        )
-        new_currency_id = (
-            self.currency_id if has_invoice_lines else invoice_vals.get("currency_id")
-        )
-        del invoice_vals["company_id"]
-        if self.move_type == invoice_vals["move_type"]:
-            del invoice_vals["move_type"]
-        self.update(invoice_vals)
-        self.currency_id = new_currency_id
-
-        po_lines = self.purchase_id.line_ids - self.invoice_line_ids.mapped(
-            "purchase_line_ids",
-        )
-        self._add_order_lines(po_lines)
-
-        origins = set(self.invoice_line_ids.mapped("purchase_line_ids.order_id.name"))
-        self.invoice_origin = ",".join(list(origins))
-
-        if self.company_id != self.purchase_id.company_id:
-            self.company_id = self.purchase_id.company_id
-
-        self.purchase_id = False
+        self._auto_complete_from_order("purchase_vendor_bill_id", "purchase_id")
 
     @api.onchange("partner_id", "company_id")
     def _onchange_partner_id(self):
@@ -247,85 +180,21 @@ class AccountMove(models.Model):
         return res
 
     def action_purchase_matching(self):
-        self.check_singleton()
-        return {
-            "type": "ir.actions.act_window",
-            "name": self.env._("Purchase Matching"),
-            "res_model": "purchase.bill.line.match",
-            "domain": [
-                (
-                    "partner_id",
-                    "in",
-                    (self.partner_id | self.partner_id.commercial_partner_id).ids,
-                ),
-                ("company_id", "in", self.env.companies.ids),
-                ("company_id", "child_of", self.company_id.ids),
-                ("account_move_id", "in", [self.id, False]),
-            ],
-            "views": [
-                (self.env.ref("purchase.purchase_bill_line_match_list").id, "list"),
-            ],
-        }
+        return self._action_order_line_matching(
+            self.env._("Purchase Matching"),
+            "purchase.bill.line.match",
+            "purchase.purchase_bill_line_match_list",
+        )
 
     def action_view_source_purchase_orders(self):
-        self.check_singleton()
-        source_orders = self.line_ids.purchase_line_ids.order_id
-        result = self.env["ir.actions.act_window"]._get_action_dict_by_xml_id(
+        return self._action_view_source_orders(
+            "purchase.order",
             "purchase.action_purchase_order_2",
+            "purchase.view_purchase_order_form",
         )
-        if len(source_orders) > 1:
-            result["domain"] = [("id", "in", source_orders.ids)]
-        elif len(source_orders) == 1:
-            result["views"] = [
-                (self.env.ref("purchase.view_purchase_order_form", False).id, "form"),
-            ]
-            result["res_id"] = source_orders.id
-        else:
-            result = {"type": "ir.actions.act_window_close"}
-        return result
 
-    def create_purchase_order(self) -> bool:
-        self.check_singleton()
-        if any(not line.product_id for line in self.invoice_line_ids):
-            raise UserError(
-                self.env._(
-                    "Some move lines does not have a product set. Please review",
-                ),
-            )
-
-        purchase_exist = self.env["purchase.order"].search(
-            [
-                ("partner_id", "=", self.commercial_partner_id.id),
-                ("company_id", "=", self.company_id.id),
-                ("origin", "=", self.name),
-            ],
-            limit=2,
-        )
-        if len(purchase_exist) > 1:
-            raise UserError(
-                self.env._(
-                    "More than one Purchase Orders with the same origin have been"
-                    " found. Please review",
-                ),
-            )
-
-        if not purchase_exist:
-            purchase = self.env["purchase.order"].create(
-                self._prepare_purchase_order_vals(),
-            )
-            line_vals_by_move_line = self._prepare_purchase_line_vals(purchase)
-            purchase_lines = self.env["purchase.order.line"].create(
-                list(line_vals_by_move_line.values()),
-            )
-            for move_line_id, purchase_line in zip(
-                line_vals_by_move_line,
-                purchase_lines,
-                strict=True,
-            ):
-                self.env["account.move.line"].browse(
-                    move_line_id,
-                ).purchase_line_ids = purchase_line
-        return True
+    def create_purchase_order(self):
+        return self._create_order_from_invoice("purchase.order")
 
     def _find_and_set_purchase_orders(
         self,
@@ -623,49 +492,15 @@ class AccountMove(models.Model):
                     invoice.purchase_id = purchase_order
                     invoice._onchange_purchase_auto_complete()
 
-    def _prepare_purchase_order_vals(self) -> dict:
-        self.check_singleton()
-        return {
-            "company_id": self.company_id.id,
-            "currency_id": self.currency_id.id,
-            "partner_id": self.commercial_partner_id.id,
-            "dest_address_id": False,
-            "date_order": self.invoice_date,
-            "fiscal_position_id": (
-                self.fiscal_position_id
-                or self.env["account.fiscal.position"]._get_fiscal_position(
-                    self.commercial_partner_id,
-                )
-            ).id,
-            "payment_term_id": self.invoice_payment_term_id.id,
-            "origin": self.name,
-            "invoice_state": "done",
-        }
+    def _prepare_order_vals_from_invoice(self, order_model):
+        values = super()._prepare_order_vals_from_invoice(order_model)
+        if order_model == "purchase.order":
+            values["dest_address_id"] = False
+        return values
 
-    def _prepare_purchase_line_vals(self, purchase) -> dict:
-        self.check_singleton()
-        purchase_line_vals = {}
-        fpos = purchase.fiscal_position_id
-        company_domain = self.env["account.tax"]._check_company_domain(self.company_id)
-        for line in self.invoice_line_ids.filtered(
-            lambda ln: ln.display_type == "product",
-        ):
-            taxes = fpos.map_tax(line.product_id.sudo().supplier_taxes_id)
-            if taxes:
-                taxes = taxes.filtered_domain(company_domain)
-            purchase_line_vals[line.id] = {
-                "order_id": purchase.id,
-                "product_id": line.product_id.id,
-                "name": (
-                    f"[{line.product_id.default_code}] {line.name}"
-                    if line.product_id.default_code
-                    else line.name
-                ),
-                "product_qty": line.quantity,
-                "product_uom_id": line.product_uom_id.id,
-                "price_unit": line.price_unit,
-                "date_commitment": purchase.date_order,
-                "tax_ids": [Command.set(taxes.ids)],
-                "analytic_distribution": line.analytic_distribution,
-            }
-        return purchase_line_vals
+    def _prepare_order_line_vals_from_invoice(self, order):
+        line_vals = super()._prepare_order_line_vals_from_invoice(order)
+        if order._name == "purchase.order":
+            for vals in line_vals.values():
+                vals["date_commitment"] = order.date_order
+        return line_vals

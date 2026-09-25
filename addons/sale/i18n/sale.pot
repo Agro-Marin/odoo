@@ -3318,14 +3318,6 @@ msgid "Mitchell Admin"
 msgstr ""
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/models/account_move.py:0
-msgid ""
-"More than one Sale Orders with the same origin have been found. Please "
-"review"
-msgstr ""
-
-#. module: sale
 #. odoo-javascript
 #: code:addons/sale/static/src/js/sale_order_line_field/sale_order_line_field.xml:0
 msgid "Move Down"
@@ -5221,12 +5213,6 @@ msgstr ""
 msgid ""
 "Some confirmed orders are selected. Their related documents might be\n"
 "                        affected by the cancellation."
-msgstr ""
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/models/account_move.py:0
-msgid "Some move lines does not have a product set. Please review"
 msgstr ""
 
 #. module: sale

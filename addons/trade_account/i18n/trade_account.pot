@@ -53,6 +53,19 @@ msgstr ""
 
 #. module: trade_account
 #. odoo-python
+#: code:addons/trade_account/models/account_move.py:0
+msgid ""
+"More than one %(orders)s has this document as its origin. Please review."
+msgstr ""
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/models/account_move.py:0
+msgid "Some move lines do not have a product set. Please review."
+msgstr ""
+
+#. module: trade_account
+#. odoo-python
 #: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
 msgid "The percentage of the down payment cannot exceed 100%."
 msgstr ""
