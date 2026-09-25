@@ -17,25 +17,20 @@ msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/wizard/project_forecast_wizard.py:0
+#: code:addons/project/wizards/project_forecast_wizard.py:0
 msgid "  50%% chance of finishing in %(p)s weeks or less"
 msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/wizard/project_forecast_wizard.py:0
+#: code:addons/project/wizards/project_forecast_wizard.py:0
 msgid "  85%% chance of finishing in %(p)s weeks or less"
 msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/wizard/project_forecast_wizard.py:0
+#: code:addons/project/wizards/project_forecast_wizard.py:0
 msgid "  95%% chance of finishing in %(p)s weeks or less"
-msgstr ""
-
-#. module: project
-#: model:ir.model.fields.selection,name:project.selection__project_project__privacy_visibility__portal
-msgid " All internal users and invited portal users"
 msgstr ""
 
 #. module: project
@@ -340,6 +335,21 @@ msgid ""
 msgstr ""
 
 #. module: project
+#: model:mail.template,body_html:project.project_done_email_template
+msgid ""
+"<div>\n"
+"                    Dear <t t-out=\"object.partner_id.name or 'customer'\">Brandon Freeman</t>,<br/>\n"
+"                    It is my pleasure to let you know that we have successfully completed the project \"<strong t-out=\"object.name or ''\">Renovations</strong>\".\n"
+"                    <t t-if=\"user.signature\" data-o-mail-quote-container=\"1\">\n"
+"                        <br/>\n"
+"                        <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"user.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                    </t>\n"
+"                </div>\n"
+"                <br/><span style=\"margin: 0px 0px 0px 0px; font-size: 12px; opacity: 0.5; color: #454748;\" groups=\"project.group_project_stages\">You are receiving this email because your project has been moved to the stage <b t-out=\"object.phase_id.name or ''\">Done</b></span>\n"
+"            "
+msgstr ""
+
+#. module: project
 #: model:mail.template,body_html:project.mail_template_data_project_task
 msgid ""
 "<div>\n"
@@ -392,11 +402,6 @@ msgstr ""
 #. module: project
 #: model_terms:ir.ui.view,arch_db:project.view_task_form2
 msgid "<i class=\"fa-solid fa-random me-2\" role=\"img\" title=\"Planning overlap\"/>"
-msgstr ""
-
-#. module: project
-#: model_terms:ir.ui.view,arch_db:project.edit_project
-msgid "<i class=\"fa-solid fa-triangle-exclamation pe-2\" title=\"Warning\"/>"
 msgstr ""
 
 #. module: project
@@ -689,6 +694,7 @@ msgid "Accepted"
 msgstr ""
 
 #. module: project
+#: model:ir.model.fields,field_description:project.field_project_collaborator__access_mode
 #: model:ir.model.fields,field_description:project.field_project_share_collaborator_wizard__access_mode
 msgid "Access Mode"
 msgstr ""
@@ -911,6 +917,18 @@ msgid ""
 msgstr ""
 
 #. module: project
+#: model:ir.model.fields.selection,name:project.selection__project_collaborator__access_mode__advanced_edit
+#: model:ir.model.fields.selection,name:project.selection__project_share_collaborator_wizard__access_mode__advanced_edit
+msgid "Advanced Edit"
+msgstr ""
+
+#. module: project
+#: model_terms:ir.ui.view,arch_db:project.project_share_wizard_view_form
+msgid ""
+"Advanced Edit: also move tasks between steps and change their priority."
+msgstr ""
+
+#. module: project
 #. odoo-javascript
 #: code:addons/project/static/src/views/project_task_kanban/project_task_kanban_examples.js:0
 msgid "Agile Scrum"
@@ -981,6 +999,11 @@ msgid "All internal users"
 msgstr ""
 
 #. module: project
+#: model:ir.model.fields.selection,name:project.selection__project_project__privacy_visibility__portal
+msgid "All internal users and invited portal users"
+msgstr ""
+
+#. module: project
 #: model:ir.model.fields.selection,name:project.selection__project_task__recurrence_update__all
 msgid "All tasks"
 msgstr ""
@@ -1046,6 +1069,11 @@ msgstr ""
 #: model:ir.model.fields.selection,name:project.selection__project_task_burndown_chart_report__state__approved
 #: model:ir.model.fields.selection,name:project.selection__report_project_task_user__state__approved
 msgid "Approved"
+msgstr ""
+
+#. module: project
+#: model:project.tags,name:project.project_tags_07
+msgid "Architecture"
 msgstr ""
 
 #. module: project
@@ -1361,13 +1389,13 @@ msgid "Backlog"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_project__analytic_account_balance
+#: model:ir.model.fields,field_description:project.field_project_project__amount_analytic_balance
 msgid "Balance"
 msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/wizard/project_forecast_wizard.py:0
+#: code:addons/project/wizards/project_forecast_wizard.py:0
 msgid "Based on %(weeks)s weeks of throughput data (%(sims)s simulations):"
 msgstr ""
 
@@ -1469,6 +1497,11 @@ msgid "Brainstorm"
 msgstr ""
 
 #. module: project
+#: model:project.tags,name:project.project_tags_00
+msgid "Bug"
+msgstr ""
+
+#. module: project
 #. odoo-python
 #: code:addons/project/models/project_project.py:0
 #: model:ir.actions.act_window,name:project.action_project_task_burndown_chart_report
@@ -1506,7 +1539,7 @@ msgstr ""
 #: model:ir.model.fields,help:project.field_project_task__cpm_date_start
 msgid ""
 "Calendar-aware start date computed by critical path analysis. Distinct from "
-"planned_date_begin (the user-entered scheduled start)."
+"date_start (the user-entered scheduled start)."
 msgstr ""
 
 #. module: project
@@ -1517,6 +1550,9 @@ msgstr ""
 #: model:ir.model.fields.selection,name:project.selection__project_task_burndown_chart_report__state__canceled
 #: model:ir.model.fields.selection,name:project.selection__report_project_task_user__state__canceled
 #: model:project.phase,name:project.project_phase_3
+#: model:project.triage,name:project.project_personal_stage_admin_6
+#: model:project.triage,name:project.project_personal_stage_demo_6
+#: model:project.workflow.step,name:project.project_stage_3
 msgid "Cancelled"
 msgstr ""
 
@@ -1595,7 +1631,7 @@ msgstr ""
 
 #. module: project
 #: model_terms:ir.ui.view,arch_db:project.project_share_wizard_view_form
-msgid "Choose one of the following access modes for your collaborators:"
+msgid "Choose the access mode of each collaborator:"
 msgstr ""
 
 #. module: project
@@ -1758,12 +1794,12 @@ msgid "Compute Critical Path"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,help:project.field_project_task__latest_start
+#: model:ir.model.fields,help:project.field_project_task__cpm_date_latest_start
 msgid "Computed by critical path analysis (backward pass)."
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,help:project.field_project_task__earliest_start
+#: model:ir.model.fields,help:project.field_project_task__cpm_date_earliest_start
 msgid "Computed by critical path analysis (forward pass)."
 msgstr ""
 
@@ -1791,8 +1827,8 @@ msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/wizard/project_share_wizard.py:0
-#: code:addons/project/wizard/project_workflow_step_delete.py:0
+#: code:addons/project/wizards/project_share_wizard.py:0
+#: code:addons/project/wizards/project_workflow_step_delete.py:0
 #: model_terms:ir.ui.view,arch_db:project.project_share_wizard_confirm_form
 msgid "Confirmation"
 msgstr ""
@@ -1800,6 +1836,11 @@ msgstr ""
 #. module: project
 #: model_terms:web_tour.tour,rainbow_man_message:project.project_tour
 msgid "Congratulations, you are now a master of project management."
+msgstr ""
+
+#. module: project
+#: model:project.tags,name:project.project_tags_06
+msgid "Construction"
 msgstr ""
 
 #. module: project
@@ -1897,7 +1938,7 @@ msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/wizard/project_template_create_wizard.py:0
+#: code:addons/project/wizards/project_template_create_wizard.py:0
 msgid "Create a Project from Template %s"
 msgstr ""
 
@@ -2144,12 +2185,6 @@ msgid ""
 msgstr ""
 
 #. module: project
-#. odoo-python
-#: code:addons/project/models/project_project.py:0
-msgid "Customers will be added to the followers of their project and tasks."
-msgstr ""
-
-#. module: project
 #: model_terms:ir.ui.view,arch_db:project.project_portfolio_list
 msgid "Cycle Time"
 msgstr ""
@@ -2213,13 +2248,28 @@ msgid "Date Completed"
 msgstr ""
 
 #. module: project
+#: model:ir.model.fields,field_description:project.field_project_milestone__date_deadline
+msgid "Date Deadline"
+msgstr ""
+
+#. module: project
 #: model:ir.model.fields,field_description:project.field_project_risk__date_identified
 msgid "Date Identified"
 msgstr ""
 
 #. module: project
+#: model:ir.model.fields,field_description:project.field_project_task_recurrence__date_recurrence_origin
+msgid "Date Recurrence Origin"
+msgstr ""
+
+#. module: project
 #: model:ir.model.fields,field_description:project.field_project_risk__date_resolved
 msgid "Date Resolved"
+msgstr ""
+
+#. module: project
+#: model:ir.model.fields,field_description:project.field_project_task__date_start_effective
+msgid "Date Start Effective"
 msgstr ""
 
 #. module: project
@@ -2291,7 +2341,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/project/controllers/portal.py:0
 #: model:ir.model.fields,field_description:project.field_project_cfd_report__date_end
-#: model:ir.model.fields,field_description:project.field_project_milestone__deadline
 #: model:ir.model.fields,field_description:project.field_project_task__date_end
 #: model:ir.model.fields,field_description:project.field_project_task_burndown_chart_report__date_end
 #: model:ir.model.fields,field_description:project.field_report_project_task_user__date_end
@@ -2373,12 +2422,6 @@ msgid "Delete"
 msgstr ""
 
 #. module: project
-#: model:ir.actions.server,name:project.unlink_project_phase_action
-#: model:ir.actions.server,name:project.unlink_workflow_step_action
-msgid "Delete…"
-msgstr ""
-
-#. module: project
 #. odoo-python
 #: code:addons/project/models/project_phase.py:0
 #: model_terms:ir.ui.view,arch_db:project.view_project_phase_unarchive_wizard
@@ -2397,6 +2440,12 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:project.view_project_workflow_step_delete_wizard
 #: model_terms:ir.ui.view,arch_db:project.view_project_workflow_step_unarchive_wizard
 msgid "Delete Workflow Step"
+msgstr ""
+
+#. module: project
+#: model:ir.actions.server,name:project.unlink_project_phase_action
+#: model:ir.actions.server,name:project.unlink_workflow_step_action
+msgid "Delete…"
 msgstr ""
 
 #. module: project
@@ -2477,6 +2526,7 @@ msgstr ""
 #. module: project
 #. odoo-javascript
 #: code:addons/project/static/src/views/project_task_kanban/project_task_kanban_examples.js:0
+#: model:project.tags,name:project.project_tags_08
 msgid "Design"
 msgstr ""
 
@@ -2591,6 +2641,9 @@ msgstr ""
 #: model:ir.model.fields.selection,name:project.selection__project_task_burndown_chart_report__state__done
 #: model:ir.model.fields.selection,name:project.selection__report_project_task_user__state__done
 #: model:project.phase,name:project.project_phase_2
+#: model:project.triage,name:project.project_personal_stage_admin_5
+#: model:project.triage,name:project.project_personal_stage_demo_5
+#: model:project.workflow.step,name:project.project_stage_2
 #: model_terms:ir.ui.view,arch_db:project.project_retrospective_search
 msgid "Done"
 msgstr ""
@@ -2615,7 +2668,7 @@ msgid "Dropped"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_retrospective_action__due_date
+#: model:ir.model.fields,field_description:project.field_project_retrospective_action__date_due
 msgid "Due Date"
 msgstr ""
 
@@ -2639,6 +2692,7 @@ msgid "Economic Prioritization"
 msgstr ""
 
 #. module: project
+#: model:ir.model.fields.selection,name:project.selection__project_collaborator__access_mode__edit
 #: model:ir.model.fields.selection,name:project.selection__project_share_collaborator_wizard__access_mode__edit
 msgid "Edit"
 msgstr ""
@@ -2650,22 +2704,8 @@ msgid "Edit Milestones"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields.selection,name:project.selection__project_share_collaborator_wizard__access_mode__edit_limited
-msgid "Edit with limited access"
-msgstr ""
-
-#. module: project
 #: model_terms:ir.ui.view,arch_db:project.project_share_wizard_view_form
-msgid ""
-"Edit with limited access: collaborators can view and edit tasks they follow "
-"in the Kanban view."
-msgstr ""
-
-#. module: project
-#: model_terms:ir.ui.view,arch_db:project.project_share_wizard_view_form
-msgid ""
-"Edit: collaborators can view and edit all tasks in the Kanban view. "
-"Additionally, they can choose which tasks they want to follow."
+msgid "Edit: also create and update tasks."
 msgstr ""
 
 #. module: project
@@ -2776,6 +2816,14 @@ msgid "Estimation"
 msgstr ""
 
 #. module: project
+#. odoo-python
+#: code:addons/project/models/project_project.py:0
+msgid ""
+"Every internal user can access the project. Invite portal users as "
+"collaborators to give them access."
+msgstr ""
+
+#. module: project
 #. odoo-javascript
 #: code:addons/project/static/src/xml/project_task_kanban_examples.xml:0
 msgid "Everyone can propose ideas, and the Editor marks the best ones as"
@@ -2796,6 +2844,11 @@ msgid "Expected"
 msgstr ""
 
 #. module: project
+#: model:project.tags,name:project.project_tags_02
+msgid "Experiment"
+msgstr ""
+
+#. module: project
 #: model:ir.model.fields,field_description:project.field_project_project__date
 #: model:ir.model.fields,field_description:project.field_project_template_create_wizard__date
 msgid "Expiration Date"
@@ -2808,6 +2861,7 @@ msgstr ""
 
 #. module: project
 #: model:ir.model.fields.selection,name:project.selection__project_risk__category__external
+#: model:project.tags,name:project.project_tags_05
 msgid "External"
 msgstr ""
 
@@ -2849,6 +2903,11 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/project/static/src/views/project_task_kanban/project_task_kanban_examples.js:0
 msgid "Final Document"
+msgstr ""
+
+#. module: project
+#: model:project.tags,name:project.project_tags_11
+msgid "Finance"
 msgstr ""
 
 #. module: project
@@ -3015,23 +3074,6 @@ msgid "Grant Portal Access"
 msgstr ""
 
 #. module: project
-#. odoo-python
-#: code:addons/project/models/project_project.py:0
-msgid ""
-"Grant employees access to your project or tasks by adding them as followers."
-" Employees automatically get access to the tasks they are assigned to."
-msgstr ""
-
-#. module: project
-#. odoo-python
-#: code:addons/project/models/project_project.py:0
-msgid ""
-"Grant users access by adding them as followers — either to the project or "
-"individual tasks. Internal users automatically gain access to tasks they are"
-" assigned to."
-msgstr ""
-
-#. module: project
 #. odoo-javascript
 #: code:addons/project/static/src/xml/project_task_kanban_examples.xml:0
 msgid ""
@@ -3117,7 +3159,7 @@ msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/wizard/project_forecast_wizard.py:0
+#: code:addons/project/wizards/project_forecast_wizard.py:0
 msgid ""
 "Historical throughput: %(lo)s-%(hi)s tasks/week (avg %(avg)s), including "
 "%(zeros)s week(s) with no delivery"
@@ -3136,6 +3178,22 @@ msgstr ""
 #. module: project
 #: model:ir.model.fields,field_description:project.field_project_task__html_field_history_metadata
 msgid "History metadata"
+msgstr ""
+
+#. module: project
+#: model:project.tags,name:project.project_tags_13
+msgid "Home"
+msgstr ""
+
+#. module: project
+#: model:account.analytic.account,name:project.analytic_construction
+#: model:project.project,name:project.project_home_construction
+msgid "Home Construction"
+msgstr ""
+
+#. module: project
+#: model:project.project,name:project.project_project_4
+msgid "Home Make Over"
 msgstr ""
 
 #. module: project
@@ -3332,6 +3390,7 @@ msgstr ""
 #: model:ir.model.fields.selection,name:project.selection__project_task_burndown_chart_report__state__in_progress
 #: model:ir.model.fields.selection,name:project.selection__report_project_task_user__state__in_progress
 #: model:project.phase,name:project.project_phase_1
+#: model:project.workflow.step,name:project.project_stage_1
 msgid "In Progress"
 msgstr ""
 
@@ -3344,12 +3403,24 @@ msgstr ""
 #. module: project
 #. odoo-python
 #: code:addons/project/models/project_task.py:0
+#: model:project.triage,name:project.project_personal_stage_admin_0
+#: model:project.triage,name:project.project_personal_stage_demo_0
 msgid "Inbox"
 msgstr ""
 
 #. module: project
 #: model_terms:ir.ui.view,arch_db:project.project_forecast_wizard_form
 msgid "Input"
+msgstr ""
+
+#. module: project
+#: model:project.tags,name:project.project_tags_09
+msgid "Interior"
+msgstr ""
+
+#. module: project
+#: model:project.tags,name:project.project_tags_04
+msgid "Internal"
 msgstr ""
 
 #. module: project
@@ -3361,27 +3432,24 @@ msgid ""
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,help:project.field_project_benefit__review_reminder_date
+#: model:ir.model.fields,help:project.field_project_project__member_user_ids
 msgid ""
-"Internal: the review_date for which a reminder activity was last scheduled "
+"Internal users who can access the project when its visibility is limited to "
+"team members."
+msgstr ""
+
+#. module: project
+#: model:ir.model.fields,help:project.field_project_benefit__date_review_reminder
+msgid ""
+"Internal: the date_review for which a reminder activity was last scheduled "
 "by the cron. Prevents re-nagging every day once a reminder has been raised; "
-"a new reminder is only scheduled when review_date moves."
+"a new reminder is only scheduled when date_review moves."
 msgstr ""
 
 #. module: project
 #. odoo-javascript
 #: code:addons/project/static/src/components/subtask_kanban_list/subtask_kanban_list.js:0
 msgid "Invalid Display Name"
-msgstr ""
-
-#. module: project
-#: model:ir.model.fields.selection,name:project.selection__project_project__privacy_visibility__invited_users
-msgid "Invited internal and portal users"
-msgstr ""
-
-#. module: project
-#: model:ir.model.fields.selection,name:project.selection__project_project__privacy_visibility__followers
-msgid "Invited internal users"
 msgstr ""
 
 #. module: project
@@ -3578,6 +3646,8 @@ msgstr ""
 #. module: project
 #. odoo-python
 #: code:addons/project/models/project_task.py:0
+#: model:project.triage,name:project.project_personal_stage_admin_4
+#: model:project.triage,name:project.project_personal_stage_demo_4
 msgid "Later"
 msgstr ""
 
@@ -3828,6 +3898,11 @@ msgid "Medium Team (4-8)"
 msgstr ""
 
 #. module: project
+#: model:project.tags,name:project.project_tags_15
+msgid "Meeting"
+msgstr ""
+
+#. module: project
 #: model:ir.model,name:project.model_ir_ui_menu
 msgid "Menu"
 msgstr ""
@@ -3864,7 +3939,7 @@ msgid "Messages"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_gate_criterion__met
+#: model:ir.model.fields,field_description:project.field_project_gate_criterion__is_met
 #: model:ir.model.fields.selection,name:project.selection__project_task__deadline_met__met
 msgid "Met"
 msgstr ""
@@ -3948,6 +4023,14 @@ msgstr ""
 #. module: project
 #: model:ir.model.fields.selection,name:project.selection__project_task__repeat_unit__month
 msgid "Months"
+msgstr ""
+
+#. module: project
+#. odoo-python
+#: code:addons/project/models/project_task.py:0
+msgid ""
+"Moving a task to another step or changing its priority requires Advanced "
+"Edit access to the project."
 msgstr ""
 
 #. module: project
@@ -4056,7 +4139,13 @@ msgstr ""
 #: code:addons/project/static/src/views/components/project_task_template_dropdown.xml:0
 #: code:addons/project/static/src/views/components/project_template_dropdown.xml:0
 #: code:addons/project/static/src/views/project_task_kanban/project_task_kanban_examples.js:0
+#: model:project.workflow.step,name:project.project_stage_0
 msgid "New"
+msgstr ""
+
+#. module: project
+#: model:project.tags,name:project.project_tags_01
+msgid "New Feature"
 msgstr ""
 
 #. module: project
@@ -4128,12 +4217,12 @@ msgid "Next Activity Type"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_benefit__review_date
+#: model:ir.model.fields,field_description:project.field_project_benefit__date_review
 msgid "Next Review Date"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,help:project.field_project_workflow_step__rating_request_deadline
+#: model:ir.model.fields,help:project.field_project_workflow_step__date_rating_request
 msgid ""
 "Next scheduled periodic rating request. Seeded when periodic rating is "
 "enabled and advanced after each send — deliberately a plain field, not a "
@@ -4408,6 +4497,17 @@ msgid "Off Track"
 msgstr ""
 
 #. module: project
+#: model:project.tags,name:project.project_tags_10
+msgid "Office"
+msgstr ""
+
+#. module: project
+#: model:account.analytic.account,name:project.analytic_office_design
+#: model:project.project,name:project.project_project_1
+msgid "Office Design"
+msgstr ""
+
+#. module: project
 #. odoo-javascript
 #: code:addons/project/static/src/views/project_task_kanban/project_task_kanban_examples.js:0
 msgid "Old Completed Sprint"
@@ -4460,6 +4560,20 @@ msgstr ""
 #: model:ir.model.constraint,message:project.constraint_project_baseline_unique_current_baseline
 #: model:ir.model.fields,help:project.field_project_baseline__is_current
 msgid "Only one baseline per project can be marked as current."
+msgstr ""
+
+#. module: project
+#. odoo-python
+#: code:addons/project/models/project_project.py:0
+msgid ""
+"Only the project manager and the team members can access the project, plus "
+"the portal users invited as collaborators."
+msgstr ""
+
+#. module: project
+#. odoo-python
+#: code:addons/project/models/project_project.py:0
+msgid "Only the project manager and the team members can access the project."
 msgstr ""
 
 #. module: project
@@ -4711,17 +4825,12 @@ msgid "Planned Date"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_task__planned_date_start
-msgid "Planned Date Start"
-msgstr ""
-
-#. module: project
 #: model:ir.model.fields,field_description:project.field_project_history__planned_duration_days
 msgid "Planned Duration (days)"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_baseline_line__planned_end
+#: model:ir.model.fields,field_description:project.field_project_baseline_line__date_planned_end
 msgid "Planned End (snapshot)"
 msgstr ""
 
@@ -4758,7 +4867,7 @@ msgid "Planned Resources must be greater than zero."
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_baseline_line__planned_start
+#: model:ir.model.fields,field_description:project.field_project_baseline_line__date_planned_start
 msgid "Planned Start (snapshot)"
 msgstr ""
 
@@ -4832,14 +4941,6 @@ msgid "Portal communication history for this record."
 msgstr ""
 
 #. module: project
-#. odoo-python
-#: code:addons/project/models/project_project.py:0
-msgid ""
-"Portal users will be removed from the followers of the project and its "
-"tasks."
-msgstr ""
-
-#. module: project
 #: model_terms:ir.ui.view,arch_db:project.project_portfolio_graph
 #: model_terms:ir.ui.view,arch_db:project.project_portfolio_list
 #: model_terms:ir.ui.view,arch_db:project.project_portfolio_pivot
@@ -4879,7 +4980,7 @@ msgid "Pre-Mortem Conducted"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_project__premortem_date
+#: model:ir.model.fields,field_description:project.field_project_project__date_premortem
 msgid "Pre-Mortem Date"
 msgstr ""
 
@@ -4889,7 +4990,7 @@ msgid "Pre-Mortem Notes"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_project__premortem_participants
+#: model:ir.model.fields,field_description:project.field_project_project__premortem_participant_ids
 msgid "Pre-Mortem Participants"
 msgstr ""
 
@@ -4925,6 +5026,7 @@ msgstr ""
 #: code:addons/project/controllers/portal.py:0
 #: model:ir.model.fields,field_description:project.field_project_task__priority
 #: model:ir.model.fields,field_description:project.field_report_project_task_user__priority
+#: model:project.tags,name:project.project_tags_16
 #: model_terms:ir.ui.view,arch_db:project.view_task_search_form_base
 msgid "Priority"
 msgstr ""
@@ -4957,6 +5059,11 @@ msgid "Private tasks cannot be converted into templates"
 msgstr ""
 
 #. module: project
+#: model:res.groups,name:project.privilege_manage_feature_groups
+msgid "Privilege: end the memberships of a project feature no project uses"
+msgstr ""
+
+#. module: project
 #: model:ir.model.fields,field_description:project.field_project_risk__probability
 msgid "Probability"
 msgstr ""
@@ -4969,6 +5076,11 @@ msgstr ""
 #. module: project
 #: model:ir.model.fields.selection,name:project.selection__project_retrospective_action__category__process
 msgid "Process"
+msgstr ""
+
+#. module: project
+#: model:project.project,name:project.project_template_1
+msgid "Product Launch Campaign"
 msgstr ""
 
 #. module: project
@@ -5216,27 +5328,6 @@ msgid "Project Visibility"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,help:project.field_project_project__privacy_visibility
-#: model:ir.model.fields,help:project.field_project_task__project_privacy_visibility
-#: model:ir.model.fields,help:project.field_task_share_wizard__project_privacy_visibility
-msgid ""
-"Project and Task Visibility:\n"
-"- Invited internal users: Can access only the project or tasks they follow. Assignees automatically get access.\n"
-"- Invited internal and portal users: Same as above, extended to portal users.\n"
-"- All internal users: Full access to the project and all its tasks.\n"
-"- All internal and invited portal users: Internal users get full access. Portal users can access only the project or tasks they follow.\n"
-"\n"
-"Portal Access Levels:\n"
-"- Read-only: Portal users see tasks via their portal but can’t edit them.\n"
-"- Edit (limited): Portal users access kanban/list views and can edit limited fields on followed tasks.\n"
-"- Edit: Same as above, with access to all tasks.\n"
-"\n"
-"Other Rules:\n"
-"- Internal users can open a task from a direct link, even without project access.\n"
-"- Project admins have access to private projects, even if not followers.\n"
-msgstr ""
-
-#. module: project
 #. odoo-javascript
 #: code:addons/project/static/src/actions/client_actions.js:0
 msgid "Project converted to template."
@@ -5260,8 +5351,13 @@ msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/wizard/project_share_wizard.py:0
+#: code:addons/project/wizards/project_share_wizard.py:0
 msgid "Project shared with your collaborators."
+msgstr ""
+
+#. module: project
+#: model:mail.template,subject:project.project_done_email_template
+msgid "Project status - {{ object.name }}"
 msgstr ""
 
 #. module: project
@@ -5284,6 +5380,11 @@ msgstr ""
 #. module: project
 #: model:ir.actions.server,name:project.ir_cron_benefit_review_ir_actions_server
 msgid "Project: Check benefit review dates"
+msgstr ""
+
+#. module: project
+#: model:mail.template,name:project.project_done_email_template
+msgid "Project: Project Completed"
 msgstr ""
 
 #. module: project
@@ -5494,24 +5595,6 @@ msgid "Reached"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields.selection,name:project.selection__project_share_collaborator_wizard__access_mode__read
-msgid "Read"
-msgstr ""
-
-#. module: project
-#: model_terms:ir.ui.view,arch_db:project.project_share_wizard_view_form
-msgid "Read: collaborators can view tasks but cannot edit them."
-msgstr ""
-
-#. module: project
-#: model:ir.model.fields,help:project.field_project_share_collaborator_wizard__access_mode
-msgid ""
-"Read: collaborators can view tasks but cannot edit them.\n"
-"Edit with limited access: collaborators can view and edit tasks they follow in the Kanban view.\n"
-"Edit: collaborators can view and edit all tasks in the Kanban view. Additionally, they can choose which tasks they want to follow."
-msgstr ""
-
-#. module: project
 #: model:mail.template,subject:project.mail_template_data_project_task
 msgid "Reception of {{ object.name }}"
 msgstr ""
@@ -5548,6 +5631,11 @@ msgstr ""
 #. module: project
 #: model:ir.model.fields,field_description:project.field_project_task__recurrence_id
 msgid "Recurrence"
+msgstr ""
+
+#. module: project
+#: model:ir.model.fields,field_description:project.field_project_task_recurrence__recurrence_anchor_field
+msgid "Recurrence Anchor Field"
 msgstr ""
 
 #. module: project
@@ -5613,12 +5701,12 @@ msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/wizard/project_forecast_wizard.py:0
+#: code:addons/project/wizards/project_forecast_wizard.py:0
 msgid "Remaining items: %(n)s"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_benefit__review_reminder_date
+#: model:ir.model.fields,field_description:project.field_project_benefit__date_review_reminder
 msgid "Reminder Scheduled For"
 msgstr ""
 
@@ -5626,6 +5714,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/project/static/src/core/web/follower_patch.js:0
 msgid "Remove Collaborator"
+msgstr ""
+
+#. module: project
+#: model:account.analytic.account,name:project.analytic_renovations
+#: model:project.project,name:project.project_project_3
+msgid "Renovations"
 msgstr ""
 
 #. module: project
@@ -5648,6 +5742,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/project/static/src/views/project_task_kanban/project_task_kanban_examples.js:0
 msgid "Research"
+msgstr ""
+
+#. module: project
+#: model:account.analytic.account,name:project.analytic_research_development
+#: model:project.project,name:project.project_project_2
+msgid "Research & Development"
 msgstr ""
 
 #. module: project
@@ -5814,7 +5914,7 @@ msgid "Review Criteria"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_gate__review_date
+#: model:ir.model.fields,field_description:project.field_project_gate__date_review
 msgid "Review Date"
 msgstr ""
 
@@ -6108,6 +6208,13 @@ msgid "Set as Current"
 msgstr ""
 
 #. module: project
+#: model:mail.template,description:project.project_done_email_template
+msgid ""
+"Set on project's stages to inform customers when a project reaches that "
+"stage"
+msgstr ""
+
+#. module: project
 #. odoo-javascript
 #: code:addons/project/static/src/components/project_task_priority_switch_field/project_task_priority_switch_field.js:0
 msgid "Set priority as %s"
@@ -6211,6 +6318,11 @@ msgstr ""
 #. module: project
 #: model_terms:ir.ui.view,arch_db:project.project_history_search
 msgid "Small Team (1-3)"
+msgstr ""
+
+#. module: project
+#: model:project.tags,name:project.project_tags_12
+msgid "Social"
 msgstr ""
 
 #. module: project
@@ -6373,8 +6485,8 @@ msgid "Start Sprint"
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,field_description:project.field_project_task__planned_date_begin
-#: model:ir.model.fields,field_description:project.field_report_project_task_user__planned_date_begin
+#: model:ir.model.fields,field_description:project.field_project_task__date_start
+#: model:ir.model.fields,field_description:project.field_report_project_task_user__date_start
 msgid "Start date"
 msgstr ""
 
@@ -6773,6 +6885,12 @@ msgstr ""
 #: model:ir.embedded.actions,name:project.project_embedded_action_all_tasks_dashboard
 #: model:ir.model.fields,field_description:project.field_project_project__task_ids
 #: model:ir.ui.menu,name:project.menu_project_management
+#: model:project.project,label_tasks:project.project_home_construction
+#: model:project.project,label_tasks:project.project_project_1
+#: model:project.project,label_tasks:project.project_project_2
+#: model:project.project,label_tasks:project.project_project_3
+#: model:project.project,label_tasks:project.project_project_4
+#: model:project.project,label_tasks:project.project_template_1
 #: model_terms:ir.ui.view,arch_db:project.portal_layout
 #: model_terms:ir.ui.view,arch_db:project.portal_my_home
 #: model_terms:ir.ui.view,arch_db:project.portal_my_project
@@ -6863,6 +6981,11 @@ msgid "Team Capacity (hours)"
 msgstr ""
 
 #. module: project
+#: model:ir.model.fields,field_description:project.field_project_project__member_user_ids
+msgid "Team Members"
+msgstr ""
+
+#. module: project
 #: model_terms:ir.ui.view,arch_db:project.project_history_search
 msgid "Team Size"
 msgstr ""
@@ -6870,6 +6993,16 @@ msgstr ""
 #. module: project
 #: model:ir.model.fields,field_description:project.field_project_history__team_size
 msgid "Team Size (distinct assignees)"
+msgstr ""
+
+#. module: project
+#: model:ir.model.fields.selection,name:project.selection__project_project__privacy_visibility__invited_users
+msgid "Team members and invited portal users"
+msgstr ""
+
+#. module: project
+#: model:ir.model.fields.selection,name:project.selection__project_project__privacy_visibility__followers
+msgid "Team members only"
 msgstr ""
 
 #. module: project
@@ -6928,7 +7061,7 @@ msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/report/project_cfd_report.py:0
+#: code:addons/project/reports/project_cfd_report.py:0
 msgid ""
 "The Cumulative Flow Diagram must be grouped by date and by Workflow Step."
 msgstr ""
@@ -7010,7 +7143,7 @@ msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/wizard/project_forecast_wizard.py:0
+#: code:addons/project/wizards/project_forecast_wizard.py:0
 msgid "The number of simulations must be at least 1."
 msgstr ""
 
@@ -7096,7 +7229,7 @@ msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/report/project_task_burndown_chart_report.py:0
+#: code:addons/project/reports/project_task_burndown_chart_report.py:0
 msgid ""
 "The view must be grouped by date and by Workflow Step - Burndown chart or Is"
 " Closed - Burnup chart"
@@ -7135,12 +7268,16 @@ msgstr ""
 #. module: project
 #. odoo-python
 #: code:addons/project/models/project_task.py:0
+#: model:project.triage,name:project.project_personal_stage_admin_3
+#: model:project.triage,name:project.project_personal_stage_demo_3
 msgid "This Month"
 msgstr ""
 
 #. module: project
 #. odoo-python
 #: code:addons/project/models/project_task.py:0
+#: model:project.triage,name:project.project_personal_stage_admin_2
+#: model:project.triage,name:project.project_personal_stage_demo_2
 #: model_terms:ir.ui.view,arch_db:project.project_sharing_project_task_view_search
 #: model_terms:ir.ui.view,arch_db:project.view_task_search_form_project_base
 msgid "This Week"
@@ -7369,14 +7506,6 @@ msgid ""
 msgstr ""
 
 #. module: project
-#. odoo-python
-#: code:addons/project/models/project_project.py:0
-msgid ""
-"To give portal users access to your project, add them as followers. For task"
-" access, add them as followers for each task."
-msgstr ""
-
-#. module: project
 #: model_terms:ir.ui.view,arch_db:project.project_task_convert_to_subtask_view_form
 msgid ""
 "To transform a task into a sub-task, select a parent task. Alternatively, "
@@ -7387,6 +7516,8 @@ msgstr ""
 #. module: project
 #. odoo-python
 #: code:addons/project/models/project_task.py:0
+#: model:project.triage,name:project.project_personal_stage_admin_1
+#: model:project.triage,name:project.project_personal_stage_demo_1
 #: model_terms:ir.ui.view,arch_db:project.project_sharing_project_task_view_search
 #: model_terms:ir.ui.view,arch_db:project.view_task_search_form_project_base
 msgid "Today"
@@ -7656,6 +7787,11 @@ msgid "Urgent"
 msgstr ""
 
 #. module: project
+#: model:project.tags,name:project.project_tags_03
+msgid "Usability"
+msgstr ""
+
+#. module: project
 #: model:res.groups,name:project.group_project_milestone
 msgid "Use Milestones"
 msgstr ""
@@ -7757,6 +7893,8 @@ msgid "Velocity"
 msgstr ""
 
 #. module: project
+#: model:ir.model.fields.selection,name:project.selection__project_collaborator__access_mode__view
+#: model:ir.model.fields.selection,name:project.selection__project_share_collaborator_wizard__access_mode__view
 #: model_terms:ir.ui.view,arch_db:project.view_project_kanban
 msgid "View"
 msgstr ""
@@ -7775,6 +7913,20 @@ msgid "View Tasks"
 msgstr ""
 
 #. module: project
+#: model_terms:ir.ui.view,arch_db:project.project_share_wizard_view_form
+msgid "View: read the tasks and write in their chatter."
+msgstr ""
+
+#. module: project
+#: model:ir.model.fields,help:project.field_project_collaborator__access_mode
+#: model:ir.model.fields,help:project.field_project_share_collaborator_wizard__access_mode
+msgid ""
+"View: read the tasks and write in their chatter.\n"
+"Edit: also create and update tasks.\n"
+"Advanced Edit: also move tasks between steps and change their priority."
+msgstr ""
+
+#. module: project
 #: model:ir.model.fields,field_description:project.field_project_project__privacy_visibility
 msgid "Visibility"
 msgstr ""
@@ -7789,7 +7941,7 @@ msgstr ""
 
 #. module: project
 #. odoo-python
-#: code:addons/project/wizard/project_forecast_wizard.py:0
+#: code:addons/project/wizards/project_forecast_wizard.py:0
 msgid ""
 "WARNING: %(pct)s%% of simulations had not finished after %(cap)s weeks and "
 "were cut short — the percentiles above are optimistic lower bounds."
@@ -7895,7 +8047,7 @@ msgid ""
 msgstr ""
 
 #. module: project
-#: model:ir.model.fields,help:project.field_project_benefit__review_date
+#: model:ir.model.fields,help:project.field_project_benefit__date_review
 msgid "When this benefit should next be reviewed for progress."
 msgstr ""
 
@@ -7926,6 +8078,30 @@ msgstr ""
 #. module: project
 #: model:ir.model.fields,help:project.field_project_task__recurrence_update
 msgid "Which tasks of the recurrence this change applies to."
+msgstr ""
+
+#. module: project
+#: model:ir.model.fields,help:project.field_project_project__privacy_visibility
+#: model:ir.model.fields,help:project.field_project_task__project_privacy_visibility
+#: model:ir.model.fields,help:project.field_task_share_wizard__project_privacy_visibility
+msgid ""
+"Who can access the project and its tasks:\n"
+"- Team members only: the project manager and the team members.\n"
+"- Team members and invited portal users: the same, plus the portal users invited as collaborators.\n"
+"- All internal users: every internal user.\n"
+"- All internal users and invited portal users: every internal user, plus the portal users invited as collaborators.\n"
+"\n"
+"Collaborator access modes:\n"
+"- View: read the tasks and write in their chatter.\n"
+"- Edit: also create and update tasks.\n"
+"- Advanced Edit: also move tasks between steps and change their priority.\n"
+"\n"
+"Following a project or a task only subscribes to its notifications. An internal user or portal contact following a task can still read that task."
+msgstr ""
+
+#. module: project
+#: model:project.tags,name:project.project_tags_14
+msgid "Work"
 msgstr ""
 
 #. module: project

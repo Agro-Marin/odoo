@@ -2699,6 +2699,11 @@ msgid "Customer"
 msgstr ""
 
 #. module: calendar
+#: model:calendar.event.type,name:calendar.categ_meet1
+msgid "Customer Meeting"
+msgstr ""
+
+#. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_info
 msgid ""
 "DROP BUILDING BLOCKS HERE TO MAKE THEM AVAILABLE ACROSS ALL APPOINTMENTS"
@@ -2854,6 +2859,11 @@ msgstr ""
 #. module: calendar
 #: model:mail.template,subject:calendar.calendar_template_delete_event
 msgid "Deleted event: {{ object.name }}"
+msgstr ""
+
+#. module: calendar
+#: model:appointment.type,name:calendar.appointment_type_dental_care
+msgid "Dental Care"
 msgstr ""
 
 #. module: calendar
@@ -3029,6 +3039,12 @@ msgid "EMAIL"
 msgstr ""
 
 #. module: calendar
+#: model_terms:appointment.type,message_intro:calendar.appointment_type_tennis_court
+msgid ""
+"Easily reserve tennis courts for your next match, anytime and anywhere."
+msgstr ""
+
+#. module: calendar
 #. odoo-javascript
 #: code:addons/calendar/static/src/views/ask_recurrence_update_policy_hook.js:0
 msgid "Edit Recurrent event"
@@ -3155,6 +3171,11 @@ msgstr ""
 #. module: calendar
 #: model:ir.model.fields,help:calendar.field_appointment_type__message_confirmation
 msgid "Extra information provided once the appointment is booked."
+msgstr ""
+
+#. module: calendar
+#: model:calendar.event.type,name:calendar.categ_meet5
+msgid "Feedback Meeting"
 msgstr ""
 
 #. module: calendar
@@ -3497,6 +3518,11 @@ msgstr ""
 #. module: calendar
 #: model:ir.model.fields,help:calendar.field_appointment_invite__identical_config_id
 msgid "Interface field to try to prevent creating identical links"
+msgstr ""
+
+#. module: calendar
+#: model:calendar.event.type,name:calendar.categ_meet2
+msgid "Internal Meeting"
 msgstr ""
 
 #. module: calendar
@@ -4240,6 +4266,11 @@ msgid "Odoo Discuss"
 msgstr ""
 
 #. module: calendar
+#: model:calendar.event.type,name:calendar.categ_meet3
+msgid "Off-site Meeting"
+msgstr ""
+
+#. module: calendar
 #: model:ir.model.fields.selection,name:calendar.selection__appointment_type__category_time_display__punctual_fields
 msgid "On specific dates"
 msgstr ""
@@ -4309,6 +4340,11 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/calendar/static/src/booking/views/appointment_calendar/appointment_calendar_controller.js:0
 msgid "Open Appointment Type Form"
+msgstr ""
+
+#. module: calendar
+#: model:calendar.event.type,name:calendar.categ_meet4
+msgid "Open Discussion"
 msgstr ""
 
 #. module: calendar
@@ -4852,6 +4888,13 @@ msgid "Schedule not after (days)"
 msgstr ""
 
 #. module: calendar
+#: model_terms:appointment.type,message_intro:calendar.appointment_type_dental_care
+msgid ""
+"Schedule your visit today and experience expert dental care brought right to"
+" your doorstep."
+msgstr ""
+
+#. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_calendar_event__partner_id
 msgid "Scheduled by"
 msgstr ""
@@ -5325,6 +5368,11 @@ msgid "Survey User Input Line"
 msgstr ""
 
 #. module: calendar
+#: model:survey.question,title:calendar.appointment_type_dental_care_question_1
+msgid "Symptoms"
+msgstr ""
+
+#. module: calendar
 #. odoo-javascript
 #: code:addons/calendar/static/src/views/attendee_calendar/attendee_calendar_controller.xml:0
 msgid "Synchro is paused"
@@ -5389,6 +5437,11 @@ msgstr ""
 #. module: calendar
 #: model:ir.model.fields,help:calendar.field_calendar_alarm__mail_template_id
 msgid "Template used to render mail reminder content."
+msgstr ""
+
+#. module: calendar
+#: model:appointment.type,name:calendar.appointment_type_tennis_court
+msgid "Tennis Court"
 msgstr ""
 
 #. module: calendar

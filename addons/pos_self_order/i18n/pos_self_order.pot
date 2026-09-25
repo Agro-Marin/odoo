@@ -158,7 +158,7 @@ msgid "Available Languages"
 msgstr ""
 
 #. module: pos_self_order
-#: model_terms:ir.ui.view,arch_db:pos_self_order.product_template_search_view_pos
+#: model_terms:ir.ui.view,arch_db:pos_self_order.view_product_template_search_pos
 msgid "Available in Self"
 msgstr ""
 
@@ -337,8 +337,8 @@ msgid "Country"
 msgstr ""
 
 #. module: pos_self_order
-#: model:ir.model,website_form_label:pos_self_order.model_res_partner
-msgid "Create a Customer"
+#: model:ir.model,name:pos_self_order.model_res_country_state
+msgid "Country state"
 msgstr ""
 
 #. module: pos_self_order
@@ -431,9 +431,9 @@ msgstr ""
 #. module: pos_self_order
 #: model:ir.model.fields,field_description:pos_self_order.field_ir_http__display_name
 #: model:ir.model.fields,field_description:pos_self_order.field_mail_template__display_name
+#: model:ir.model.fields,field_description:pos_self_order.field_mixin_pos_load__display_name
 #: model:ir.model.fields,field_description:pos_self_order.field_pos_category__display_name
 #: model:ir.model.fields,field_description:pos_self_order.field_pos_config__display_name
-#: model:ir.model.fields,field_description:pos_self_order.field_pos_load_mixin__display_name
 #: model:ir.model.fields,field_description:pos_self_order.field_pos_order__display_name
 #: model:ir.model.fields,field_description:pos_self_order.field_pos_order_line__display_name
 #: model:ir.model.fields,field_description:pos_self_order.field_pos_payment_method__display_name
@@ -445,6 +445,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:pos_self_order.field_product_template__display_name
 #: model:ir.model.fields,field_description:pos_self_order.field_res_config_settings__display_name
 #: model:ir.model.fields,field_description:pos_self_order.field_res_country__display_name
+#: model:ir.model.fields,field_description:pos_self_order.field_res_country_state__display_name
 #: model:ir.model.fields,field_description:pos_self_order.field_res_partner__display_name
 #: model:ir.model.fields,field_description:pos_self_order.field_restaurant_floor__display_name
 #: model:ir.model.fields,field_description:pos_self_order.field_restaurant_table__display_name
@@ -607,9 +608,9 @@ msgstr ""
 #. module: pos_self_order
 #: model:ir.model.fields,field_description:pos_self_order.field_ir_http__id
 #: model:ir.model.fields,field_description:pos_self_order.field_mail_template__id
+#: model:ir.model.fields,field_description:pos_self_order.field_mixin_pos_load__id
 #: model:ir.model.fields,field_description:pos_self_order.field_pos_category__id
 #: model:ir.model.fields,field_description:pos_self_order.field_pos_config__id
-#: model:ir.model.fields,field_description:pos_self_order.field_pos_load_mixin__id
 #: model:ir.model.fields,field_description:pos_self_order.field_pos_order__id
 #: model:ir.model.fields,field_description:pos_self_order.field_pos_order_line__id
 #: model:ir.model.fields,field_description:pos_self_order.field_pos_payment_method__id
@@ -621,6 +622,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:pos_self_order.field_product_template__id
 #: model:ir.model.fields,field_description:pos_self_order.field_res_config_settings__id
 #: model:ir.model.fields,field_description:pos_self_order.field_res_country__id
+#: model:ir.model.fields,field_description:pos_self_order.field_res_country_state__id
 #: model:ir.model.fields,field_description:pos_self_order.field_res_partner__id
 #: model:ir.model.fields,field_description:pos_self_order.field_restaurant_floor__id
 #: model:ir.model.fields,field_description:pos_self_order.field_restaurant_table__id
@@ -861,7 +863,7 @@ msgid "Not available"
 msgstr ""
 
 #. module: pos_self_order
-#: model_terms:ir.ui.view,arch_db:pos_self_order.product_template_search_view_pos
+#: model_terms:ir.ui.view,arch_db:pos_self_order.view_product_template_search_pos
 msgid "Not available in Self"
 msgstr ""
 
@@ -994,7 +996,7 @@ msgid "Pickup zone"
 msgstr ""
 
 #. module: pos_self_order
-#: model:ir.model,name:pos_self_order.model_pos_load_mixin
+#: model:ir.model,name:pos_self_order.model_mixin_pos_load
 msgid "PoS data loading mixin"
 msgstr ""
 
@@ -1631,6 +1633,11 @@ msgid "Zip"
 msgstr ""
 
 #. module: pos_self_order
+#: model_terms:ir.ui.view,arch_db:pos_self_order.res_config_settings_view_form_menu
+msgid "a"
+msgstr ""
+
+#. module: pos_self_order
 #. odoo-javascript
 #: code:addons/pos_self_order/static/src/app/components/unavailable_product_dialog/unavailable_product_dialog.xml:0
 msgid "are"
@@ -1646,12 +1653,6 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/pos_self_order/static/src/app/components/preset_info_popup/preset_info_popup.xml:0
 msgid "close"
-msgstr ""
-
-#. module: pos_self_order
-#. odoo-python
-#: code:addons/pos_self_order/models/pos_config.py:0
-msgid "each"
 msgstr ""
 
 #. module: pos_self_order
@@ -1685,4 +1686,11 @@ msgstr ""
 #. module: pos_self_order
 #: model_terms:ir.ui.view,arch_db:pos_self_order.custom_link_tree
 msgid "odoo"
+msgstr ""
+
+#. module: pos_self_order
+#. odoo-javascript
+#: code:addons/pos_self_order/static/src/app/pages/cart_page/cart_page.xml:0
+#: code:addons/pos_self_order/static/src/app/pages/combo_page/combo_page.xml:0
+msgid "x"
 msgstr ""
