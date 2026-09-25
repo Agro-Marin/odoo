@@ -854,16 +854,37 @@ class MixinMerge(models.AbstractModel):
         )
 
     @api.model
+    def _get_merge_withheld_fields(self, dst_record: models.BaseModel) -> set[str]:
+        # write_groups gate what the acting user may set on the destination; a
+        # merge is no way around them, so a gated field keeps its own value
+        withheld = {
+            fname
+            for fname, field in dst_record._fields.items()
+            if field.write_groups and not dst_record._has_field_access(field, "write")
+        }
+        if withheld:
+            _debug.logic(
+                "merge_write_gated_withheld",
+                model=dst_record._name,
+                destination=dst_record.id,
+                fields=sorted(withheld),
+            )
+        return withheld
+
+    @api.model
     def _update_company_dependent_values_generic(
         self,
         src_records: models.BaseModel,
         dst_record: models.BaseModel,
+        withheld: set[str] | None = None,
     ) -> None:
         self.env.flush_all()
+        if withheld is None:
+            withheld = self._get_merge_withheld_fields(dst_record)
 
         merged = 0  # debuglog
         for fname, field in dst_record._fields.items():
-            if not field.company_dependent:
+            if not field.company_dependent or fname in withheld:
                 continue
             merged += 1  # debuglog
             self.env.execute_query(
@@ -932,7 +953,10 @@ class MixinMerge(models.AbstractModel):
             src_records.ids,
         )
 
-        self._update_company_dependent_values_generic(src_records, dst_record)
+        withheld = self._get_merge_withheld_fields(dst_record)
+        self._update_company_dependent_values_generic(
+            src_records, dst_record, withheld=withheld
+        )
 
         model_fields = dst_record.fields_get().keys()
         summable_fields = set(summable_fields)
@@ -957,7 +981,8 @@ class MixinMerge(models.AbstractModel):
         for column in model_fields:
             field = dst_record._fields[column]
             if (
-                field.type in ("many2many", "one2many")
+                column in withheld
+                or field.type in ("many2many", "one2many")
                 or not field.store
                 or field.related
                 or (field.compute and field.readonly)
