@@ -3,8 +3,7 @@
 
 import { Component, onPatched, useRef, useState } from "@odoo/owl";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
-import { useAutofocus, useService } from "@web/core/utils/hooks";
-import { useListener } from "@web/core/utils/owl_bridge";
+import { useAutofocus, useMountedListener, useService } from "@web/core/utils/hooks";
 
 export class KanbanColumnQuickCreate extends Component {
     static template = "web.KanbanColumnQuickCreate";
@@ -32,21 +31,18 @@ export class KanbanColumnQuickCreate extends Component {
         useAutofocus();
         this.inputRef = useRef("autofocus");
 
-        useListener(window, "mousedown", (/** @type {Event} */ ev) => {
-            if (this.root.el) {
-                this.mousedownTarget = ev.target;
-            }
+        useMountedListener(window, "mousedown", (/** @type {Event} */ ev) => {
+            this.mousedownTarget = ev.target;
         });
-        useListener(
+        useMountedListener(
             window,
             "click",
             (/** @type {Event} */ ev) => {
-                const rootEl = this.root.el;
-                if (!rootEl) {
-                    return;
-                }
                 const target = /** @type {Node} */ (this.mousedownTarget || ev.target);
-                if (!rootEl.contains(target)) {
+                const gotClickedInside = /** @type {HTMLElement} */ (
+                    this.root.el
+                ).contains(target);
+                if (!gotClickedInside) {
                     this.fold();
                 }
                 this.mousedownTarget = null;

@@ -434,3 +434,31 @@ export function useRefListener(ref, ...listener) {
         () => [ref.el],
     );
 }
+
+/**
+ * @template {string} K
+ * @param {EventTarget} target
+ * @param {K} eventName
+ * @param {(ev: import("@web/core/utils/owl_bridge").ListenedEvent<K>) => unknown} handler
+ * @param {boolean | AddEventListenerOptions} [eventParams]
+ * @returns {void}
+ */
+export function useMountedListener(target, eventName, handler, eventParams) {
+    /** @type {Event | undefined} */
+    let attachedDuring;
+    const listener = (/** @type {Event} */ ev) => {
+        if (ev !== attachedDuring) {
+            handler.call(
+                target,
+                /** @type {import("@web/core/utils/owl_bridge").ListenedEvent<K>} */ (
+                    ev
+                ),
+            );
+        }
+    };
+    onMounted(() => {
+        attachedDuring = window.event;
+        target.addEventListener(eventName, listener, eventParams);
+    });
+    onWillUnmount(() => target.removeEventListener(eventName, listener, eventParams));
+}

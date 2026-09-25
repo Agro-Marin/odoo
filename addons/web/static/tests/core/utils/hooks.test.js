@@ -3,7 +3,15 @@
 import { describe, expect, getFixture, test } from "@odoo/hoot";
 import { click, queryOne, queryValue } from "@odoo/hoot-dom";
 import { animationFrame, Deferred, mockTouch } from "@odoo/hoot-mock";
-import { Component, onMounted, reactive, useRef, useState, xml } from "@odoo/owl";
+import {
+    Component,
+    onMounted,
+    onWillStart,
+    reactive,
+    useRef,
+    useState,
+    xml,
+} from "@odoo/owl";
 import {
     contains,
     getService,
@@ -18,6 +26,7 @@ import {
     useBus,
     useChildRef,
     useForwardRefToParent,
+    useMountedListener,
     useService,
     useServiceProtectMethodHandling,
     useSpellCheck,
@@ -297,6 +306,101 @@ describe("useBus", () => {
         await animationFrame();
 
         bus.trigger("test-event");
+        expect.verifySteps([]);
+    });
+});
+
+describe("useMountedListener", () => {
+    class Blocker extends Component {
+        static props = { pending: Promise };
+        static template = xml`<span class="o_blocker"/>`;
+        setup() {
+            onWillStart(() => this.props.pending);
+        }
+    }
+
+    function spyTarget() {
+        const target = new EventTarget();
+        const add = target.addEventListener.bind(target);
+        const remove = target.removeEventListener.bind(target);
+        target.addEventListener = (type, listener, options) => {
+            expect.step(`add:${type}`);
+            add(type, listener, options);
+        };
+        target.removeEventListener = (type, listener, options) => {
+            expect.step(`remove:${type}`);
+            remove(type, listener, options);
+        };
+        return target;
+    }
+
+    /**
+     * @param {EventTarget} target
+     * @param {Promise<void>} pending
+     */
+    async function mountParent(target, pending) {
+        const state = reactive({ shown: false });
+        class Listening extends Component {
+            static props = {};
+            static template = xml`<div class="o_listening" t-ref="root"/>`;
+            setup() {
+                const root = useRef("root");
+                useMountedListener(target, "o-ping", (ev) => {
+                    expect.step(`${ev.type}:${root.el?.isConnected}`);
+                });
+            }
+        }
+        class Parent extends Component {
+            static components = { Blocker, Listening };
+            static props = {};
+            static template = xml`
+                <t t-if="this.state.shown">
+                    <Listening/>
+                    <Blocker pending="this.pending"/>
+                </t>`;
+            setup() {
+                this.state = useState(state);
+                this.pending = pending;
+            }
+        }
+        await mountWithCleanup(Parent);
+        return state;
+    }
+
+    test("fires only while mounted, when its refs are in the DOM", async () => {
+        const target = spyTarget();
+        const pending = new Deferred();
+        const state = await mountParent(target, pending);
+
+        state.shown = true;
+        await animationFrame();
+        expect(".o_listening").toHaveCount(0);
+        target.dispatchEvent(new Event("o-ping"));
+        expect.verifySteps([]);
+
+        pending.resolve();
+        await animationFrame();
+        expect(".o_listening").toHaveCount(1);
+        expect.verifySteps(["add:o-ping"]);
+        target.dispatchEvent(new Event("o-ping"));
+        expect.verifySteps(["o-ping:true"]);
+
+        state.shown = false;
+        await animationFrame();
+        expect.verifySteps(["remove:o-ping"]);
+        target.dispatchEvent(new Event("o-ping"));
+        expect.verifySteps([]);
+    });
+
+    test("a render cancelled before mount never attaches", async () => {
+        const target = spyTarget();
+        const state = await mountParent(target, new Deferred());
+
+        state.shown = true;
+        await animationFrame();
+        state.shown = false;
+        await animationFrame();
+        target.dispatchEvent(new Event("o-ping"));
         expect.verifySteps([]);
     });
 });

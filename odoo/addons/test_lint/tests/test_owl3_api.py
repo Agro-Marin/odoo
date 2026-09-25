@@ -27,6 +27,23 @@ _SINGLE_RETURN = re.compile(r"\{\s*return\b[^;{}]*;\s*\}", re.DOTALL)
 _PROVIDER = re.compile(
     r"^(?:export\s+)?function\s+provide[A-Z]\w*\s*\([^)]*\)\s*\{", re.MULTILINE
 )
+_USE_LISTENER = re.compile(r"(?<![\w.$])useListener\s*\(")
+_REF_READ = re.compile(r"\.el\b")
+_FUNCTION_DEF = re.compile(
+    r"^[ \t]*(?:export\s+)?(?:async\s+)?(?:function\s+)?([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{",
+    re.MULTILINE,
+)
+_VALUE_DEF = re.compile(
+    r"^[ \t]*(?:export\s+)?(?:(?:const|let|var)\s+)?([A-Za-z_$][\w$]*)\s*=(?![=>])",
+    re.MULTILINE,
+)
+_NAME_USE = re.compile(
+    r"(?:(?<=\.)(?=[A-Za-z_$][\w$]*\s*\()|(?<=this\.)|(?<![\w.$]))([A-Za-z_$][\w$]*)"
+)
+_NOT_A_DEFINITION = frozenset(
+    {"if", "for", "while", "switch", "catch", "function", "return", "with"}
+)
+_CALLEE_DEPTH = 4
 ENV_KEYS = {
     "owl_env_reads": re.compile(r"\bthis\.env\b"),
     "owl_env_dialog_context": re.compile(
@@ -148,6 +165,92 @@ def raw_sub_env_calls(source: str) -> list[int]:
     ]
 
 
+def _skip_string(code: str, index: int) -> int:
+    quote = code[index]
+    index += 1
+    while index < len(code) and code[index] != quote:
+        index += 2 if code[index] == "\\" else 1
+    return index
+
+
+def _expression_end(code: str, start: int) -> int:
+    depth = 0
+    index = start
+    while index < len(code):
+        char = code[index]
+        if char in "'\"`":
+            index = _skip_string(code, index)
+        elif char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+            if depth < 0:
+                return index
+        elif char == ";" and not depth:
+            return index
+        index += 1
+    return len(code)
+
+
+def _call_arguments(code: str, open_paren: int) -> list[str]:
+    arguments = []
+    depth = 0
+    start = open_paren + 1
+    index = open_paren
+    while index < len(code):
+        char = code[index]
+        if char in "'\"`":
+            index = _skip_string(code, index)
+        elif char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth -= 1
+            if not depth:
+                arguments.append(code[start:index])
+                return arguments
+        elif char == "," and depth == 1:
+            arguments.append(code[start:index])
+            start = index + 1
+        index += 1
+    return arguments
+
+
+def _definitions(code: str) -> dict[str, str]:
+    bodies: dict[str, list[str]] = {}
+    for m in _FUNCTION_DEF.finditer(code):
+        if m.group(1) not in _NOT_A_DEFINITION:
+            end = _body_end(code, m.end() - 1)
+            bodies.setdefault(m.group(1), []).append(code[m.start() : end + 1])
+    for m in _VALUE_DEF.finditer(code):
+        end = _expression_end(code, m.end())
+        bodies.setdefault(m.group(1), []).append(code[m.end() : end])
+    return {name: "\n".join(parts) for name, parts in bodies.items()}
+
+
+def setup_listener_ref_reads(source: str) -> list[int]:
+    code = _COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), source)
+    definitions = None
+    lines = []
+    for m in _USE_LISTENER.finditer(code):
+        arguments = _call_arguments(code, m.end() - 1)
+        if len(arguments) < 3:
+            continue
+        if definitions is None:
+            definitions = _definitions(code)
+        reached = arguments[2]
+        frontier = [reached]
+        seen: set[str] = set()
+        for _ in range(_CALLEE_DEPTH):
+            names = {n for text in frontier for n in _NAME_USE.findall(text)}
+            fresh = sorted((names & definitions.keys()) - seen)
+            seen.update(fresh)
+            frontier = [definitions[name] for name in fresh]
+            reached += "\n".join(["", *frontier])
+        if _REF_READ.search(reached):
+            lines.append(code.count("\n", 0, m.start()) + 1)
+    return lines
+
+
 def template_calls(pattern: re.Pattern, source: str) -> list[int]:
     code = _XML_COMMENT.sub(lambda m: "\n" * m.group(0).count("\n"), source)
     return [code.count("\n", 0, m.start()) + 1 for m in pattern.finditer(code)]
@@ -192,6 +295,7 @@ def _findings(gate: str) -> dict[str, tuple[str, ...]]:
 
 
 _SCANNERS = {
+    "owl_setup_listener_ref": setup_listener_ref_reads,
     "owl_sub_env_raw": raw_sub_env_calls,
     "owl_patched_props": patched_props_calls,
     "owl_use_env_raw": raw_use_env_calls,
@@ -410,6 +514,17 @@ class TestOwl3Api(lint_case.LintCase):
             "so each accessor becomes a plugin read",
         )
 
+    def test_no_setup_listener_reading_a_ref(self):
+        self._assert_per_repo(
+            _scan_findings("owl_setup_listener_ref"),
+            "owl_setup_listener_ref",
+            "useListener handlers that read a ref's .el",
+            "useListener attaches at setup, so its handler runs before the "
+            "component is in the DOM and every ref is null. A listener whose "
+            "handler reads the DOM listens only while mounted: "
+            "useMountedListener from @web/core/utils/hooks",
+        )
+
     def test_no_patched_props(self):
         self._assert_per_repo(
             _scan_findings("owl_patched_props"),
@@ -476,6 +591,33 @@ class TestOwl3ApiScan(BaseCase):
             "// Foo.props = {};\n"
         )
         self.assertEqual(patched_props_calls(source), [1, 2, 5])
+
+    def test_a_listener_reaching_a_ref_through_its_callees_is_found(self):
+        source = (
+            "class C extends Component {\n"
+            "    setup() {\n"
+            '        useListener(window, "click", (ev) => {\n'
+            "            this.root.el.contains(ev.target);\n"
+            "        });\n"
+            '        useListener(window, "keydown", this.onKeydown.bind(this));\n'
+            "        const throttled = useThrottle(() => this.position());\n"
+            '        useListener(window, "resize", throttled);\n'
+            '        useListener(window, "blur", () => this.state.open = false);\n'
+            '        useMountedListener(window, "scroll", () => this.root.el);\n'
+            '        // useListener(window, "x", () => this.root.el);\n'
+            "    }\n"
+            "    onKeydown(ev) {\n"
+            "        if (ev.key) { this.close(); }\n"
+            "    }\n"
+            "    close() {\n"
+            "        this.menuRef.el?.blur();\n"
+            "    }\n"
+            "    position() {\n"
+            "        const { top } = this.props.ref.el.getBoundingClientRect();\n"
+            "    }\n"
+            "}\n"
+        )
+        self.assertEqual(setup_listener_ref_reads(source), [3, 6, 8])
 
     def test_a_use_env_is_raw_unless_an_accessor_only_returns_it(self):
         source = (
