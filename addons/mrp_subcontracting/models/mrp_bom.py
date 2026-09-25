@@ -1,7 +1,14 @@
+from collections import defaultdict
+
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import TransactionMemo
+
+SUBCONTRACT_BOM_BY_PRODUCT = TransactionMemo(
+    "mrp.bom.subcontract_by_product", invalidated_by=("mrp.bom",)
+)
 
 _debug = DebugLog(__name__)
 
@@ -30,18 +37,64 @@ class MrpBom(models.Model):
         bom_type="subcontract",
         subcontractor=False,
     ):
-        domain = self._get_domain_bom(
-            product, picking_type=picking_type, company_id=company_id, bom_type=bom_type
-        )
-        if subcontractor:
-            domain &= Domain("subcontractor_ids", "parent_of", subcontractor.ids)
-            _debug.logic(
-                "subcontract_bom", product=product.id, subcontractor=subcontractor.id
-            )
-            return self.search(domain, order="sequence, product_id, id", limit=1)
-        else:
+        if not subcontractor:
             _debug.logic("subcontract_bom", product=product.id, by="no_subcontractor")
             return self.env["mrp.bom"]
+        memo = SUBCONTRACT_BOM_BY_PRODUCT(self.env)
+        scope = (
+            self.env.uid,
+            self.env.su,
+            tuple(self.env.companies.ids),
+            picking_type.id if picking_type else False,
+            company_id,
+            bom_type,
+            tuple(subcontractor.ids),
+        )
+        if (scope, product.id) not in memo:
+            # one search answers every product fetched alongside this one, as
+            # orderpoints and moves ask for them one at a time
+            batch = (
+                product.browse(product._prefetch_ids).filtered(
+                    lambda candidate: (scope, candidate.id) not in memo
+                )
+                | product
+            )
+            found = self._search_subcontract_bom_by_product(
+                batch, picking_type, company_id, bom_type, subcontractor
+            )
+            for candidate in batch:
+                memo[scope, candidate.id] = found[candidate].id
+            _debug.logic(
+                "subcontract_bom",
+                product=product.id,
+                subcontractor=subcontractor.id,
+                batch=len(batch),
+            )
+        return self.browse(memo[scope, product.id])
+
+    def _search_subcontract_bom_by_product(
+        self, products, picking_type, company_id, bom_type, subcontractor
+    ):
+        domain = self._get_domain_bom(
+            products,
+            picking_type=picking_type,
+            company_id=company_id,
+            bom_type=bom_type,
+        ) & Domain("subcontractor_ids", "parent_of", subcontractor.ids)
+        products_by_template = defaultdict(products.browse)
+        for product in products:
+            products_by_template[product.product_tmpl_id] |= product
+        found = defaultdict(lambda: self.env["mrp.bom"])
+        for bom in self.search(domain, order="sequence, product_id, id"):
+            matched = (
+                bom.product_id & products
+                if bom.product_id
+                else products_by_template[bom.product_tmpl_id]
+            )
+            for product in matched:
+                if product not in found:
+                    found[product] = bom
+        return found
 
     @api.constrains("operation_ids", "byproduct_ids", "type")
     def _check_subcontracting_no_operation(self):
