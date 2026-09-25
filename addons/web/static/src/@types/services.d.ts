@@ -41,6 +41,7 @@ declare module "services" {
     import { demoDataService } from "@web/views/settings/widgets/demo_data_service";
     import { fillTemporalService } from "@web/views/fill_temporal_service";
     import { userInviteService } from "@web/views/settings/widgets/user_invite_service";
+    import { activeViewService } from "@web/views/active_view";
     import { viewService } from "@web/views/view_service";
 
     import { actionService } from "@web/webclient/actions/action_service";
@@ -65,6 +66,7 @@ declare module "services" {
 
     export interface Services {
         action: typeof actionService;
+        active_view: typeof activeViewService;
         bottom_sheet: typeof bottomSheetService;
         color_scheme: typeof colorSchemeService;
         command: typeof commandService;

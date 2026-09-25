@@ -2,7 +2,14 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { normalize } from "@web/core/l10n/utils";
-import { fuzzyLevenshteinLookup, fuzzyLookup, fuzzyTest } from "@web/core/utils/search";
+import {
+    fuzzyLevenshteinLookup,
+    fuzzyLookup,
+    fuzzyTest,
+    spokenLookup,
+    spokenSimilarity,
+    spokenWords,
+} from "@web/core/utils/search";
 
 describe.current.tags("headless");
 
@@ -126,3 +133,52 @@ function levenshtein(/** @type {string} */ a, /** @type {string} */ b) {
     }
     return rows[a.length][b.length];
 }
+
+test("spokenWords folds case and accents, and drops what it is told to ignore", () => {
+    expect(spokenWords("Facturas de Cliente, ¿Pagadas?")).toEqual([
+        "facturas",
+        "de",
+        "cliente",
+        "pagadas",
+    ]);
+    expect(spokenWords("Órdenes de venta", new Set(["de"]))).toEqual([
+        "ordenes",
+        "venta",
+    ]);
+});
+
+test("spokenSimilarity: a full match beats a partial one, and a misheard word still counts", () => {
+    expect(spokenSimilarity(["inventario"], ["inventario"])).toBe(1);
+    const partial = spokenSimilarity(["facturas"], ["facturas", "cliente"]);
+    expect(partial).toBeGreaterThan(0.8);
+    expect(partial).toBeLessThan(1);
+    expect(spokenSimilarity(["inventorio"], ["inventario"])).toBeGreaterThan(0.85);
+    expect(spokenSimilarity(["abre", "inventario"], ["inventario"])).toBeLessThan(0.8);
+    expect(spokenSimilarity([], ["inventario"])).toBe(0);
+});
+
+test("spokenLookup ranks by similarity and keeps only what clears the threshold", () => {
+    const menus = [
+        { label: "Facturas de cliente" },
+        { label: "Facturas" },
+        { label: "Inventario" },
+        { label: "Ventas" },
+    ];
+    const ignore = new Set(["de"]);
+    expect(
+        spokenLookup("facturas", menus, (m) => m.label, { ignore }).map(
+            (r) => r.elem.label,
+        ),
+    ).toEqual(["Facturas", "Facturas de cliente"]);
+    expect(
+        spokenLookup("inventorio", menus, (m) => m.label).map((r) => r.elem.label),
+    ).toEqual(["Inventario"]);
+    expect(spokenLookup("compras", menus, (m) => m.label)).toEqual([]);
+    expect(spokenLookup("", menus, (m) => m.label)).toEqual([]);
+    expect(
+        spokenLookup("sales", menus, (m) => [
+            m.label,
+            m.label === "Ventas" ? "Sales" : "",
+        ])[0].elem.label,
+    ).toBe("Ventas");
+});

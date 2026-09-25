@@ -343,12 +343,26 @@ export class HomeMenu extends Component {
 
     /** @param {HomeMenuApp} app */
     pinTitle(app) {
-        return this.layout.isPinned(app) ? _t("Unpin") : _t("Pin");
+        return this.layout.isPinned(app)
+            ? _t("Unpin %s", app.label)
+            : _t("Pin %s", app.label);
     }
 
     /** @param {HomeMenuApp} app */
     hideTitle(app) {
-        return this.layout.isHidden(app) ? _t("Show") : _t("Hide");
+        return this.layout.isHidden(app)
+            ? _t("Show %s", app.label)
+            : _t("Hide %s", app.label);
+    }
+
+    /**
+     * @param {HomeMenuApp} app
+     * @param {-1 | 1} direction
+     */
+    moveTitle(app, direction) {
+        return direction < 0
+            ? _t("Move %s earlier", app.label)
+            : _t("Move %s later", app.label);
     }
 
     /** @returns {number} */

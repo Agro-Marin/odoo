@@ -7,8 +7,29 @@ import { findGroupByGroupId } from "./search_group_by.js";
 import { fireAndForgetNotify } from "./search_notification.js";
 import { SPECIAL } from "./search_state.js";
 import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.js";
+import { isGroupableField } from "./utils/misc.js";
 
 const log = makeLogger("web.search");
+
+const TEXT_SEARCH_FIELD_TYPES = [
+    "char",
+    "html",
+    "many2many",
+    "many2one",
+    "one2many",
+    "properties",
+    "text",
+];
+
+/**
+ * @typedef {{
+ *   filters?: string[],
+ *   dateFilters?: { name: string, generatorIds?: string[] }[],
+ *   groupBys?: (string | { fieldName: string, interval?: string })[],
+ *   fieldSearches?: { fieldName: string, value: any, label?: string, operator?: string }[],
+ *   customDomain?: string,
+ * }} SearchSpec
+ */
 
 /**
  * @template {new (...args: any[]) => any} T
@@ -388,6 +409,107 @@ export const SearchQueryMixin = (Base) =>
                 this.query.push({ searchItemId, intervalId });
             }
             return this._notify();
+        }
+
+        /**
+         * Filters, periods and group-bys are named by their arch `name`, or by
+         * the field they stand on; a group-by the view does not declare is
+         * created when its field is groupable. Nothing already active is
+         * toggled off.
+         *
+         * @param {SearchSpec} spec
+         */
+        async applySearchSpec(spec) {
+            log.logic("applySearchSpec", () => spec);
+            await this._withNotificationsBlockedAsync(() =>
+                this._applySearchSpec(spec),
+            );
+            return this._drainPendingNotification();
+        }
+
+        /** @param {SearchSpec} spec */
+        async _applySearchSpec({
+            filters = [],
+            dateFilters = [],
+            groupBys = [],
+            fieldSearches = [],
+            customDomain,
+        }) {
+            const named = (/** @type {string[]} */ types, /** @type {string} */ name) =>
+                this.getSearchItems(
+                    (/** @type {any} */ item) =>
+                        types.includes(item.type) &&
+                        [item.name, item.fieldName].includes(name),
+                )[0];
+            for (const name of filters) {
+                const item = named(["filter", "dateFilter"], name);
+                if (!item || item.isActive) {
+                    continue;
+                }
+                if (item.type === "dateFilter") {
+                    await this.toggleDateFilter(item.id);
+                } else {
+                    await this.toggleSearchItem(item.id);
+                }
+            }
+            for (const { name, generatorIds } of dateFilters) {
+                const item = named(["dateFilter"], name);
+                if (!item) {
+                    continue;
+                }
+                for (const generatorId of generatorIds ?? item.defaultGeneratorIds) {
+                    if (!this._getSelectedGeneratorIds(item.id).includes(generatorId)) {
+                        await this.toggleDateFilter(item.id, generatorId);
+                    }
+                }
+            }
+            for (const groupBy of groupBys) {
+                const { fieldName, interval } =
+                    typeof groupBy === "string" ? { fieldName: groupBy } : groupBy;
+                const item = named(["groupBy", "dateGroupBy"], fieldName);
+                if (item?.type === "dateGroupBy") {
+                    const intervalId = interval || item.defaultIntervalId;
+                    const active = this.query.some(
+                        (/** @type {any} */ queryElem) =>
+                            queryElem.searchItemId === item.id &&
+                            queryElem.intervalId === intervalId,
+                    );
+                    if (!active) {
+                        await this.toggleDateGroupBy(item.id, intervalId);
+                    }
+                } else if (item) {
+                    if (!item.isActive) {
+                        await this.toggleSearchItem(item.id);
+                    }
+                } else if (
+                    this.searchViewFields[fieldName] &&
+                    isGroupableField(fieldName, this.searchViewFields[fieldName])
+                ) {
+                    this.createNewGroupBy(fieldName, { interval });
+                }
+            }
+            for (const { fieldName, value, label, operator } of fieldSearches) {
+                const item = this.getSearchItems(
+                    (/** @type {any} */ item) =>
+                        item.type === "field" && item.fieldName === fieldName,
+                )[0];
+                if (!item) {
+                    continue;
+                }
+                await this.addAutoCompletionValues(item.id, {
+                    value,
+                    label: label ?? String(value),
+                    operator:
+                        operator ||
+                        item.operator ||
+                        (TEXT_SEARCH_FIELD_TYPES.includes(item.fieldType)
+                            ? "ilike"
+                            : "="),
+                });
+            }
+            if (customDomain && customDomain !== "[]") {
+                await this.splitAndAddDomain(customDomain);
+            }
         }
 
         async switchGroupBySort() {

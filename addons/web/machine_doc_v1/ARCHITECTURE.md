@@ -78,9 +78,9 @@ Top-level layout of `addons/web/` (detailed maps are separate docs):
 |------|----------|-----|
 | `controllers/` | 24 `.py` — HTTP endpoints (22 Controller classes, 76 route handlers) | `ROUTE_MAP.md` |
 | `models/` | 28 `.py` — ORM extensions (27 model files: web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
-| `static/src/` | 883 JavaScript/OWL source files across 249 directories (FSD layers) | `DIRECTORY_MAP.md` |
+| `static/src/` | 884 JavaScript/OWL source files across 249 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 18 directories (17 vendored libraries + generated `popper_compat/`) — DO NOT MODIFY | `static/lib/versions.json` |
-| `static/tests/` | 813 `.js` (incl. 748 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
+| `static/tests/` | 814 `.js` (incl. 749 `*.test.js` Hoot suites), mirroring the `static/src/` tree | `TEST_TAGS.md` |
 | `tests/` | 68 Python test files (`test_*.py`) | `TEST_TAGS.md` |
 | `machine_doc_v1/` | This directory: `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) · `LAZY_VIEW_LOADING.md` · `VIEW_TEARDOWN_COST.md` (both decision records: investigated, not pursued) · `LIST_EDIT_RENDER_COST.md` (decision record: row-level waste fixed, renderer-level amplification measured and not pursued) · the maps below · `factcheck.sh` | — |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.access.csv`, translations | — |
@@ -98,7 +98,7 @@ Layered organization under `static/src/`:
 | **Components** | `components/` | Reusable OWL UI components (dropdown, pickers, editors, file handling) | 111 JS |
 | **UI** | `ui/` | Overlay layer and its services: dialog, popover, tooltip, notification, overlay, effects, block, alert, carousel, collapse, offcanvas, bottom sheet, command palette, PWA prompt | 47 JS |
 | **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); 116 fork-wide `registerField` / `registerFallbackField` sites | 129 JS |
-| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 181 JS |
+| **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 182 JS |
 | **Webclient** | `webclient/` | App shell: home menu, navbar, menus, actions, user menu, colour scheme, density, debug/profiling, Studio upsell | 96 JS |
 | **Search** | `search/` | Search model and mixins, search bar, facets, filters, group-by, favorites, embedded actions bar | 40 JS |
 | **Model** | `model/` | Client-side relational data model (`RelationalRecord`, `StaticList`, groups, save orchestration) | 52 JS |
@@ -346,6 +346,7 @@ Falsy results are valid. Malformed successful responses are non-retryable
 | `demo_data` | `views/settings/widgets/demo_data_service.js` | Caches whether demo data is active (Settings widgets) |
 | `user_invite` | `views/settings/widgets/user_invite_service.js` | Caches the user-invite panel payload (Settings widgets) |
 | `fillTemporalService` | `views/fill_temporal_service.js` | `FillTemporal`: one memoised `FillTemporalPeriod` per model + date field + granularity, whose `getDomain()` widens a group-by domain to a whole cycle so `_read_group_fill_temporal` can emit the empty periods. Moved here from `crm` on 2026-08-28 (the ORM feature is core; nothing in it is about leads); its only consumer is still crm's forecast views, reached through the registry |
+| `active_view` | `views/active_view.js` | Which view the user is looking at: every `WithSearch` registers its config and search model while mounted, its controller attaches through `useActiveViewController`, and `current` is the last one under `ui.activeElement` -- so a dialog's form wins over the list behind it. Read by `voice` and by enterprise `ai`'s view details |
 | `slow_rpc` | `core/network/slow_rpc_service.js` | Patience-UX: shows a sticky `notification.add(_t("This is taking longer than usual…"))` toast when a non-silent RPC exceeds `SLOW_RPC_CONFIG.thresholdMs` (default 5 s, mutable). Listens on `rpcBus` for `RPC:REQUEST`/`RPC:RESPONSE`; success, error, abort, and timeout all clear the timer. Silent RPCs opt out, as with error dialogs. |
 
 > Additional webclient-level services: `action`, `menu`, `view`, `currency`,
@@ -487,8 +488,8 @@ an in-tree fork; only `hoot` and `hoot-dom` are internal, versioned with the for
 | Python (controllers) | 24 (22 Controller classes across 20 route-bearing files + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 28 (27 model files + `__init__.py`) |
 | Python (tests) | 68 (`test_*.py`; 69 files incl. `__init__.py`) |
-| JavaScript (src) | 883 (881 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
-| JavaScript (tests) | 813 (incl. 748 `*.test.js` Hoot suites) |
+| JavaScript (src) | 884 (882 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
+| JavaScript (tests) | 814 (incl. 749 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 94 |
 | SCSS/CSS | 213 (34 in `static/src/scss/` shared base; remaining 179 co-located with JS components) |
 | XML (views/ + data/ + static/src OWL templates) | 293 (14 views + 5 data + 274 OWL templates) |

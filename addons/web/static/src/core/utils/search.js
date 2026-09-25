@@ -124,6 +124,85 @@ export function fuzzyLevenshteinLookup(pattern, list, errorRatio = 3) {
 }
 
 /**
+ * @param {string} text
+ * @param {Set<string>} [ignore] normalized words that carry no meaning
+ * @returns {string[]}
+ */
+export function spokenWords(text, ignore) {
+    return normalize(text)
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter((word) => word && !ignore?.has(word));
+}
+
+/**
+ * @param {string} a
+ * @param {string} b
+ * @returns {number} 1 for the same word, down to 0
+ */
+function wordSimilarity(a, b) {
+    if (a === b) {
+        return 1;
+    }
+    return 1 - getLevenshteinScore(a, b) / Math.max(a.length, b.length);
+}
+
+/**
+ * How well what was heard names a phrase, word by word, forgiving the
+ * misspellings a speech recogniser makes. Every heard word must be in the
+ * phrase (precision weighs double); a phrase word left unsaid costs less, so
+ * "facturas" still names "Facturas de cliente", below "Facturas".
+ *
+ * @param {string[]} heard
+ * @param {string[]} phrase
+ * @returns {number} between 0 and 1
+ */
+export function spokenSimilarity(heard, phrase) {
+    if (!heard.length || !phrase.length) {
+        return 0;
+    }
+    const best = (/** @type {string} */ word, /** @type {string[]} */ words) =>
+        Math.max(...words.map((other) => wordSimilarity(word, other)));
+    const precision =
+        heard.reduce((total, word) => total + best(word, phrase), 0) / heard.length;
+    const recall =
+        phrase.reduce((total, word) => total + best(word, heard), 0) / phrase.length;
+    return (2 * precision + recall) / 3;
+}
+
+/**
+ * @template T
+ * @param {string} pattern
+ * @param {T[]} list
+ * @param {(element: T) => (string|string[])} fn
+ * @param {{ threshold?: number, ignore?: Set<string> }} [options]
+ * @returns {{ elem: T, score: number }[]} best first
+ */
+export function spokenLookup(pattern, list, fn, { threshold = 0.8, ignore } = {}) {
+    const heard = spokenWords(pattern, ignore);
+    if (!heard.length) {
+        return [];
+    }
+    /** @type {{ elem: T, score: number }[]} */
+    const results = [];
+    for (const elem of list) {
+        const phrases = fn(elem);
+        let score = 0;
+        for (const phrase of Array.isArray(phrases) ? phrases : [phrases]) {
+            const words = spokenWords(phrase, ignore);
+            score = Math.max(
+                score,
+                spokenSimilarity(heard, words.length ? words : spokenWords(phrase)),
+            );
+        }
+        if (score >= threshold) {
+            results.push({ elem, score });
+        }
+    }
+    results.sort((a, b) => b.score - a.score);
+    return results;
+}
+
+/**
  * @param {string} a
  * @param {string} b
  * @returns {number}

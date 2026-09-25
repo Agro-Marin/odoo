@@ -14,8 +14,10 @@ import { SEARCH_KEYS } from "@web/core/constants";
 import { SearchModelEvent } from "@web/core/events";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
+import { useViewConfig } from "@web/core/view_config_hooks";
 import { provideWebContext } from "@web/core/web_context_hooks";
 import { provideSearchModel, SearchModel } from "@web/search/search_model";
+import { provideActiveView } from "@web/views/active_view";
 
 export const withSearchProps = {
     slots: Object,
@@ -81,6 +83,7 @@ export class WithSearch extends Component {
             ? JSON.parse(this.props.globalState?.searchPanel)
             : null;
         provideSearchModel(this.searchModel);
+        provideActiveView(useViewConfig() ?? {}, this.searchModel);
         provideWebContext({ searchPanelState });
 
         this.state = useState({ searchModelUpdates: 0 });

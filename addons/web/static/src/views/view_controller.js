@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 import { Component, useRef } from "@odoo/owl";
+import { useActiveViewController } from "@web/views/active_view";
 import { getActionMenuItems, useControllerServices } from "@web/views/view_utils";
 
 export class ViewController extends Component {
@@ -30,6 +31,7 @@ export class ViewController extends Component {
 
         this.archInfo = this.props.archInfo;
         this.rootRef = useRef("root");
+        useActiveViewController(this);
     }
 
     setupModel() {}

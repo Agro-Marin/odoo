@@ -193,8 +193,8 @@
             <button type="button" class="o_app_pin" t-att-title="this.pinTitle(app)" t-att-aria-label="this.pinTitle(app)" t-on-click.stop.prevent="() => this._togglePinned(app)">
                 <i class="fa fa-thumb-tack" aria-hidden="true"/>
             </button>
-            <button type="button" class="o_app_move_earlier" title="Move earlier" aria-label="Move earlier" t-att-disabled="!this.canMoveApp(app, -1)" t-on-click="() => this.moveApp(app, -1)"><i class="fa fa-chevron-left" aria-hidden="true"/></button>
-            <button type="button" class="o_app_move_later" title="Move later" aria-label="Move later" t-att-disabled="!this.canMoveApp(app, 1)" t-on-click="() => this.moveApp(app, 1)"><i class="fa fa-chevron-right" aria-hidden="true"/></button>
+            <button type="button" class="o_app_move_earlier" t-att-title="this.moveTitle(app, -1)" t-att-aria-label="this.moveTitle(app, -1)" t-att-disabled="!this.canMoveApp(app, -1)" t-on-click="() => this.moveApp(app, -1)"><i class="fa fa-chevron-left" aria-hidden="true"/></button>
+            <button type="button" class="o_app_move_later" t-att-title="this.moveTitle(app, 1)" t-att-aria-label="this.moveTitle(app, 1)" t-att-disabled="!this.canMoveApp(app, 1)" t-on-click="() => this.moveApp(app, 1)"><i class="fa fa-chevron-right" aria-hidden="true"/></button>
         </div>
     </div>
 </t>

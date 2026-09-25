@@ -4222,7 +4222,7 @@ msgstr ""
 #. module: web
 #. odoo-javascript
 #: code:addons/web/static/src/webclient/home_menu/home_menu.js:0
-msgid "Hide"
+msgid "Hide %s"
 msgstr ""
 
 #. module: web
@@ -5840,14 +5840,14 @@ msgstr ""
 
 #. module: web
 #. odoo-javascript
-#: code:addons/web/static/src/webclient/home_menu/home_menu.xml:0
-msgid "Move earlier"
+#: code:addons/web/static/src/webclient/home_menu/home_menu.js:0
+msgid "Move %s earlier"
 msgstr ""
 
 #. module: web
 #. odoo-javascript
-#: code:addons/web/static/src/webclient/home_menu/home_menu.xml:0
-msgid "Move later"
+#: code:addons/web/static/src/webclient/home_menu/home_menu.js:0
+msgid "Move %s later"
 msgstr ""
 
 #. module: web
@@ -6931,7 +6931,7 @@ msgstr ""
 #. module: web
 #. odoo-javascript
 #: code:addons/web/static/src/webclient/home_menu/home_menu.js:0
-msgid "Pin"
+msgid "Pin %s"
 msgstr ""
 
 #. module: web
@@ -8356,7 +8356,7 @@ msgstr ""
 #. module: web
 #. odoo-javascript
 #: code:addons/web/static/src/webclient/home_menu/home_menu.js:0
-msgid "Show"
+msgid "Show %s"
 msgstr ""
 
 #. module: web
@@ -9628,7 +9628,7 @@ msgstr ""
 #. module: web
 #. odoo-javascript
 #: code:addons/web/static/src/webclient/home_menu/home_menu.js:0
-msgid "Unpin"
+msgid "Unpin %s"
 msgstr ""
 
 #. module: web
