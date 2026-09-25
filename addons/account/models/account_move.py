@@ -1611,6 +1611,7 @@ class AccountMove(models.Model):
                     )
                 )
                 or move.invoice_date_due
+                or move.invoice_date
                 or today
             )
 

@@ -1667,6 +1667,8 @@ class AccountAccount(models.Model):
         suggestion_domain = self._get_suggestion_account_domain(move_type)
         if not suggestion_domain.is_true():
             domain.append(("account_id", "any", suggestion_domain))
+        if document_types := self._get_suggestion_move_types(move_type):
+            domain.append(("move_id.move_type", "in", document_types))
 
         query = self.env["account.move.line"]._search(
             domain,
@@ -1790,6 +1792,13 @@ class AccountAccount(models.Model):
                 "account_type", "=", "asset_fixed"
             )
         return Domain.TRUE
+
+    def _get_suggestion_move_types(self, move_type):
+        AccountMove = self.env["account.move"]
+        return {
+            "out": AccountMove.get_sale_types(include_receipts=True),
+            "in": AccountMove.get_purchase_types(include_receipts=True),
+        }.get((move_type or "").split("_")[0], [])
 
     def _get_name_search_account_types(self, move_type):
         move_type_accounts = {

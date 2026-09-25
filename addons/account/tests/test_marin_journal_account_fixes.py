@@ -41,6 +41,18 @@ class TestMarinJournalAccountFixes(AccountTestInvoicingCommon):
         move.action_post()
         return move
 
+    def test_the_unaffected_earnings_account_is_created_without_warning(self):
+        company = self.env["res.company"].create({"name": "unaffected probe"})
+        self.env.user.company_ids |= company
+        with self.assertNoLogs("odoo.models", "WARNING"):
+            account = company.with_context(
+                install_module="l10n_be"
+            ).get_unaffected_earnings_account()
+
+        self.assertEqual(
+            account, self.env.ref(f"account.{company.id}_unaffected_earnings_account")
+        )
+
     def test_group_display_name_equality_search_matches_on_the_code_prefix(self):
         group = self.env["account.group"].create(
             {"name": "Marin probe", "code_prefix_start": "987654"}
@@ -121,6 +133,42 @@ class TestMarinJournalAccountFixes(AccountTestInvoicingCommon):
                 self.env.company.id, partner.id, "in_refund"
             ),
         )
+
+    def test_suggestions_count_documents_of_the_same_side_only(self):
+        partner = self.env["res.partner"].create({"name": "clearing probe"})
+        billed = self.company_data["default_account_expense"]
+        clearing = billed.copy({"code": "610999", "name": "Clearing expense"})
+        self._post_move("in_invoice", billed, partner)
+        for _ in range(3):
+            entry = self.env["account.move"].create(
+                {
+                    "move_type": "entry",
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "account_id": clearing.id,
+                                "partner_id": partner.id,
+                                "balance": 10.0,
+                            }
+                        ),
+                        Command.create(
+                            {
+                                "account_id": self.company_data[
+                                    "default_account_revenue"
+                                ].id,
+                                "balance": -10.0,
+                            }
+                        ),
+                    ],
+                }
+            )
+            entry.action_post()
+
+        suggested = self.env["account.account"]._get_most_frequent_accounts_for_partner(
+            self.env.company.id, partner.id, "in_invoice"
+        )
+
+        self.assertEqual(suggested, [billed.id])
 
     def test_plain_display_name_does_not_query_account_frequencies(self):
         account = self.company_data["default_account_revenue"]

@@ -830,3 +830,53 @@ class TestMarinSequenceGapSuffix(TestSequenceMixinCommon):
             [False, True, False],
         )
         self.assertEqual(plain.mapped("made_sequence_gap"), [False, False, False])
+
+
+@tagged("post_install", "-at_install")
+class TestMarinDueDateDefault(AccountTestInvoicingCommon):
+    def _invoice(self, **vals):
+        return self.env["account.move"].create(
+            {
+                "move_type": "out_invoice",
+                "partner_id": self.partner_a.id,
+                "invoice_date": "2020-01-01",
+                "invoice_payment_term_id": False,
+                "invoice_line_ids": [
+                    Command.create({"name": "line", "price_unit": 100.0})
+                ],
+                **vals,
+            }
+        )
+
+    def test_an_invoice_without_terms_is_due_on_its_invoice_date(self):
+        invoice = self._invoice()
+
+        self.assertEqual(str(invoice.invoice_date_due), "2020-01-01")
+        invoice.action_post()
+        self.assertEqual(
+            invoice.line_ids.filtered("date_maturity").mapped("date_maturity"),
+            [invoice.invoice_date],
+        )
+
+    def test_an_explicit_due_date_is_kept(self):
+        invoice = self._invoice(invoice_date_due="2020-02-15")
+
+        self.assertEqual(str(invoice.invoice_date_due), "2020-02-15")
+
+    def test_a_payment_term_still_sets_the_due_date(self):
+        term = self.env.ref(
+            "payment_term.account_payment_term_30days", False
+        ) or self.env["account.payment.term"].create(
+            {
+                "name": "30 days",
+                "line_ids": [
+                    Command.create(
+                        {"value": "percent", "value_amount": 100.0, "nb_days": 30}
+                    )
+                ],
+            }
+        )
+
+        invoice = self._invoice(invoice_payment_term_id=term.id)
+
+        self.assertEqual(str(invoice.invoice_date_due), "2020-01-31")
