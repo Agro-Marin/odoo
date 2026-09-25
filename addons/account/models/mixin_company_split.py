@@ -32,7 +32,7 @@ class MixinCompanySplit(models.AbstractModel):
     def _unmerge_finalize(self, new_record_by_company):
         return
 
-    def _unmerge_split_sidecars(self, new_record_by_company):
+    def _unmerge_split_sidecars(self, new_record_by_company, new_id_by_company_id):
         return
 
     @_debug.perf.timed
@@ -141,20 +141,19 @@ class MixinCompanySplit(models.AbstractModel):
             )
 
         self.env.invalidate_all()
-        new_id_by_company_id = {
-            str(company.id): new_account.id
-            for company, new_account in new_record_by_company.items()
-        }
+        new_id_by_company_id = self._unmerge_new_id_by_company_id(
+            base_company, new_record_by_company
+        )
         (self | new_records).invalidate_recordset()
 
-        self._unmerge_split_sidecars(new_record_by_company)
+        self._unmerge_split_sidecars(new_record_by_company, new_id_by_company_id)
         self._unmerge_remap_many2x_fields(new_id_by_company_id)
         self._unmerge_remap_reference_fields(new_id_by_company_id)
         self._unmerge_remap_many2one_reference_fields(new_id_by_company_id)
         self._unmerge_migrate_company_dependent_fields(
             new_records, new_id_by_company_id
         )
-        self._unmerge_split_xmlids(base_company, new_id_by_company_id)
+        self._unmerge_split_xmlids(new_id_by_company_id)
 
         self.env.registry.clear_cache()
         self.env.invalidate_all()
@@ -166,6 +165,33 @@ class MixinCompanySplit(models.AbstractModel):
         self._unmerge_log_split(new_records, base_company)
 
         return new_records
+
+    def _unmerge_new_id_by_company_id(self, base_company, new_record_by_company):
+        record_id_by_company_id = {base_company.id: self.id} | {
+            company.id: record.id for company, record in new_record_by_company.items()
+        }
+        companies = (
+            self.env["res.company"]
+            .sudo()
+            .with_context(active_test=False)
+            .search([("id", "child_of", list(record_id_by_company_id))])
+        )
+        new_id_by_company_id = {}
+        for company in companies:
+            owner_id = next(
+                record_id_by_company_id[ancestor_id]
+                for ancestor_id in reversed(company.parent_ids.ids)
+                if ancestor_id in record_id_by_company_id
+            )
+            if owner_id != self.id:
+                new_id_by_company_id[str(company.id)] = owner_id
+        _debug.logic(
+            "unmerge_owner_mapping_built",
+            records=self,
+            companies=len(companies),
+            split_off=len(new_id_by_company_id),
+        )
+        return new_id_by_company_id
 
     def _unmerge_company_id_subquery(self, model):
         if model == "res.company":
@@ -269,7 +295,7 @@ class MixinCompanySplit(models.AbstractModel):
                   WHERE table_with_company_id.id = %(model_column)s
                     AND %(table)s.%(target_column)s = %(record_id)s
                     AND table_with_company_id.company_id
-                        IN %(company_ids_to_update)s
+                        = ANY(%(company_ids_to_update)s)
                 """,
                     table=SQL.identifier(table),
                     target_column=SQL.identifier(target_column),
@@ -277,9 +303,9 @@ class MixinCompanySplit(models.AbstractModel):
                     query_company_id=query_company_id,
                     model_column=SQL.identifier(table, model_column),
                     record_id=self.id,
-                    company_ids_to_update=tuple(
-                        new_id_by_company_id,
-                    ),
+                    company_ids_to_update=[
+                        int(company_id) for company_id in new_id_by_company_id
+                    ],
                 )
             )
         if _debug.pipeline.enabled:
@@ -353,7 +379,7 @@ class MixinCompanySplit(models.AbstractModel):
                   WHERE table_with_company_id.id = %(table)s.id
                     AND %(column)s = %(value_to_update)s
                     AND table_with_company_id.company_id
-                        IN %(company_ids_to_update)s
+                        = ANY(%(company_ids_to_update)s)
                 """,
                     table=SQL.identifier(self.env[model]._table),
                     column=SQL.identifier(field_to_update.name),
@@ -361,9 +387,9 @@ class MixinCompanySplit(models.AbstractModel):
                     query_company_id=query_company_id,
                     model_prefix=f"{self._name},",
                     value_to_update=f"{self._name},{self.id}",
-                    company_ids_to_update=tuple(
-                        new_id_by_company_id,
-                    ),
+                    company_ids_to_update=[
+                        int(company_id) for company_id in new_id_by_company_id
+                    ],
                 )
             )
 
@@ -411,7 +437,7 @@ class MixinCompanySplit(models.AbstractModel):
                     AND %(column)s = %(record_id)s
                     AND %(model_column)s = %(source_model)s
                     AND table_with_company_id.company_id
-                        IN %(company_ids_to_update)s
+                        = ANY(%(company_ids_to_update)s)
                 """,
                     table=SQL.identifier(self.env[model]._table),
                     column=SQL.identifier(field_to_update.name),
@@ -420,9 +446,9 @@ class MixinCompanySplit(models.AbstractModel):
                     record_id=self.id,
                     source_model=self._name,
                     model_column=SQL.identifier(model_field),
-                    company_ids_to_update=tuple(
-                        new_id_by_company_id,
-                    ),
+                    company_ids_to_update=[
+                        int(company_id) for company_id in new_id_by_company_id
+                    ],
                 )
             )
 
@@ -443,32 +469,31 @@ class MixinCompanySplit(models.AbstractModel):
             )
         if not any(field.company_dependent for field in self._fields.values()):
             return
-        new_id_by_company_id_json = json.dumps(new_id_by_company_id)
         self.env.cr.execute(
             SQL(
                 """
-            WITH new_account_company AS (
-                SELECT key AS company_id, value::int AS account_id
-                FROM json_each_text(%(json)s)
+            WITH new_record_company AS (
+                SELECT key AS company_id, value::int AS record_id
+                  FROM jsonb_each_text(%(json)s::jsonb)
             )
             UPDATE %(table)s new
-            SET %(migrate_fields)s
-            FROM %(table)s old, new_account_company a2c
-            WHERE old.id = %(old_id)s
-            AND a2c.account_id = new.id
-            AND new.id IN %(new_ids)s
+               SET %(migrate_fields)s
+              FROM %(table)s old
+             WHERE old.id = %(old_id)s
+               AND new.id = ANY(%(new_ids)s)
             """,
-                json=new_id_by_company_id_json,
+                json=json.dumps(new_id_by_company_id),
                 table=SQL.identifier(self._table),
                 migrate_fields=SQL(", ").join(
                     SQL(
                         """
-                    %(field)s = CASE
-                        WHEN old.%(field)s ? a2c.company_id
-                        THEN jsonb_build_object(
-                            a2c.company_id,
-                            old.%(field)s->a2c.company_id)
-                        ELSE NULL END
+                    %(field)s = (
+                        SELECT jsonb_object_agg(value.key, value.value)
+                          FROM jsonb_each(old.%(field)s) value
+                          JOIN new_record_company
+                            ON new_record_company.company_id = value.key
+                         WHERE new_record_company.record_id = new.id
+                    )
                     """,
                         field=SQL.identifier(field_name),
                     )
@@ -476,7 +501,7 @@ class MixinCompanySplit(models.AbstractModel):
                     if field.company_dependent
                 ),
                 old_id=self.id,
-                new_ids=tuple(new_records.ids),
+                new_ids=new_records.ids,
             )
         )
         _debug.perf.count(
@@ -501,30 +526,23 @@ class MixinCompanySplit(models.AbstractModel):
         )
         _debug.perf.count("company_dependent_values_dropped", rows=self.env.cr.rowcount)
 
-    def _unmerge_split_xmlids(self, base_company, new_id_by_company_id):
+    def _unmerge_split_xmlids(self, new_id_by_company_id):
         self.env["ir.model.data"].invalidate_model()
-        id_by_company_id_json = json.dumps(
-            {
-                **new_id_by_company_id,
-                str(base_company.id): self.id,
-            }
-        )
         self.env.cr.execute(
             SQL(
                 """
              UPDATE ir_model_data
                 SET res_id = (
-                        %(json)s::jsonb->>
-                        substring(name, %(xmlid_regex)s)
+                        %(json)s::jsonb->>substring(name, %(xmlid_regex)s)
                     )::int
               WHERE module = 'account'
                 AND model = %(model)s
                 AND res_id = %(record_id)s
-                AND name ~ %(xmlid_regex)s
+                AND %(json)s::jsonb ? substring(name, %(xmlid_regex)s)
             """,
-                json=id_by_company_id_json,
+                json=json.dumps(new_id_by_company_id),
                 model=self._name,
-                xmlid_regex=r"([\d]+)_.*",
+                xmlid_regex=r"^(\d+)_",
                 record_id=self.id,
             )
         )

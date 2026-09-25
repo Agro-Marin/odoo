@@ -601,31 +601,19 @@ class AccountTax(models.Model):
             new_tax.name = self.name
 
     @_debug.perf.timed
-    def _unmerge_split_sidecars(self, new_record_by_company):
+    def _unmerge_split_sidecars(self, new_record_by_company, new_id_by_company_id):
 
         def ordered(tax):
             return tax.repartition_line_ids._sorted_for_positional_pairing()
 
         source_lines = ordered(self)
-        companies = self.env["res.company"].browse(
-            company.id for company in new_record_by_company
-        )
-        descendants = self.env["res.company"].search(
-            [("id", "child_of", companies.ids)]
-        )
-        descendant_ids_by_company = {
-            company.id: [
-                descendant.id
-                for descendant in descendants
-                if company in descendant.parent_ids
-            ]
-            for company in companies
-        }
+        company_ids_by_new_id = defaultdict(list)
+        for company_id, new_id in new_id_by_company_id.items():
+            company_ids_by_new_id[new_id].append(int(company_id))
         _debug.pipeline(
             "sidecar_split_started",
             tax=self,
-            companies=companies,
-            descendants=len(descendants),
+            companies=len(new_id_by_company_id),
             source_lines=len(source_lines),
         )
         self.env["account.move.line"].flush_model(["tax_repartition_line_id"])
@@ -649,12 +637,12 @@ class AccountTax(models.Model):
                     UPDATE account_move_line
                        SET tax_repartition_line_id =
                            (%(mapping)s::jsonb->>tax_repartition_line_id::text)::int
-                     WHERE tax_repartition_line_id IN %(old_ids)s
-                       AND company_id IN %(company_ids)s
+                     WHERE tax_repartition_line_id = ANY(%(old_ids)s)
+                       AND company_id = ANY(%(company_ids)s)
                     """,
                     mapping=json.dumps({str(k): v for k, v in mapping.items()}),
-                    old_ids=tuple(mapping),
-                    company_ids=tuple(descendant_ids_by_company[company.id]),
+                    old_ids=list(mapping),
+                    company_ids=company_ids_by_new_id[new_tax.id],
                 )
             )
             _debug.perf.count(
