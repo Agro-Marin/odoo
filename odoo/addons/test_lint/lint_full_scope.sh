@@ -11,8 +11,11 @@ set -u
 
 usage() { sed -n '2,10p' "$0"; exit 2; }
 
+# `marin` pulls production's closure (agromarin-addons' meta-module), so the
+# bundle gates judge the system that is served; the other seeds reach modules
+# outside that tree the gates should see too.
 FULL_SCOPE=(
-    test_lint
+    test_lint marin
     accountant account_edi_ubl_cii account_payment_provider approval_purchase
     asset_ledger_maintenance automation calendar crm document event_sale
     google_address_autocomplete helpdesk hr_expense hr_expense_stripe
