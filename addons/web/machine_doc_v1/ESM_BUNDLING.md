@@ -671,8 +671,9 @@ browser-support matrix.
 ## Loader contract (`module_loader.js`)
 
 The shim installs `globalThis.odoo.loader` as an instance of
-`OdooModuleLoader`, a real ES class so Hoot's test helpers can subclass
-it via `Object.getPrototypeOf(odoo.loader.constructor)`. The esbuild-generated
+`OdooModuleLoader`, a real ES class: `web/static/tests/modules/module_loader.test.js`
+instantiates `odoo.loader.constructor` to get fresh loaders, and Hoot reads
+`odoo.loader.modules` directly. The esbuild-generated
 entry exercises exactly one method (`registerNativeModules`). Current surface:
 
 ### Public API
