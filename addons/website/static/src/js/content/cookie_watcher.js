@@ -1,4 +1,4 @@
-/** @odoo-module native */
+/** @odoo-module ignore */
 
 // eslint-disable-next-line no-unused-vars
 function watch3rdPartyScripts(thirdPartyDomainsBlockList) {
