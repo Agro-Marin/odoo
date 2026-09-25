@@ -343,3 +343,62 @@ class TestPortalAttachment(AccountTestInvoicingHttpCommon):
         self.assertEqual(len(messages), 3)
         self.assertEqual(messages[0].body, "<p>test message 3</p>")
         self.assertEqual(len(messages[0].attachment_ids), 1)
+
+    def _rpc(self, route, **params):
+        res = self.url_open(
+            url=f"{self.invoice_base_url}{route}",
+            json={"params": params},
+        )
+        res.raise_for_status()
+        return res.json()
+
+    @mute_logger("odoo.http")
+    def test_02_customer_empties_its_own_message(self):
+        token = self.out_invoice._portal_get_or_create_token()
+        self.authenticate(None, None)
+        posted = self._rpc(
+            "/mail/message/post",
+            thread_model=self.out_invoice._name,
+            thread_id=self.out_invoice.id,
+            post_data={"body": "Question about line 1"},
+            token=token,
+        )
+        message = self.env["mail.message"].browse(posted["result"]["message_id"])
+        self.assertEqual(message.author_id, self.partner_a)
+
+        emptied = self._rpc(
+            "/mail/message/update_content",
+            message_id=message.id,
+            update_data={"body": "", "attachment_ids": []},
+            token=token,
+        )
+        self.assertNotIn("error", emptied)
+        message.invalidate_recordset(["body"])
+        self.assertTrue(message._filtered_empty())
+
+    def test_03_emptying_an_annotation_removes_it(self):
+        self.authenticate(self.env.user.login, self.env.user.login)
+        posted = self._rpc(
+            "/mail/message/post",
+            thread_model=self.out_invoice._name,
+            thread_id=self.out_invoice.id,
+            post_data={
+                "body": "Checked",
+                "account_reports_annotation_date": "2019-05-31",
+            },
+        )
+        message_id = posted["result"]["message_id"]
+        Annotation = self.env["account.report.annotation"]
+        self.assertTrue(Annotation.search([("message_id", "=", message_id)]))
+        self._rpc(
+            "/mail/message/update_content",
+            message_id=message_id,
+            update_data={"body": "Checked twice", "attachment_ids": []},
+        )
+        self.assertTrue(Annotation.search([("message_id", "=", message_id)]))
+        self._rpc(
+            "/mail/message/update_content",
+            message_id=message_id,
+            update_data={"body": "", "attachment_ids": []},
+        )
+        self.assertFalse(Annotation.search([("message_id", "=", message_id)]))

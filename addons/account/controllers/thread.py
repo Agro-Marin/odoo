@@ -35,9 +35,11 @@ class ThreadController(thread.ThreadController):
     def mail_message_update_content(self, message_id, update_data, **kwargs):
         _debug.pipeline("route", handler="ThreadController.mail_message_update_content")
         res = super().mail_message_update_content(message_id, update_data, **kwargs)
-        message = self._get_message_with_access(message_id, mode="create", **kwargs)
-        if message._filtered_empty():
-            self.env["account.report.annotation"].sudo().search(
-                [("message_id", "=", message_id)]
-            ).unlink()
+        annotations = (
+            self.env["account.report.annotation"]
+            .sudo()
+            .search([("message_id", "=", message_id)])
+        )
+        if annotations.message_id._filtered_empty():
+            annotations.unlink()
         return res
