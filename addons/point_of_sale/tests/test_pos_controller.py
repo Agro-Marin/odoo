@@ -47,7 +47,6 @@ class TestPoSController(TestPointOfSaleHttpCommon):
                 "company_id": self.env.company.id,
                 "session_id": self.main_pos_config.current_session_id.id,
                 "partner_id": self.new_partner.id,
-                "access_token": "1234567890",
                 "lines": [
                     (
                         0,
@@ -131,7 +130,6 @@ class TestPoSController(TestPointOfSaleHttpCommon):
             {
                 "session_id": self.main_pos_config.current_session_id.id,
                 "company_id": self.env.company.id,
-                "access_token": "1234567890",
                 "lines": [
                     (
                         0,
@@ -180,7 +178,6 @@ class TestPoSController(TestPointOfSaleHttpCommon):
             {
                 "session_id": self.main_pos_config.current_session_id.id,
                 "company_id": self.env.company.id,
-                "access_token": "1234567890",
                 "lines": [
                     (
                         0,
@@ -250,7 +247,6 @@ class TestPoSController(TestPointOfSaleHttpCommon):
                 "session_id": self.main_pos_config.current_session_id.id,
                 "company_id": self.env.company.id,
                 "partner_id": self.partner_1.id,
-                "access_token": "1234567890",
                 "lines": [
                     (
                         0,

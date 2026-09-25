@@ -146,7 +146,6 @@ class TestPosQris(AccountTestInvoicingHttpCommon):
                     "company_id": self.env.company.id,
                     "session_id": self.main_pos_config.current_session_id.id,
                     "partner_id": self.partner_a.id,
-                    "access_token": "1234567890",
                     "uuid": "1234512345",
                     "lines": [
                         (

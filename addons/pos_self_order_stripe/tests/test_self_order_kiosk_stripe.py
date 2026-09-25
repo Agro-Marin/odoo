@@ -112,7 +112,6 @@ class TestSelfOrderKioskStripe(SelfOrderCommonTest):
                 "amount_return": 0.0,
                 "to_invoice": True,
                 "last_order_preparation_change": "{}",
-                "access_token": "order_access",
             }
         )
         with patch(
@@ -122,7 +121,7 @@ class TestSelfOrderKioskStripe(SelfOrderCommonTest):
             payload = self._build_payload(
                 {
                     "access_token": "access_token",
-                    "order_access_token": "order_access",
+                    "order_access_token": order.access_token,
                     "payment_intent_id": "1",
                     "payment_method_id": self.stripe.id,
                 }
