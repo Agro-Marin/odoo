@@ -1,6 +1,8 @@
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
+from odoo.addons.base.tests.common import reaches_own_creation, row_domains
+
 
 @tagged("post_install", "-at_install")
 class TestCompanyDefaultPricelistCurrency(TransactionCase):
@@ -338,17 +340,20 @@ class TestTransientWizardIsolation(TransactionCase):
         ]
         for model in wizards:
             with self.subTest(model=model):
-                rules = (
+                rows = (
                     self.env["ir.access"]
                     .sudo()
-                    .search([("model_id.model", "=", model), ("domain", "!=", False)])
+                    .search([("model_id.model", "=", model), ("active", "=", True)])
                 )
+                compiled = row_domains(self.env, rows)
                 self.assertTrue(
-                    rules,
+                    any(
+                        reaches_own_creation(domain, self.env.uid)
+                        for domain in compiled.values()
+                    ),
                     f"{model} is a TransientModel reachable by id and has no"
                     " ir.access row scoping it to its creator",
                 )
-                self.assertIn("create_uid", "".join(rules.mapped("domain")))
 
 
 @tagged("post_install", "-at_install")

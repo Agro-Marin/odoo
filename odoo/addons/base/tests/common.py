@@ -68,6 +68,35 @@ def make_guard_row(env, model_name, domain, group=None, *, operation="crud", **k
     )
 
 
+def row_domains(env, accesses):
+    # each row as ir.access compiles it for the environment's user: its reach
+    # through the model's anchor, or its predicate, and its fixed filter
+    domain_of = env["ir.access"]._row_domains()
+    return {
+        info.id: domain_of(model_name, info)
+        for model_name, infos in env["ir.access"].sudo()._access_infos(accesses).items()
+        for info in infos
+    }
+
+
+def reaches_own_creation(domain, uid):
+    # whether a compiled row holds the records the user created, and only
+    # those: a condition create_uid = user among its conjuncts
+    conditions = (
+        domain.children if getattr(domain, "OPERATOR", None) == "&" else [domain]
+    )
+    for condition in conditions:
+        value = getattr(condition, "value", None)
+        values = value if isinstance(value, (list, tuple, set, frozenset)) else [value]
+        if (
+            getattr(condition, "field_expr", None) == "create_uid"
+            and condition.operator in ("=", "in")
+            and list(values) == [uid]
+        ):
+            return True
+    return False
+
+
 def converted_reach(env, model_name, user, operation="read"):
     # what the ir.access rows of the model give the user, counted as the
     # superuser from the rows themselves, beside the ORM's own answer
@@ -77,17 +106,13 @@ def converted_reach(env, model_name, user, operation="read"):
         .sudo()
         .search([("model_id.model", "=", model_name), ("active", "=", True)])
     )
-    infos = {
-        info.id: info
-        for info in env["ir.access"].sudo()._access_infos(accesses).get(model_name, ())
-    }
-    domain_of = env["ir.access"].with_user(user)._row_domains()
+    compiled = row_domains(env(user=user), accesses)
 
     def text_of(access):
         # a row with a reach says it through the model's anchor; the combinator
         # reads domains, so the reach goes in as the domain it compiles to
         if access.reach:
-            return repr(list(domain_of(model_name, infos[access.id])))
+            return repr(list(compiled[access.id]))
         return access.domain
 
     rows = [

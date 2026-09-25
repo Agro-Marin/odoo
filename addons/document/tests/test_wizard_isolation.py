@@ -19,14 +19,12 @@ read and to write -- not by pattern-matching `domain_force` for "create_uid",
 which `[('create_uid','!=',user.id)]` would also satisfy.
 """
 
-import contextlib
-
 from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests.common import tagged
-from odoo.tools.safe_eval import safe_eval
 
 from .test_document_common import TransactionCaseDocuments
+from odoo.addons.base.tests.common import reaches_own_creation, row_domains
 
 
 @tagged("post_install", "-at_install")
@@ -104,35 +102,22 @@ class TestWizardIsolation(TransactionCaseDocuments):
         }
 
     def _owner_rule_models(self):
-        """Models carrying an active rule that restricts rows to their creator.
+        """Models carrying an active row that restricts records to their creator.
 
-        The domain is evaluated the way `ir.access` evaluates it and its leaves
-        are inspected. Two weaker versions were tried and are worth not
-        repeating: `"create_uid" in domain` also accepts
-        `[('create_uid', '!=', user.id)]`, the opposite rule; and
-        `literal_eval` cannot evaluate `user.id`, so it raised on exactly the
-        rules being looked for and reported every wizard as unprotected.
+        Each row is compiled the way `ir.access` compiles it for this user: a
+        reach through the model's creator anchor, or a domain. The compiled
+        form is what is inspected; the row's text is not, as a reach
+        `own`/`creator` carries none, and `"create_uid" in domain` would also
+        accept `[('create_uid', '!=', user.id)]`, the opposite rule.
         """
-        Access = self.env["ir.access"].sudo()
-        eval_context = Access._eval_context()
-        owned = set()
-        for rule in Access.search([("active", "=", True)]):
-            if not rule.domain:
-                continue
-            leaves = []
-            with contextlib.suppress(Exception):
-                # A rule this test cannot evaluate is not a rule it can credit.
-                leaves = safe_eval(rule.domain, dict(eval_context))
-            for leaf in leaves:
-                if (
-                    isinstance(leaf, list | tuple)
-                    and len(leaf) == 3
-                    and leaf[0] == "create_uid"
-                    and leaf[1] == "="
-                    and leaf[2] == self.env.uid
-                ):
-                    owned.add(rule.model_id.model)
-        return owned
+        rows = self.env["ir.access"].sudo().search([("active", "=", True)])
+        compiled = row_domains(self.env, rows)
+        return {
+            row.model_id.model
+            for row in rows
+            if row.id in compiled
+            and reaches_own_creation(compiled[row.id], self.env.uid)
+        }
 
     def test_every_transient_model_is_scoped_to_its_creator(self):
         """The structural sweep, which needs no fixture and so reaches bridges.
