@@ -4,6 +4,7 @@ import { expect, test } from "@odoo/hoot";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     Component,
+    markup,
     onWillStart,
     reactive,
     useChildSubEnv,
@@ -22,6 +23,7 @@ import {
 import { useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
 import { SearchModel } from "@web/search/search_model";
+import { ActionHelper } from "@web/views/action_helper";
 import { getDefaultConfig } from "@web/views/view";
 import { ViewLayout } from "@web/views/view_components/view_layout";
 
@@ -361,4 +363,23 @@ test(`ViewLayout: a no-content slot replaces the ActionHelper`, async () => {
     expect(`.o_content .toy_no_content`).toHaveCount(1);
     expect(`.o_content .o_view_nocontent`).toHaveCount(0);
     expect(`.o_content > .toy_content`).toHaveCount(1);
+});
+
+test(`ActionHelper: the fallback takes a caller's title and description`, async () => {
+    await mountWithCleanup(ActionHelper, {
+        props: { title: "No orders yet", description: "Create one from a quotation." },
+    });
+    expect(`.o_view_nocontent_empty_folder`).toHaveText("No orders yet");
+    expect(`.o_nocontent_help p:eq(1)`).toHaveText("Create one from a quotation.");
+});
+
+test(`ActionHelper: an action's help replaces the fallback`, async () => {
+    await mountWithCleanup(ActionHelper, {
+        props: {
+            noContentHelp: markup("<p class='custom_help'>Custom</p>"),
+            title: "unused",
+        },
+    });
+    expect(`.custom_help`).toHaveCount(1);
+    expect(`.o_view_nocontent_empty_folder`).toHaveCount(0);
 });

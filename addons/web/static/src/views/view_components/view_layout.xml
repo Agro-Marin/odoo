@@ -42,8 +42,7 @@
                 <t t-set-slot="default" t-slot-scope="layout">
                     <t t-if="this.hasSlot('no-content')" t-slot="no-content"/>
                     <ActionHelper t-elif="this.props.displayNoContent"
-                                  noContentHelp="this.props.noContentHelp"
-                                  showRibbon="this.props.useSampleModel"/>
+                                  noContentHelp="this.props.noContentHelp"/>
                     <t t-slot="default" contentRef="layout.contentRef"/>
                 </t>
 
