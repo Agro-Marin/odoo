@@ -1,6 +1,9 @@
 from datetime import datetime
 
+from psycopg import IntegrityError
+
 from odoo.tests.common import TransactionCase
+from odoo.tools import mute_logger
 
 
 class TestRecurrenceRule(TransactionCase):
@@ -210,3 +213,43 @@ class TestRecurrenceRule(TransactionCase):
             }
         )
         self.assertEqual(recurrence.name, "Every 2 Years")
+
+    def _create_monthly(self, **values):
+        recurrence = self.env["calendar.recurrence"].create(
+            {
+                "repeat_unit": "month",
+                "repeat_interval": 1,
+                "repeat_number": 3,
+                "event_tz": "UTC",
+                **values,
+            }
+        )
+        self.env.flush_all()
+        return recurrence
+
+    def test_monthly_count_by_last_day(self):
+        recurrence = self._create_monthly(month_by="date", day=-1)
+        self.assertEqual(recurrence.rrule, "FREQ=MONTHLY;COUNT=3;BYMONTHDAY=-1")
+        self.assertEqual(recurrence.name, "Every 1 Months on the last day for 3 events")
+
+    def test_monthly_day_out_of_range_is_refused(self):
+        for day in (0, 32, -2):
+            with (
+                self.subTest(day=day),
+                self.assertRaises(IntegrityError),
+                mute_logger("odoo.db"),
+                self.env.cr.savepoint(),
+            ):
+                self._create_monthly(month_by="date", day=day)
+
+    def test_yearly_by_day_needs_its_weekday(self):
+        with (
+            self.assertRaises(IntegrityError),
+            mute_logger("odoo.db"),
+            self.env.cr.savepoint(),
+        ):
+            self._create_monthly(repeat_unit="year", month_by="day", weekday=False)
+
+    def test_yearly_by_date_ignores_the_day(self):
+        recurrence = self._create_monthly(repeat_unit="year", month_by="date", day=0)
+        self.assertEqual(recurrence.rrule, "FREQ=YEARLY;COUNT=3")

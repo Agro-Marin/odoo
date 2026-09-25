@@ -166,7 +166,30 @@ class MixinRecurrenceAnchored(models.AbstractModel):
                     reason="weekday_missing",
                 )
                 raise ValidationError(self.env._("A weekly schedule needs a weekday."))
-            if not record.repeat_twice or record.repeat_unit not in ("month", "year"):
+            if record.repeat_unit not in ("month", "year"):
+                continue
+            if not record.repeat_day or (
+                record.repeat_twice and not record.repeat_second_day
+            ):
+                _debug.logic(
+                    "recurrence.anchors_rejected",
+                    record=record.id,
+                    reason="day_missing",
+                )
+                raise ValidationError(
+                    self.env._("A monthly or yearly schedule needs a day.")
+                )
+            if record.repeat_unit == "year" and (
+                not record.repeat_month
+                or (record.repeat_twice and not record.repeat_second_month)
+            ):
+                _debug.logic(
+                    "recurrence.anchors_rejected",
+                    record=record.id,
+                    reason="month_missing",
+                )
+                raise ValidationError(self.env._("A yearly schedule needs a month."))
+            if not record.repeat_twice:
                 continue
             anchors = record._get_recurrence_anchors()
             first, second = map(record._get_boundary_in_reference_period, anchors)
@@ -208,6 +231,17 @@ class MixinRecurrenceAnchored(models.AbstractModel):
                         "The first date must be earlier in the year than the second date."
                     )
                 )
+            first_day, second_day = map(record._get_anchor_day_in_short_period, anchors)
+            if first_day == second_day:
+                _debug.logic(
+                    "recurrence.anchors_rejected",
+                    record=record.id,
+                    reason="merged_in_short_period",
+                    unit=record.repeat_unit,
+                )
+                raise ValidationError(
+                    self.env._("The two dates fall on the same day in shorter months.")
+                )
 
     # 2024 is a leap year, so no day a record can hold is clamped before it is
     # compared, and January is long enough for every day of a monthly anchor.
@@ -217,6 +251,14 @@ class MixinRecurrenceAnchored(models.AbstractModel):
         if anchor.last_day:
             return first + relativedelta(months=1)
         return first.replace(day=anchor.day)
+
+    # 2023 is not a leap year: February is the shortest month a day can be
+    # clamped into, where anchors on distinct days of a long month meet.
+    @staticmethod
+    def _get_anchor_day_in_short_period(anchor):
+        month = anchor.month or 2
+        length = monthrange(2023, month)[1]
+        return date(2023, month, length if anchor.last_day else min(anchor.day, length))
 
     @staticmethod
     def _prepare_day_anchor(day, month):

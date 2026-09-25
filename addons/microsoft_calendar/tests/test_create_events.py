@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime, timedelta
 from unittest.mock import patch
 
@@ -363,6 +364,133 @@ class TestCreateEvents(TestCommon):
             self.assert_odoo_event(
                 e, self.expected_odoo_recurrency_events_from_outlook[i]
             )
+
+    def _sync_outlook_series(self, mock_get_events, pattern, starts):
+        def timed(item, start):
+            item["start"]["dateTime"] = start.strftime("%Y-%m-%dT%H:%M:%S.0000000")
+            item["end"]["dateTime"] = (start + timedelta(hours=1)).strftime(
+                "%Y-%m-%dT%H:%M:%S.0000000"
+            )
+            return item
+
+        master, occurrence = self.recurrent_event_from_outlook_organizer[:2]
+        master = timed(deepcopy(master), starts[0])
+        # Graph always answers with every key, zeroed where it does not apply
+        master["recurrence"] = {
+            "pattern": {
+                "month": 0,
+                "dayOfMonth": 0,
+                "daysOfWeek": [],
+                "firstDayOfWeek": "sunday",
+                "index": "first",
+                **pattern,
+            },
+            "range": {
+                "type": "numbered",
+                "startDate": starts[0].strftime("%Y-%m-%d"),
+                "endDate": "0001-01-01",
+                "recurrenceTimeZone": "UTC",
+                "numberOfOccurrences": len(starts),
+            },
+        }
+        occurrences = [
+            dict(
+                timed(deepcopy(occurrence), start),
+                id=f"REC123_EVENT_{index}",
+                iCalUId=f"REC456_EVENT_{index}",
+            )
+            for index, start in enumerate(starts)
+        ]
+        mock_get_events.return_value = (MicrosoftEvent([master, *occurrences]), None)
+        existing_recurrences = self.env["calendar.recurrence"].search([])
+        self.organizer_user.with_user(
+            self.organizer_user
+        ).sudo()._sync_microsoft_calendar()
+        recurrence = self.env["calendar.recurrence"].search([]) - existing_recurrences
+        self.assertEqual(
+            recurrence.calendar_event_ids.sorted("start").mapped("start"), starts
+        )
+        return recurrence
+
+    @patch.object(MicrosoftCalendarService, "get_events")
+    def test_outlook_last_day_of_the_month_round_trips(self, mock_get_events):
+        pattern = {
+            "type": "relativeMonthly",
+            "interval": 1,
+            "daysOfWeek": [
+                "monday",
+                "tuesday",
+                "wednesday",
+                "thursday",
+                "friday",
+                "saturday",
+                "sunday",
+            ],
+            "index": "last",
+        }
+        recurrence = self._sync_outlook_series(
+            mock_get_events,
+            pattern,
+            [
+                datetime(2024, 1, 31, 10, 0),
+                datetime(2024, 2, 29, 10, 0),
+                datetime(2024, 3, 31, 10, 0),
+            ],
+        )
+        self.assertEqual((recurrence.month_by, recurrence.day), ("date", -1))
+        self.assertEqual(recurrence.rrule, "FREQ=MONTHLY;COUNT=3;BYMONTHDAY=-1")
+        self.assertEqual(recurrence._get_microsoft_pattern(), pattern)
+
+    @patch.object(MicrosoftCalendarService, "get_events")
+    def test_outlook_yearly_nth_weekday_round_trips(self, mock_get_events):
+        pattern = {
+            "type": "relativeYearly",
+            "interval": 1,
+            "daysOfWeek": ["sunday"],
+            "index": "second",
+            "month": 3,
+        }
+        recurrence = self._sync_outlook_series(
+            mock_get_events,
+            pattern,
+            [
+                datetime(2024, 3, 10, 10, 0),
+                datetime(2025, 3, 9, 10, 0),
+                datetime(2026, 3, 8, 10, 0),
+            ],
+        )
+        self.assertEqual(
+            (
+                recurrence.repeat_unit,
+                recurrence.month_by,
+                recurrence.weekday,
+                recurrence.byday,
+            ),
+            ("year", "day", "SUN", "2"),
+        )
+        self.assertEqual(recurrence.rrule, "FREQ=YEARLY;COUNT=3;BYMONTH=3;BYDAY=+2SU")
+        self.assertEqual(
+            recurrence.name, "Every 1 Years on the Second Sunday of March for 3 events"
+        )
+        self.assertEqual(recurrence._get_microsoft_pattern(), pattern)
+
+    @patch.object(MicrosoftCalendarService, "get_events")
+    def test_outlook_yearly_on_its_start_date_round_trips(self, mock_get_events):
+        pattern = {
+            "type": "absoluteYearly",
+            "interval": 1,
+            "month": 3,
+            "dayOfMonth": 10,
+        }
+        recurrence = self._sync_outlook_series(
+            mock_get_events,
+            pattern,
+            [datetime(2024, 3, 10, 10, 0), datetime(2025, 3, 10, 10, 0)],
+        )
+        self.assertEqual(
+            (recurrence.repeat_unit, recurrence.month_by), ("year", "date")
+        )
+        self.assertEqual(recurrence._get_microsoft_pattern(), pattern)
 
     @patch.object(MicrosoftCalendarService, "get_events")
     def test_create_recurrent_event_from_outlook_attendee_calendar(

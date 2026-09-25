@@ -8,7 +8,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.libs.datetime import localize_standard, timezone
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import get_lang
+from odoo.tools import format_date, get_lang
 
 from odoo.addons.base.models.mixin_recurrence_anchored import WEEKDAY_SELECTION
 from odoo.addons.base.models.mixin_recurrence_rule import (
@@ -51,6 +51,8 @@ RRULE_WEEKDAYS = {
     "FRI": "FR",
     "SAT": "SA",
 }
+
+LAST_DAY_OF_MONTH = -1
 
 MONTH_BY_SELECTION = [
     ("date", "Date of month"),
@@ -128,16 +130,19 @@ class MixinRecurrenceRrule(models.AbstractModel):
 
     _month_day = models.Constraint(
         """CHECK (
-        repeat_unit != 'month'
-        OR (month_by = 'date' AND day >= 1 AND day <= 31)
+        repeat_unit NOT IN ('month', 'year')
+        OR (repeat_unit = 'year' AND month_by != 'day')
+        OR (repeat_unit = 'month' AND month_by = 'date'
+            AND (day = %s OR (day >= 1 AND day <= 31)))
         OR (month_by = 'day'
             AND weekday IS NOT NULL AND weekday IN %s
             AND byday IS NOT NULL AND byday IN %s))"""
         % (
+            LAST_DAY_OF_MONTH,
             tuple(wd[0] for wd in WEEKDAY_SELECTION),
             tuple(bd[0] for bd in BYDAY_SELECTION),
         ),
-        "The day must be between 1 and 31",
+        "The day must be between 1 and 31, or the last day of the month",
     )
 
     def _compute_dtstart(self):
@@ -145,6 +150,22 @@ class MixinRecurrenceRrule(models.AbstractModel):
 
     def _is_allday(self):
         return False
+
+    def _get_local_start(self):
+        if not self.dtstart or self._is_allday():
+            return self.dtstart or None
+        return (
+            self.dtstart.replace(tzinfo=UTC)
+            .astimezone(self._get_timezone())
+            .replace(tzinfo=None)
+        )
+
+    def _get_position_labels(self):
+        weekday_selection = dict(
+            self._fields["weekday"]._description_selection(self.env)
+        )
+        byday_selection = dict(self._fields["byday"]._description_selection(self.env))
+        return byday_selection[self.byday], weekday_selection[self.weekday]
 
     def _get_daily_recurrence_name(self):
         if self.repeat_type == "count":
@@ -195,14 +216,7 @@ class MixinRecurrenceRrule(models.AbstractModel):
 
     def _get_monthly_recurrence_name(self):
         if self.month_by == "day":
-            weekday_selection = dict(
-                self._fields["weekday"]._description_selection(self.env)
-            )
-            byday_selection = dict(
-                self._fields["byday"]._description_selection(self.env)
-            )
-            position_label = byday_selection[self.byday]
-            weekday_label = weekday_selection[self.weekday]
+            position_label, weekday_label = self._get_position_labels()
 
             if self.repeat_type == "count":
                 return self.env._(
@@ -226,6 +240,23 @@ class MixinRecurrenceRrule(models.AbstractModel):
                 position=position_label,
                 weekday=weekday_label,
             )
+        if self.day == LAST_DAY_OF_MONTH:
+            if self.repeat_type == "count":
+                return self.env._(
+                    "Every %(interval)s Months on the last day for %(count)s events",
+                    interval=self.repeat_interval,
+                    count=self.repeat_number,
+                )
+            if self.repeat_type == "until":
+                return self.env._(
+                    "Every %(interval)s Months on the last day until %(until)s",
+                    interval=self.repeat_interval,
+                    until=self.repeat_until,
+                )
+            return self.env._(
+                "Every %(interval)s Months on the last day",
+                interval=self.repeat_interval,
+            )
         else:
             if self.repeat_type == "count":
                 return self.env._(
@@ -248,6 +279,35 @@ class MixinRecurrenceRrule(models.AbstractModel):
             )
 
     def _get_yearly_recurrence_name(self):
+        local_start = self.month_by == "day" and self._get_local_start()
+        if local_start:
+            position_label, weekday_label = self._get_position_labels()
+            month_label = format_date(self.env, local_start.date(), date_format="MMMM")
+            if self.repeat_type == "count":
+                return self.env._(
+                    "Every %(interval)s Years on the %(position)s %(weekday)s of %(month)s for %(count)s events",
+                    interval=self.repeat_interval,
+                    position=position_label,
+                    weekday=weekday_label,
+                    month=month_label,
+                    count=self.repeat_number,
+                )
+            if self.repeat_type == "until":
+                return self.env._(
+                    "Every %(interval)s Years on the %(position)s %(weekday)s of %(month)s until %(until)s",
+                    interval=self.repeat_interval,
+                    position=position_label,
+                    weekday=weekday_label,
+                    month=month_label,
+                    until=self.repeat_until,
+                )
+            return self.env._(
+                "Every %(interval)s Years on the %(position)s %(weekday)s of %(month)s",
+                interval=self.repeat_interval,
+                position=position_label,
+                weekday=weekday_label,
+                month=month_label,
+            )
         if self.repeat_type == "count":
             return self.env._(
                 "Every %(interval)s Years for %(count)s events",
@@ -325,7 +385,9 @@ class MixinRecurrenceRrule(models.AbstractModel):
                     reason="empty_rule",
                 )
             if recurrence.rrule:
-                values = self._rrule_parse(recurrence.rrule, recurrence.dtstart)
+                values = self._rrule_parse(
+                    recurrence.rrule, recurrence.dtstart, recurrence._get_timezone()
+                )
                 _debug.pipeline(
                     "recurrence.rrule_inverse",
                     record=recurrence.id,
@@ -379,7 +441,9 @@ class MixinRecurrenceRrule(models.AbstractModel):
         if not self.repeat_unit:
             _debug.logic("recurrence.serialize.empty", record=self.id)
             return ""
-        return self._rrule_value(str(self._get_rrule(bounded=False)))
+        return self._rrule_value(
+            str(self._get_rrule(dtstart=self._get_local_start(), bounded=False))
+        )
 
     @api.model
     def _rrule_value(self, rule_str):
@@ -393,7 +457,7 @@ class MixinRecurrenceRrule(models.AbstractModel):
         return next((line for line in lines if not line.startswith("DTSTART:")), "")
 
     @api.model
-    def _rrule_parse(self, rule_str, date_start):
+    def _rrule_parse(self, rule_str, date_start, tz=None):
         # LUL TODO clean this mess
         data = {}
         day_list = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
@@ -411,6 +475,9 @@ class MixinRecurrenceRrule(models.AbstractModel):
         )
         stripped -= len(rule_str)  # debuglog
 
+        local_start = date_start
+        if tz and isinstance(date_start, datetime) and not date_start.tzinfo:
+            local_start = date_start.replace(tzinfo=UTC).astimezone(tz)
         if "Z" in rule_str and date_start and not date_start.tzinfo:
             date_start = date_start.replace(tzinfo=UTC)
         rule = rrule.rrulestr(rule_str, dtstart=date_start)
@@ -430,26 +497,100 @@ class MixinRecurrenceRrule(models.AbstractModel):
         data["repeat_unit"] = freq_to_select(rule._freq)
         data["repeat_number"] = rule._count
         data["repeat_interval"] = rule._interval
-        data["repeat_until"] = rule._until
+        until = rule._until
+        if until and until.tzinfo:
+            local_until = until.astimezone(tz or UTC)
+            _debug.logic(
+                "recurrence.until_localized",
+                utc_date=until.astimezone(UTC).date(),
+                local_date=local_until.date(),
+                tz=str(tz or UTC),
+            )
+            until = local_until
+        data["repeat_until"] = until and until.date()
+
+        weekdays, nweekdays = rule._byweekday, rule._bynweekday
+        if (
+            rule._freq in (rrule.MONTHLY, rrule.YEARLY)
+            and len(rule._bysetpos or ()) == 1
+            and len(weekdays or ()) == 1
+        ):
+            nweekdays = ((weekdays[0], rule._bysetpos[0]),)
+            weekdays = None
+            _debug.logic("recurrence.setpos_as_nth_weekday", nth=rule._bysetpos[0])
+        # A yearly rule repeats on its start date, or on the nth weekday of its
+        # start month; any other by-part names a date this model cannot hold.
+        if rule._freq == rrule.YEARLY:
+            data["month_by"] = "date"
+            start_month = local_start and local_start.month
+            if (
+                not weekdays
+                and len(nweekdays or ()) == 1
+                and str(nweekdays[0][1]) in dict(BYDAY_SELECTION)
+                and rule._bymonth == (start_month,)
+            ):
+                data["month_by"] = "day"
+                data["weekday"] = day_list[nweekdays[0][0]].upper()
+                data["byday"] = str(nweekdays[0][1])
+                _debug.logic(
+                    "recurrence.yearly_nth_weekday_parsed",
+                    month=start_month,
+                    weekday=data["weekday"],
+                    byday=data["byday"],
+                )
+            elif weekdays or nweekdays:
+                _debug.logic(
+                    "recurrence.rrule_parts_dropped",
+                    freq="yearly",
+                    parts=["byweekday" if weekdays else "bynweekday"],
+                    bymonth=rule._bymonth,
+                    start_month=start_month,
+                    reason="yearly_repeats_on_start_date",
+                )
+            weekdays = nweekdays = None
+
         # Repeat weekly
-        if rule._byweekday:
+        if weekdays:
             for weekday in day_list:
                 data[weekday] = False  # reset
-            for weekday_index in rule._byweekday:
+            for weekday_index in weekdays:
                 weekday = rrule.weekday(weekday_index)
                 data[weekday_to_field(weekday.weekday)] = True
                 data["repeat_unit"] = "week"
 
         # Repeat monthly by nweekday ((weekday, weeknumber), )
-        if rule._bynweekday:
-            data["weekday"] = day_list[next(iter(rule._bynweekday))[0]].upper()
-            data["byday"] = str(next(iter(rule._bynweekday))[1])
+        if nweekdays:
+            data["weekday"] = day_list[next(iter(nweekdays))[0]].upper()
+            data["byday"] = str(next(iter(nweekdays))[1])
             data["month_by"] = "day"
             data["repeat_unit"] = "month"
 
+        last_day = (
+            data["repeat_unit"] == "month"
+            and not rule._bymonthday
+            and rule._bynmonthday == (LAST_DAY_OF_MONTH,)
+        )
         if rule._bymonthday and data["repeat_unit"] == "month":
             data["day"] = next(iter(rule._bymonthday))
             data["month_by"] = "date"
+        elif last_day:
+            data["day"] = LAST_DAY_OF_MONTH
+            data["month_by"] = "date"
+            _debug.logic("recurrence.last_day_of_month_parsed")
+        if (rule._bynmonthday and not last_day) or len(rule._bysetpos or ()) > 1:
+            _debug.logic(
+                "recurrence.rrule_parts_dropped",
+                freq=data["repeat_unit"],
+                parts=[
+                    part
+                    for part, present in (
+                        ("bynmonthday", rule._bynmonthday and not last_day),
+                        ("bysetpos", len(rule._bysetpos or ()) > 1),
+                    )
+                    if present
+                ],
+                reason="not_representable",
+            )
 
         if data.get("repeat_until"):
             data["repeat_type"] = "until"
@@ -527,12 +668,13 @@ class MixinRecurrenceRrule(models.AbstractModel):
 
     def _get_occurrences(self, dtstart, count=None):
         self.check_singleton()
-        dtstart = self._get_start_of_period(dtstart)
         if self._is_allday():
             _debug.logic(
                 "recurrence.occurrences", record=self.id, allday=True, count=count
             )
-            return self._get_rrule(dtstart=dtstart, count=count)
+            return self._get_rrule(
+                dtstart=self._get_start_of_period(dtstart), count=count
+            )
 
         tz = self._get_timezone()
         _debug.logic(
@@ -542,8 +684,16 @@ class MixinRecurrenceRrule(models.AbstractModel):
             tz=str(tz),
             count=count,
         )
-        dtstart = dtstart.replace(tzinfo=UTC).astimezone(tz)
-        occurences = self._get_rrule(dtstart=dtstart.replace(tzinfo=None), count=count)
+        local_start = dtstart.replace(tzinfo=UTC).astimezone(tz).replace(tzinfo=None)
+        period_start = self._get_start_of_period(local_start)
+        _debug.logic(
+            "recurrence.period_start",
+            record=self.id,
+            utc_start=dtstart,
+            local_start=local_start,
+            period_start=period_start,
+        )
+        occurences = self._get_rrule(dtstart=period_start, count=count)
 
         return (
             localize_standard(occurrence, tz).astimezone(UTC).replace(tzinfo=None)
@@ -568,6 +718,9 @@ class MixinRecurrenceRrule(models.AbstractModel):
             if weekday
         )
 
+    def _get_nth_weekday(self):
+        return getattr(rrule, RRULE_WEEKDAYS[self.weekday])(int(self.byday))
+
     def _get_rrule(self, dtstart=None, bounded=True, count=None):
         self.check_singleton()
         freq = self.repeat_unit
@@ -580,9 +733,19 @@ class MixinRecurrenceRrule(models.AbstractModel):
         elif (
             freq == "month" and self.month_by == "day"
         ):  # e.g. every 2nd Monday in the month
-            rrule_params["byweekday"] = getattr(rrule, RRULE_WEEKDAYS[self.weekday])(
-                int(self.byday)
-            )  # e.g. MO(+2) for the second Monday of the month
+            rrule_params["byweekday"] = self._get_nth_weekday()
+        elif freq == "year" and self.month_by == "day":
+            if dtstart:
+                rrule_params["bymonth"] = dtstart.month
+                rrule_params["byweekday"] = self._get_nth_weekday()
+            _debug.logic(
+                "recurrence.yearly_nth_weekday",
+                record=self.id,
+                month=dtstart and dtstart.month,
+                weekday=self.weekday,
+                byday=self.byday,
+                anchored=bool(dtstart),
+            )
         elif freq == "week":
             weekdays = self._get_week_days()
             if not weekdays:

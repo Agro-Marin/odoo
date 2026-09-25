@@ -214,7 +214,6 @@ class TestCommon(HttpCase):
             },
             "recurrence": {
                 "pattern": {
-                    "dayOfMonth": 22,
                     "interval": self.recurrent_event_interval,
                     "type": "daily",
                 },

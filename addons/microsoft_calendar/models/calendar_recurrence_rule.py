@@ -1,5 +1,34 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
+
+from odoo.addons.base.models.mixin_recurrence_rrule import LAST_DAY_OF_MONTH
+
+_debug = DebugLog(__name__)
+
+# Outlook's words for a recurrence pattern. These were read straight off the
+# Odoo value, which worked only while `rrule_type` happened to be spelled the
+# way Outlook spells it -- `"daily"`, and `"monthly"` capitalised into
+# `absoluteMonthly`. The shared vocabulary says `day` and `month`, so the
+# translation is explicit and is the inverse of `MicrosoftEvent.get_recurrence`.
+MICROSOFT_SIMPLE_PATTERN = {"day": "daily", "week": "weekly"}
+MICROSOFT_PERIOD_PATTERN = {"month": "Monthly", "year": "Yearly"}
+MICROSOFT_WEEKDAYS = {
+    "mon": "monday",
+    "tue": "tuesday",
+    "wed": "wednesday",
+    "thu": "thursday",
+    "fri": "friday",
+    "sat": "saturday",
+    "sun": "sunday",
+}
+MICROSOFT_INDEX = {
+    "1": "first",
+    "2": "second",
+    "3": "third",
+    "4": "fourth",
+    "-1": "last",
+}
 
 
 class CalendarRecurrence(models.Model):
@@ -22,7 +51,9 @@ class CalendarRecurrence(models.Model):
         # Outlook, as this update mainly comes from Outlook (the 'rrule' field is not directly
         # modified in Odoo but computed from other fields).
         for recurrence in self.filtered("rrule"):
-            values = self._rrule_parse(recurrence.rrule, recurrence.dtstart)
+            values = self._rrule_parse(
+                recurrence.rrule, recurrence.dtstart, tz=recurrence._get_timezone()
+            )
             recurrence.with_context(dont_notify=True).write(
                 dict(values, need_sync_m=False)
             )
@@ -74,17 +105,6 @@ class CalendarRecurrence(models.Model):
 
     def _get_organizer(self):
         return self.base_event_id.user_id
-
-    def _get_rrule(self, dtstart=None, **kwargs):
-        # Pass the rest through: `calendar.recurrence._get_rrule` also takes
-        # `bounded` (whether a `forever` rule is capped for enumeration) and
-        # `count` (an override used by `_range_calculation`). Pinning the
-        # signature to `dtstart` alone made `_rrule_serialize`, which calls it
-        # with `bounded=False`, raise TypeError for every recurrence as soon as
-        # this module was installed.
-        if not dtstart and self.dtstart:
-            dtstart = self.dtstart
-        return super()._get_rrule(dtstart, **kwargs)
 
     def _get_fields_microsoft_synced(self):
         return {"rrule"} | self.env["calendar.event"]._get_fields_microsoft_synced()
@@ -199,6 +219,51 @@ class CalendarRecurrence(models.Model):
             }
 
         return recurrence
+
+    def _get_microsoft_pattern(self):
+        self.check_singleton()
+        pattern = {"interval": self.repeat_interval}
+        if self.repeat_unit in MICROSOFT_SIMPLE_PATTERN:
+            pattern["type"] = MICROSOFT_SIMPLE_PATTERN[self.repeat_unit]
+        elif (
+            self.repeat_unit == "month"
+            and self.month_by == "date"
+            and self.day == LAST_DAY_OF_MONTH
+        ):
+            # Outlook has no day number for the end of the month; its own "last
+            # day" is the last of any weekday.
+            pattern["type"] = "relativeMonthly"
+            pattern["daysOfWeek"] = list(MICROSOFT_WEEKDAYS.values())
+            pattern["index"] = MICROSOFT_INDEX[str(LAST_DAY_OF_MONTH)]
+            _debug.logic("microsoft.recurrence_last_day_as_relative", record=self.id)
+        else:
+            relative = self.month_by == "day"
+            period = MICROSOFT_PERIOD_PATTERN.get(self.repeat_unit)
+            pattern["type"] = (
+                period and ("relative" if relative else "absolute") + period
+            )
+            if relative:
+                pattern["daysOfWeek"] = [MICROSOFT_WEEKDAYS[self.weekday.lower()]]
+                pattern["index"] = MICROSOFT_INDEX[self.byday]
+            elif self.repeat_unit == "month":
+                pattern["dayOfMonth"] = self.day
+            if self.repeat_unit == "year":
+                local_start = self._get_local_start() or fields.Datetime.now()
+                pattern["month"] = local_start.month
+                if not relative:
+                    pattern["dayOfMonth"] = local_start.day
+                _debug.logic(
+                    "microsoft.recurrence_yearly_pattern",
+                    record=self.id,
+                    relative=relative,
+                    month=local_start.month,
+                )
+        if self.repeat_unit == "week":
+            pattern["daysOfWeek"] = [
+                name for field, name in MICROSOFT_WEEKDAYS.items() if self[field]
+            ]
+            pattern["firstDayOfWeek"] = "sunday"
+        return pattern
 
     def _microsoft_values(self, fields_to_sync, initial_values=()):
         """

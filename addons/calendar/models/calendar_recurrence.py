@@ -4,7 +4,10 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import Command, api, fields, models
 from odoo.fields import Domain
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.misc import clean_context
+
+_debug = DebugLog(__name__)
 
 
 class CalendarRecurrence(models.Model):
@@ -259,11 +262,20 @@ class CalendarRecurrence(models.Model):
         if event.allday:
             until = self._get_start_of_period(event.start_date)
         else:
-            until_datetime = self._get_start_of_period(event.start)
-            until_timezoned = until_datetime.replace(tzinfo=UTC).astimezone(
-                self._get_timezone()
+            local_start = (
+                event.start.replace(tzinfo=UTC)
+                .astimezone(self._get_timezone())
+                .replace(tzinfo=None)
             )
-            until = until_timezoned.date()
+            until = self._get_start_of_period(local_start).date()
+        _debug.logic(
+            "recurrence.stopped",
+            recurrence=self.id,
+            event=event.id,
+            allday=event.allday,
+            until=until - relativedelta(days=1),
+            detached=len(detached_events),
+        )
         self.write(
             {
                 "repeat_type": "until",

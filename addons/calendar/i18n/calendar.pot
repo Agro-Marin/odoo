@@ -6,8 +6,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Odoo Server 19.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-12 05:38+0000\n"
-"PO-Revision-Date: 2026-09-12 05:38+0000\n"
+"POT-Creation-Date: 2026-09-25 01:32+0000\n"
+"PO-Revision-Date: 2026-09-25 01:32+0000\n"
 "Last-Translator: \n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
@@ -54,6 +54,8 @@ msgid "# Invitation Links"
 msgstr ""
 
 #. module: calendar
+#: model:ir.model.fields,field_description:calendar.field_res_bank__meeting_count
+#: model:ir.model.fields,field_description:calendar.field_res_company__meeting_count
 #: model:ir.model.fields,field_description:calendar.field_res_partner__meeting_count
 #: model:ir.model.fields,field_description:calendar.field_res_users__meeting_count
 msgid "# Meetings"
@@ -98,6 +100,12 @@ msgstr ""
 
 #. module: calendar
 #. odoo-python
+#: code:addons/calendar/models/calendar_attendee.py:0
+msgid "%(company)s invitation links"
+msgstr ""
+
+#. module: calendar
+#. odoo-python
 #: code:addons/calendar/models/calendar_event.py:0
 msgid ""
 "%(date_start)s at %(time_start)s To\n"
@@ -118,7 +126,6 @@ msgstr ""
 
 #. module: calendar
 #. odoo-python
-#: code:addons/calendar/models/booking/appointment_resource.py:0
 #: code:addons/calendar/models/booking/appointment_type.py:0
 msgid "%s (copy)"
 msgstr ""
@@ -412,6 +419,165 @@ msgid ""
 msgstr ""
 
 #. module: calendar
+#: model:mail.template,body_html:calendar.attendee_invitation_mail_template
+msgid ""
+"<div style=\"font-size: 13px; color: #374151;\">\n"
+"                    <t t-set=\"customer\" t-value=\" object.event_id.find_partner_customer()\"/>\n"
+"                    <t t-set=\"target_responsible\" t-value=\"object.partner_id == object.event_id.partner_id\"/>\n"
+"                    <t t-set=\"target_customer\" t-value=\"object.partner_id == customer\"/>\n"
+"                    <t t-set=\"recurrent\" t-value=\"object.recurrence_id and not ctx.get('calendar_template_ignore_recurrence')\"/>\n"
+"\n"
+"                    <h1 style=\"font-size: 18px; font-weight: bold; color: #374151; margin-bottom: 28px;\">\n"
+"                        Invitation\n"
+"                    </h1>\n"
+"                    <p style=\"margin: 0;\">\n"
+"                        <span style=\"display: block; margin-bottom: 8px;\">Hello <t t-out=\"object.common_name or ''\">Wood Corner</t>,</span>\n"
+"\n"
+"                        <t t-if=\"target_customer\">\n"
+"                            <t t-if=\"not object.event_id.appointment_type_id.is_always_confirm\">\n"
+"                                <t t-if=\"object.event_id.appointment_status == 'booked'\">\n"
+"                                    We're happy to let you know your booking <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong><t t-if=\"object.event_id.appointment_type_id.category not in ['custom', 'anytime'] and object.event_id.appointment_type_id.schedule_based_on == 'users'\"> with <t t-out=\"object.event_id.user_id.name or ''\">Ready Mat</t></t> has been confirmed.<br/>\n"
+"                                </t>\n"
+"                                <t t-elif=\"object.event_id.appointment_status == 'request'\">\n"
+"                                    We've got your booking <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong><t t-if=\"object.event_id.appointment_type_id.category not in ['custom', 'anytime'] and object.event_id.appointment_type_id.schedule_based_on == 'users'\"> with <t t-out=\"object.event_id.user_id.name or ''\">Ready Mat</t></t>.<br/>\n"
+"                                    We'll notify you once it's confirmed.\n"
+"                                </t>\n"
+"                            </t>\n"
+"                            <t t-else=\"\">\n"
+"                                Your appointment <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong> <t t-if=\"object.event_id.appointment_type_id.category not in ['custom', 'anytime'] and object.event_id.appointment_type_id.schedule_based_on == 'users'\"> with <t t-out=\"object.event_id.user_id.name or ''\">Ready Mat</t></t> has been booked.\n"
+"                            </t>\n"
+"                        </t>\n"
+"                        <t t-elif=\"target_responsible\">\n"
+"                            <t t-if=\"customer\">\n"
+"                                <t t-out=\"customer.name or ''\"/> scheduled the following appointment <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong> with you.\n"
+"                                <t t-if=\"object.event_id.appointment_type_id and object.event_id.appointment_status == 'request'\">\n"
+"                                    It is awaiting confirmation.\n"
+"                                </t>\n"
+"                            </t>\n"
+"                            <t t-else=\"\">\n"
+"                                Your appointment <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong> has been booked.\n"
+"                            </t>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            You have been invited to the following appointment <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong>.\n"
+"                        </t>\n"
+"                    </p>\n"
+"                    <div style=\"text-align: center; padding: 16px 0px 16px 0px;\">\n"
+"                        <t t-if=\"object.state != 'accepted'\">\n"
+"                            <a t-attf-href=\"/calendar/meeting/accept?token={{object.access_token}}&amp;id={{object.event_id.id}}\" t-attf-style=\"display: inline-block; padding: 7px 14px; color: {{user.company_id.email_primary_color or '#FFFFFF'}}; text-decoration: none; background-color: {{user.company_id.email_secondary_color or '#875A7B'}}; border-radius: 3px\">\n"
+"                                Accept</a>\n"
+"                            <a t-attf-href=\"/calendar/meeting/decline?token={{object.access_token}}&amp;id={{object.event_id.id}}\" t-attf-style=\"display: inline-block; margin-left: 6px; padding: 7px 14px; color: {{user.company_id.email_primary_color or '#FFFFFF'}}; text-decoration: none; background-color: {{user.company_id.email_secondary_color or '#875A7B'}}; border-radius: 3px\">\n"
+"                                Decline</a>\n"
+"                        </t>\n"
+"                        <a t-if=\"not target_responsible and not target_customer\" t-attf-href=\"/calendar/meeting/view?token={{object.access_token}}&amp;id={{object.event_id.id}}\" style=\"display: inline-block; margin-left: 12px; padding: 5px 10px; color: #111827; text-decoration: none; background-color: #E7E9ED; border-radius: 3px; border-radius: 3px\">View</a>\n"
+"                        <a t-elif=\"not target_customer\" t-attf-href=\"/mail/view?model=calendar.event&amp;res_id={{object.event_id.id}}\" t-attf-style=\"display: inline-block; margin-left: 12px; padding: 5px 10px; color: #111827; text-decoration: none; background-color: #E7E9ED; border-radius: 3px; border-radius: 3px\">View</a>\n"
+"                    </div>\n"
+"                    <div style=\"margin: 16px 0 0;\">\n"
+"                        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Details</h2>\n"
+"                        <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-size: 13px; color: #374151;\">\n"
+"                            <tr>\n"
+"                                <td style=\"width: 100px; color: #676F7B;\">Date &amp; Time</td>\n"
+"                                <td style=\"font-weight: bold;\">\n"
+"                                    <t t-out=\"format_datetime(dt=object.event_id.start, tz=object.mail_tz if not object.event_id.allday else None, dt_format='EEEE', lang_code=object.env.lang) or ''\">Tuesday</t>\n"
+"                                    <t t-out=\"format_datetime(dt=object.event_id.start, tz=object.mail_tz if not object.event_id.allday else None, dt_format='d', lang_code=object.env.lang) or ''\">4</t>\n"
+"                                    <t t-out=\"format_datetime(dt=object.event_id.start, tz=object.mail_tz if not object.event_id.allday else None, dt_format='MMMM y', lang_code=object.env.lang) or ''\">May 2021</t>\n"
+"                                    <t t-if=\"not object.event_id.allday\">\n"
+"                                        <t t-out=\"format_time(time=object.event_id.start, tz=object.mail_tz, time_format='short', lang_code=object.env.lang) or ''\">11:00 AM</t>\n"
+"                                        <t t-if=\"not object.event_id.appointment_type_id.hide_timezone and object.mail_tz\">\n"
+"                                            <span style=\"font-size: 11px; font-weight: normal;\">\n"
+"                                                (<t t-out=\"object.mail_tz or ''\">Europe/Brussels</t>)\n"
+"                                            </span>\n"
+"                                        </t>\n"
+"                                    </t>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"recurrent\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">When</td>\n"
+"                                <td style=\"padding-top: 6px;\"><t t-out=\"object.recurrence_id.name or ''\">Every 1 Weeks, for 3 events</t></td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"not object.event_id.appointment_type_id.hide_duration and not object.event_id.allday and object.event_id.duration\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">Duration</td>\n"
+"                                <td style=\"padding-top: 6px;\"><t t-out=\"('%dH%02d' % (object.event_id.duration,round(object.event_id.duration*60)%60)) or ''\">0H30</t></td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"object.event_id.location\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;\">Location</td>\n"
+"                                <td style=\"padding-top: 6px;\">\n"
+"                                    <t t-out=\"object.event_id.location or ''\">Bruxelles</t>\n"
+"                                    <a target=\"_blank\" t-if=\"object.event_id.location != object.event_id.appointment_type_id.location_id.name\" t-attf-href=\"http://maps.google.com/maps?oi=map&amp;q={{object.event_id.location}}\" style=\"margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;\">View Map</a>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"object.event_id.appointment_type_id.manage_capacity\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">For</td>\n"
+"                                <td style=\"padding-top: 6px;\"><t t-out=\"object.event_id.total_capacity_reserved\"/> people</td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"not object.event_id.appointment_type_id.is_auto_assign and object.event_id.resource_ids\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;\">Resources</td>\n"
+"                                <td style=\"padding-top: 6px;\">\n"
+"                                    <ul style=\"padding: 0 15px;\">\n"
+"                                        <li t-foreach=\"object.event_id.resource_ids\" t-as=\"resource\">\n"
+"                                            <span style=\"margin-left:5px\" t-out=\"resource.name or ''\">Table 1</span>\n"
+"                                        </li>\n"
+"                                    </ul>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"object.event_id.videocall_redirection\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">\n"
+"                                    <t t-if=\"object.event_id.videocall_source == 'discuss'\">Join with</t>\n"
+"                                    <t t-else=\"\">Join</t>\n"
+"                                </td>\n"
+"                                <td style=\"padding-top: 6px;\">\n"
+"                                    <a t-attf-href=\"{{ object.event_id.videocall_redirection }}\" target=\"_blank\" style=\"color: #008f8c;\">\n"
+"                                        <t t-if=\"object.event_id.videocall_source == 'discuss'\">Odoo Discuss</t>\n"
+"                                        <t t-else=\"\">Video meeting</t>\n"
+"                                    </a>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                        </table>\n"
+"                    </div>\n"
+"                    <div style=\"margin: 32px 0 0;\">\n"
+"                        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Attendees</h2>\n"
+"                        <div t-foreach=\"object.event_id.attendee_ids\" t-as=\"attendee\" style=\"margin-bottom: 5px;\">\n"
+"                            <img t-if=\"attendee.state\" t-attf-src=\"/calendar/static/src/img/state_{{ attendee.state }}.png\" style=\"border:0; width: 15px; height: 15px; vertical-align: text-bottom;\"/>\n"
+"                            <t t-if=\"attendee != object\">\n"
+"                                <span style=\"margin-left: 5px\" t-out=\"attendee.common_name or ''\">Mitchell Admin</span>\n"
+"                            </t>\n"
+"                            <t t-else=\"\">\n"
+"                                <span style=\"margin-left:5px\">You</span>\n"
+"                            </t>\n"
+"                        </div>\n"
+"                    </div>\n"
+"                    <div t-if=\"not is_html_empty(object.event_id.description)\" style=\"margin: 32px 0 0;\">\n"
+"                        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Description of the event</h2>\n"
+"                        <div t-out=\"object.event_id.description\"/>\n"
+"                    </div>\n"
+"                    <div t-if=\"target_customer\" style=\"margin: 32px 0 0;\">\n"
+"                        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Make change to this event</h2>\n"
+"                        <a t-attf-href=\"/calendar/meeting/view?token={{object.access_token}}&amp;id={{object.event_id.id}}\" style=\"color: color: #008f8c; text-decoration: underline;\">Reschedule</a>\n"
+"                    </div>\n"
+"                    <t t-set=\"upcoming_appointments\" t-value=\"(object.event_id.appointment_booker_id.upcoming_appointment_ids - object.event_id).sorted('start')\"/>\n"
+"                    <div t-if=\"target_customer and upcoming_appointments\" style=\"margin: 32px 0 0;\">\n"
+"                        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Your Other Upcoming Appointment(s)</h2>\n"
+"                        <ul style=\"margin: 6px 0 0; padding: 0 18px;\">\n"
+"                            <li style=\"margin-top: 6px;\" t-foreach=\"upcoming_appointments\" t-as=\"upcoming_appointment\">\n"
+"                                <span t-out=\"upcoming_appointment.appointment_type_id.name or ''\">Technical Demo</span>\n"
+"                                <span style=\"margin: 0 10px;\">-</span>\n"
+"                                <span t-out=\"upcoming_appointment.start or ''\" t-options=\"{&quot;widget&quot;: &quot;datetime&quot;, &quot;format&quot;: &quot;medium&quot;, &quot;tz_name&quot;: object.mail_tz}\" style=\"font-weight: bold;\">June 20th, 15:00</span>\n"
+"                                <t t-set=\"own_attendee\" t-value=\"upcoming_appointment.attendee_ids.filtered(lambda attendee: attendee.partner_id == object.partner_id)[:1]\"/>\n"
+"                                <a t-if=\"own_attendee\" t-attf-href=\"/calendar/view/#{own_attendee.access_token}\" target=\"_blank\" style=\"margin-left: 10px; font-size: 12px; color: #008f8c; text-decoration: underline;\">View Details</a>\n"
+"                            </li>\n"
+"                        </ul>\n"
+"                    </div>\n"
+"                    <p style=\"margin: 32px 0 0;\">\n"
+"                        Thank you!\n"
+"                        <t t-if=\"object.event_id.user_id.signature\">\n"
+"                            <span style=\"display: block; margin-top: 8px;\"><t t-out=\"object.event_id.user_id.signature or ''\">Mitchell Admin</t></span>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
+msgstr ""
+
+#. module: calendar
 #: model:mail.template,body_html:calendar.calendar_template_meeting_update
 msgid ""
 "<div style=\"font-size: 13px; color: #374151;\">\n"
@@ -656,238 +822,79 @@ msgid ""
 msgstr ""
 
 #. module: calendar
-#: model:mail.template,body_html:calendar.attendee_invitation_mail_template
-msgid ""
-"<div style=\"font-size: 13px; color: #374151;\">\n"
-"    <t t-set=\"customer\" t-value=\" object.event_id.find_partner_customer()\"/>\n"
-"    <t t-set=\"target_responsible\" t-value=\"object.partner_id == object.event_id.partner_id\"/>\n"
-"    <t t-set=\"target_customer\" t-value=\"object.partner_id == customer\"/>\n"
-"    <t t-set=\"recurrent\" t-value=\"object.recurrence_id and not ctx.get('calendar_template_ignore_recurrence')\"/>\n"
-"\n"
-"    <h1 style=\"font-size: 18px; font-weight: bold; color: #374151; margin-bottom: 28px;\">\n"
-"        Invitation\n"
-"    </h1>\n"
-"    <p style=\"margin: 0;\">\n"
-"        <span style=\"display: block; margin-bottom: 8px;\">Hello <t t-out=\"object.common_name or ''\">Wood Corner</t>,</span>\n"
-"\n"
-"        <t t-if=\"target_customer\">\n"
-"            <t t-if=\"not object.event_id.appointment_type_id.is_always_confirm\">\n"
-"                <t t-if=\"object.event_id.appointment_status == 'booked'\">\n"
-"                    We're happy to let you know your booking <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong><t t-if=\"object.event_id.appointment_type_id.category not in ['custom', 'anytime'] and object.event_id.appointment_type_id.schedule_based_on == 'users'\"> with <t t-out=\"object.event_id.user_id.name or ''\">Ready Mat</t></t> has been confirmed.<br/>\n"
-"                </t>\n"
-"                <t t-elif=\"object.event_id.appointment_status == 'request'\">\n"
-"                    We've got your booking <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong><t t-if=\"object.event_id.appointment_type_id.category not in ['custom', 'anytime'] and object.event_id.appointment_type_id.schedule_based_on == 'users'\"> with <t t-out=\"object.event_id.user_id.name or ''\">Ready Mat</t></t>.<br/>\n"
-"                    We'll notify you once it's confirmed.\n"
-"                </t>\n"
-"            </t>\n"
-"            <t t-else=\"\">\n"
-"                Your appointment <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong> <t t-if=\"object.event_id.appointment_type_id.category not in ['custom', 'anytime'] and object.event_id.appointment_type_id.schedule_based_on == 'users'\"> with <t t-out=\"object.event_id.user_id.name or ''\">Ready Mat</t></t> has been booked.\n"
-"            </t>\n"
-"        </t>\n"
-"        <t t-elif=\"target_responsible\">\n"
-"            <t t-if=\"customer\">\n"
-"                <t t-out=\"customer.name or ''\"/> scheduled the following appointment <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong> with you.\n"
-"                <t t-if=\"object.event_id.appointment_type_id and object.event_id.appointment_status == 'request'\">\n"
-"                    It is awaiting confirmation.\n"
-"                </t>\n"
-"            </t>\n"
-"            <t t-else=\"\">\n"
-"                Your appointment <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong> has been booked.\n"
-"            </t>\n"
-"        </t>\n"
-"        <t t-else=\"\">\n"
-"            You have been invited to the following appointment <strong t-out=\"object.event_id.appointment_type_id.name or ''\">Schedule a Demo</strong>.\n"
-"        </t>\n"
-"    </p>\n"
-"    <div style=\"text-align: center; padding: 16px 0px 16px 0px;\">\n"
-"        <t t-if=\"object.state != 'accepted'\">\n"
-"            <a t-attf-href=\"/calendar/meeting/accept?token={{object.access_token}}&amp;id={{object.event_id.id}}\" t-attf-style=\"display: inline-block; padding: 7px 14px; color: {{user.company_id.email_primary_color or '#FFFFFF'}}; text-decoration: none; background-color: {{user.company_id.email_secondary_color or '#875A7B'}}; border-radius: 3px\">\n"
-"                Accept</a>\n"
-"            <a t-attf-href=\"/calendar/meeting/decline?token={{object.access_token}}&amp;id={{object.event_id.id}}\" t-attf-style=\"display: inline-block; margin-left: 6px; padding: 7px 14px; color: {{user.company_id.email_primary_color or '#FFFFFF'}}; text-decoration: none; background-color: {{user.company_id.email_secondary_color or '#875A7B'}}; border-radius: 3px\">\n"
-"                Decline</a>\n"
-"        </t>\n"
-"        <a t-if=\"not target_responsible and not target_customer\" t-attf-href=\"/calendar/meeting/view?token={{object.access_token}}&amp;id={{object.event_id.id}}\" style=\"display: inline-block; margin-left: 12px; padding: 5px 10px; color: #111827; text-decoration: none; background-color: #E7E9ED; border-radius: 3px; border-radius: 3px\">View</a>\n"
-"        <a t-elif=\"not target_customer\" t-attf-href=\"/mail/view?model=calendar.event&amp;res_id={{object.event_id.id}}\" t-attf-style=\"display: inline-block; margin-left: 12px; padding: 5px 10px; color: #111827; text-decoration: none; background-color: #E7E9ED; border-radius: 3px; border-radius: 3px\">View</a>\n"
-"    </div>\n"
-"    <div style=\"margin: 16px 0 0;\">\n"
-"        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Details</h2>\n"
-"        <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-size: 13px; color: #374151;\">\n"
-"            <tr>\n"
-"                <td style=\"width: 100px; color: #676F7B;\">Date &amp; Time</td>\n"
-"                <td style=\"font-weight: bold;\">\n"
-"                    <t t-out=\"format_datetime(dt=object.event_id.start, tz=object.mail_tz if not object.event_id.allday else None, dt_format='EEEE', lang_code=object.env.lang) or ''\">Tuesday</t>\n"
-"                    <t t-out=\"format_datetime(dt=object.event_id.start, tz=object.mail_tz if not object.event_id.allday else None, dt_format='d', lang_code=object.env.lang) or ''\">4</t>\n"
-"                    <t t-out=\"format_datetime(dt=object.event_id.start, tz=object.mail_tz if not object.event_id.allday else None, dt_format='MMMM y', lang_code=object.env.lang) or ''\">May 2021</t>\n"
-"                    <t t-if=\"not object.event_id.allday\">\n"
-"                        <t t-out=\"format_time(time=object.event_id.start, tz=object.mail_tz, time_format='short', lang_code=object.env.lang) or ''\">11:00 AM</t>\n"
-"                        <t t-if=\"not object.event_id.appointment_type_id.hide_timezone and object.mail_tz\">\n"
-"                            <span style=\"font-size: 11px; font-weight: normal;\">\n"
-"                                (<t t-out=\"object.mail_tz or ''\">Europe/Brussels</t>)\n"
-"                            </span>\n"
-"                        </t>\n"
-"                    </t>\n"
-"                </td>\n"
-"            </tr>\n"
-"            <tr t-if=\"recurrent\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">When</td>\n"
-"                <td style=\"padding-top: 6px;\"><t t-out=\"object.recurrence_id.name or ''\">Every 1 Weeks, for 3 events</t></td>\n"
-"            </tr>\n"
-"            <tr t-if=\"not object.event_id.appointment_type_id.hide_duration and not object.event_id.allday and object.event_id.duration\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">Duration</td>\n"
-"                <td style=\"padding-top: 6px;\"><t t-out=\"('%dH%02d' % (object.event_id.duration,round(object.event_id.duration*60)%60)) or ''\">0H30</t></td>\n"
-"            </tr>\n"
-"            <tr t-if=\"object.event_id.location\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;\">Location</td>\n"
-"                <td style=\"padding-top: 6px;\">\n"
-"                    <t t-out=\"object.event_id.location or ''\">Bruxelles</t>\n"
-"                    <a target=\"_blank\" t-if=\"object.event_id.location != object.event_id.appointment_type_id.location_id.name\" t-attf-href=\"http://maps.google.com/maps?oi=map&amp;q={{object.event_id.location}}\" style=\"margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;\">View Map</a>\n"
-"                </td>\n"
-"            </tr>\n"
-"            <tr t-if=\"object.event_id.appointment_type_id.manage_capacity\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">For</td>\n"
-"                <td style=\"padding-top: 6px;\"><t t-out=\"object.event_id.total_capacity_reserved\"/> people</td>\n"
-"            </tr>\n"
-"            <tr t-if=\"not object.event_id.appointment_type_id.is_auto_assign and object.event_id.appointment_resource_ids\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;\">Resources</td>\n"
-"                <td style=\"padding-top: 6px;\">\n"
-"                    <ul style=\"padding: 0 15px;\">\n"
-"                        <li t-foreach=\"object.event_id.appointment_resource_ids\" t-as=\"resource\">\n"
-"                            <span style=\"margin-left:5px\" t-out=\"resource.name or ''\">Table 1</span>\n"
-"                        </li>\n"
-"                    </ul>\n"
-"                </td>\n"
-"            </tr>\n"
-"            <tr t-if=\"object.event_id.videocall_redirection\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">\n"
-"                    <t t-if=\"object.event_id.videocall_source == 'discuss'\">Join with</t>\n"
-"                    <t t-else=\"\">Join</t>\n"
-"                </td>\n"
-"                <td style=\"padding-top: 6px;\">\n"
-"                    <a t-attf-href=\"{{ object.event_id.videocall_redirection }}\" target=\"_blank\" style=\"color: #008f8c;\">\n"
-"                        <t t-if=\"object.event_id.videocall_source == 'discuss'\">Odoo Discuss</t>\n"
-"                        <t t-else=\"\">Video meeting</t>\n"
-"                    </a>\n"
-"                </td>\n"
-"            </tr>\n"
-"        </table>\n"
-"    </div>\n"
-"    <div style=\"margin: 32px 0 0;\">\n"
-"        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Attendees</h2>\n"
-"        <div t-foreach=\"object.event_id.attendee_ids\" t-as=\"attendee\" style=\"margin-bottom: 5px;\">\n"
-"            <img t-if=\"attendee.state\" t-attf-src=\"/calendar/static/src/img/state_{{ attendee.state }}.png\" style=\"border:0; width: 15px; height: 15px; vertical-align: text-bottom;\"/>\n"
-"            <t t-if=\"attendee != object\">\n"
-"                <span style=\"margin-left: 5px\" t-out=\"attendee.common_name or ''\">Mitchell Admin</span>\n"
-"            </t>\n"
-"            <t t-else=\"\">\n"
-"                <span style=\"margin-left:5px\">You</span>\n"
-"            </t>\n"
-"        </div>\n"
-"    </div>\n"
-"    <div t-if=\"not is_html_empty(object.event_id.description)\" style=\"margin: 32px 0 0;\">\n"
-"        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Description of the event</h2>\n"
-"        <div t-out=\"object.event_id.description\"/>\n"
-"    </div>\n"
-"    <div t-if=\"target_customer\" style=\"margin: 32px 0 0;\">\n"
-"        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Make change to this event</h2>\n"
-"        <a t-attf-href=\"/calendar/meeting/view?token={{object.access_token}}&amp;id={{object.event_id.id}}\" style=\"color: color: #008f8c; text-decoration: underline;\">Reschedule</a>\n"
-"    </div>\n"
-"    <t t-set=\"upcoming_appointments\" t-value=\"(object.event_id.appointment_booker_id.upcoming_appointment_ids - object.event_id).sorted('start')\"/>\n"
-"    <div t-if=\"target_customer and upcoming_appointments\" style=\"margin: 32px 0 0;\">\n"
-"        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Your Other Upcoming Appointment(s)</h2>\n"
-"        <ul style=\"margin: 6px 0 0; padding: 0 18px;\">\n"
-"            <li style=\"margin-top: 6px;\" t-foreach=\"upcoming_appointments\" t-as=\"upcoming_appointment\">\n"
-"                <span t-out=\"upcoming_appointment.appointment_type_id.name or ''\">Technical Demo</span>\n"
-"                <span style=\"margin: 0 10px;\">-</span>\n"
-"                <span t-out=\"upcoming_appointment.start or ''\" t-options=\"{&quot;widget&quot;: &quot;datetime&quot;, &quot;format&quot;: &quot;medium&quot;, &quot;tz_name&quot;: object.mail_tz}\" style=\"font-weight: bold;\">June 20th, 15:00</span>\n"
-"                <t t-set=\"own_attendee\" t-value=\"upcoming_appointment.attendee_ids.filtered(lambda attendee: attendee.partner_id == object.partner_id)[:1]\"/>\n"
-"                <a t-if=\"own_attendee\" t-attf-href=\"/calendar/view/#{own_attendee.access_token}\" target=\"_blank\" style=\"margin-left: 10px; font-size: 12px; color: #008f8c; text-decoration: underline;\">View Details</a>\n"
-"            </li>\n"
-"        </ul>\n"
-"    </div>\n"
-"    <p style=\"margin: 32px 0 0;\">\n"
-"        Thank you!\n"
-"        <t t-if=\"object.event_id.user_id.signature\">\n"
-"            <span style=\"display: block; margin-top: 8px;\"><t t-out=\"object.event_id.user_id.signature or ''\">Mitchell Admin</t></span>\n"
-"        </t>\n"
-"    </p>\n"
-"</div>\n"
-"            "
-msgstr ""
-
-#. module: calendar
 #: model:mail.template,body_html:calendar.appointment_canceled_mail_template
 msgid ""
 "<div style=\"font-size: 13px; color: #374151;\">\n"
-"    <t t-set=\"recurrent\" t-value=\"object.recurrence_id and not ctx.get('calendar_template_ignore_recurrence')\"/>\n"
-"    <t t-set=\"mail_tz\" t-value=\"object._get_mail_tz() or ctx.get('mail_tz')\"/>\n"
-"    <t t-set=\"appointment_booker_name\" t-value=\"object.appointment_booker_id.display_name\"/>\n"
-"    <h1 style=\"font-size: 18px; font-weight: bold; color: #374151; margin-bottom: 28px;\">\n"
-"        Appointment canceled\n"
-"        <img src=\"/calendar/static/src/img/times-circle.png\" style=\"border:0; width: 24px; height: 24px; margin-left: 10px; text-decoration:none; vertical-align: bottom;\"/>\n"
-"    </h1>\n"
-"    <p style=\"margin: 0;\">\n"
-"        <t t-if=\"appointment_booker_name\">\n"
-"            Hello <t t-out=\"appointment_booker_name\"/>,\n"
-"        </t>\n"
-"        <t t-else=\"\">\n"
-"            Hello,\n"
-"        </t>\n"
-"        <br/>\n"
-"        <span style=\"display: block; margin-top: 8px;\">Your appointment for <t t-out=\"object.appointment_type_id.name or ''\">Technical Demo</t> <t t-if=\"object.appointment_type_id.category not in ['custom', 'anytime'] and object.appointment_type_id.schedule_based_on == 'users' and object.partner_id\"> with <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t></t> has been canceled.</span>\n"
-"    </p>\n"
-"    <div style=\"margin: 32px 0 0;\">\n"
-"        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Details</h2>\n"
-"        <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-size: 13px; color: #374151;\">\n"
-"            <tr>\n"
-"                <td style=\"width: 100px; color: #676F7B;\">Date &amp; Time</td>\n"
-"                <td style=\"font-weight: bold;\">\n"
-"                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='EEEE', lang_code=object.env.lang) or ''\">Wednesday</t>\n"
-"                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='d', lang_code=object.env.lang) or ''\">1</t>\n"
-"                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='MMMM y', lang_code=object.env.lang) or ''\">January 2020</t>\n"
-"                    <t t-if=\"not object.allday\">\n"
-"                        <t t-out=\"format_time(time=object.start, tz=mail_tz, time_format='short', lang_code=object.env.lang) or ''\">8:00</t>\n"
-"                        <t t-if=\"not object.appointment_type_id.hide_timezone and mail_tz\">\n"
-"                            <span style=\"font-size: 11px; font-weight: normal;\">\n"
-"                                (<t t-out=\"mail_tz\"/>)\n"
-"                            </span>\n"
+"                    <t t-set=\"recurrent\" t-value=\"object.recurrence_id and not ctx.get('calendar_template_ignore_recurrence')\"/>\n"
+"                    <t t-set=\"mail_tz\" t-value=\"object._get_mail_tz() or ctx.get('mail_tz')\"/>\n"
+"                    <t t-set=\"appointment_booker_name\" t-value=\"object.appointment_booker_id.display_name\"/>\n"
+"                    <h1 style=\"font-size: 18px; font-weight: bold; color: #374151; margin-bottom: 28px;\">\n"
+"                        Appointment canceled\n"
+"                        <img src=\"/calendar/static/src/img/times-circle.png\" style=\"border:0; width: 24px; height: 24px; margin-left: 10px; text-decoration:none; vertical-align: bottom;\"/>\n"
+"                    </h1>\n"
+"                    <p style=\"margin: 0;\">\n"
+"                        <t t-if=\"appointment_booker_name\">\n"
+"                            Hello <t t-out=\"appointment_booker_name\"/>,\n"
 "                        </t>\n"
-"                    </t>\n"
-"                </td>\n"
-"            </tr>\n"
-"            <tr t-if=\"recurrent\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">When</td>\n"
-"                <td style=\"padding-top: 6px;\"><t t-out=\"object.recurrence_id.name or ''\">Every 1 Weeks, for 3 events</t></td>\n"
-"            </tr>\n"
-"            <tr t-if=\"not object.appointment_type_id.hide_duration and not object.allday and object.duration\" style=\"padding-top: 6px;\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">Duration</td>\n"
-"                <td style=\"padding-top: 6px;\"><t t-out=\"('%dH%02d' % (object.duration,round(object.duration*60)%60)) or ''\">0H30</t></td>\n"
-"            </tr>\n"
-"            <tr t-if=\"object.location\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;\">Location</td>\n"
-"                <td style=\"padding-top: 6px;\">\n"
-"                    <t t-out=\"object.location or ''\">Bruxelles</t>\n"
-"                    <a target=\"_blank\" t-if=\"object.location != object.appointment_type_id.location_id.name\" t-attf-href=\"http://maps.google.com/maps?oi=map&amp;q={{ object.location }}\" style=\"margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;\">View Map</a>\n"
-"                </td>\n"
-"            </tr>\n"
-"        </table>\n"
-"    </div>\n"
-"    <div style=\"margin: 32px 0 0;\">\n"
-"        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Attendees</h2>\n"
-"        <div t-foreach=\"object.attendee_ids\" t-as=\"attendee\" style=\"margin-bottom: 5px;\">\n"
-"            <img t-if=\"attendee.state\" t-attf-src=\"/calendar/static/src/img/state_{{ attendee.state }}.png\" style=\"border:0; width: 15px; height: 15px; vertical-align: text-bottom;\"/>\n"
-"            <t t-if=\"attendee.common_name\">\n"
-"                <span style=\"margin-left: 5px\" t-out=\"attendee.common_name or ''\">Mitchell Admin</span>\n"
-"            </t>\n"
-"            <t t-else=\"\">\n"
-"                <span style=\"margin-left:5px\">You</span>\n"
-"            </t>\n"
-"        </div>\n"
-"    </div>\n"
-"    <div t-if=\"not is_html_empty(object.description)\" style=\"margin: 32px 0 0;\">\n"
-"        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Description of the event</h2>\n"
-"        <div t-out=\"object.description\"/>\n"
-"    </div>\n"
-"</div>\n"
+"                        <t t-else=\"\">\n"
+"                            Hello,\n"
+"                        </t>\n"
+"                        <br/>\n"
+"                        <span style=\"display: block; margin-top: 8px;\">Your appointment for <t t-out=\"object.appointment_type_id.name or ''\">Technical Demo</t> <t t-if=\"object.appointment_type_id.category not in ['custom', 'anytime'] and object.appointment_type_id.schedule_based_on == 'users' and object.partner_id\"> with <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t></t> has been canceled.</span>\n"
+"                    </p>\n"
+"                    <div style=\"margin: 32px 0 0;\">\n"
+"                        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Details</h2>\n"
+"                        <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-size: 13px; color: #374151;\">\n"
+"                            <tr>\n"
+"                                <td style=\"width: 100px; color: #676F7B;\">Date &amp; Time</td>\n"
+"                                <td style=\"font-weight: bold;\">\n"
+"                                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='EEEE', lang_code=object.env.lang) or ''\">Wednesday</t>\n"
+"                                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='d', lang_code=object.env.lang) or ''\">1</t>\n"
+"                                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='MMMM y', lang_code=object.env.lang) or ''\">January 2020</t>\n"
+"                                    <t t-if=\"not object.allday\">\n"
+"                                        <t t-out=\"format_time(time=object.start, tz=mail_tz, time_format='short', lang_code=object.env.lang) or ''\">8:00</t>\n"
+"                                        <t t-if=\"not object.appointment_type_id.hide_timezone and mail_tz\">\n"
+"                                            <span style=\"font-size: 11px; font-weight: normal;\">\n"
+"                                                (<t t-out=\"mail_tz\"/>)\n"
+"                                            </span>\n"
+"                                        </t>\n"
+"                                    </t>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"recurrent\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">When</td>\n"
+"                                <td style=\"padding-top: 6px;\"><t t-out=\"object.recurrence_id.name or ''\">Every 1 Weeks, for 3 events</t></td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"not object.appointment_type_id.hide_duration and not object.allday and object.duration\" style=\"padding-top: 6px;\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">Duration</td>\n"
+"                                <td style=\"padding-top: 6px;\"><t t-out=\"('%dH%02d' % (object.duration,round(object.duration*60)%60)) or ''\">0H30</t></td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"object.location\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;\">Location</td>\n"
+"                                <td style=\"padding-top: 6px;\">\n"
+"                                    <t t-out=\"object.location or ''\">Bruxelles</t>\n"
+"                                    <a target=\"_blank\" t-if=\"object.location != object.appointment_type_id.location_id.name\" t-attf-href=\"http://maps.google.com/maps?oi=map&amp;q={{ object.location }}\" style=\"margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;\">View Map</a>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                        </table>\n"
+"                    </div>\n"
+"                    <div style=\"margin: 32px 0 0;\">\n"
+"                        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Attendees</h2>\n"
+"                        <div t-foreach=\"object.attendee_ids\" t-as=\"attendee\" style=\"margin-bottom: 5px;\">\n"
+"                            <img t-if=\"attendee.state\" t-attf-src=\"/calendar/static/src/img/state_{{ attendee.state }}.png\" style=\"border:0; width: 15px; height: 15px; vertical-align: text-bottom;\"/>\n"
+"                            <t t-if=\"attendee.common_name\">\n"
+"                                <span style=\"margin-left: 5px\" t-out=\"attendee.common_name or ''\">Mitchell Admin</span>\n"
+"                            </t>\n"
+"                            <t t-else=\"\">\n"
+"                                <span style=\"margin-left:5px\">You</span>\n"
+"                            </t>\n"
+"                        </div>\n"
+"                    </div>\n"
+"                    <div t-if=\"not is_html_empty(object.description)\" style=\"margin: 32px 0 0;\">\n"
+"                        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Description of the event</h2>\n"
+"                        <div t-out=\"object.description\"/>\n"
+"                    </div>\n"
+"                </div>\n"
 "            "
 msgstr ""
 
@@ -895,113 +902,113 @@ msgstr ""
 #: model:mail.template,body_html:calendar.appointment_booked_mail_template
 msgid ""
 "<div style=\"font-size: 13px; color: #374151;\">\n"
-"    <t t-set=\"recurrent\" t-value=\"object.recurrence_id and not ctx.get('calendar_template_ignore_recurrence')\"/>\n"
-"    <t t-set=\"mail_tz\" t-value=\"object._get_mail_tz() or ctx.get('mail_tz')\"/>\n"
-"    <t t-set=\"appointment_booker_name\" t-value=\"object.appointment_booker_id.display_name\"/>\n"
-"    <h1 style=\"font-size: 18px; font-weight: bold; color: #374151;\">\n"
-"        <t t-if=\"not object.appointment_type_id.is_always_confirm and object.appointment_status == 'request'\">Appointment requested</t>\n"
-"        <t t-else=\"\">\n"
-"            Booking confirmed\n"
-"            <img src=\"/calendar/static/src/img/check-circle.png\" style=\"border:0; width: 24px; height: 24px; margin-left: 10px; text-decoration:none; vertical-align: bottom;\"/>\n"
-"        </t>\n"
-"    </h1>\n"
-"    <p style=\"margin: 0;\">\n"
-"        <span style=\"display: block; margin-top: 8px;\">\n"
-"            <t t-out=\"appointment_booker_name or ''\">John Booker</t>\n"
-"            <t t-if=\"not object.appointment_type_id.is_always_confirm and object.appointment_status == 'request'\"> has requested </t>\n"
-"            <t t-else=\"\"> has booked </t>\n"
-"            an appointment: <t t-out=\"object.appointment_type_id.name or ''\">Technical Demo</t>\n"
-"            <t t-if=\"object.appointment_type_id.category not in ['custom', 'anytime'] and object.appointment_type_id.schedule_based_on == 'users' and object.partner_id\">\n"
-"                with <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>\n"
-"            </t>.\n"
-"        </span>\n"
-"    </p>\n"
-"    <div style=\"text-align: center; padding: 16px 0px 16px 0px; margin-top: 16px;\">\n"
-"        <a t-attf-href=\"/calendar/meeting/join?token={{ object.access_token }}\" t-attf-style=\"display: inline-block; padding: 7px 14px; color: {{user.company_id.email_primary_color or '#FFFFFF'}}; text-decoration: none; background-color: {{user.company_id.email_secondary_color or '#875A7B'}}; border-radius: 3px\">\n"
-"            Join</a>\n"
-"        <a t-attf-href=\"/odoo/calendar.event/{{ object.id }}\" t-attf-style=\"display: inline-block; margin-left: 12px; padding: 7px 14px; color: #111827; text-decoration: none; background-color: #E7E9ED; border-radius: 3px;\">\n"
-"            View</a>\n"
-"    </div>\n"
-"    <div style=\"margin: 16px 0 0;\">\n"
-"        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Details</h2>\n"
-"        <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-size: 13px; color: #374151;\">\n"
-"            <tr>\n"
-"                <td style=\"width: 100px; color: #676F7B;\">Date &amp; Time</td>\n"
-"                <td style=\"font-weight: bold;\">\n"
-"                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='EEEE', lang_code=object.env.lang) or ''\">Wednesday</t>\n"
-"                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='d', lang_code=object.env.lang) or ''\">1</t>\n"
-"                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='MMMM y', lang_code=object.env.lang) or ''\">January 2020</t>\n"
-"                    <t t-if=\"not object.allday\">\n"
-"                        <t t-out=\"format_time(time=object.start, tz=mail_tz, time_format='short', lang_code=object.env.lang) or ''\">8:00</t>\n"
-"                        <t t-if=\"not object.appointment_type_id.hide_timezone and mail_tz\">\n"
-"                            <span style=\"font-size: 11px; font-weight: normal;\">\n"
-"                                (<t t-out=\"mail_tz\"/>)\n"
-"                            </span>\n"
+"                    <t t-set=\"recurrent\" t-value=\"object.recurrence_id and not ctx.get('calendar_template_ignore_recurrence')\"/>\n"
+"                    <t t-set=\"mail_tz\" t-value=\"object._get_mail_tz() or ctx.get('mail_tz')\"/>\n"
+"                    <t t-set=\"appointment_booker_name\" t-value=\"object.appointment_booker_id.display_name\"/>\n"
+"                    <h1 style=\"font-size: 18px; font-weight: bold; color: #374151;\">\n"
+"                        <t t-if=\"not object.appointment_type_id.is_always_confirm and object.appointment_status == 'request'\">Appointment requested</t>\n"
+"                        <t t-else=\"\">\n"
+"                            Booking confirmed\n"
+"                            <img src=\"/calendar/static/src/img/check-circle.png\" style=\"border:0; width: 24px; height: 24px; margin-left: 10px; text-decoration:none; vertical-align: bottom;\"/>\n"
 "                        </t>\n"
-"                    </t>\n"
-"                </td>\n"
-"            </tr>\n"
-"            <tr t-if=\"recurrent\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">When</td>\n"
-"                <td style=\"padding-top: 6px;\"><t t-out=\"object.recurrence_id.name or ''\">Every 1 Weeks, for 3 events</t></td>\n"
-"            </tr>\n"
-"            <tr t-if=\"not object.appointment_type_id.hide_duration and not object.allday and object.duration\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">Duration</td>\n"
-"                <td style=\"padding-top: 6px;\"><t t-out=\"('%dH%02d' % (object.duration,round(object.duration*60)%60)) or ''\">0H30</t></td>\n"
-"            </tr>\n"
-"            <tr t-if=\"object.location\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;\">Location</td>\n"
-"                <td style=\"padding-top: 6px;\">\n"
-"                    <t t-out=\"object.location or ''\">Bruxelles</t>\n"
-"                    <a target=\"_blank\" t-if=\"object.location != object.appointment_type_id.location_id.name\" t-attf-href=\"http://maps.google.com/maps?oi=map&amp;q={{ object.location }}\" style=\"margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;\">View Map</a>\n"
-"                </td>\n"
-"            </tr>\n"
-"            <tr t-if=\"object.appointment_type_id.manage_capacity\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">For</td>\n"
-"                <td style=\"padding-top: 6px;\"><t t-out=\"object.total_capacity_reserved\"/> people</td>\n"
-"            </tr>\n"
-"            <tr t-if=\"not object.appointment_type_id.is_auto_assign and object.appointment_resource_ids\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;\">Resources</td>\n"
-"                <td style=\"padding-top: 6px;\">\n"
-"                    <ul style=\"padding: 0 15px;\">\n"
-"                        <li t-foreach=\"object.appointment_resource_ids\" t-as=\"resource\">\n"
-"                            <span style=\"margin-left:5px\" t-out=\"resource.name or ''\">Table 1</span>\n"
-"                        </li>\n"
-"                    </ul>\n"
-"                </td>\n"
-"            </tr>\n"
-"            <tr t-if=\"object.videocall_redirection\">\n"
-"                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">\n"
-"                    <t t-if=\"object.videocall_source == 'discuss'\">Join with</t>\n"
-"                    <t t-else=\"\">Join</t>\n"
-"                </td>\n"
-"                <td style=\"padding-top: 6px;\">\n"
-"                    <a t-attf-href=\"{{ object.videocall_redirection }}\" target=\"_blank\" style=\"color: #008f8c;\">\n"
-"                        <t t-if=\"object.videocall_source == 'discuss'\">Odoo Discuss</t>\n"
-"                        <t t-else=\"\">Video meeting</t>\n"
-"                    </a>\n"
-"                </td>\n"
-"            </tr>\n"
-"        </table>\n"
-"    </div>\n"
-"    <div style=\"margin: 32px 0 0;\">\n"
-"        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Attendees</h2>\n"
-"        <div t-foreach=\"object.attendee_ids\" t-as=\"attendee\" style=\"margin-bottom: 5px;\">\n"
-"            <img t-if=\"attendee.state\" t-attf-src=\"/calendar/static/src/img/state_{{ attendee.state }}.png\" style=\"border:0; width: 15px; height: 15px; vertical-align: text-bottom;\"/>\n"
-"            <t t-if=\"attendee.common_name\">\n"
-"                <span style=\"margin-left: 5px\" t-out=\"attendee.common_name or ''\">Mitchell Admin</span>\n"
-"            </t>\n"
-"            <t t-else=\"\">\n"
-"                <span style=\"margin-left:5px\">You</span>\n"
-"            </t>\n"
-"        </div>\n"
-"    </div>\n"
-"    <div t-if=\"not is_html_empty(object.description)\" style=\"margin: 32px 0 0;\">\n"
-"        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Description of the event</h2>\n"
-"        <div t-out=\"object.description\"/>\n"
-"    </div>\n"
+"                    </h1>\n"
+"                    <p style=\"margin: 0;\">\n"
+"                        <span style=\"display: block; margin-top: 8px;\">\n"
+"                            <t t-out=\"appointment_booker_name or ''\">John Booker</t>\n"
+"                            <t t-if=\"not object.appointment_type_id.is_always_confirm and object.appointment_status == 'request'\"> has requested </t>\n"
+"                            <t t-else=\"\"> has booked </t>\n"
+"                            an appointment: <t t-out=\"object.appointment_type_id.name or ''\">Technical Demo</t>\n"
+"                            <t t-if=\"object.appointment_type_id.category not in ['custom', 'anytime'] and object.appointment_type_id.schedule_based_on == 'users' and object.partner_id\">\n"
+"                                with <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>\n"
+"                            </t>.\n"
+"                        </span>\n"
+"                    </p>\n"
+"                    <div style=\"text-align: center; padding: 16px 0px 16px 0px; margin-top: 16px;\">\n"
+"                        <a t-attf-href=\"/calendar/meeting/join?token={{ object.access_token }}\" t-attf-style=\"display: inline-block; padding: 7px 14px; color: {{user.company_id.email_primary_color or '#FFFFFF'}}; text-decoration: none; background-color: {{user.company_id.email_secondary_color or '#875A7B'}}; border-radius: 3px\">\n"
+"                            Join</a>\n"
+"                        <a t-attf-href=\"/odoo/calendar.event/{{ object.id }}\" t-attf-style=\"display: inline-block; margin-left: 12px; padding: 7px 14px; color: #111827; text-decoration: none; background-color: #E7E9ED; border-radius: 3px;\">\n"
+"                            View</a>\n"
+"                    </div>\n"
+"                    <div style=\"margin: 16px 0 0;\">\n"
+"                        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Details</h2>\n"
+"                        <table cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"font-size: 13px; color: #374151;\">\n"
+"                            <tr>\n"
+"                                <td style=\"width: 100px; color: #676F7B;\">Date &amp; Time</td>\n"
+"                                <td style=\"font-weight: bold;\">\n"
+"                                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='EEEE', lang_code=object.env.lang) or ''\">Wednesday</t>\n"
+"                                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='d', lang_code=object.env.lang) or ''\">1</t>\n"
+"                                    <t t-out=\"format_datetime(dt=object.start, tz=mail_tz if not object.allday else None, dt_format='MMMM y', lang_code=object.env.lang) or ''\">January 2020</t>\n"
+"                                    <t t-if=\"not object.allday\">\n"
+"                                        <t t-out=\"format_time(time=object.start, tz=mail_tz, time_format='short', lang_code=object.env.lang) or ''\">8:00</t>\n"
+"                                        <t t-if=\"not object.appointment_type_id.hide_timezone and mail_tz\">\n"
+"                                            <span style=\"font-size: 11px; font-weight: normal;\">\n"
+"                                                (<t t-out=\"mail_tz\"/>)\n"
+"                                            </span>\n"
+"                                        </t>\n"
+"                                    </t>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"recurrent\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">When</td>\n"
+"                                <td style=\"padding-top: 6px;\"><t t-out=\"object.recurrence_id.name or ''\">Every 1 Weeks, for 3 events</t></td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"not object.appointment_type_id.hide_duration and not object.allday and object.duration\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">Duration</td>\n"
+"                                <td style=\"padding-top: 6px;\"><t t-out=\"('%dH%02d' % (object.duration,round(object.duration*60)%60)) or ''\">0H30</t></td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"object.location\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;\">Location</td>\n"
+"                                <td style=\"padding-top: 6px;\">\n"
+"                                    <t t-out=\"object.location or ''\">Bruxelles</t>\n"
+"                                    <a target=\"_blank\" t-if=\"object.location != object.appointment_type_id.location_id.name\" t-attf-href=\"http://maps.google.com/maps?oi=map&amp;q={{ object.location }}\" style=\"margin-left: 12px; font-size: 12px; color: #008f8c; text-decoration: underline;\">View Map</a>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"object.appointment_type_id.manage_capacity\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">For</td>\n"
+"                                <td style=\"padding-top: 6px;\"><t t-out=\"object.total_capacity_reserved\"/> people</td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"not object.appointment_type_id.is_auto_assign and object.resource_ids\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B; vertical-align: top;\">Resources</td>\n"
+"                                <td style=\"padding-top: 6px;\">\n"
+"                                    <ul style=\"padding: 0 15px;\">\n"
+"                                        <li t-foreach=\"object.resource_ids\" t-as=\"resource\">\n"
+"                                            <span style=\"margin-left:5px\" t-out=\"resource.name or ''\">Table 1</span>\n"
+"                                        </li>\n"
+"                                    </ul>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                            <tr t-if=\"object.videocall_redirection\">\n"
+"                                <td style=\"width: 100px; padding-top: 6px; color: #676F7B;\">\n"
+"                                    <t t-if=\"object.videocall_source == 'discuss'\">Join with</t>\n"
+"                                    <t t-else=\"\">Join</t>\n"
+"                                </td>\n"
+"                                <td style=\"padding-top: 6px;\">\n"
+"                                    <a t-attf-href=\"{{ object.videocall_redirection }}\" target=\"_blank\" style=\"color: #008f8c;\">\n"
+"                                        <t t-if=\"object.videocall_source == 'discuss'\">Odoo Discuss</t>\n"
+"                                        <t t-else=\"\">Video meeting</t>\n"
+"                                    </a>\n"
+"                                </td>\n"
+"                            </tr>\n"
+"                        </table>\n"
+"                    </div>\n"
+"                    <div style=\"margin: 32px 0 0;\">\n"
+"                        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Attendees</h2>\n"
+"                        <div t-foreach=\"object.attendee_ids\" t-as=\"attendee\" style=\"margin-bottom: 5px;\">\n"
+"                            <img t-if=\"attendee.state\" t-attf-src=\"/calendar/static/src/img/state_{{ attendee.state }}.png\" style=\"border:0; width: 15px; height: 15px; vertical-align: text-bottom;\"/>\n"
+"                            <t t-if=\"attendee.common_name\">\n"
+"                                <span style=\"margin-left: 5px\" t-out=\"attendee.common_name or ''\">Mitchell Admin</span>\n"
+"                            </t>\n"
+"                            <t t-else=\"\">\n"
+"                                <span style=\"margin-left:5px\">You</span>\n"
+"                            </t>\n"
+"                        </div>\n"
+"                    </div>\n"
+"                    <div t-if=\"not is_html_empty(object.description)\" style=\"margin: 32px 0 0;\">\n"
+"                        <h2 t-attf-style=\"margin-bottom: 12px; font-size: 14px; font-weight: bold; color: {{user.company_id.email_secondary_color or '#875A7B'}};\">Description of the event</h2>\n"
+"                        <div t-out=\"object.description\"/>\n"
+"                    </div>\n"
 "\n"
-"</div>\n"
+"                </div>\n"
 "            "
 msgstr ""
 
@@ -1353,6 +1360,14 @@ msgid "A %s appointment type shouldn't be limited by datetimes."
 msgstr ""
 
 #. module: calendar
+#: model:ir.model.fields,help:calendar.field_resource_resource__booking_exclusive
+msgid ""
+"A booking takes the whole resource, whatever capacity it asked for. Clear it"
+" to let several bookings share one time slot up to the capacity, as a bar "
+"counter does."
+msgstr ""
+
+#. module: calendar
 #: model:ir.model.constraint,message:calendar.constraint_survey_question_check_default_question_is_reusable
 msgid "A default question must be reusable."
 msgstr ""
@@ -1377,6 +1392,20 @@ msgstr ""
 msgid ""
 "A punctual appointment type should be limited between a start and end "
 "datetime."
+msgstr ""
+
+#. module: calendar
+#: model_terms:ir.actions.act_window,help:calendar.appointment_resource_action_stat
+msgid ""
+"A resource is what people book: a table, a tennis court, a meeting room."
+msgstr ""
+
+#. module: calendar
+#: model_terms:ir.actions.act_window,help:calendar.appointment_resource_action
+msgid ""
+"A resource is what people book: a table, a tennis court, a meeting room.\n"
+"                Give it an appointment type and it is offered; give it papers, maintenance\n"
+"                or custody by making it an asset."
 msgstr ""
 
 #. module: calendar
@@ -1414,7 +1443,6 @@ msgstr ""
 
 #. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_appointment_booking_line__active
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__active
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__active
 #: model:ir.model.fields,field_description:calendar.field_calendar_event__active
 #: model:ir.model.fields,field_description:calendar.field_calendar_event_type__active
@@ -1755,31 +1783,6 @@ msgid "Appointment Name"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model,name:calendar.model_appointment_resource
-#: model:ir.model.fields,field_description:calendar.field_appointment_booking_line__appointment_resource_id
-msgid "Appointment Resource"
-msgstr ""
-
-#. module: calendar
-#: model:ir.actions.server,name:calendar.resource_schedule_exception_action_show_appointment_resources
-msgid "Appointment Resource Leaves"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_calendar_event__appointment_resource_ids
-#: model_terms:ir.ui.view,arch_db:calendar.appointment_resource_view_search
-msgid "Appointment Resources"
-msgstr ""
-
-#. module: calendar
-#: model_terms:ir.actions.act_window,help:calendar.appointment_resource_action
-#: model_terms:ir.actions.act_window,help:calendar.appointment_resource_action_stat
-msgid ""
-"Appointment Resources are the places or equipment people can book\n"
-"                (e.g. Tables, Tennis Courts, Meeting Rooms, ...)"
-msgstr ""
-
-#. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_calendar_event__appointment_response_ids
 msgid "Appointment Response"
 msgstr ""
@@ -1892,8 +1895,6 @@ msgstr ""
 #. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_question_view_form
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_question_view_search
-#: model_terms:ir.ui.view,arch_db:calendar.appointment_resource_view_form
-#: model_terms:ir.ui.view,arch_db:calendar.appointment_resource_view_search
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_type_view_form
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_type_view_kanban
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_type_view_search
@@ -1994,38 +1995,13 @@ msgid "Available"
 msgstr ""
 
 #. module: calendar
-#: model_terms:ir.ui.view,arch_db:calendar.appointment_resource_view_search
+#: model_terms:ir.ui.view,arch_db:calendar.resource_resource_view_search_booking
 msgid "Available In"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__appointment_type_ids
+#: model:ir.model.fields,field_description:calendar.field_resource_resource__appointment_type_ids
 msgid "Available in"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__avatar_1920
-msgid "Avatar"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__avatar_1024
-msgid "Avatar 1024"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__avatar_128
-msgid "Avatar 128"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__avatar_256
-msgid "Avatar 256"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__avatar_512
-msgid "Avatar 512"
 msgstr ""
 
 #. module: calendar
@@ -2078,6 +2054,16 @@ msgid "Book a Resource"
 msgstr ""
 
 #. module: calendar
+#: model_terms:ir.ui.view,arch_db:calendar.resource_resource_view_search_booking
+msgid "Bookable"
+msgstr ""
+
+#. module: calendar
+#: model:ir.actions.server,name:calendar.resource_schedule_exception_action_show_appointment_resources
+msgid "Bookable Resource Leaves"
+msgstr ""
+
+#. module: calendar
 #: model:ir.model.fields.selection,name:calendar.selection__calendar_event__appointment_status__booked
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_progress_bar
 #: model_terms:ir.ui.view,arch_db:calendar.calendar_event_view_form
@@ -2096,6 +2082,11 @@ msgid "Booked Capacity"
 msgstr ""
 
 #. module: calendar
+#: model:ir.model.fields,field_description:calendar.field_calendar_event__booked_resource_ids
+msgid "Booked Resources"
+msgstr ""
+
+#. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.calendar_event_view_tree_booking
 msgid "Booked by"
 msgstr ""
@@ -2103,11 +2094,6 @@ msgstr ""
 #. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_appointment_booking_line__calendar_event_id
 msgid "Booking"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__booking_limit_percentage
-msgid "Booking Ceiling %"
 msgstr ""
 
 #. module: calendar
@@ -2121,6 +2107,11 @@ msgid "Booking End"
 msgstr ""
 
 #. module: calendar
+#: model:ir.model.fields,field_description:calendar.field_resource_resource__booking_exclusive
+msgid "Booking Exclusive"
+msgstr ""
+
+#. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_calendar_event__booking_line_ids
 msgid "Booking Lines"
 msgstr ""
@@ -2128,6 +2119,11 @@ msgstr ""
 #. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_calendar_event__booking_access_token
 msgid "Booking Management Token"
+msgstr ""
+
+#. module: calendar
+#: model:ir.model.fields,field_description:calendar.field_resource_resource__booking_sequence
+msgid "Booking Sequence"
 msgstr ""
 
 #. module: calendar
@@ -2350,11 +2346,6 @@ msgid "Cancelled"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__capacity
-msgid "Capacity"
-msgstr ""
-
-#. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__manual_confirmation_percentage
 msgid "Capacity Percentage"
 msgstr ""
@@ -2474,6 +2465,11 @@ msgid "Color"
 msgstr ""
 
 #. module: calendar
+#: model:ir.model.fields,field_description:calendar.field_resource_resource__combinable_resource_ids
+msgid "Combinable Resource"
+msgstr ""
+
+#. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_calendar_attendee__common_name
 msgid "Common name"
 msgstr ""
@@ -2481,11 +2477,6 @@ msgstr ""
 #. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_type_view_form
 msgid "Communication"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__company_id
-msgid "Company"
 msgstr ""
 
 #. module: calendar
@@ -2637,7 +2628,7 @@ msgstr ""
 #. module: calendar
 #: model_terms:ir.actions.act_window,help:calendar.appointment_resource_action
 #: model_terms:ir.actions.act_window,help:calendar.appointment_resource_action_stat
-msgid "Create an Appointment Resource"
+msgid "Create a bookable resource"
 msgstr ""
 
 #. module: calendar
@@ -2655,7 +2646,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:calendar.field_appointment_booking_line__create_uid
 #: model:ir.model.fields,field_description:calendar.field_appointment_invite__create_uid
 #: model:ir.model.fields,field_description:calendar.field_appointment_manage_leaves__create_uid
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__create_uid
 #: model:ir.model.fields,field_description:calendar.field_appointment_slot__create_uid
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__create_uid
 #: model:ir.model.fields,field_description:calendar.field_calendar_alarm__create_uid
@@ -2673,7 +2663,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:calendar.field_appointment_booking_line__create_date
 #: model:ir.model.fields,field_description:calendar.field_appointment_invite__create_date
 #: model:ir.model.fields,field_description:calendar.field_appointment_manage_leaves__create_date
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__create_date
 #: model:ir.model.fields,field_description:calendar.field_appointment_slot__create_date
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__create_date
 #: model:ir.model.fields,field_description:calendar.field_calendar_alarm__create_date
@@ -2769,6 +2758,12 @@ msgid "Day of month"
 msgstr ""
 
 #. module: calendar
+#. odoo-javascript
+#: code:addons/calendar/static/src/views/fields/calendar_month_day_field.js:0
+msgid "Day of the month"
+msgstr ""
+
+#. module: calendar
 #: model:ir.model.fields.selection,name:calendar.selection__calendar_alarm__interval__days
 #: model:ir.model.fields.selection,name:calendar.selection__calendar_event__repeat_unit__day
 msgid "Days"
@@ -2807,12 +2802,6 @@ msgstr ""
 #. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_survey_question__is_default
 msgid "Default question"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/booking/appointment_type.py:0
-msgid "Default slots cannot be applied to the %s appointment type category."
 msgstr ""
 
 #. module: calendar
@@ -2874,16 +2863,16 @@ msgid "Describe what you need"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__description
 #: model:ir.model.fields,field_description:calendar.field_calendar_event__description
+#: model:ir.model.fields,field_description:calendar.field_resource_resource__description
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_info
-#: model_terms:ir.ui.view,arch_db:calendar.appointment_resource_view_form
 #: model_terms:ir.ui.view,arch_db:calendar.invitation_page_anonymous
+#: model_terms:ir.ui.view,arch_db:calendar.resource_resource_view_form_booking
 msgid "Description"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__destination_resource_ids
+#: model:ir.model.fields,field_description:calendar.field_resource_resource__destination_resource_ids
 msgid "Destination combination"
 msgstr ""
 
@@ -2941,7 +2930,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:calendar.field_appointment_booking_line__display_name
 #: model:ir.model.fields,field_description:calendar.field_appointment_invite__display_name
 #: model:ir.model.fields,field_description:calendar.field_appointment_manage_leaves__display_name
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__display_name
 #: model:ir.model.fields,field_description:calendar.field_appointment_slot__display_name
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__display_name
 #: model:ir.model.fields,field_description:calendar.field_calendar_alarm__display_name
@@ -3013,7 +3001,7 @@ msgid "Document Model Name"
 msgstr ""
 
 #. module: calendar
-#: model_terms:ir.ui.view,arch_db:calendar.appointment_resource_view_form
+#: model_terms:ir.ui.view,arch_db:calendar.resource_resource_view_form_booking
 msgid "Does not combine"
 msgstr ""
 
@@ -3115,7 +3103,6 @@ msgid "Ending Hour"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__enforce_booking_limit
 #: model:ir.model.fields,field_description:calendar.field_calendar_event__booking_capacity_enforced
 msgid "Enforce Booking Ceiling"
 msgstr ""
@@ -3356,13 +3343,6 @@ msgid "Hours"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,help:calendar.field_appointment_resource__capacity
-msgid ""
-"How many claims the resource can hold at once: seats at a table, concurrent "
-"users of a machine. A reservation's allocated percentage is a share of this."
-msgstr ""
-
-#. module: calendar
 #: model:ir.model.fields,help:calendar.field_appointment_type__assignment_method
 msgid ""
 "How users and resources will be assigned to the meetings that customers book"
@@ -3373,7 +3353,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:calendar.field_appointment_booking_line__id
 #: model:ir.model.fields,field_description:calendar.field_appointment_invite__id
 #: model:ir.model.fields,field_description:calendar.field_appointment_manage_leaves__id
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__id
 #: model:ir.model.fields,field_description:calendar.field_appointment_slot__id
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__id
 #: model:ir.model.fields,field_description:calendar.field_calendar_alarm__id
@@ -3452,13 +3431,6 @@ msgid ""
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,help:calendar.field_appointment_resource__resource_calendar_id
-msgid ""
-"If kept empty, the working schedule of the company set on the resource will "
-"be used"
-msgstr ""
-
-#. module: calendar
 #: model:ir.model.fields,help:calendar.field_appointment_type__booked_mail_template_id
 msgid ""
 "If set an email will be sent to the customer when the appointment is booked."
@@ -3469,13 +3441,6 @@ msgstr ""
 msgid ""
 "If set an email will be sent to the customer when the appointment is "
 "cancelled."
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,help:calendar.field_appointment_resource__active
-msgid ""
-"If the active field is set to False, it will allow you to hide the resource "
-"record without removing it."
 msgstr ""
 
 #. module: calendar
@@ -3494,30 +3459,21 @@ msgid ""
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__image_1920
-msgid "Image"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__image_1024
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__image_1024
 msgid "Image 1024"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__image_128
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__image_128
 msgid "Image 128"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__image_256
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__image_256
 msgid "Image 256"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__image_512
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__image_512
 msgid "Image 512"
 msgstr ""
@@ -3572,12 +3528,6 @@ msgid "Invalid Email Partner"
 msgstr ""
 
 #. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/ir_http.py:0
-msgid "Invalid Invitation Token."
-msgstr ""
-
-#. module: calendar
 #: model:mail.message.subtype,name:calendar.subtype_invitation
 msgid "Invitation"
 msgstr ""
@@ -3628,6 +3578,11 @@ msgstr ""
 #. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__is_always_confirm
 msgid "Is Always Confirm"
+msgstr ""
+
+#. module: calendar
+#: model:ir.model.fields,field_description:calendar.field_resource_resource__is_bookable
+msgid "Is Bookable"
 msgstr ""
 
 #. module: calendar
@@ -3692,7 +3647,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:calendar.field_appointment_booking_line__write_uid
 #: model:ir.model.fields,field_description:calendar.field_appointment_invite__write_uid
 #: model:ir.model.fields,field_description:calendar.field_appointment_manage_leaves__write_uid
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__write_uid
 #: model:ir.model.fields,field_description:calendar.field_appointment_slot__write_uid
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__write_uid
 #: model:ir.model.fields,field_description:calendar.field_calendar_alarm__write_uid
@@ -3710,7 +3664,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:calendar.field_appointment_booking_line__write_date
 #: model:ir.model.fields,field_description:calendar.field_appointment_invite__write_date
 #: model:ir.model.fields,field_description:calendar.field_appointment_manage_leaves__write_date
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__write_date
 #: model:ir.model.fields,field_description:calendar.field_appointment_slot__write_date
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__write_date
 #: model:ir.model.fields,field_description:calendar.field_calendar_alarm__write_date
@@ -3725,6 +3678,14 @@ msgid "Last Updated on"
 msgstr ""
 
 #. module: calendar
+#. odoo-javascript
+#: code:addons/calendar/static/src/views/fields/calendar_month_day_field.js:0
+msgid "Last day"
+msgstr ""
+
+#. module: calendar
+#: model:ir.model.fields,field_description:calendar.field_res_bank__calendar_last_notif_ack
+#: model:ir.model.fields,field_description:calendar.field_res_company__calendar_last_notif_ack
 #: model:ir.model.fields,field_description:calendar.field_res_partner__calendar_last_notif_ack
 #: model:ir.model.fields,field_description:calendar.field_res_users__calendar_last_notif_ack
 msgid "Last notification marked as read from base Calendar"
@@ -3799,18 +3760,8 @@ msgid "Link copied to your clipboard!"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__linked_resource_ids
-msgid "Linked Resource"
-msgstr ""
-
-#. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.view_calendar_event_form
 msgid "Linked to"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,help:calendar.field_appointment_resource__linked_resource_ids
-msgid "List of resources that can be combined to handle a bigger demand."
 msgstr ""
 
 #. module: calendar
@@ -3869,14 +3820,6 @@ msgstr ""
 #. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_type_view_form
 msgid "Mandatory"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,help:calendar.field_appointment_resource__booking_limit_percentage
-msgid ""
-"Maximum simultaneous allocation for enforced bookings. 100% permits full "
-"booking; 120% permits 20% overbooking. Warning-only reservations can exceed "
-"this ceiling when resource enforcement is disabled."
 msgstr ""
 
 #. module: calendar
@@ -3943,6 +3886,8 @@ msgstr ""
 #. odoo-python
 #: code:addons/calendar/models/res_partner.py:0
 #: model:ir.actions.act_window,name:calendar.action_calendar_event
+#: model:ir.model.fields,field_description:calendar.field_res_bank__meeting_ids
+#: model:ir.model.fields,field_description:calendar.field_res_company__meeting_ids
 #: model:ir.model.fields,field_description:calendar.field_res_partner__meeting_ids
 #: model:ir.model.fields,field_description:calendar.field_res_users__meeting_ids
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_type_view_kanban
@@ -4048,7 +3993,6 @@ msgstr ""
 #. module: calendar
 #. odoo-python
 #: code:addons/calendar/controllers/booking_portal.py:0
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__name
 #: model:ir.model.fields,field_description:calendar.field_calendar_alarm__name
 #: model:ir.model.fields,field_description:calendar.field_calendar_recurrence__name
 msgid "Name"
@@ -4072,9 +4016,12 @@ msgstr ""
 
 #. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__activity_calendar_event_id
+#: model:ir.model.fields,field_description:calendar.field_ir_access_exception__activity_calendar_event_id
 #: model:ir.model.fields,field_description:calendar.field_ir_actions_server__activity_calendar_event_id
 #: model:ir.model.fields,field_description:calendar.field_ir_cron__activity_calendar_event_id
 #: model:ir.model.fields,field_description:calendar.field_mixin_mail_activity__activity_calendar_event_id
+#: model:ir.model.fields,field_description:calendar.field_res_bank__activity_calendar_event_id
+#: model:ir.model.fields,field_description:calendar.field_res_company__activity_calendar_event_id
 #: model:ir.model.fields,field_description:calendar.field_res_partner__activity_calendar_event_id
 #: model:ir.model.fields,field_description:calendar.field_res_users__activity_calendar_event_id
 #: model:ir.model.fields,field_description:calendar.field_survey_survey__activity_calendar_event_id
@@ -4365,11 +4312,6 @@ msgid "Open Appointment Type Form"
 msgstr ""
 
 #. module: calendar
-#: model_terms:ir.ui.view,arch_db:calendar.appointment_resource_view_form
-msgid "Opening Hours"
-msgstr ""
-
-#. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_meeting_user
 msgid "Operator"
 msgstr ""
@@ -4485,6 +4427,13 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/calendar/static/src/booking/views/appointment_calendar/appointment_calendar_controller.xml:0
 msgid "Pick your availabilities"
+msgstr ""
+
+#. module: calendar
+#: model:ir.model.fields,help:calendar.field_resource_resource__booking_sequence
+msgid ""
+"Picked first when several resources fit the asked capacity (of two tables of"
+" 4, the lowest sequence goes first)."
 msgstr ""
 
 #. module: calendar
@@ -4641,14 +4590,6 @@ msgid "Regular"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,help:calendar.field_appointment_resource__enforce_booking_limit
-msgid ""
-"Reject any reservation that exceeds this resource's booking ceiling, "
-"including manual meetings and shifts. Individual bookings may enforce the "
-"ceiling even when this option is disabled."
-msgstr ""
-
-#. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_calendar_alarm__duration
 msgid "Remind Before"
 msgstr ""
@@ -4732,7 +4673,7 @@ msgid "Reservations"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__resource_id
+#: model:ir.model.fields,field_description:calendar.field_appointment_booking_line__resource_id
 msgid "Resource"
 msgstr ""
 
@@ -4758,7 +4699,7 @@ msgstr ""
 #: model:ir.actions.act_window,name:calendar.appointment_resource_action_stat
 #: model:ir.model,name:calendar.model_resource_resource
 #: model:ir.model.fields,field_description:calendar.field_appointment_invite__resource_ids
-#: model:ir.model.fields,field_description:calendar.field_appointment_manage_leaves__appointment_resource_ids
+#: model:ir.model.fields,field_description:calendar.field_appointment_manage_leaves__resource_ids
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__resource_ids
 #: model:ir.model.fields,field_description:calendar.field_calendar_event__resource_ids
 #: model:ir.model.fields.selection,name:calendar.selection__appointment_type__schedule_based_on__resources
@@ -4783,6 +4724,11 @@ msgstr ""
 #. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_calendar_event__unavailable_resource_ids
 msgid "Resources intersecting with leave time"
+msgstr ""
+
+#. module: calendar
+#: model:ir.model.fields,help:calendar.field_resource_resource__combinable_resource_ids
+msgid "Resources that combine with this one to serve a bigger demand."
 msgstr ""
 
 #. module: calendar
@@ -5054,7 +5000,6 @@ msgid "Sent to followers of an appointment type when a meeting is booked"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__sequence
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__sequence
 msgid "Sequence"
 msgstr ""
@@ -5119,11 +5064,6 @@ msgstr ""
 #: code:addons/calendar/static/src/booking/components/appointment_booking_action_helper/appointment_booking_action_helper.xml:0
 msgid ""
 "Share this appointment type via link or schedule an appointment manually"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__shareable
-msgid "Shareable"
 msgstr ""
 
 #. module: calendar
@@ -5214,7 +5154,7 @@ msgid "Sorry, we have no more slots available for this month."
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__source_resource_ids
+#: model:ir.model.fields,field_description:calendar.field_resource_resource__source_resource_ids
 msgid "Source combination"
 msgstr ""
 
@@ -5539,12 +5479,6 @@ msgstr ""
 
 #. module: calendar
 #. odoo-python
-#: code:addons/calendar/controllers/booking_portal.py:0
-msgid "The field '%s' does not exist in the targeted model"
-msgstr ""
-
-#. module: calendar
-#. odoo-python
 #: code:addons/calendar/models/booking/appointment_invite.py:0
 msgid "The following appointment type(s) have no resource assigned: %s."
 msgstr ""
@@ -5588,13 +5522,6 @@ msgid "The response and meeting must belong to the same appointment type."
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,help:calendar.field_appointment_resource__sequence
-msgid ""
-"The sequence dictates if the resource is going to be picked in higher priority against another resource\n"
-"        (e.g. for 2 tables of 4, the lowest sequence will be picked first)"
-msgstr ""
-
-#. module: calendar
 #: model:ir.model.constraint,message:calendar.constraint_appointment_slot_check_start_and_end_datetimes
 msgid "The unique slot end datetime must be later than the start datetime."
 msgstr ""
@@ -5630,13 +5557,6 @@ msgstr ""
 #. module: calendar
 #: model:ir.model.fields.selection,name:calendar.selection__calendar_event__byday__3
 msgid "Third"
-msgstr ""
-
-#. module: calendar
-#: model:ir.model.fields,help:calendar.field_appointment_resource__shareable
-msgid ""
-"This allows to share the resource with multiple attendee for a same time "
-"slot (e.g. a bar counter)"
 msgstr ""
 
 #. module: calendar
@@ -5688,21 +5608,6 @@ msgid "This event"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,help:calendar.field_appointment_resource__tz
-msgid ""
-"This field is used in order to define in which timezone the resources will "
-"work."
-msgstr ""
-
-#. module: calendar
-#. odoo-python
-#: code:addons/calendar/models/ir_http.py:0
-msgid ""
-"This invitation belongs to somebody else and cannot be forwarded. Please ask"
-" the organizer to add you."
-msgstr ""
-
-#. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_edit_in_backend
 msgid "This is a preview of the customer appointment form."
 msgstr ""
@@ -5710,6 +5615,11 @@ msgstr ""
 #. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_question_view_form
 msgid "This question is used by"
+msgstr ""
+
+#. module: calendar
+#: model:ir.model.fields,help:calendar.field_resource_resource__is_bookable
+msgid "This resource is offered by at least one appointment type."
 msgstr ""
 
 #. module: calendar
@@ -5725,7 +5635,6 @@ msgid "Thursday"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__tz
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__appointment_tz
 #: model:ir.model.fields,field_description:calendar.field_calendar_event__event_tz
 #: model:ir.model.fields,field_description:calendar.field_calendar_recurrence__event_tz
@@ -5782,7 +5691,7 @@ msgstr ""
 
 #. module: calendar
 #: model:ir.model.fields,field_description:calendar.field_appointment_type__resource_total_capacity
-#: model_terms:ir.ui.view,arch_db:calendar.appointment_resource_view_tree
+#: model_terms:ir.ui.view,arch_db:calendar.resource_resource_view_list_booking
 msgid "Total Capacity"
 msgstr ""
 
@@ -5880,6 +5789,8 @@ msgid "Upcoming"
 msgstr ""
 
 #. module: calendar
+#: model:ir.model.fields,field_description:calendar.field_res_bank__upcoming_appointment_ids
+#: model:ir.model.fields,field_description:calendar.field_res_company__upcoming_appointment_ids
 #: model:ir.model.fields,field_description:calendar.field_res_partner__upcoming_appointment_ids
 #: model:ir.model.fields,field_description:calendar.field_res_users__upcoming_appointment_ids
 msgid "Upcoming Appointments"
@@ -6077,11 +5988,6 @@ msgid "Within the next"
 msgstr ""
 
 #. module: calendar
-#: model:ir.model.fields,field_description:calendar.field_appointment_resource__resource_calendar_id
-msgid "Working Hours"
-msgstr ""
-
-#. module: calendar
 #: model:ir.model.fields.selection,name:calendar.selection__calendar_event__repeat_unit_ui__year
 msgid "Yearly"
 msgstr ""
@@ -6246,11 +6152,6 @@ msgid "e.g. John Smith"
 msgstr ""
 
 #. module: calendar
-#: model_terms:ir.ui.view,arch_db:calendar.appointment_resource_view_form
-msgid "e.g. Tennis Court 1"
-msgstr ""
-
-#. module: calendar
 #. odoo-python
 #: code:addons/calendar/models/booking/templates/appointment_type.py:0
 msgid "e.g. Vegetarian, Lactose Intolerant, ..."
@@ -6338,12 +6239,6 @@ msgid "people"
 msgstr ""
 
 #. module: calendar
-#. odoo-javascript
-#: code:addons/calendar/static/src/views/fields/many2many_attendee.xml:0
-msgid "props.placeholder"
-msgstr ""
-
-#. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_type_view_form
 msgid "seats max"
 msgstr ""
@@ -6365,6 +6260,12 @@ msgstr ""
 #. module: calendar
 #: model_terms:ir.ui.view,arch_db:calendar.appointment_validated
 msgid "this link"
+msgstr ""
+
+#. module: calendar
+#. odoo-javascript
+#: code:addons/calendar/static/src/views/fields/many2many_attendee.xml:0
+msgid "this.props.placeholder"
 msgstr ""
 
 #. module: calendar

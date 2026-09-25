@@ -2,8 +2,11 @@ import json
 from collections import abc
 from collections.abc import Iterator, Mapping
 
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import email_normalize
 from odoo.tools.misc import ReadonlyDict
+
+_debug = DebugLog(__name__)
 
 
 class MicrosoftEvent(abc.Set):
@@ -241,6 +244,15 @@ class MicrosoftEvent(abc.Set):
 
         # daysOfWeek contains the full name of the day, the fields contain the first 3 letters (mon, tue, etc)
         week_days = [x[:3] for x in pattern.get("daysOfWeek", [])]
+        # Outlook's "last day of the month" is the last of any weekday
+        if (
+            pattern["type"] == "relativeMonthly"
+            and result["byday"]
+            and len(set(week_days)) == 7
+        ):
+            result["month_by"] = "date"
+            result["day"] = int(result["byday"])
+            _debug.logic("microsoft.recurrence_any_day_as_date", day=result["day"])
         for week_day in ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]:
             result[week_day] = week_day in week_days
         if week_days:

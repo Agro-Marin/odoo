@@ -274,6 +274,104 @@ class TestCreateRecurrentEvents(TestRecurrentEvents):
             ],
         )
 
+    def test_monthly_count_by_last_day(self):
+        self.event.start = datetime(2024, 1, 31, 8, 0)
+        self.event.stop = datetime(2024, 1, 31, 10, 0)
+        self.event._apply_recurrence_values(
+            {
+                "repeat_unit": "month",
+                "repeat_interval": 1,
+                "month_by": "date",
+                "day": -1,
+                "repeat_type": "count",
+                "repeat_number": 13,
+                "event_tz": "UTC",
+            }
+        )
+        recurrence = self.event.recurrence_id
+        self.assertEqual(recurrence.rrule, "FREQ=MONTHLY;COUNT=13;BYMONTHDAY=-1")
+        self.assertEqual(
+            recurrence.name, "Every 1 Months on the last day for 13 events"
+        )
+        self.assertEventDates(
+            recurrence.calendar_event_ids,
+            [
+                (datetime(2024, month, day, 8, 0), datetime(2024, month, day, 10, 0))
+                for month, day in (
+                    (1, 31),
+                    (2, 29),
+                    (3, 31),
+                    (4, 30),
+                    (5, 31),
+                    (6, 30),
+                    (7, 31),
+                    (8, 31),
+                    (9, 30),
+                    (10, 31),
+                    (11, 30),
+                    (12, 31),
+                )
+            ]
+            + [(datetime(2025, 1, 31, 8, 0), datetime(2025, 1, 31, 10, 0))],
+        )
+
+    def test_yearly_count_by_nth_weekday(self):
+        """Every year, on the second Sunday of March, for 3 occurrences"""
+        self.event.start = datetime(2024, 3, 10, 8, 0)
+        self.event.stop = datetime(2024, 3, 10, 10, 0)
+        self.event._apply_recurrence_values(
+            {
+                "repeat_unit": "year",
+                "repeat_interval": 1,
+                "month_by": "day",
+                "weekday": "SUN",
+                "byday": "2",
+                "repeat_type": "count",
+                "repeat_number": 3,
+                "event_tz": "UTC",
+            }
+        )
+        recurrence = self.event.recurrence_id
+        self.assertEqual(recurrence.rrule, "FREQ=YEARLY;COUNT=3;BYMONTH=3;BYDAY=+2SU")
+        self.assertEqual(
+            recurrence.name,
+            "Every 1 Years on the Second Sunday of March for 3 events",
+        )
+        self.assertEventDates(
+            recurrence.calendar_event_ids,
+            [
+                (datetime(2024, 3, 10, 8, 0), datetime(2024, 3, 10, 10, 0)),
+                (datetime(2025, 3, 9, 8, 0), datetime(2025, 3, 9, 10, 0)),
+                (datetime(2026, 3, 8, 8, 0), datetime(2026, 3, 8, 10, 0)),
+            ],
+        )
+
+    def test_yearly_nth_weekday_takes_the_local_start_month(self):
+        # 1 Mar 08:00 in Tokyo is 29 Feb 23:00 UTC: the month is the local March
+        self.event.start = datetime(2020, 2, 29, 23, 0)
+        self.event.stop = datetime(2020, 3, 1, 0, 0)
+        self.event._apply_recurrence_values(
+            {
+                "repeat_unit": "year",
+                "repeat_interval": 1,
+                "month_by": "day",
+                "weekday": "SUN",
+                "byday": "1",
+                "repeat_type": "count",
+                "repeat_number": 2,
+                "event_tz": "Asia/Tokyo",
+            }
+        )
+        recurrence = self.event.recurrence_id
+        self.assertEqual(recurrence.rrule, "FREQ=YEARLY;COUNT=2;BYMONTH=3;BYDAY=+1SU")
+        self.assertEventDates(
+            recurrence.calendar_event_ids,
+            [
+                (datetime(2020, 2, 29, 23, 0), datetime(2020, 3, 1, 0, 0)),
+                (datetime(2021, 3, 6, 23, 0), datetime(2021, 3, 7, 0, 0)),
+            ],
+        )
+
     def test_dst_timezone(self):
         """Test hours stays the same, regardless of DST changes"""
         self.event.start = datetime(2002, 10, 28, 10, 0)
@@ -1335,6 +1433,29 @@ class TestUpdateMonthlyByDate(TestRecurrentEvents):
             ],
         )
 
+    def test_stopping_east_of_utc_ends_before_the_local_period(self):
+        # 1 Nov 05:00 in Tokyo is 31 Oct 20:00 UTC: the month it stops in is
+        # the local November, not the UTC October
+        event = self.env["calendar.event"].create(
+            {
+                "name": "Tokyo monthly",
+                "start": datetime(2019, 9, 30, 20, 0),
+                "stop": datetime(2019, 9, 30, 21, 0),
+                "recurrency": True,
+                "repeat_unit": "month",
+                "repeat_interval": 1,
+                "repeat_number": 3,
+                "month_by": "date",
+                "day": 1,
+                "event_tz": "Asia/Tokyo",
+            }
+        )
+        recurrence = event.recurrence_id
+        events = recurrence.calendar_event_ids.sorted("start")
+        recurrence._stop_at(events[1])
+        self.assertEqual(recurrence.repeat_until, date(2019, 10, 31))
+        self.assertEqual(recurrence.calendar_event_ids, events[0])
+
     def test_update_all(self):
         event = self.events[1]
         event.write(
@@ -1413,6 +1534,49 @@ class TestUpdateMonthlyByDate(TestRecurrentEvents):
             self.assertEqual(event.repeat_number, 2)
             self.assertEqual(event.repeat_interval, 1)
             self.assertEqual(event.repeat_unit, "year")
+
+    def test_recurring_ui_options_monthly_last_day(self):
+        with Form(self.env["calendar.event"]) as calendar_form:
+            calendar_form.name = "test recurrence monthly last day"
+            calendar_form.recurrency = True
+            calendar_form.repeat_unit_ui = "month"
+            calendar_form.repeat_number = 2
+            calendar_form.start = datetime(2019, 1, 31, 16)
+            calendar_form.stop = datetime(2019, 1, 31, 17)
+            calendar_form.event_tz = "UTC"
+            calendar_form.month_by = "date"
+            calendar_form.day = -1
+            event = calendar_form.save()
+        self.assertEventDates(
+            event.recurrence_id.calendar_event_ids,
+            [
+                (datetime(2019, 1, 31, 16), datetime(2019, 1, 31, 17)),
+                (datetime(2019, 2, 28, 16), datetime(2019, 2, 28, 17)),
+            ],
+        )
+
+    def test_recurring_ui_options_yearly_by_day(self):
+        with Form(self.env["calendar.event"]) as calendar_form:
+            calendar_form.name = "test recurrence yearly by day"
+            calendar_form.recurrency = True
+            calendar_form.repeat_unit_ui = "year"
+            calendar_form.repeat_number = 2
+            calendar_form.start = datetime(2019, 3, 10, 16)
+            calendar_form.stop = datetime(2019, 3, 10, 17)
+            calendar_form.event_tz = "UTC"
+            calendar_form.month_by = "day"
+            calendar_form.byday = "2"
+            calendar_form.weekday = "SUN"
+            event = calendar_form.save()
+        self.assertEqual(event.repeat_unit, "year")
+        self.assertEqual(event.month_by, "day")
+        self.assertEventDates(
+            event.recurrence_id.calendar_event_ids,
+            [
+                (datetime(2019, 3, 10, 16), datetime(2019, 3, 10, 17)),
+                (datetime(2020, 3, 8, 16), datetime(2020, 3, 8, 17)),
+            ],
+        )
 
     def test_attendees_state_after_update(self):
         """Ensure that after the organizer updates a recurrence, the attendees state will be pending and current user accepted."""

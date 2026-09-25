@@ -33,6 +33,11 @@ class AppointmentUIPerformanceCase(AppointmentPerformanceCase):
         )
         cls.env["appointment.type"].browse(shipped_type_ids).exists().active = False
         cls._website_renders_the_page = "website" in cls.env
+        # website_appointment (auto-installed with enterprise) publishes the type
+        # with its SEO metadata, which the page reads once more
+        cls._page_reads_the_type_seo = (
+            "website_meta_title" in cls.env["appointment.type"]._fields
+        )
 
         # tweak in case website is installed
         if "website" in cls.env and "channel_id" in cls.env["website"]:
@@ -113,7 +118,11 @@ class OnlineAppointmentPerformance(AppointmentUIPerformanceCase):
         self.authenticate("staff_user_aust", "staff_user_aust")
         t0 = time.time()
         with freeze_time(self.reference_now):
-            with self.assertQueryCount(31 if self._website_renders_the_page else 27):
+            with self.assertQueryCount(
+                (31 + self._page_reads_the_type_seo)
+                if self._website_renders_the_page
+                else 27
+            ):
                 response = self._test_url_open(
                     "/appointment/%i" % self.apt_type_bxls_2days.id
                 )

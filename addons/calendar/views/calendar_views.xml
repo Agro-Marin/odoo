@@ -450,21 +450,22 @@
                                     <label
                                         for="month_by"
                                         string="Day of Month"
-                                        invisible="repeat_unit_ui not in ['month', 'custom'] or (repeat_unit_ui == 'custom' and repeat_unit != 'month')"
+                                        invisible="repeat_unit_ui not in ['month', 'year', 'custom'] or (repeat_unit_ui == 'custom' and repeat_unit not in ['month', 'year'])"
                                         class="fw-bold text-900"
                                         style="width: fit-content;" />
                                     <div
                                         class="d-flex gap-2"
-                                        invisible="repeat_unit_ui not in ['month', 'custom'] or (repeat_unit_ui == 'custom' and repeat_unit != 'month')">
+                                        invisible="repeat_unit_ui not in ['month', 'year', 'custom'] or (repeat_unit_ui == 'custom' and repeat_unit not in ['month', 'year'])">
                                         <field
                                             name="month_by"
                                             nolabel="1"
-                                            required="repeat_unit_ui == 'month' or repeat_unit == 'month'"
+                                            required="repeat_unit_ui in ['month', 'year'] or repeat_unit in ['month', 'year']"
                                             class="oe_inline w-auto" />
                                         <field
                                             name="day"
+                                            widget="calendar_month_day"
                                             nolabel="1"
-                                            invisible="month_by != 'date'"
+                                            invisible="month_by != 'date' or repeat_unit_ui == 'year' or (repeat_unit_ui == 'custom' and repeat_unit != 'month')"
                                             required="(repeat_unit_ui == 'month' or repeat_unit == 'month') and month_by == 'date'"
                                             class="oe_inline w-auto" />
                                         <field
@@ -472,13 +473,13 @@
                                             string="The"
                                             nolabel="1"
                                             invisible="month_by != 'day'"
-                                            required="(repeat_unit_ui == 'month' or repeat_unit == 'month') and month_by == 'day'"
+                                            required="(repeat_unit_ui in ['month', 'year'] or repeat_unit in ['month', 'year']) and month_by == 'day'"
                                             class="oe_inline w-auto" />
                                         <field
                                             name="weekday"
                                             nolabel="1"
                                             invisible="month_by != 'day'"
-                                            required="(repeat_unit_ui == 'month' or repeat_unit == 'month') and month_by == 'day'"
+                                            required="(repeat_unit_ui in ['month', 'year'] or repeat_unit in ['month', 'year']) and month_by == 'day'"
                                             class="oe_inline w-auto" />
                                     </div>
                                     <label

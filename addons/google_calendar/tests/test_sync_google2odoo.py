@@ -599,6 +599,80 @@ class TestSyncGoogle2Odoo(TestSyncGoogle):
         self.assertEqual(events[2].google_id, "%s_20200120T170000Z" % recurrence_id)
         self.assertGoogleAPINotCalled()
 
+    def _sync_google_series(self, rrule, start, time_zone):
+        values = {
+            "id": "oj44nep1ldf8a3ll02uip0c9ab",
+            "organizer": {"email": "odoocalendarref@gmail.com", "self": True},
+            "summary": "Month edges",
+            "recurrence": [rrule],
+            "reminders": {"useDefault": True},
+            "start": {"dateTime": start, "timeZone": time_zone},
+            "end": {"dateTime": start.replace("T10:", "T11:"), "timeZone": time_zone},
+            "updated": self.now,
+        }
+        self.env["calendar.recurrence"]._sync_google2odoo(GoogleEvent([values]))
+        recurrence = self.env["calendar.recurrence"].search(
+            [("google_id", "=", values["id"])]
+        )
+        events = recurrence.calendar_event_ids
+        # the same series coming back unchanged neither detaches nor recreates
+        self.env["calendar.recurrence"]._sync_google2odoo(
+            GoogleEvent([dict(values, summary="Month edges again")])
+        )
+        self.assertEqual(recurrence.calendar_event_ids, events)
+        return recurrence
+
+    @patch_api
+    def test_recurrence_on_the_last_day_of_the_month(self):
+        recurrence = self._sync_google_series(
+            "RRULE:FREQ=MONTHLY;COUNT=3;BYMONTHDAY=-1",
+            "2024-01-31T10:00:00+00:00",
+            "UTC",
+        )
+        self.assertEqual((recurrence.month_by, recurrence.day), ("date", -1))
+        self.assertEqual(
+            recurrence.calendar_event_ids.sorted("start").mapped("start"),
+            [
+                datetime(2024, 1, 31, 10, 0),
+                datetime(2024, 2, 29, 10, 0),
+                datetime(2024, 3, 31, 10, 0),
+            ],
+        )
+        self.assertEqual(
+            recurrence._google_values()["recurrence"],
+            ["RRULE:FREQ=MONTHLY;COUNT=3;BYMONTHDAY=-1"],
+        )
+        self.assertGoogleAPINotCalled()
+
+    @patch_api
+    def test_recurrence_yearly_on_the_nth_weekday(self):
+        recurrence = self._sync_google_series(
+            "RRULE:FREQ=YEARLY;COUNT=3;BYMONTH=3;BYDAY=2SU",
+            "2024-03-10T10:00:00-06:00",
+            "America/Mexico_City",
+        )
+        self.assertEqual(
+            (
+                recurrence.repeat_unit,
+                recurrence.month_by,
+                recurrence.weekday,
+                recurrence.byday,
+            ),
+            ("year", "day", "SUN", "2"),
+        )
+        self.assertEqual(
+            recurrence.calendar_event_ids.sorted("start").mapped("start"),
+            [
+                datetime(2024, 3, 10, 16, 0),
+                datetime(2025, 3, 9, 16, 0),
+                datetime(2026, 3, 8, 16, 0),
+            ],
+        )
+        self.assertEqual(
+            recurrence._rrule_serialize(), "FREQ=YEARLY;COUNT=3;BYMONTH=3;BYDAY=+2SU"
+        )
+        self.assertGoogleAPINotCalled()
+
     @patch_api
     def test_recurrence_exdate(self):
         recurrence_id = "oj44nep1ldf8a3ll02uip0c9aa"

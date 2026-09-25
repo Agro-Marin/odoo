@@ -345,6 +345,59 @@ class TestSyncOdoo2Google(TestSyncGoogle):
         )
 
     @patch_api
+    def test_recurrence_yearly_on_the_nth_weekday(self):
+        event = self.env["calendar.event"].create(
+            {
+                "name": "Event",
+                "start": datetime(2024, 3, 10, 16, 0),
+                "stop": datetime(2024, 3, 10, 17, 0),
+                "need_sync": False,
+            }
+        )
+        event._apply_recurrence_values(
+            {
+                "repeat_unit": "year",
+                "repeat_interval": 1,
+                "month_by": "day",
+                "weekday": "SUN",
+                "byday": "2",
+                "repeat_type": "count",
+                "repeat_number": 3,
+                "event_tz": "America/Mexico_City",
+            }
+        )
+        values = event.recurrence_id._google_values()
+        self.assertEqual(
+            values["recurrence"], ["RRULE:FREQ=YEARLY;COUNT=3;BYMONTH=3;BYDAY=+2SU"]
+        )
+
+    @patch_api
+    def test_recurrence_on_the_last_day_of_the_month(self):
+        event = self.env["calendar.event"].create(
+            {
+                "name": "Event",
+                "start": datetime(2024, 1, 31, 16, 0),
+                "stop": datetime(2024, 1, 31, 17, 0),
+                "need_sync": False,
+            }
+        )
+        event._apply_recurrence_values(
+            {
+                "repeat_unit": "month",
+                "repeat_interval": 1,
+                "month_by": "date",
+                "day": -1,
+                "repeat_type": "count",
+                "repeat_number": 3,
+                "event_tz": "UTC",
+            }
+        )
+        values = event.recurrence_id._google_values()
+        self.assertEqual(
+            values["recurrence"], ["RRULE:FREQ=MONTHLY;COUNT=3;BYMONTHDAY=-1"]
+        )
+
+    @patch_api
     def test_event_added_to_recurrence(self):
         google_id = "aaaaaaaaa"
         event = self.env["calendar.event"].create(

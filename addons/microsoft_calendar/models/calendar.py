@@ -31,14 +31,6 @@ ATTENDEE_CONVERTER_M2O = {
 }
 VIDEOCALL_URL_PATTERNS = (r"https://teams.microsoft.com",)
 
-# Outlook's words for a recurrence pattern. These were read straight off the
-# Odoo value, which worked only while `rrule_type` happened to be spelled the
-# way Outlook spells it -- `"daily"`, and `"monthly"` capitalised into
-# `absoluteMonthly`. The shared vocabulary says `day` and `month`, so the
-# translation is explicit and is the inverse of `MicrosoftEvent.get_recurrence`.
-MICROSOFT_SIMPLE_PATTERN = {"day": "daily", "week": "weekly"}
-MICROSOFT_PERIOD_PATTERN = {"month": "Monthly", "year": "Yearly"}
-
 _logger = logging.getLogger(__name__)
 
 
@@ -812,43 +804,7 @@ class CalendarEvent(models.Model):
 
         if values.get("type") == "seriesMaster":
             recurrence = self.recurrence_id
-            pattern = {"interval": recurrence.repeat_interval}
-            if recurrence.repeat_unit in MICROSOFT_SIMPLE_PATTERN:
-                pattern["type"] = MICROSOFT_SIMPLE_PATTERN[recurrence.repeat_unit]
-            else:
-                prefix = "absolute" if recurrence.month_by == "date" else "relative"
-                period = MICROSOFT_PERIOD_PATTERN.get(recurrence.repeat_unit)
-                pattern["type"] = period and prefix + period
-
-            if recurrence.month_by == "date":
-                pattern["dayOfMonth"] = recurrence.day
-
-            if recurrence.month_by == "day" or recurrence.repeat_unit == "week":
-                pattern["daysOfWeek"] = [
-                    weekday_name
-                    for weekday_name, weekday in {
-                        "monday": recurrence.mon,
-                        "tuesday": recurrence.tue,
-                        "wednesday": recurrence.wed,
-                        "thursday": recurrence.thu,
-                        "friday": recurrence.fri,
-                        "saturday": recurrence.sat,
-                        "sunday": recurrence.sun,
-                    }.items()
-                    if weekday
-                ]
-                pattern["firstDayOfWeek"] = "sunday"
-
-            if recurrence.repeat_unit == "month" and recurrence.month_by == "day":
-                byday_selection = {
-                    "1": "first",
-                    "2": "second",
-                    "3": "third",
-                    "4": "fourth",
-                    "-1": "last",
-                }
-                pattern["index"] = byday_selection[recurrence.byday]
-
+            pattern = recurrence._get_microsoft_pattern()
             dtstart = recurrence.dtstart or fields.Datetime.now()
             rule_range = {"startDate": (dtstart.date()).isoformat()}
 
