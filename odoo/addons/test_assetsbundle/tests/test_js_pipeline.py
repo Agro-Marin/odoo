@@ -120,6 +120,29 @@ class TestModuleSyntaxGuard(TransactionCase):
         self.assertEqual(len(bundle.native_modules), 1)
         self.assertEqual(len(bundle.javascripts), 0)
 
+    def test_esm_bundle_guards_a_module_file_classified_classic(self):
+        bundle = AssetsBundle(
+            "web.assets_web",
+            [
+                asset_file("/web/static/lib/fake_lib/fake_lib.js", MODULE_JS),
+                asset_file("/web/static/lib/fake_umd/fake_umd.js", PLAIN_JS),
+            ],
+            env=self.env,
+        )
+        self.assertEqual(len(bundle.native_modules), 0)
+        module_lib, plain_lib = bundle.javascripts
+        self.assertIsNone(bundle._js._module_syntax_error_stub(plain_lib))
+        with (
+            self.assertLogs("odoo.assets.bundle", level="ERROR") as cm,
+            self.assertRaises(ModuleSyntaxInLegacyBundleError) as raised,
+        ):
+            bundle._js._module_syntax_error_stub(module_lib)
+        self.assertIn("module_syntax_in_legacy_bundle", "\n".join(cm.output))
+        self.assertIn("esm.external_libs", str(raised.exception))
+        with config.patch(test_enable=False, dev_mode=[]):
+            stub = bundle._js._module_syntax_error_stub(module_lib)
+        self.assertTrue(stub.startswith("console.error("))
+
     def test_syntax_regex_ignores_dynamic_import(self):
         self.assertFalse(_MODULE_SYNTAX_RE.search('import("/web/x.js").then();'))
         self.assertTrue(_MODULE_SYNTAX_RE.search('import { a } from "@web/x";'))
