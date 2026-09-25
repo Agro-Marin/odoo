@@ -58,6 +58,17 @@ class CopyMixin(_ModelStubs):
             and name not in blacklist
             and self._has_field_access(field, "read")
         }
+        # create checks write_groups too, so a gated value the user may not set
+        # would refuse the whole copy: the duplicate takes the field's default
+        withheld = [
+            name
+            for name, field in fields_to_copy.items()
+            if field.write_groups and not self._has_field_access(field, "write")
+        ]
+        for name in withheld:
+            del fields_to_copy[name]
+        if withheld:
+            _debug.logic("copy.write_gated_withheld", model=self._name, fields=withheld)
 
         # the records a batch may link through its many2many fields, filtered
         # once per field: each record then keeps the ones it holds
