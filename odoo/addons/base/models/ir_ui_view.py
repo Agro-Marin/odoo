@@ -873,7 +873,9 @@ class IrUiView(models.Model):
         sibling_primary_views = self.env["ir.ui.view"]
         level = self.inherit_children_ids
         while level:
-            sibling_primary_views |= level.filtered(lambda view: view.mode == "primary")
+            sibling_primary_views |= level.filtered(
+                lambda view: view.mode == "primary" and view.active
+            )
             level = level.inherit_children_ids
 
         if not self.pool.ready and sibling_primary_views and self.pool.loaded_modules:

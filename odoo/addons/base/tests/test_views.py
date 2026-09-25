@@ -9502,6 +9502,41 @@ class TestPrimaryChains(ViewCase):
             'name="ref"', self.env["res.partner"].get_view(middle.id, "form")["arch"]
         )
 
+    def test_an_archived_primary_does_not_block_its_root(self):
+        root, _middle, _leaf = self._chain()
+        extension = self.View.create(
+            {
+                "name": "extension an archived primary reads",
+                "model": "res.partner",
+                "inherit_id": root.id,
+                "arch": '<field name="email" position="after"><field name="website"/></field>',
+            }
+        )
+        archived = self.View.create(
+            {
+                "name": "archived primary",
+                "model": "res.partner",
+                "inherit_id": root.id,
+                "mode": "primary",
+                "arch": '<field name="website" position="after"><field name="function"/></field>',
+            }
+        )
+        # archived by a migration, as calendar 2.0 leaves the old appointment
+        # views: the primary no longer combines, and nothing serves it
+        self.env.cr.execute(
+            "UPDATE ir_ui_view SET active = FALSE WHERE id = ANY(%s)",
+            [[extension.id, archived.id]],
+        )
+        self.View.invalidate_model(["active"])
+        # the data loader reloads the root with active_test=False
+        root.with_context(active_test=False).write(
+            {
+                "arch": '<form><field name="name"/><field name="email"/>'
+                '<field name="vat"/></form>'
+            }
+        )
+        self.assertIn('name="vat"', root.get_combined_arch())
+
     def test_an_archived_extension_requested_alone_does_not_apply(self):
         root, _middle, _leaf = self._chain()
         extension = self.View.create(
