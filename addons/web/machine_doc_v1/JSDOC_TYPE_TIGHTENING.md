@@ -231,7 +231,7 @@ registerField({ name: "text", view: "list" }, listTextField);
 registerField({ name: "text", view: "liist" }, buggyVariant);
 ```
 
-**Don't drop the string form** — 81 of the 115 fork-wide `registerField` /
+**Don't drop the string form** — 82 of the 116 fork-wide `registerField` /
 `registerFallbackField` sites are plain strings with no view prefix and no typo
 risk; the other 34 already use the spec object. Reserve the typed form for
 view-prefixed registrations and for `aliases`, which the string form cannot
