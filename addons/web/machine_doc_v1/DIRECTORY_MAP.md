@@ -53,7 +53,7 @@
 | `components/time_picker/` | features | 1 | Time input with dropdown hour/minute selection and configurable rounding |
 | `components/tree_editor/` | features | 5 | UI-layer tree editor components. Data-only tree manipulation lives in `core/tree/` |
 | `components/user_switch/` | features | 1 | Login-page component for switching between recently connected accounts |
-| `core/` | shared | 39 | Namespace-root primitives: registry, domain, context, parsers/formatters, templates, events, asset loading, translation, feature flags, user, currency, the compiled-template cache, the `field` / `name` / `allowed_qweb_expressions` / `multi_company_recovery` services, and the env-context accessors (view config, dialog, view buttons, web) |
+| `core/` | shared | 40 | Namespace-root primitives: registry, domain, context, parsers/formatters, templates, events, asset loading, translation, feature flags, user, currency, the compiled-template cache, the `field` / `name` / `allowed_qweb_expressions` / `multi_company_recovery` services, and the env-context accessors (view config, dialog, view buttons, web) |
 | `core/avatar/` | shared | 0 | Avatar component styles (SCSS only) |
 | `core/badge/` | shared | 1 | Badge colour helpers plus component styles |
 | `core/browser/` | shared | 8 | Browser abstraction: the `browser` indirection object, cookies, storage, router, hotkey key normalisation, anchor-scroll suppression, feature detection, and the `title` service |
@@ -160,7 +160,7 @@
 | `libs/fontawesome7/` | misc | 0 | Vendored FontAwesome 7 — icon CSS + webfonts |
 | `libs/fontawesome7/css/` | misc | 0 | FontAwesome 7 stylesheets |
 | `libs/fontawesome7/webfonts/` | misc | 0 | FontAwesome 7 webfont files |
-| `model/` | entities | 10 | `Model` base + `useReactiveModel`, the sample-data server/generators/coordinator, search-param schema, shared model types |
+| `model/` | entities | 11 | `Model` base + `useReactiveModel`, the sample-data server/generators/coordinator, search-param schema, shared model types |
 | `model/relational_model/` | entities | 42 | Relational data model: `RelationalModel`, `RelationalRecord`, lists and groups, save/validation orchestration, edit-state ownership |
 | `public/` | pages | 17 | Public (anonymous) page runtime: the `public.interactions` service, `Interaction`/`Colibri`, frontend boot (`public_boot.js`, `public_boot_instance.js`), early-boot `lazyloader.js` / `minimal_dom.js`, login-page interactions, database manager |
 | `scss/` | misc | 0 | Shared SCSS base (variables, mixins, backend styles) — 32 `.scss`, no JS |
