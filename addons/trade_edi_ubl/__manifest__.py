@@ -25,4 +25,5 @@ Peppol BIS Ordering 3 document of an order, written once for both directions.
         "trade_account",
         "account_edi_ubl_cii",
     ],
+    "auto_install": True,
 }
