@@ -244,7 +244,15 @@ class Session(collections.abc.MutableMapping):
         login = self.pop("pre_login")
         uid = self.pop("pre_uid")
 
-        env = env(user=uid)
+        # the companies in the request's context were chosen for whoever it ran
+        # as before this login (a website's public user gets the website's);
+        # they are not this user's, who starts from their own default company
+        context = dict(env.context)
+        if dropped := context.pop("allowed_company_ids", None):
+            _debug.logic(
+                "http.session.login_companies_dropped", uid=uid, companies=dropped
+            )
+        env = env(user=uid, context=context)
         with _debug.perf(
             "http.session.finalize_login", cr=getattr(env, "cr", None), uid=uid
         ):
