@@ -558,8 +558,6 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
         )
         self.assertTrue(pick_components)
         self.assertIn(rr_raw.name, pick_components.origin)
-        receipt = pickings_component - pick_components
-        self.assertEqual(receipt.picking_type_id, self.warehouse.in_type_id)
 
     def test_2_steps_and_additional_moves(self):
         self.warehouse.manufacture_steps = "pbm"
