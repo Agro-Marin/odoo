@@ -490,6 +490,19 @@ grants or revokes. Never deleted by a user: `action_revoke()` ends it.
 - `_get_failed_accesses(records, operation)` — the rows that refuse some of the records
 - `_clear_access_caches()` — what a write to a row, a group or a user's groups calls
 
+### models/ir_access_log.py
+
+#### IrAccessLog — `ir.access.log` (`_name`)
+
+The authorization log: one row per grant created, changed, revoked or expired
+(a migration writes one row standing for `count` grants). Rows are written only
+through `_record(vals_list)`, which stamps the acting user and creates as
+superuser; `write` always raises, and only the superuser deletes.
+
+**Fields:** `event` (Selection `ACCESS_LOG_EVENTS`), `actor_id`,
+`subject_user_id`, `group_id`, `grant_id`, `cause`, `cause_model`,
+`cause_res_id` (Many2oneReference), `reason`, `count`
+
 ### models/ir_model_reflection.py
 
 The constraint- and relation-reflection models (re-exported from `ir_model.py`
@@ -550,8 +563,8 @@ XML ID registry — maps external identifiers to database records.
 
 Shared by the `ir.model` family: `ACCESS_MODES` and the access-error message
 table, the xmlid builders (`model_xmlid`, `field_xmlid`, `selection_xmlid`,
-`inherit_xmlid`), the reflection upsert queries (`query_insert`,
-`query_update`, `select_en`, `upsert_en`) and the registry helpers
+`inherit_xmlid`), the reflection upsert queries (`select_en`,
+`upsert_en`) and the registry helpers
 (`prepare_compute`, `mark_modified`, `reload_schema`). Re-exports
 `MODULE_UNINSTALL_FLAG` for downstream modules.
 
@@ -814,6 +827,7 @@ Scheduled jobs — executes server actions on a recurring schedule.
 - `active` (Boolean, default=True)
 - `repeat_interval` (Integer, default=1, required), `repeat_unit` (Selection, default=month) — from `mixin.recurrence.interval`, widened with minute/hour; next run computed by `odoo.tools.date_utils.next_after`
 - `nextcall` (Datetime, required), `lastcall` (Datetime)
+- `schedule_anchor` (Datetime, readonly) — where the series of runs starts: set when a person or a data file sets `nextcall` or changes the cadence, never by the scheduler, so a day/week/month cron whose local time falls in a DST gap keeps its wall time afterwards
 - `priority` (Integer, default=5)
 - `failure_count` (Integer), `first_failure_date` (Datetime)
 
@@ -1625,6 +1639,31 @@ Login tracking.
 User deletion queue.
 **Key Methods:** `_gc_portal_users(batch_size=50)` — Cron: batch-delete queued users
 
+### models/res_users_grant.py
+
+#### ResUsersGrant — `res.users.grant` (`_name`)
+
+A group membership with a cause, a window (`date_from`, `date_to`) and who gave
+it. `res.users.group_ids` is its projection: `_project()` links a (user, group)
+pair while an `active` grant covers it and unlinks it once none does. A write to
+`group_ids` or `user_ids` is followed back into grants by `_follow_membership`;
+the `_PROJECTING` context variable keeps the projection's own write from
+looping. The `ir_cron_res_users_grant_boundaries` cron, triggered at each
+future boundary, moves grants from scheduled to active and to expired. A
+creation, change, revocation or expiry is logged to `ir.access.log`; a group's admin group may grant it
+(`_check_delegation`).
+
+**Fields:** `user_id`, `group_id`, `date_from`, `date_to`, `state`
+(scheduled/active/expired/revoked, readonly), `cause` (Selection
+`GRANT_CAUSES`), `cause_model`, `cause_res_id`, `reason`, `granted_by_id`,
+`revoked_by_id`, `revoked_at`, `revoke_reason`
+
+**Key Methods:**
+- `_grant(users, groups, cause=…)` / `_revoke(users, groups)` — grant every pair not live yet / revoke every live grant of the pairs
+- `action_revoke(reason)` — revoke the live grants of the set, log, project
+- `_cron_cross_boundaries()` — cron: cross the start and end boundaries that have passed
+- `_on_grant_changed(event)` — hook, once per batch, for modules that judge a grant
+
 ### models/res_users_login_cooldown.py
 
 #### ResUsersLoginCooldown — `res.users.login.cooldown` (`_name`)
@@ -2020,14 +2059,12 @@ integrations can point at a tag without depending on its display name.
 #### MixinHierarchy — `mixin.hierarchy` (AbstractModel)
 
 Owns `_parent_store` and the `parent_path` column for every tree model in the
-module, plus the one recursion constraint they used to each spell
-themselves; a model overrides `_hierarchy_cycle_message` when a
-domain-specific sentence reads better.
+module. A cycle is refused by the ORM's parent-path update on write
+(`odoo/orm/models/mixins/write.py`), before any constraint could run; a
+model sets `_hierarchy_cycle_message` when a domain-specific sentence reads
+better than "Recursion Detected.".
 
 **Fields:** `parent_path` (Char, index)
-
-**Key Methods:**
-- `_check_parent_id()` — Raises `ValidationError` on a cycle
 
 ### models/mixin_tag_nested.py
 
@@ -2039,7 +2076,6 @@ from `mixin.hierarchy`, this mixin adds the path-aware display name.
 **Fields:** `parent_id` / `child_ids`, `parent_path` (via `mixin.hierarchy`)
 
 **Key Methods:**
-- `_check_parent_id()` — Reject recursion
 - `_search_display_name(operator, value)` — Match on the full path
 
 ### models/tag_tag.py
