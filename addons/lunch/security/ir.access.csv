@@ -1,7 +1,9 @@
 id,name,model_id/id,group_id/id,kind,operation,domain
 lunch_mind_your_own_food_money,lunch.cashmove: do not see other people's cashmove,model_lunch_cashmove,group_lunch_user,permission,r,"[('user_id', '=', user.id)]"
 lunch_mind_other_food_money,lunch.cashmove: do see other people's cashmove,model_lunch_cashmove,group_lunch_manager,permission,crud,
-order_user,Order Line user,model_lunch_order,group_lunch_user,permission,cru,
+order_user,Order Line user,model_lunch_order,group_lunch_user,permission,cr,
+lunch_order_rule_write,lunch.order: Don't change confirmed order,model_lunch_order,group_lunch_user,permission,u,"[('state', '!=', 'confirmed'), ('user_id', '=', user.id)]"
+lunch_order_rule_write_manager,manager can do whatever,model_lunch_order,group_lunch_manager,permission,u,
 lunch_order_rule_delete,lunch.order: Only new and cancelled order lines deleted.,model_lunch_order,group_lunch_user,permission,d,"[('state', 'in', ('new', 'cancelled'))]"
 lunch_order_rule_delete_group_lunch_manager,lunch.order: Only new and cancelled order lines deleted.,model_lunch_order,group_lunch_manager,permission,d,"[('state', 'in', ('new', 'cancelled'))]"
 product_user,Product user,model_lunch_product,group_lunch_user,permission,r,
