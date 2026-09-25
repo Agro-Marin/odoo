@@ -82,8 +82,10 @@ jobs:
         working-directory: crates/odoo_lint
         run: maturin develop --release
 
+      # --lint-esm: the ESM gates (specifiers, assemble, orphans, double
+      # evaluation) need a database, which the postgres service provides
       - name: gates.sh
-        run: ./gates.sh --perf-counts
+        run: ./gates.sh --perf-counts --lint-esm
 
       - name: Retain performance measurements
         if: always()
