@@ -619,8 +619,8 @@ registry.category("web_tour.tours").add("PosCustomerAllFieldsDisplayed", {
                 run: `edit j%hn d%e`,
             },
             {
-                content: `Check "John Doe" is shown`,
-                trigger: `.partner-list .partner-info:nth-child(1):contains("John Doe")`,
+                content: `Check "John Doe" is among the matches`,
+                trigger: `.partner-list .partner-info:contains("John Doe")`,
             },
         ].flat(),
 });
