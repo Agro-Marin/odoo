@@ -487,7 +487,7 @@ an in-tree fork; only `hoot` and `hoot-dom` are internal, versioned with the for
 |----------|-------|
 | Python (controllers) | 24 (22 Controller classes across 20 route-bearing files + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
 | Python (models) | 28 (27 model files + `__init__.py`) |
-| Python (tests) | 68 (`test_*.py`; 69 files incl. `__init__.py`) |
+| Python (tests) | 68 (`test_*.py`; 70 files incl. `__init__.py` and the `tests/bundle_services.py` helper) |
 | JavaScript (src) | 886 (884 carry `@ts-check`; `module_loader.js` + `service_worker.js` are the two exclusions) |
 | JavaScript (tests) | 815 (incl. 750 `*.test.js` Hoot suites) |
 | JavaScript (vendored libs) | 94 |
