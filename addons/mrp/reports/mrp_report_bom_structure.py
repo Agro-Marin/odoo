@@ -1,4 +1,3 @@
-import json
 from collections import OrderedDict, defaultdict
 from datetime import date, datetime, time, timedelta
 
@@ -26,6 +25,11 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         return self.env["stock.warehouse"].search(
             [("company_id", "=", company.id)], limit=1
         )
+
+    def _with_bom_company(self, bom):
+        if not bom.company_id or bom.company_id == self.env.company:
+            return self
+        return self.with_company(bom.company_id)
 
     @api.model
     def _get_current_production_capacity(self, bom_data):
@@ -56,25 +60,14 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     @api.model
     def _get_report_values(self, docids, data=None):
         docs = []
-        for bom_id in docids:
-            bom = self.env["mrp.bom"].browse(bom_id)
-            if not bom:
-                continue
-            variant = data.get("variant")
-            candidates = (
-                (variant and self.env["product.product"].browse(int(variant)))
-                or bom.product_id
-                or bom.product_tmpl_id.product_variant_ids
-            )
-            quantity = float(data.get("quantity", bom.product_qty))
-            if data.get("warehouse_id"):
-                self = self.with_context(warehouse_id=int(data.get("warehouse_id")))
+        for bom in self.env["mrp.bom"].browse(docids):
+            variants = bom.product_id or bom.product_tmpl_id.product_variant_ids
             docs.extend(
-                self._get_pdf_doc(bom_id, data, quantity, product_variant_id)
-                for product_variant_id in candidates.ids
+                self._get_pdf_line(bom.id, product_id=variant.id, qty=bom.product_qty)
+                for variant in variants
             )
-            if not candidates:
-                docs.append(self._get_pdf_doc(bom_id, data, quantity))
+            if not variants:
+                docs.append(self._get_pdf_line(bom.id, qty=bom.product_qty))
         return {
             "doc_ids": docids,
             "doc_model": "mrp.bom",
@@ -82,24 +75,9 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         }
 
     @api.model
-    def _get_pdf_doc(self, bom_id, data, quantity, product_variant_id=None):
-        if data and data.get("unfolded_ids"):
-            doc = self._get_pdf_line(
-                bom_id,
-                product_id=product_variant_id,
-                qty=quantity,
-                unfolded_ids=set(json.loads(data.get("unfolded_ids"))),
-            )
-        else:
-            doc = self._get_pdf_line(
-                bom_id, product_id=product_variant_id, qty=quantity, unfolded=True
-            )
-        doc["forecast_mode"] = data.get("mode", "overview") == "forecast"
-        return doc
-
-    @api.model
     def _get_report_data(self, bom_id, searchQty=0, searchVariant=False):
         lines = {}
+        self = self._with_bom_company(self.env["mrp.bom"].browse(bom_id))
         bom = self.env["mrp.bom"].browse(bom_id)
         bom_quantity = searchQty or bom.product_qty or 1
         bom_product_variants = {}
@@ -353,10 +331,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             product_info = {}
         if simulated_leaves_per_workcenter is False:
             simulated_leaves_per_workcenter = defaultdict(list)
-        if not is_minimized and "mrp_bom_attachment_index" not in self.env.context:
-            self = self.with_context(
-                mrp_bom_attachment_index=self._get_bom_attachment_index()
-            )
 
         company = bom.company_id or self.env.company
         current_quantity = line_qty
@@ -367,13 +341,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 )
                 or 0
             )
-
-        has_attachments = False
-        if not is_minimized:
-            if product:
-                has_attachments = self._has_bom_attachment(product)
-            else:
-                has_attachments = self._has_bom_attachment(template=bom.product_tmpl_id)
 
         key = product.id
         bom_key = bom.id
@@ -422,24 +389,15 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             "route_name": route_info.get("route_name", ""),
             "route_detail": route_info.get("route_detail", ""),
             "route_alert": route_info.get("route_alert", False),
+            "route_record": route_info.get("bom") or route_info.get("supplier"),
             "currency": company.currency_id,
             "currency_id": company.currency_id.id,
             "product": product,
             "product_id": product.id,
             "product_template_id": product.product_tmpl_id.id,
-            "link_id": (
-                product.id
-                if product.product_variant_count > 1
-                else product.product_tmpl_id.id
-            )
-            or bom.product_tmpl_id.id,
-            "link_model": "product.product"
-            if product.product_variant_count > 1
-            else "product.template",
             "code": (bom and bom.display_name) or "",
             "bom_cost": 0,
             "level": level or 0,
-            "has_attachments": has_attachments,
             "phantom_bom": bom.type == "phantom",
             "parent_id": (parent_bom and parent_bom.id) or False,
         }
@@ -531,7 +489,8 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 bom_report_line["availability_state"] = "estimated"
                 max_component_delay = bom_report_line["max_component_delay"]
                 bom_report_line["availability_delay"] = max_component_delay + max(
-                    bom.produce_delay, bom_report_line["operations_delay"]
+                    bom_report_line["manufacture_delay"] or bom.produce_delay,
+                    bom_report_line["operations_delay"],
                 )
                 bom_report_line["availability_display"] = self._format_date_display(
                     bom_report_line["availability_state"],
@@ -625,10 +584,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             uom=bom_line.product_uom_id,
         )
 
-        has_attachments = False
-        if not self.env.context.get("minimized", False):
-            has_attachments = self._has_bom_attachment(bom_line.product_id)
-
         return {
             "type": "component",
             "index": index,
@@ -636,12 +591,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             "product": bom_line.product_id,
             "product_id": bom_line.product_id.id,
             "product_template_id": bom_line.product_tmpl_id.id,
-            "link_id": bom_line.product_id.id
-            if bom_line.product_id.product_variant_count > 1
-            else bom_line.product_id.product_tmpl_id.id,
-            "link_model": "product.product"
-            if bom_line.product_id.product_variant_count > 1
-            else "product.template",
             "name": bom_line.product_id.display_name,
             "code": "",
             "currency": company.currency_id,
@@ -662,6 +611,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             "route_name": route_info.get("route_name", ""),
             "route_detail": route_info.get("route_detail", ""),
             "route_alert": route_info.get("route_alert", False),
+            "route_record": route_info.get("bom") or route_info.get("supplier"),
             "lead_time": route_info.get("lead_time", False),
             "manufacture_delay": route_info.get("manufacture_delay", False),
             "stock_avail_state": availabilities["stock_avail_state"],
@@ -671,29 +621,17 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             "availability_delay": availabilities["availability_delay"],
             "parent_id": parent_bom.id,
             "level": level or 0,
-            "has_attachments": has_attachments,
         }
 
     @api.model
     def _get_quantities_info(
         self, product, bom_uom, product_info, parent_bom=False, parent_product=False
     ):
+        stock = product._get_stock_in_unit(bom_uom)
         quantities_info = {
-            "qty_free": max(
-                product.uom_id._get_quantity_report(product.qty_free, bom_uom), 0
-            )
-            if product.is_storable
-            else 0,
-            "on_hand_qty": product.uom_id._get_quantity_report(
-                product.qty_available, bom_uom
-            )
-            if product.is_storable
-            else 0,
-            "forecasted_qty": product.uom_id._get_quantity_report(
-                product.qty_available_virtual, bom_uom
-            )
-            if product.is_storable
-            else 0,
+            "qty_free": stock["free"],
+            "on_hand_qty": stock["on_hand"],
+            "forecasted_qty": stock["forecasted"],
             "stock_loc": "in_stock",
         }
         quantities_info["free_to_manufacture_qty"] = quantities_info["qty_free"]
@@ -755,12 +693,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     "index": f"{index}{byproduct_index}",
                     "type": "byproduct",
                     "product_id": byproduct.product_id.id,
-                    "link_id": byproduct.product_id.id
-                    if byproduct.product_id.product_variant_count > 1
-                    else byproduct.product_id.product_tmpl_id.id,
-                    "link_model": "product.product"
-                    if byproduct.product_id.product_variant_count > 1
-                    else "product.template",
                     "currency_id": company.currency_id.id,
                     "name": byproduct.product_id.display_name,
                     "quantity": line_quantity,
@@ -846,8 +778,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     "index": f"{index}{operation_index}",
                     "level": level or 0,
                     "operation": operation,
-                    "link_id": operation.id,
-                    "link_model": "mrp.routing.workcenter",
                     "name": operation.name + " - " + operation.workcenter_id.name,
                     "uom_name": self.env._("Minutes"),
                     "quantity": duration_expected,
@@ -863,12 +793,8 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         return operations
 
     @api.model
-    def _get_pdf_line(
-        self, bom_id, product_id=False, qty=1, unfolded_ids=None, unfolded=False
-    ):
-        if unfolded_ids is None:
-            unfolded_ids = set()
-
+    def _get_pdf_line(self, bom_id, product_id=False, qty=1):
+        self = self._with_bom_company(self.env["mrp.bom"].browse(bom_id))
         bom = self.env["mrp.bom"].browse(bom_id)
         if product_id:
             product = self.env["product.product"].browse(int(product_id))
@@ -882,58 +808,28 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             )
 
         warehouse = self._get_default_warehouse(bom)
-
-        level = 1
         data = self._get_bom_data(
             bom, warehouse, product=product, line_qty=qty, level=0
         )
-        pdf_lines = self._get_bom_array_lines(data, level, unfolded_ids, unfolded, True)
-
-        data["lines"] = pdf_lines
+        data["lines"] = self._get_bom_array_lines(data, 1)
         return data
 
     @api.model
-    def _get_bom_array_lines(
-        self, data, level, unfolded_ids, unfolded, parent_unfolded=True
-    ):
-        bom_lines = data["components"]
+    def _get_bom_array_lines(self, data, level):
         lines = []
-        for bom_line in bom_lines:
-            line_unfolded = ("bom_" + str(bom_line["index"])) in unfolded_ids
-            line_visible = level == 1 or unfolded or parent_unfolded
+        for bom_line in data["components"]:
             lines.append(
                 {
-                    "bom_id": bom_line["bom_id"],
                     "name": bom_line["name"],
                     "type": bom_line["type"],
-                    "is_storable": bom_line["is_storable"],
                     "quantity": bom_line["quantity"],
-                    "quantity_available": bom_line["quantity_available"],
-                    "quantity_on_hand": bom_line["quantity_on_hand"],
-                    "producible_qty": bom_line.get("producible_qty", False),
                     "uom": bom_line["uom_name"],
                     "bom_cost": bom_line["bom_cost"],
-                    "route_name": bom_line["route_name"],
-                    "route_detail": bom_line["route_detail"],
-                    "route_alert": bom_line.get("route_alert", False),
-                    "lead_time": bom_line["lead_time"],
-                    "manufacture_delay": bom_line["manufacture_delay"],
                     "level": bom_line["level"],
-                    "code": bom_line["code"],
-                    "availability_state": bom_line["availability_state"],
-                    "availability_display": bom_line["availability_display"],
-                    "visible": line_visible,
-                    "status": bom_line.get("status", ""),
                 }
             )
             if bom_line.get("components"):
-                lines += self._get_bom_array_lines(
-                    bom_line,
-                    level + 1,
-                    unfolded_ids,
-                    unfolded,
-                    line_visible and line_unfolded,
-                )
+                lines += self._get_bom_array_lines(bom_line, level + 1)
 
         if data["operations"]:
             lines.append(
@@ -944,27 +840,19 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     "uom": self.env._("minutes"),
                     "bom_cost": data["operations_cost"],
                     "level": level,
-                    "visible": parent_unfolded,
                 }
             )
-            operations_unfolded = unfolded or (
-                parent_unfolded and ("operations_" + str(data["index"])) in unfolded_ids
+            lines.extend(
+                {
+                    "name": operation["name"],
+                    "type": "operation",
+                    "quantity": operation["quantity"],
+                    "uom": self.env._("minutes"),
+                    "bom_cost": operation["bom_cost"],
+                    "level": level + 1,
+                }
+                for operation in data["operations"]
             )
-            for operation in data["operations"]:
-                lines.append(
-                    {
-                        "name": operation["name"],
-                        "type": "operation",
-                        "quantity": operation["quantity"],
-                        "uom": self.env._("minutes"),
-                        "bom_cost": operation["bom_cost"],
-                        "level": level + 1,
-                        "availability_state": operation["availability_state"],
-                        "availability_delay": operation["availability_delay"],
-                        "availability_display": operation["availability_display"],
-                        "visible": operations_unfolded,
-                    }
-                )
         if data["byproducts"]:
             lines.append(
                 {
@@ -974,24 +862,19 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     "quantity": data["byproducts_total"],
                     "bom_cost": data["byproducts_cost"],
                     "level": level,
-                    "visible": parent_unfolded,
                 }
             )
-            byproducts_unfolded = unfolded or (
-                parent_unfolded and ("byproducts_" + str(data["index"])) in unfolded_ids
+            lines.extend(
+                {
+                    "name": byproduct["name"],
+                    "type": "byproduct",
+                    "quantity": byproduct["quantity"],
+                    "uom": byproduct["uom_name"],
+                    "bom_cost": byproduct["bom_cost"],
+                    "level": level + 1,
+                }
+                for byproduct in data["byproducts"]
             )
-            for byproduct in data["byproducts"]:
-                lines.append(
-                    {
-                        "name": byproduct["name"],
-                        "type": "byproduct",
-                        "quantity": byproduct["quantity"],
-                        "uom": byproduct["uom_name"],
-                        "bom_cost": byproduct["bom_cost"],
-                        "level": level + 1,
-                        "visible": byproducts_unfolded,
-                    }
-                )
         return lines
 
     @api.model
@@ -1014,10 +897,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             found_rules = product._get_rules_from_location(warehouse.lot_stock_id)
         if not found_rules:
             return {}
-        rules_delay = sum(rule.delay for rule in found_rules)
-        return self.with_context(parent_bom=parent_bom)._format_route_info(
-            found_rules, rules_delay, warehouse, product, bom, quantity
-        )
+        return self._format_route_info(found_rules, warehouse, product, bom, quantity)
 
     @api.model
     def _is_resupply_rules(self, rules, bom):
@@ -1039,22 +919,20 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         return False
 
     @api.model
-    def _format_route_info(self, rules, rules_delay, warehouse, product, bom, quantity):
+    def _format_route_info(self, rules, warehouse, product, bom, quantity):
         manufacture_rules = [
             rule for rule in rules if rule.action == "manufacture" and bom
         ]
         if manufacture_rules:
-            wh_manufacture_rules = product._get_rules_from_location(
-                product.property_stock_production, route_ids=warehouse.route_ids
-            )
-            wh_manufacture_rules -= rules
-            rules_delay += sum(rule.delay for rule in wh_manufacture_rules)
+            delays, _description = rules.with_context(
+                bypass_delay_description=True
+            )._get_lead_days(product, bom=bom)
             return {
                 "route_type": "manufacture",
                 "route_name": manufacture_rules[0].route_id.display_name,
                 "route_detail": bom.display_name,
-                "lead_time": bom.produce_delay + rules_delay + bom.days_to_prepare_mo,
-                "manufacture_delay": bom.produce_delay + rules_delay,
+                "lead_time": delays["total_delay"],
+                "manufacture_delay": delays["total_delay"] - bom.days_to_prepare_mo,
                 "bom": bom,
             }
         return {}
@@ -1219,44 +1097,10 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     @api.model
     def _format_date_display(self, state, delay):
         date_today = self.env.context.get("from_date", fields.Date.today())
-        if state == "available":
-            return self.env._("Available")
-        if state == "unavailable":
-            return self.env._("Not Available")
-        if state == "expected":
-            return self.env._(
-                "Expected %s", format_date(self.env, date_today + timedelta(days=delay))
-            )
-        if state == "estimated":
-            return self.env._(
-                "Estimated %s",
-                format_date(self.env, date_today + timedelta(days=delay)),
-            )
-        return ""
-
-    @api.model
-    def _get_bom_attachment_index(self):
-        index = self.env.context.get("mrp_bom_attachment_index")
-        if index is not None:
-            return index
-        documents = self.env["document.document"].search_read(
-            [("attached_on_mrp", "=", "bom")], ["res_model", "res_id"], load=False
-        )
-        index = {"product.product": set(), "product.template": set()}
-        for document in documents:
-            ids = index.get(document["res_model"])
-            if ids is not None:
-                ids.add(document["res_id"])
-        return index
-
-    def _has_bom_attachment(self, product=None, template=None):
-        index = self._get_bom_attachment_index()
-        if product:
-            return (
-                product.id in index["product.product"]
-                or product.product_tmpl_id.id in index["product.template"]
-            )
-        return bool(template) and template.id in index["product.template"]
+        day = date_today + timedelta(days=delay) if delay else date_today
+        return self.env["report.mrp.report_mo_overview"]._format_receipt_date(
+            state, day
+        )["display"]
 
     def _merge_components(self, component_1, component_2):
         component_1["quantity"] += component_2["quantity"]

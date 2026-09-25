@@ -905,29 +905,62 @@ class MrpProduction(models.Model):
         "move_raw_ids",
         "move_raw_ids.product_id",
         "move_raw_ids.product_uom_id",
-        "move_raw_ids.unit_factor",
+        "move_raw_ids.product_uom_qty",
+        "move_raw_ids.quantity",
+        "move_raw_ids.state",
     )
     def _compute_production_capacity(self):
         for production in self:
-            production.production_capacity = production.product_qty
-            moves = production.move_raw_ids.filtered(
-                lambda move: move.unit_factor and move.product_id.is_storable
+            production.production_capacity = production._get_producible_qty(
+                production._get_component_availability()
             )
-            if moves:
-                production_capacity = min(
-                    moves.mapped(
-                        lambda move: (
-                            move.product_id.uom_id._get_quantity_estimate(
-                                move.product_id.qty_available, move.product_uom_id
-                            )
-                            / move.unit_factor
-                        )
-                    )
+
+    def _get_component_availability(self):
+        self.check_singleton()
+        raw_moves = self.move_raw_ids.filtered(
+            lambda move: (
+                move.product_id.is_storable and move.state not in ("done", "cancel")
+            )
+        )
+        products = raw_moves.product_id.with_context(warehouse_id=self.warehouse_id.id)
+        free_by_product = dict(zip(products, products.mapped("qty_free"), strict=True))
+        availability = {}
+        for product, moves in raw_moves.grouped("product_id").items():
+            to_consume = sum(
+                move.product_uom_id._get_quantity_estimate(
+                    move.product_uom_qty, product.uom_id, round=False
                 )
-                production.production_capacity = min(
-                    production.product_qty,
-                    production.product_id.uom_id.round(production_capacity),
+                for move in moves
+            )
+            reserving = moves.browse(moves._rollup_move_orig_ids()).filtered(
+                lambda move: (
+                    move.state in ("partially_available", "assigned")
+                    and move.location_id.warehouse_id == self.warehouse_id
                 )
+            )
+            reserved = sum(
+                move.product_uom_id._get_quantity_estimate(
+                    move.quantity, product.uom_id, round=False
+                )
+                for move in reserving
+            )
+            free = max(free_by_product[product], 0.0)
+            availability[product] = (to_consume, min(reserved, to_consume) + free)
+        return availability
+
+    def _get_producible_qty(self, availability):
+        self.check_singleton()
+        producible = self.product_qty
+        for product, (to_consume, available) in availability.items():
+            if product.uom_id.is_zero(to_consume):
+                continue
+            producible = min(
+                producible,
+                self.product_uom_id.round(
+                    self.product_qty * available / to_consume, rounding_method="DOWN"
+                ),
+            )
+        return max(producible, 0.0)
 
     @api.depends("move_finished_ids.date_deadline")
     def _compute_date_deadline(self):
@@ -3162,7 +3195,7 @@ class MrpProduction(models.Model):
                 )
                 move_uom = self.env["uom.uom"].browse(move_values["product_uom_id"])
                 move_product_qty = move_uom._get_quantity_in_unit(
-                    move_values["product_uom_qty"], move_product.uom_id
+                    move_values["product_uom_qty"], move_product.uom_id, round=False
                 )
                 expected_qty_by_product[move_product] += (
                     move_product_qty * order.qty_producing / order.product_qty
@@ -3171,7 +3204,7 @@ class MrpProduction(models.Model):
             done_qty_by_product = defaultdict(float)
             for move in order.move_raw_ids:
                 quantity = move.product_uom_id._get_quantity_in_unit(
-                    move._get_picked_quantity(), move.product_id.uom_id
+                    move._get_picked_quantity(), move.product_id.uom_id, round=False
                 )
                 if (
                     move.product_id not in expected_qty_by_product

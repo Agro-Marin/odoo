@@ -74,8 +74,10 @@ class MrpConsumptionWarning(models.TransientModel):
                     )
                     continue
                 first, rest = matching[0], matching[1:]
-                qty_expected = line.product_uom_id._get_quantity_in_unit(
-                    line.product_expected_qty_uom, first.product_uom_id
+                qty_expected = first.product_uom_id.round(
+                    line.product_uom_id._get_quantity_in_unit(
+                        line.product_expected_qty_uom, first.product_uom_id, round=False
+                    )
                 )
                 if first.product_uom_id.compare(qty_expected, first.quantity) != 0:
                     first.quantity = qty_expected

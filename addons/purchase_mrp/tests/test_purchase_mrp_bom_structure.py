@@ -1,3 +1,5 @@
+from datetime import date
+
 from odoo import Command
 from odoo.tests import tagged
 
@@ -75,3 +77,46 @@ class TestPurchaseMrpBomStructure(AccountTestInvoicingCommon):
 
         component = data["lines"]["components"][0]
         self.assertTrue(component["route_alert"])
+
+    def _buy_lead_days(self):
+        delays, _description = self.warehouse.buy_pull_id.with_context(
+            bypass_delay_description=True, global_horizon_days=0
+        )._get_lead_days(self.buy_component)
+        return delays["total_delay"]
+
+    def test_bought_component_lead_time_is_the_schedulers(self):
+        self.env.company.purchase_config_id.days_to_purchase = 4
+        self.bom.company_id = False
+        self.assertEqual(
+            self._buy_lead_days(), 3 + 4, "vendor delay + days to purchase"
+        )
+
+        data = self.report.with_context(
+            warehouse_id=self.warehouse.id
+        )._get_report_data(bom_id=self.bom.id)
+        component = data["lines"]["components"][0]
+        self.assertEqual(component["lead_time"], self._buy_lead_days())
+        self.assertEqual(component["availability_delay"], self._buy_lead_days())
+
+    def test_mo_overview_to_order_receipt_is_the_schedulers_buy_lead_time(self):
+        self.env.company.purchase_config_id.days_to_purchase = 4
+        production = self.env["mrp.production"].create(
+            {
+                "product_id": self.finished.id,
+                "bom_id": self.bom.id,
+                "product_qty": 1,
+                "picking_type_id": self.warehouse.manu_type_id.id,
+            }
+        )
+        production.action_confirm()
+        data = self.env["report.mrp.report_mo_overview"]._get_report_data(production.id)
+        [to_order] = [
+            line["summary"]
+            for component in data["components"]
+            for line in component["replenishments"]
+            if line["summary"]["model"] == "to_order"
+        ]
+        self.assertEqual(
+            (to_order["receipt"]["date"].date() - date.today()).days,
+            self._buy_lead_days(),
+        )

@@ -351,7 +351,10 @@ class TestBomAndReports(TestMrpCommon):
         warehouse = self.env["stock.warehouse"].search(
             [("company_id", "=", company.id)], limit=1
         )
-        warehouse.manufacture_pull_id.delay = 3
+        warehouse.manufacture_steps = "pbm"
+        warehouse.pbm_route_id.rule_ids.filtered(
+            lambda rule: rule.location_dest_id == warehouse.pbm_loc_id
+        ).delay = 3
         env = self.env(
             context=dict(
                 self.env.context,

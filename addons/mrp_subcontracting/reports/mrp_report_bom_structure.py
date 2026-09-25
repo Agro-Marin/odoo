@@ -78,12 +78,8 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     res["bom_cost"] += res["subcontracting"]["bom_cost"]
         return res
 
-    def _get_bom_array_lines(
-        self, data, level, unfolded_ids, unfolded, parent_unfolded=True
-    ):
-        lines = super()._get_bom_array_lines(
-            data, level, unfolded_ids, unfolded, parent_unfolded
-        )
+    def _get_bom_array_lines(self, data, level):
+        lines = super()._get_bom_array_lines(data, level)
 
         if data.get("subcontracting"):
             subcontract_info = data["subcontracting"]
@@ -95,7 +91,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     "quantity": subcontract_info["quantity"],
                     "bom_cost": subcontract_info["bom_cost"],
                     "level": subcontract_info["level"],
-                    "visible": level == 1 or unfolded or parent_unfolded,
                 }
             )
         return lines
@@ -132,10 +127,8 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         return res
 
     @api.model
-    def _format_route_info(self, rules, rules_delay, warehouse, product, bom, quantity):
-        res = super()._format_route_info(
-            rules, rules_delay, warehouse, product, bom, quantity
-        )
+    def _format_route_info(self, rules, warehouse, product, bom, quantity):
+        res = super()._format_route_info(rules, warehouse, product, bom, quantity)
         if not product:
             return res
         subcontract_rules = [
@@ -165,7 +158,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     "route_detail": supplier.with_context(
                         use_simplified_supplier_name=True
                     ).display_name,
-                    "lead_time": rules_delay,
+                    "lead_time": sum(rule.delay for rule in rules),
                     "supplier": supplier,
                     "route_alert": product.uom_id.compare(
                         qty_supplier_uom, supplier.min_qty

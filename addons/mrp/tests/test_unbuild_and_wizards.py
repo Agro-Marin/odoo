@@ -647,3 +647,113 @@ class TestUnbuildAndWizards(TestMrpCommon):
             counts.append(self.env.cr.sql_statement_count - before)
             self.assertEqual(set(mo.move_raw_ids.mapped("quantity")), {4.0})
         self.assertLess((counts[1] - counts[0]) / 9, 2, counts)
+
+    def _dozen_stocked_order(self):
+        dozen = self.env.ref("uom.product_uom_dozen")
+        component, other, finished = self.env["product.product"].create(
+            [
+                {"name": "Dozen-stocked part", "is_storable": True, "uom_id": dozen.id},
+                {"name": "Unit-stocked part", "is_storable": True},
+                {"name": "Dozen assembly", "is_storable": True},
+            ]
+        )
+        self._stock(component, 10)
+        self._stock(other, 10)
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": 1,
+                "consumption": "warning",
+                "bom_line_ids": [
+                    Command.create(
+                        {
+                            "product_id": component.id,
+                            "product_qty": 1,
+                            "product_uom_id": self.uom_unit.id,
+                        }
+                    ),
+                    Command.create({"product_id": other.id, "product_qty": 1}),
+                ],
+            }
+        )
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1}
+        )
+        production.action_confirm()
+        production.qty_producing = 1
+        move = production.move_raw_ids.filtered(lambda m: m.product_id == component)
+        self.assertEqual(move.product_uom_id, self.uom_unit)
+        production.move_raw_ids.filtered(lambda m: m.product_id == other).write(
+            {"quantity": 1, "picked": True}
+        )
+        return production, move
+
+    def test_set_quantities_consumes_the_bom_demand_in_the_move_unit(self):
+        production, move = self._dozen_stocked_order()
+        move.write({"quantity": 0.5, "picked": True})
+        action = production.button_mark_done()
+        self.assertEqual(action.get("res_model"), "mrp.consumption.warning")
+        Form.from_action(self.env, action).save().action_set_qty()
+
+        self.assertEqual(production.state, "done")
+        self.assertEqual(move.quantity, 1.0, "one unit, not a dozen rounded up twice")
+
+    def test_a_demand_met_in_the_move_unit_raises_no_consumption_warning(self):
+        production, move = self._dozen_stocked_order()
+        move.write({"quantity": 1, "picked": True})
+        self.assertIs(production.button_mark_done(), True)
+        self.assertEqual(production.state, "done")
+
+    def test_split_capacity_counts_a_component_once_and_not_other_reservations(self):
+        component, finished, other_finished = self.env["product.product"].create(
+            [
+                {"name": "Capacity part", "is_storable": True},
+                {"name": "Capacity assembly", "is_storable": True},
+                {"name": "Capacity rival", "is_storable": True},
+            ]
+        )
+        self._stock(component, 10)
+        rival_bom, bom = self.env["mrp.bom"].create(
+            [
+                {
+                    "product_tmpl_id": other_finished.product_tmpl_id.id,
+                    "product_qty": 1,
+                    "bom_line_ids": [
+                        Command.create({"product_id": component.id, "product_qty": 1})
+                    ],
+                },
+                {
+                    "product_tmpl_id": finished.product_tmpl_id.id,
+                    "product_qty": 1,
+                    "bom_line_ids": [
+                        Command.create({"product_id": component.id, "product_qty": 1}),
+                        Command.create({"product_id": component.id, "product_qty": 1}),
+                    ],
+                },
+            ]
+        )
+        rival, production = self.env["mrp.production"].create(
+            [
+                {
+                    "product_id": other_finished.id,
+                    "bom_id": rival_bom.id,
+                    "product_qty": 6,
+                },
+                {"product_id": finished.id, "bom_id": bom.id, "product_qty": 10},
+            ]
+        )
+        rival.action_confirm()
+        rival.action_assign()
+        production.action_confirm()
+        production.action_assign()
+        self.assertEqual(sum(production.move_raw_ids.mapped("quantity")), 4)
+
+        self.assertEqual(
+            production.production_capacity,
+            2.0,
+            "4 reserved for this order, none free, 2 per unit",
+        )
+        wizard = self.env["mrp.production.split"].create(
+            {"production_id": production.id}
+        )
+        self.assertEqual(wizard.production_capacity, 2.0)

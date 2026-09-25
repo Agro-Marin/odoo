@@ -97,36 +97,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             "The by-product move must survive the create() command normalization.",
         )
 
-    def test_monetary_opt_widget_blanks_unset_amount(self):
-        converter = self.env["ir.qweb.field.monetary_opt"]
-        options = {"display_currency": self.env.company.currency_id}
-        self.assertEqual(converter.value_to_html(False, options), "")
-        self.assertEqual(converter.value_to_html(None, options), "")
-        self.assertIn("oe_currency_value", converter.value_to_html(0.0, options))
-        self.assertIn("oe_currency_value", converter.value_to_html(12.5, options))
-
-    def test_mo_overview_report_renders_with_unset_costs(self):
-        self.workcenter_1.costs_hour = 0.0
-        product = (
-            self.bom_2.product_id or self.bom_2.product_tmpl_id.product_variant_ids[:1]
-        )
-        mo = self.env["mrp.production"].create(
-            {"product_id": product.id, "bom_id": self.bom_2.id, "product_qty": 1.0}
-        )
-        mo.action_confirm()
-        html, content_type = self.env["ir.actions.report"]._render_qweb_html(
-            "mrp.report_mo_overview",
-            mo.ids,
-            data={
-                "moCosts": "1",
-                "bomCosts": "1",
-                "realCosts": "1",
-                "unfoldedIds": "[]",
-            },
-        )
-        self.assertEqual(content_type, "html")
-        self.assertTrue(html, "The MO Overview report should render non-empty HTML.")
-
     def test_bom_producible_qty_sums_mixed_uom_component_lines(self):
         unit = self.env.ref("uom.product_uom_unit")
         dozen = self.env.ref("uom.product_uom_dozen")
@@ -526,44 +496,6 @@ class TestMrpAuditFixes(TestMrpCommon):
             }
         )
         self.assertEqual(productions._prepare_actions_autoprint_generated_lots(), [])
-
-    def test_bom_overview_attachment_lookup(self):
-        report = self.env["report.mrp.report_bom_structure"]
-        on_variant = self.env["product.product"].create(
-            {"name": "Audit attach variant", "is_storable": True}
-        )
-        on_template = self.env["product.product"].create(
-            {"name": "Audit attach template", "is_storable": True}
-        )
-        plain = self.env["product.product"].create(
-            {"name": "Audit attach none", "is_storable": True}
-        )
-        self.env["document.document"].create(
-            [
-                {
-                    "name": "variant-spec.txt",
-                    "attached_on_mrp": "bom",
-                    "res_model": "product.product",
-                    "res_id": on_variant.id,
-                },
-                {
-                    "name": "template-spec.txt",
-                    "attached_on_mrp": "bom",
-                    "res_model": "product.template",
-                    "res_id": on_template.product_tmpl_id.id,
-                },
-            ]
-        )
-        self.assertTrue(report._has_bom_attachment(on_variant))
-        self.assertFalse(
-            report._has_bom_attachment(template=on_variant.product_tmpl_id)
-        )
-        self.assertTrue(report._has_bom_attachment(on_template))
-        self.assertTrue(
-            report._has_bom_attachment(template=on_template.product_tmpl_id)
-        )
-        self.assertFalse(report._has_bom_attachment(plain))
-        self.assertFalse(report._has_bom_attachment(template=plain.product_tmpl_id))
 
     def test_bom_counts_are_deduplicated(self):
         unit = self.env.ref("uom.product_uom_unit")

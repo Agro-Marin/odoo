@@ -144,6 +144,18 @@ class ProductProduct(models.Model):
         )
         return [("id", "in", production.move_raw_ids.product_id.ids)]
 
+    def _get_stock_in_unit(self, unit):
+        if not self.is_storable:
+            return {"free": 0.0, "on_hand": 0.0, "forecasted": 0.0}
+        self.check_singleton()
+        return {
+            "free": self.uom_id._get_quantity_report(max(self.qty_free, 0), unit),
+            "on_hand": self.uom_id._get_quantity_report(self.qty_available, unit),
+            "forecasted": self.uom_id._get_quantity_report(
+                self.qty_available_virtual, unit
+            ),
+        }
+
     def _get_components(self):
         self.check_singleton()
         bom_kit = self.env["mrp.bom"]._get_bom_by_product(

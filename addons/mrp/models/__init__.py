@@ -1,4 +1,3 @@
-from . import ir_qweb_field
 from . import documents_document
 from . import res_config_settings
 from . import mixin_bom_variant_line

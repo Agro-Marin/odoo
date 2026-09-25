@@ -5,34 +5,28 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     _inherit = "report.mrp.report_bom_structure"
 
     @api.model
-    def _format_route_info(self, rules, rules_delay, warehouse, product, bom, quantity):
-        res = super()._format_route_info(
-            rules, rules_delay, warehouse, product, bom, quantity
-        )
+    def _format_route_info(self, rules, warehouse, product, bom, quantity):
+        res = super()._format_route_info(rules, warehouse, product, bom, quantity)
         if self._is_buy_route(rules, product, bom):
             buy_rules = [rule for rule in rules if rule.action == "buy"]
             supplier = product._select_seller(quantity=quantity, uom_id=product.uom_id)
             if not supplier:
                 supplier = product._select_seller(quantity=None, uom_id=product.uom_id)
-            parent_bom = self.env.context.get("parent_bom")
-            purchase_lead = (
-                parent_bom.company_id.purchase_config_id.days_to_purchase
-                if parent_bom and parent_bom.company_id
-                else 0
-            )
             if supplier:
                 qty_supplier_uom = product.uom_id._get_quantity_report(
                     quantity, supplier.product_uom_id
                 )
-                delay = supplier.delay + rules_delay + purchase_lead
+                delays, _description = rules.with_context(
+                    bypass_delay_description=True
+                )._get_lead_days(product, supplierinfo=supplier)
                 return {
                     "route_type": "buy",
                     "route_name": buy_rules[0].route_id.display_name,
                     "route_detail": supplier.with_context(
                         use_simplified_supplier_name=True
                     ).display_name,
-                    "lead_time": delay,
-                    "supplier_delay": delay,
+                    "lead_time": delays["total_delay"],
+                    "supplier_delay": delays["total_delay"],
                     "supplier": supplier,
                     "route_alert": product.uom_id.compare(
                         qty_supplier_uom, supplier.min_qty

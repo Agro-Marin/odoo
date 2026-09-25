@@ -1,10 +1,9 @@
 import copy
-import json
 from collections import defaultdict
 from datetime import datetime, timedelta
 from math import log10
 
-from odoo import api, fields, models
+from odoo import fields, models
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import (
     float_compare,
@@ -21,69 +20,6 @@ _debug = DebugLog(__name__)
 class ReportMrpReport_Mo_Overview(models.AbstractModel):
     _name = "report.mrp.report_mo_overview"
     _description = "MO Overview Report"
-
-    @api.model
-    def get_report_values(self, production_id):
-        return {
-            "data": self._get_report_data(production_id),
-            "context": self._prepare_display_context(),
-        }
-
-    @api.model
-    def _get_report_values(self, docids, data=None):
-        docs = []
-        for prod_id in docids:
-            doc = self._get_report_data(prod_id)
-            docs.append(self._update_pdf_specifics(doc, data))
-        return {
-            "doc_ids": docids,
-            "doc_model": "mrp.production",
-            "docs": docs,
-        }
-
-    def _update_pdf_specifics(self, doc, data=None):
-        def get_color(decorator):
-            return f"text-{decorator}" if decorator else ""
-
-        if not data:
-            data = {}
-        footer_colspan = 2
-        doc["show_replenishments"] = data.get("replenishments") == "1"
-        if doc["show_replenishments"]:
-            footer_colspan += 1
-        doc["show_availabilities"] = data.get("availabilities") == "1"
-        if doc["show_availabilities"]:
-            footer_colspan += 2
-        doc["show_receipts"] = data.get("receipts") == "1"
-        if doc["show_receipts"]:
-            footer_colspan += 1
-        doc["show_unit_costs"] = data.get("unitCosts") == "1"
-        if doc["show_unit_costs"]:
-            footer_colspan += 1
-        doc["show_mo_costs"] = data.get("moCosts") == "1"
-        doc["show_bom_costs"] = data.get("bomCosts") == "1"
-        doc["show_real_costs"] = data.get("realCosts") == "1"
-        doc["show_uom"] = self.env.user.has_group("uom.group_uom")
-        if doc["show_uom"]:
-            footer_colspan += 1
-        doc["data_mo_unit_cost"] = doc["summary"].get("mo_cost", 0) / (
-            doc["summary"].get("quantity") or 1
-        )
-        doc["data_bom_unit_cost"] = doc["summary"].get("bom_cost", 0) / (
-            doc["summary"].get("quantity") or 1
-        )
-        doc["data_real_unit_cost"] = doc["summary"].get("real_cost", 0) / (
-            doc["summary"].get("quantity") or 1
-        )
-        doc["unfolded_ids"] = set(json.loads(data.get("unfoldedIds", "[]")))
-        doc["footer_colspan"] = footer_colspan
-        doc["get_color"] = get_color
-        return doc
-
-    def _prepare_display_context(self):
-        return {
-            "show_uom": self.env.user.has_group("uom.group_uom"),
-        }
 
     def _get_bom_factor(self, production):
         qty_in_bom_uom = production.product_uom_id._get_quantity_report(
@@ -135,11 +71,15 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         )
 
     def _get_report_data(self, production_id):
+        production = self.env["mrp.production"].browse(production_id)
+        if production.company_id != self.env.company:
+            self = self.with_company(production.company_id)
         self = self.with_context(
             bom_cost_share_cache=self.env["mrp.bom"]._get_explosion_scratch()
         )
-        production = self.env["mrp.production"].browse(production_id)
-        production = production.with_context(warehouse_id=production.warehouse_id.id)
+        production = production.with_env(self.env).with_context(
+            warehouse_id=production.warehouse_id.id
+        )
 
         with _debug.perf(
             "mo_overview_report", cr=self.env.cr, production=production_id
@@ -311,17 +251,20 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 extras["total_real_cost_operations"] * cost_share
             )
 
+        produced = (
+            production.product_uom_id._get_quantity_report(
+                production.qty_produced, production.product_id.uom_id, round=False
+            )
+            or 1.0
+        )
         breakdown_lines = [
             self._format_cost_breakdown_lines(
                 0,
                 production.product_id.display_name,
                 production.product_id.uom_id.display_name,
-                (extras["total_real_cost_components"] * remaining_cost_share)
-                / production.product_uom_qty,
-                (extras["total_real_cost_operations"] * remaining_cost_share)
-                / production.product_uom_qty,
-                (extras["total_real_cost"] * remaining_cost_share)
-                / production.product_uom_qty,
+                extras["total_real_cost_components"] * remaining_cost_share / produced,
+                extras["total_real_cost_operations"] * remaining_cost_share / produced,
+                extras["total_real_cost"] * remaining_cost_share / produced,
             )
         ]
         index = 0
@@ -394,6 +337,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             )
             else False
         )
+        stock = self._get_stock_in_unit(product, production.product_uom_id)
         return {
             "level": 0,
             "model": production._name,
@@ -411,16 +355,8 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             "uom_precision": self._get_uom_precision(
                 production.product_uom_id.rounding or 0.01
             ),
-            "quantity_free": product.uom_id._get_quantity_report(
-                max(product.qty_free, 0), production.product_uom_id
-            )
-            if product.is_storable
-            else False,
-            "quantity_on_hand": product.uom_id._get_quantity_report(
-                product.qty_available, production.product_uom_id
-            )
-            if product.is_storable
-            else False,
+            "quantity_free": stock["free"],
+            "quantity_on_hand": stock["on_hand"],
             "quantity_reserved": 0.0,
             "receipt": self._update_receipt_decorator(
                 production.date_deadline,
@@ -454,37 +390,30 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             return dict(record._fields["state"]._description_selection(self.env)).get(
                 record.state
             )
-        components_qty_to_produce = defaultdict(float)
-        components_qty_reserved = defaultdict(float)
-        components_qty_free = defaultdict(float)
+        to_consume = defaultdict(float)
+        reserved = defaultdict(float)
+        free = {}
         for component in components:
             component = component["summary"]
             product = component["product"]
             if not product.is_storable:
                 continue
             uom = component["uom"]
-            components_qty_to_produce[product] += uom._get_quantity_report(
-                component["quantity"], product.uom_id
+            to_consume[product] += uom._get_quantity_report(
+                component["quantity"], product.uom_id, round=False
             )
-            components_qty_reserved[product] += uom._get_quantity_report(
-                component["quantity_reserved"], product.uom_id
+            reserved[product] += uom._get_quantity_report(
+                component["quantity_reserved"], product.uom_id, round=False
             )
-            components_qty_free[product] = uom._get_quantity_report(
-                component["quantity_free"], product.uom_id
+            free[product] = uom._get_quantity_report(
+                component["quantity_free"], product.uom_id, round=False
             )
-        producible_qty = record.product_qty
-        for product, comp_qty_to_produce in components_qty_to_produce.items():
-            if product.uom_id.is_zero(comp_qty_to_produce):
-                continue
-            comp_producible_qty = record.product_uom_id.round(
-                record.product_qty
-                * (components_qty_reserved[product] + components_qty_free[product])
-                / comp_qty_to_produce,
-                rounding_method="DOWN",
-            )
-            if record.product_uom_id.compare(comp_producible_qty, 0) <= 0:
-                return self.env._("Not Ready")
-            producible_qty = min(comp_producible_qty, producible_qty)
+        producible_qty = record._get_producible_qty(
+            {
+                product: (quantity, reserved[product] + free[product])
+                for product, quantity in to_consume.items()
+            }
+        )
         if record.product_uom_id.compare(producible_qty, 0) <= 0:
             return self.env._("Not Ready")
         elif record.product_uom_id.compare(producible_qty, record.product_qty) == -1:
@@ -494,6 +423,11 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             )
             return self.env._("%(producible_qty)s Ready", producible_qty=producible_qty)
         return self.env._("Ready")
+
+    def _get_stock_in_unit(self, product, unit):
+        if not product.is_storable:
+            return {"free": False, "on_hand": False}
+        return product._get_stock_in_unit(unit)
 
     def _get_uom_precision(self, uom_rounding):
         return max(0, int(-(log10(uom_rounding))))
@@ -529,11 +463,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         total_real_cost = 0.0
         for index, workorder in enumerate(production.workorder_ids):
             estimate_cost = workorder._is_cost_estimate_required()
-            wo_duration = (
-                workorder.duration_expected
-                if estimate_cost
-                else workorder.get_duration()
-            )
+            wo_duration = workorder._get_cost_minutes(until=fields.Datetime.now())
             mo_cost = workorder._get_expected_operation_cost()
             bom_cost = self._get_bom_operation_cost(workorder, production)
             real_cost = (
@@ -631,14 +561,10 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         total_duration = total_duration_expected = total_cost = total_mo_cost = 0
         total_bom_cost = False
         for index, workorder in enumerate(production.workorder_ids):
-            estimate_cost = workorder._is_cost_estimate_required()
-            hourly_cost = workorder.costs_hour or workorder.workcenter_id.costs_hour
-            duration = (
-                workorder.duration_expected
-                if estimate_cost
-                else workorder.get_duration()
-            ) / 60
-            operation_cost = duration * hourly_cost
+            hourly_cost = workorder._get_costs_hour()
+            minutes = workorder._get_cost_minutes()
+            duration = minutes / 60
+            operation_cost = workorder._get_machine_cost(minutes)
             mo_cost = (
                 workorder._get_expected_operation_cost(without_employee_cost=True)
                 if workorder.duration_expected
@@ -792,6 +718,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 "qty_reserved": {},
             }
         components = []
+        production.move_raw_ids.fetch(["move_orig_ids"])
         _debug.logic(
             "mo_overview_replenish_source",
             production=production.id,
@@ -884,6 +811,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             mo_cost_decorator = self._get_comparison_decorator(
                 cost_to_compare, mo_cost, currency.rounding
             )
+        stock = self._get_stock_in_unit(product, move_raw.product_uom_id)
         component = {
             "level": level,
             "index": index,
@@ -899,16 +827,8 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             "uom": move_raw.product_uom_id,
             "uom_name": move_raw.product_uom_id.display_name,
             "uom_precision": self._get_uom_precision(move_raw.product_uom_id.rounding),
-            "quantity_free": product.uom_id._get_quantity_report(
-                max(product.qty_free, 0), move_raw.product_uom_id
-            )
-            if product.is_storable
-            else False,
-            "quantity_on_hand": product.uom_id._get_quantity_report(
-                product.qty_available, move_raw.product_uom_id
-            )
-            if product.is_storable
-            else False,
+            "quantity_free": stock["free"],
+            "quantity_on_hand": stock["on_hand"],
             "quantity_reserved": self._get_reserved_qty(
                 move_raw, production.warehouse_id, replenish_data
             ),
@@ -987,9 +907,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         )
         reserved_quantity = self._get_reserved_qty(move, warehouse, replenish_data)
         missing_quantity = move.product_uom_qty - reserved_quantity
-        qty_free = product.uom_id._get_quantity_report(
-            product.qty_free, move.product_uom_id
-        )
+        qty_free = product._get_stock_in_unit(move.product_uom_id)["free"]
         if move.product_uom_id.compare(missing_quantity, 0.0) <= 0 or (
             not has_to_order_line
             and move.product_uom_id.compare(missing_quantity, qty_free) <= 0
@@ -1170,12 +1088,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             total_ordered += in_transit_line["summary"]["quantity"]
             replenishments.append(in_transit_line)
 
-        qty_free = max(
-            0,
-            product.uom_id._get_quantity_report(
-                product.qty_free, move_raw.product_uom_id
-            ),
-        )
+        qty_free = product._get_stock_in_unit(move_raw.product_uom_id)["free"]
         available_qty = reserved_quantity + qty_free + total_ordered
         missing_quantity = quantity - available_qty
         full_bom_demand = self._get_full_bom_demand(production, move_raw, quantity)
@@ -1191,10 +1104,8 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             resupply_rules = self._get_resupply_rules(
                 production, product, replenish_data
             )
-            rules_delay = sum(rule.delay for rule in resupply_rules)
             resupply_data = self._get_resupply_data(
                 resupply_rules,
-                rules_delay,
                 missing_quantity,
                 move_raw.product_uom_id,
                 product,
@@ -1675,27 +1586,22 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
     def _get_extra_replenishments(self, product):
         return []
 
-    def _get_resupply_data(
-        self, rules, rules_delay, quantity, uom_id, product, production
-    ):
-        manufacture_rules = [rule for rule in rules if rule.action == "manufacture"]
-        if manufacture_rules:
-            wh_manufacture_rules = product._get_rules_from_location(
-                product.property_stock_production,
-                route_ids=production.warehouse_id.route_ids,
-            )
-            wh_manufacture_rules -= rules
-            rules_delay += sum(rule.delay for rule in wh_manufacture_rules)
-            related_bom = self.env["mrp.bom"]._get_bom_by_product(product)[product]
-            if not related_bom:
-                return False
-            return {
-                "delay": related_bom.produce_delay + rules_delay,
-                "cost": product.standard_price
-                * uom_id._get_quantity_report(quantity, product.uom_id),
-                "currency": (production.company_id or self.env.company).currency_id,
-            }
-        return False
+    def _get_resupply_data(self, rules, quantity, uom_id, product, production):
+        manufacture_rule = rules.filtered(lambda rule: rule.action == "manufacture")
+        if not manufacture_rule:
+            return False
+        bom = manufacture_rule._get_matching_bom(product, production.company_id, {})
+        if not bom:
+            return False
+        delays, _description = rules.with_context(
+            bypass_delay_description=True
+        )._get_lead_days(product, bom=bom)
+        return {
+            "delay": delays["total_delay"],
+            "cost": product.standard_price
+            * uom_id._get_quantity_report(quantity, product.uom_id),
+            "currency": production.company_id.currency_id,
+        }
 
     def _get_warehouse_locations(self, warehouse, replenish_data):
         if not replenish_data["warehouses"].get(warehouse.id):

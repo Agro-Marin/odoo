@@ -757,11 +757,19 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
 
         self.kit_1.bom_ids.company_id = company_2
         bom_kit_parent.action_compute_bom_days()
-        self.assertEqual(bom_kit_parent.days_to_prepare_mo, 20 + 1)
+        self.assertEqual(
+            bom_kit_parent.days_to_prepare_mo,
+            10 + 1,
+            "the buy rule of the warehouse that buys counts, not a sub-BoM's company",
+        )
 
         kits.bom_ids.company_id = False
         bom_kit_parent.action_compute_bom_days()
-        self.assertEqual(bom_kit_parent.days_to_prepare_mo, 1)
+        self.assertEqual(
+            bom_kit_parent.days_to_prepare_mo,
+            10 + 1,
+            "a BoM without a company still buys through the warehouse's buy rule",
+        )
 
     def test_orderpoint_with_manufacture_security_lead_time(self):
         self.env.company.stock_config_id.horizon_days = 0

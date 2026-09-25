@@ -1170,14 +1170,18 @@ class MrpWorkorder(models.Model):
         return self.costs_hour or self.workcenter_id.costs_hour
 
     def _get_cost(self, date=False):
-        total = 0
+        total = 0.0
         for workorder in self:
-            if workorder._is_cost_estimate_required():
-                duration = workorder.duration_expected / 60
-            else:
-                duration = workorder._get_occupied_minutes(closed_by=date) / 60
-            total += duration * workorder._get_costs_hour()
+            total += workorder._get_machine_cost(
+                workorder._get_cost_minutes(closed_by=date)
+            )
         return total
+
+    def _get_cost_minutes(self, until=None, closed_by=None):
+        self.check_singleton()
+        if self._is_cost_estimate_required():
+            return self.duration_expected
+        return self._get_occupied_minutes(until=until, closed_by=closed_by)
 
     def button_start(self, skip_invalid_state=False):
         if any(wo.working_state == "blocked" for wo in self):

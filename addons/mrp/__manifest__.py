@@ -47,7 +47,6 @@
         "wizards/stock_replenishment_info.xml",
         "reports/report_deliveryslip.xml",
         "reports/mrp_report_bom_structure.xml",
-        "reports/mrp_report_mo_overview.xml",
         "reports/mrp_production_templates.xml",
         "reports/report_stock_reception.xml",
         "reports/report_stock_rule.xml",

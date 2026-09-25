@@ -34,7 +34,7 @@ class TestMrpReplenish(TestMrpCommon):
             self.assertEqual(
                 fields.Datetime.from_string("2023-01-01 00:00:00"), wizard.date_planned
             )
-            route.rule_ids[0].delay = 2
+            self.bom_1.produce_delay = 2
             wizard3 = self._create_wizard(product, self.warehouse_1)
             self.assertEqual(
                 fields.Datetime.from_string("2023-01-03 00:00:00"), wizard3.date_planned

@@ -177,21 +177,19 @@ class TestMrpAccount(TestBomPriceCommon):
             lambda l: l.product_id == self.screw
         ).product_uom_id = self.env.ref("uom.product_uom_unit")
         mo = self._create_mo(self.bom_1, 1)
-        overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
+        overview_values = self.env["report.mrp.report_mo_overview"]._get_report_data(
             mo.id
         )
         self.assertEqual(
-            round(overview_values["data"]["summary"]["mo_cost"], 2),
+            round(overview_values["summary"]["mo_cost"], 2),
             677.08,
             "718.75 - 50 + 50/6",
         )
         mo.button_mark_done()
-        overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
+        overview_values = self.env["report.mrp.report_mo_overview"]._get_report_data(
             mo.id
         )
-        self.assertEqual(
-            round(overview_values["data"]["summary"]["mo_cost"], 2), 677.08
-        )
+        self.assertEqual(round(overview_values["summary"]["mo_cost"], 2), 677.08)
 
     def test_mrp_user_without_account_permissions_can_create_bom(self):
         mrp_user = new_test_user(self.env, "temp_mrp_user", "mrp.group_mrp_user")

@@ -581,9 +581,10 @@ class MrpBom(models.Model):
         incomplete = self.browse()
         with _debug.perf("bom_days_computed", cr=self.env.cr, boms=self) as span:
             for boms in self.grouped("company_id").values():
-                warehouse = report._get_default_warehouse(boms[:1])
-                for bom in boms:
-                    bom_data = report._get_bom_data(
+                company_report = report._with_bom_company(boms[:1])
+                warehouse = company_report._get_default_warehouse(boms[:1])
+                for bom in boms.with_env(company_report.env):
+                    bom_data = company_report._get_bom_data(
                         bom, warehouse, bom.product_id, ignore_stock=True
                     )
                     bom.days_to_prepare_mo = report._get_max_component_delay(

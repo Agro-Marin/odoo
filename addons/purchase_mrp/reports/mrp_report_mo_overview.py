@@ -74,17 +74,16 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             return self._format_receipt_date("expected", planned_date)
         return res
 
-    def _get_resupply_data(
-        self, rules, rules_delay, quantity, uom_id, product, production
-    ):
-        res = super()._get_resupply_data(
-            rules, rules_delay, quantity, uom_id, product, production
-        )
+    def _get_resupply_data(self, rules, quantity, uom_id, product, production):
+        res = super()._get_resupply_data(rules, quantity, uom_id, product, production)
         if product.seller_ids and any(rule.action == "buy" for rule in rules):
             supplier = product._select_seller(quantity=quantity, uom_id=product.uom_id)
             if supplier:
+                delays, _description = rules.with_context(
+                    bypass_delay_description=True
+                )._get_lead_days(product, supplierinfo=supplier)
                 return {
-                    "delay": supplier.delay + rules_delay,
+                    "delay": delays["total_delay"],
                     "cost": supplier.price
                     * uom_id._get_quantity_report(quantity, supplier.product_uom_id),
                     "currency": supplier.currency_id,

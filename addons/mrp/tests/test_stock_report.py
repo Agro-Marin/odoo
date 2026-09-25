@@ -454,24 +454,24 @@ class TestMrpStockReports(TestReportsCommon):
         )
 
         mo.action_confirm()
-        overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
+        overview_values = self.env["report.mrp.report_mo_overview"]._get_report_data(
             mo.id
         )
         self.assertEqual(
-            round(overview_values["data"]["operations"]["summary"]["mo_cost"], 2), 14.45
+            round(overview_values["operations"]["summary"]["mo_cost"], 2), 14.45
         )
         self.assertEqual(
-            round(overview_values["data"]["operations"]["summary"]["bom_cost"], 2),
+            round(overview_values["operations"]["summary"]["bom_cost"], 2),
             14.44,
         )
         mo.button_mark_done()
         mo.qty_produced = 0.0
 
-        overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
+        overview_values = self.env["report.mrp.report_mo_overview"]._get_report_data(
             mo.id
         )
         self.assertEqual(
-            overview_values["data"]["id"], mo.id, "computing overview value should work"
+            overview_values["id"], mo.id, "computing overview value should work"
         )
 
     def test_overview_with_component_also_as_byproduct(self):
@@ -499,11 +499,11 @@ class TestMrpStockReports(TestReportsCommon):
         )
 
         mo.action_confirm()
-        overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
+        overview_values = self.env["report.mrp.report_mo_overview"]._get_report_data(
             mo.id
         )
         self.assertEqual(
-            overview_values["data"]["id"],
+            overview_values["id"],
             mo.id,
             "Unexpected disparity between overview and MO data",
         )
@@ -595,10 +595,10 @@ class TestMrpStockReports(TestReportsCommon):
         )
         mo.action_confirm()
 
-        overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
+        overview_values = self.env["report.mrp.report_mo_overview"]._get_report_data(
             mo.id
         )
-        [line0, line1] = overview_values["data"]["components"]
+        [line0, line1] = overview_values["components"]
         [repl0, repl1] = line0["replenishments"], line1["replenishments"]
         self.assertEqual(len(repl0), 1)
         self.assertEqual(len(repl1), 1)
@@ -751,10 +751,10 @@ class TestMrpStockReports(TestReportsCommon):
                 "bom_id": bom_normal.id,
             }
         )
-        mo_report = self.env["report.mrp.report_mo_overview"].get_report_values(mo.id)
+        mo_report = self.env["report.mrp.report_mo_overview"]._get_report_data(mo.id)
         self.assertEqual(
-            mo_report["data"]["extras"]["unit_bom_cost"],
-            mo_report["data"]["extras"]["unit_mo_cost"],
+            mo_report["extras"]["unit_bom_cost"],
+            mo_report["extras"]["unit_mo_cost"],
             "The BoM unit cost should be equal to the sum of the products of said BoM",
         )
         mo.move_raw_ids.filtered(
@@ -769,10 +769,10 @@ class TestMrpStockReports(TestReportsCommon):
                 and m.bom_line_id.bom_id.type != "phantom"
             )
         ).unlink()
-        mo_report = self.env["report.mrp.report_mo_overview"].get_report_values(mo.id)
+        mo_report = self.env["report.mrp.report_mo_overview"]._get_report_data(mo.id)
         self.assertEqual(
-            mo_report["data"]["extras"]["unit_bom_cost"],
-            mo_report["data"]["extras"]["unit_mo_cost"]
+            mo_report["extras"]["unit_bom_cost"],
+            mo_report["extras"]["unit_mo_cost"]
             + missing_product.standard_price
             + black_white_product.standard_price,
             "The BoM unit cost should take the missing components into account, which are the deleted MO lines",
@@ -825,41 +825,25 @@ class TestMrpStockReports(TestReportsCommon):
         mo.action_confirm()
         mo.workorder_ids.duration = 10
 
-        overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
+        overview_values = self.env["report.mrp.report_mo_overview"]._get_report_data(
             mo.id
         )
-        self.assertEqual(
-            overview_values["data"]["operations"]["details"][0]["mo_cost"], 33.0
-        )
-        self.assertEqual(
-            overview_values["data"]["operations"]["details"][0]["real_cost"], 5.5
-        )
-        self.assertEqual(
-            overview_values["data"]["operations"]["details"][1]["mo_cost"], 33.0
-        )
-        self.assertEqual(
-            overview_values["data"]["operations"]["details"][1]["real_cost"], 33.0
-        )
+        self.assertEqual(overview_values["operations"]["details"][0]["mo_cost"], 33.0)
+        self.assertEqual(overview_values["operations"]["details"][0]["real_cost"], 5.5)
+        self.assertEqual(overview_values["operations"]["details"][1]["mo_cost"], 33.0)
+        self.assertEqual(overview_values["operations"]["details"][1]["real_cost"], 33.0)
 
         mo.button_mark_done()
         bom_baguette.operation_ids.filtered(
             lambda o: o.cost_mode == "estimated"
         ).cost_mode = "actual"
-        overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
+        overview_values = self.env["report.mrp.report_mo_overview"]._get_report_data(
             mo.id
         )
-        self.assertEqual(
-            overview_values["data"]["operations"]["details"][0]["mo_cost"], 33.0
-        )
-        self.assertEqual(
-            overview_values["data"]["operations"]["details"][0]["real_cost"], 5.5
-        )
-        self.assertEqual(
-            overview_values["data"]["operations"]["details"][1]["mo_cost"], 33.0
-        )
-        self.assertEqual(
-            overview_values["data"]["operations"]["details"][1]["real_cost"], 33.0
-        )
+        self.assertEqual(overview_values["operations"]["details"][0]["mo_cost"], 33.0)
+        self.assertEqual(overview_values["operations"]["details"][0]["real_cost"], 5.5)
+        self.assertEqual(overview_values["operations"]["details"][1]["mo_cost"], 33.0)
+        self.assertEqual(overview_values["operations"]["details"][1]["real_cost"], 33.0)
 
     def test_mo_overview_with_different_uom(self):
         self.env["mrp.bom"].create(
@@ -884,15 +868,11 @@ class TestMrpStockReports(TestReportsCommon):
         )
 
         mo.action_confirm()
-        overview_values = self.env["report.mrp.report_mo_overview"].get_report_values(
+        overview_values = self.env["report.mrp.report_mo_overview"]._get_report_data(
             mo.id
         )
-        self.assertEqual(
-            overview_values["data"]["components"][0]["summary"]["bom_cost"], 120
-        )
-        self.assertEqual(
-            overview_values["data"]["components"][0]["summary"]["mo_cost"], 120
-        )
+        self.assertEqual(overview_values["components"][0]["summary"]["bom_cost"], 120)
+        self.assertEqual(overview_values["components"][0]["summary"]["mo_cost"], 120)
 
         mo_no_bom = self.env["mrp.production"].create(
             {
@@ -914,10 +894,10 @@ class TestMrpStockReports(TestReportsCommon):
         mo_no_bom.action_confirm()
         overview_values_no_bom = self.env[
             "report.mrp.report_mo_overview"
-        ].get_report_values(mo_no_bom.id)
+        ]._get_report_data(mo_no_bom.id)
         self.assertEqual(
-            overview_values_no_bom["data"]["components"][0]["summary"]["bom_cost"], 120
+            overview_values_no_bom["components"][0]["summary"]["bom_cost"], 120
         )
         self.assertEqual(
-            overview_values_no_bom["data"]["components"][0]["summary"]["mo_cost"], 120
+            overview_values_no_bom["components"][0]["summary"]["mo_cost"], 120
         )

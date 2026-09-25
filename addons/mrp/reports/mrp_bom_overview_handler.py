@@ -57,12 +57,14 @@ class MrpBomOverviewReportHandler(models.AbstractModel):
         )
 
     def _caret_options_initializer(self):
+        open_product = {
+            "name": self.env._("Open Product"),
+            "action": "caret_option_open_record",
+        }
         return {
-            "product.product": [
-                {
-                    "name": self.env._("Open Product"),
-                    "action": "caret_option_open_record",
-                },
+            "product.product": [open_product],
+            "product.product.route": [
+                open_product,
                 {"name": self.env._("Open Route"), "action": "caret_option_open_route"},
             ],
         }
@@ -107,10 +109,15 @@ class MrpBomOverviewReportHandler(models.AbstractModel):
 
     def _bom_line(self, report, options, row, parent_line_id=None):
         model, record_id = self._get_row_record(row)
+        markup = {"index": str(row.get("index", "")), "type": row.get("type")}
+        caret_options = BOM_OVERVIEW_CARETS.get(row.get("type"))
+        if route_record := row.get("route_record"):
+            markup["route"] = [route_record._name, route_record.id]
+            caret_options = f"{caret_options}.route"
         line_id = report._get_generic_line_id(
             model,
             record_id,
-            markup={"index": str(row.get("index", "")), "type": row.get("type")},
+            markup=markup,
             parent_line_id=parent_line_id,
         )
         currency = self.env["res.currency"].browse(row.get("currency_id"))
@@ -128,7 +135,7 @@ class MrpBomOverviewReportHandler(models.AbstractModel):
             "level": (row.get("level") or 0) + 1,
             "unfoldable": bool(children),
             "unfolded": line_id in options["unfolded_lines"] or options["unfold_all"],
-            "caret_options": BOM_OVERVIEW_CARETS.get(row.get("type")),
+            "caret_options": caret_options,
         }
 
     def _bom_columns(self, report, options, row, currency):
@@ -167,6 +174,7 @@ class MrpBomOverviewReportHandler(models.AbstractModel):
             "target": "current",
             "context": {
                 "default_bom_id": options["bom_overview_bom_id"],
+                "default_product_id": options.get("bom_overview_variant_id") or False,
                 "bom_overview_picking_type_id": warehouse.manu_type_id.id,
                 "bom_overview_product_qty": options["bom_overview_quantity"],
             },
@@ -185,15 +193,11 @@ class MrpBomOverviewReportHandler(models.AbstractModel):
 
     def caret_option_open_route(self, options, params):
         report = self.env["report.formula"].browse(options["report_id"])
-        _model, product_id = report._get_model_info_from_id(params["line_id"])
-        product = self.env["product.product"].browse(product_id)
-        return self._get_route_action(product)
-
-    def _get_route_action(self, product):
+        model, record_id = report._get_markup(params["line_id"])["route"]
         return {
             "type": "ir.actions.act_window",
-            "res_model": "product.product",
-            "res_id": product.id,
+            "res_model": model,
+            "res_id": record_id,
             "views": [(False, "form")],
             "target": "current",
         }

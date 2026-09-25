@@ -5880,10 +5880,10 @@ class TestMrpOrder(TestMrpCommon):
         extra_component=False,
         add_comp_real_cost=False,
     ):
-        data = self.env["report.mrp.report_mo_overview"].get_report_values(mo.id)
-        summary = data["data"]["summary"]
-        components = data["data"]["components"]
-        operations = data["data"]["operations"]
+        data = self.env["report.mrp.report_mo_overview"]._get_report_data(mo.id)
+        summary = data["summary"]
+        components = data["components"]
+        operations = data["operations"]
         self.assertEqual(summary["mo_cost_decorator"], sum_mo_cost)
         self.assertEqual(summary["real_cost_decorator"], sum_real_cost)
         component = components[0]
