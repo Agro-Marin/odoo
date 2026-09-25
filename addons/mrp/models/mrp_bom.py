@@ -497,6 +497,7 @@ class MrpBom(models.Model):
         "product_qty",
         "product_uom_id",
         "type",
+        "allow_operation_dependencies",
     )
 
     def write(self, vals):

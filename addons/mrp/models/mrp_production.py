@@ -3,6 +3,7 @@ import json
 import math
 import re
 from collections import Counter, defaultdict
+from itertools import pairwise
 
 from dateutil.relativedelta import relativedelta
 
@@ -2231,6 +2232,8 @@ class MrpProduction(models.Model):
         for production in self:
             if production.bom_id:
                 production._link_bom(production.bom_id)
+            if production.state not in ("draft", "done", "cancel"):
+                production._link_workorders_and_moves()
         self.is_outdated_bom = False
 
     def _prepare_bom_commands(self, ratio=1):
@@ -2896,39 +2899,69 @@ class MrpProduction(models.Model):
         self.filtered(lambda mo: mo.state == "draft").state = "confirmed"
         return True
 
-    def _link_workorders_and_moves(self):
+    def _link_workorders_and_moves(self, new_workorders=None):
         self.check_singleton()
         if not self.workorder_ids:
             return
+        self.allow_workorder_dependencies = self.bom_id.allow_operation_dependencies
+        derived = self._get_derived_workorder_dependencies()
+        if new_workorders is None or not (self.workorder_ids - new_workorders):
+            _debug.pipeline(
+                "workorders_linked",
+                production=self.id,
+                workorders=len(self.workorder_ids),
+                by="rebuild",
+            )
+            for workorder in self.workorder_ids:
+                workorder.blocked_by_workorder_ids = [
+                    Command.set(derived[workorder].ids)
+                ]
+        else:
+            _debug.pipeline(
+                "workorders_linked",
+                production=self.id,
+                workorders=len(new_workorders),
+                by="added",
+            )
+            for workorder in self.workorder_ids:
+                touching = (
+                    derived[workorder]
+                    if workorder in new_workorders
+                    else derived[workorder] & new_workorders
+                )
+                if touching:
+                    workorder.blocked_by_workorder_ids = [
+                        Command.link(blocker.id) for blocker in touching
+                    ]
+        self._link_moves_to_workorders()
+
+    def _get_derived_workorder_dependencies(self):
+        self.check_singleton()
+        Workorder = self.env["mrp.workorder"]
+        derived = dict.fromkeys(self.workorder_ids, Workorder)
+        routing = self.workorder_ids._sorted_by_routing()
+        if self.allow_workorder_dependencies:
+            workorder_per_operation = {
+                workorder.operation_id: workorder for workorder in routing
+            }
+            for workorder in routing:
+                derived[workorder] = Workorder.union(
+                    *(
+                        workorder_per_operation[operation]
+                        for operation in workorder.operation_id.blocked_by_operation_ids
+                        if operation in workorder_per_operation
+                    )
+                )
+        else:
+            for previous, workorder in pairwise(routing):
+                derived[workorder] = previous
+        return derived
+
+    def _link_moves_to_workorders(self):
+        self.check_singleton()
         workorder_per_operation = {
             workorder.operation_id: workorder for workorder in self.workorder_ids
         }
-        self.allow_workorder_dependencies = self.bom_id.allow_operation_dependencies
-        _debug.pipeline(
-            "workorders_linked",
-            production=self.id,
-            workorders=len(self.workorder_ids),
-            by="dependencies" if self.allow_workorder_dependencies else "sequence",
-        )
-
-        if self.allow_workorder_dependencies:
-            for workorder in self.workorder_ids._sorted_by_routing():
-                workorder.blocked_by_workorder_ids = [
-                    Command.set(
-                        [
-                            workorder_per_operation[operation].id
-                            for operation in workorder.operation_id.blocked_by_operation_ids
-                            if operation in workorder_per_operation
-                        ]
-                    )
-                ]
-        else:
-            previous_workorder = self.env["mrp.workorder"]
-            for workorder in self.workorder_ids._sorted_by_routing():
-                workorder.blocked_by_workorder_ids = [
-                    Command.set(previous_workorder.ids)
-                ]
-                previous_workorder = workorder
         moves_by_workorder = defaultdict(lambda: self.env["stock.move"])
         for move in self.move_raw_ids | self.move_finished_ids:
             if move.operation_id:
@@ -2971,7 +3004,7 @@ class MrpProduction(models.Model):
             self.is_planned = True
             return
 
-        self._link_workorders_and_moves()
+        self._link_moves_to_workorders()
 
         final_workorders = self.workorder_ids.filtered(
             lambda wo: not wo.needed_by_workorder_ids

@@ -1084,16 +1084,14 @@ class MrpWorkorder(models.Model):
         if self.env.context.get("skip_confirm"):
             _debug.logic("workorder_confirm_skipped", by="context", workorders=res)
             return res
-        to_confirm = res.filtered(
+        res.filtered(
             lambda wo: wo.production_id.state in ("confirmed", "progress", "to_close")
-        )
-        to_confirm = to_confirm.production_id.workorder_ids
-        to_confirm._action_confirm()
+        )._action_confirm()
         return res
 
     def _action_confirm(self):
-        for production in self.mapped("production_id"):
-            production._link_workorders_and_moves()
+        for production, workorders in self.grouped("production_id").items():
+            production._link_workorders_and_moves(new_workorders=workorders)
 
     def _get_byproduct_move_to_update(self):
         return self.production_id.move_finished_ids.filtered(

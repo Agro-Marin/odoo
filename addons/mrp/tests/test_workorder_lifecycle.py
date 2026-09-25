@@ -115,18 +115,67 @@ class TestWorkorderLifecycle(TestMrpCommon):
         second.set_state("ready")
         self.assertEqual(second.state, "blocked")
 
-    def test_replanning_follows_the_current_dependencies(self):
+    def _planned_pair(self):
+        production = self._confirmed()
+        production.button_plan()
+        first, second = production.workorder_ids.sorted(
+            lambda workorder: workorder.operation_id.sequence
+        )
+        self.assertEqual(second.blocked_by_workorder_ids, first)
+        return production, first, second
+
+    def test_update_bom_follows_the_current_dependencies(self):
         self.bom.allow_operation_dependencies = True
         self.first.blocked_by_operation_ids = self.second
         production = self._confirmed()
         production.button_plan()
         production.button_unplan()
         self.bom.allow_operation_dependencies = False
+        self.assertTrue(production.is_outdated_bom)
+        production.action_update_bom()
         production.button_plan()
         first, second = production.workorder_ids.sorted(
             lambda workorder: workorder.operation_id.sequence
         )
         self.assertFalse(first.blocked_by_workorder_ids)
+        self.assertEqual(second.blocked_by_workorder_ids, first)
+
+    def test_a_drawn_dependency_survives_replanning(self):
+        production, _first, second = self._planned_pair()
+        second.blocked_by_workorder_ids = [Command.clear()]
+        production.workorder_ids.action_replan()
+        production.button_unplan()
+        production.button_plan()
+        self.assertFalse(second.blocked_by_workorder_ids)
+
+    def test_an_added_work_order_keeps_the_drawn_dependencies(self):
+        production, first, second = self._planned_pair()
+        second.blocked_by_workorder_ids = [Command.clear()]
+        third_operation = self.env["mrp.routing.workcenter"].create(
+            {
+                "name": "third",
+                "bom_id": self.bom.id,
+                "workcenter_id": self.workcenter_2.id,
+                "sequence": 5,
+            }
+        )
+        third = self.env["mrp.workorder"].create(
+            {
+                "name": "third",
+                "production_id": production.id,
+                "operation_id": third_operation.id,
+                "workcenter_id": self.workcenter_2.id,
+                "product_uom_id": production.product_uom_id.id,
+            }
+        )
+        self.assertFalse(second.blocked_by_workorder_ids)
+        self.assertEqual(third.blocked_by_workorder_ids, second)
+        self.assertFalse(first.blocked_by_workorder_ids)
+
+    def test_update_bom_rebuilds_a_drawn_dependency(self):
+        production, first, second = self._planned_pair()
+        second.blocked_by_workorder_ids = [Command.clear()]
+        production.action_update_bom()
         self.assertEqual(second.blocked_by_workorder_ids, first)
 
     def test_moving_an_operation_leaves_its_predecessors_behind(self):
