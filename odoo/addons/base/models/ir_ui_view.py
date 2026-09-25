@@ -738,6 +738,10 @@ class IrUiView(models.Model):
             if partial_validation and not view.arch:
                 _debug.logic("check_xml.skipped", view=view.id, reason="no_arch")
                 continue
+            if view.mode == "primary" and not view.active:
+                # served to nobody: its tree is validated when it is activated
+                _debug.logic("check_xml.skipped", view=view.id, reason="archived")
+                continue
             try:
                 combined_arch = view._get_combined_arch_checked(combined_archs)
 

@@ -9536,6 +9536,9 @@ class TestPrimaryChains(ViewCase):
             }
         )
         self.assertIn('name="vat"', root.get_combined_arch())
+        # and then reloads the archived primary itself
+        archived.with_context(active_test=False).write({"arch": archived.arch_db})
+        self.assertFalse(archived.active)
 
     def test_an_archived_extension_requested_alone_does_not_apply(self):
         root, _middle, _leaf = self._chain()
