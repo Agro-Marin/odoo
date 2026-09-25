@@ -211,6 +211,17 @@ phase that prepared tests and started none fails the run regardless.
 `tests/framework/test_required_infrastructure.py` and
 `tests/loading/test_post_install_exit_code.py` pin both.
 
+**Demo data that fails to load fails a run with tests.** An install catches
+the failure, logs *installed without demo data* and exits 0, which is how
+`account_depreciation`'s and `hr_fleet`'s demo stayed broken through every
+per-module run. With `--test-enable` the loader also records it as an error of
+the run (`OdooTestResult.record_demo_failure`), named in the summary line, so
+the process exits non-zero; production installs keep the warning.
+`ODOO_REQUIRE_DEMO=0` is the explicit opt-out. The suites above run without
+demo, so the check bites only in a `--with-demo` run.
+`odoo/modules/tests/test_demo_failure_under_tests.py` and
+`tests/loading/test_demo_failure_exit_code.py` pin it.
+
 **Suites interfere through the registry.** `test_http` depends on `mail`,
 whose `res_partner_views.xml` inherits `base.view_res_partner_filter` anchored
 on `<filter name="inactive">`, and base's

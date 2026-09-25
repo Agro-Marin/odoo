@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 7.8
+:Version: 7.9
 :Date: 2026-09-25
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -518,8 +518,10 @@ from the workspace root::
   ``action_confirm``); never write ``state`` or its dates directly. Why: a
   forged state skips every side effect of the transition.
 * **A demo file must load** ``[review]``. Why: the loader catches the failure,
-  logs *installed without demo data* and carries on, so nothing turns red. Load
-  it with ``--with-demo`` on a server with an empty environment before landing.
+  logs *installed without demo data* and carries on, so an install stays green;
+  only a run with ``--test-enable`` counts it as an error (``ODOO_REQUIRE_DEMO``).
+  Load it with ``--with-demo --test-enable`` on a server with an empty
+  environment before landing.
 * **A demo or data file never stores a secret** ``[review]``. A
   ``post_init_hook`` that generates one checks
   ``_is_encryption_key_configured()`` first; a file needing
@@ -5453,6 +5455,11 @@ collisions, so an eighth fails and so does a renumbering.
    * - Version
      - Date
      - Summary
+   * - 7.9
+     - 2026-09-25
+     - §1.2: a demo file that fails to load is an error of a run with
+       ``--test-enable`` (``ODOO_REQUIRE_DEMO=0`` permits it); an install alone
+       still only warns.
    * - 7.8
      - 2026-09-25
      - §10.6: a route that opens a record by a token declares ``auth="link"``

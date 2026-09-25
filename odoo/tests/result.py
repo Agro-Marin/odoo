@@ -28,6 +28,9 @@ ODOO_TEST_MAX_FAILED_TESTS = _max_failed if _max_failed > 0 else sys.maxsize
 REQUIRE_INFRA = bool(env_int("ODOO_REQUIRE_INFRA", 1))
 """Require selected tests to have their infrastructure unless explicitly opted out."""
 
+REQUIRE_DEMO = bool(env_int("ODOO_REQUIRE_DEMO", 1))
+"""Count a module's failed demo data as an error of the test run unless explicitly opted out."""
+
 stats_logger = logging.getLogger("odoo.tests.stats")
 
 
@@ -116,6 +119,7 @@ class OdooTestResult:
         self._soft_fail = False
         self._is_retry = False
         self.had_failure = False
+        self.demo_failures: list[str] = []
         self.stats: dict[str, Stat] = collections.defaultdict(Stat)
         self.global_report = global_report
         self.shouldStop: bool = bool(global_report and global_report.shouldStop)
@@ -282,6 +286,11 @@ class OdooTestResult:
     def wasSuccessful(self) -> bool:
         return self.failures_count == self.errors_count == 0
 
+    def record_demo_failure(self, module: str) -> None:
+        self.demo_failures.append(module)
+        self.errors_count += 1
+        _debug.lifecycle("test.result.demo_failed", module=module)
+
     def record_abort(self, reason: str) -> None:
         self.aborted = reason
         self.errors_count += 1
@@ -326,6 +335,8 @@ class OdooTestResult:
                 f" ({self.infrastructure_skipped} skipped because the "
                 f"environment could not run them)"
             )
+        if self.demo_failures:
+            summary += f", demo data failed to load for {', '.join(self.demo_failures)}"
         if self.aborted:
             summary += f", run aborted before it finished: {self.aborted}"
         return summary
@@ -359,6 +370,7 @@ class OdooTestResult:
         self.skipped += other.skipped
         self.infrastructure_skipped += other.infrastructure_skipped
         self.aborted = self.aborted or other.aborted
+        self.demo_failures.extend(other.demo_failures)
         for test_id, stat in other.stats.items():
             self.stats[test_id] += stat
         _debug.pipeline(

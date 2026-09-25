@@ -769,20 +769,45 @@ class _PackageLoader:
         ) as span:
             if self.operation == "install":
                 load_data(env, idref, "init", kind="data", package=package)
-                if self.install_demo and package.demo_installable:
+                demo_attempted = self.install_demo and package.demo_installable
+                if demo_attempted:
                     package.demo = load_demo(env, package, idref, "init")
             else:
                 self.module.write(self.module.get_values_from_terp(package.manifest))
                 mode: LoadMode = "update" if self.operation == "upgrade" else "init"
                 load_data(env, idref, mode, kind="data", package=package)
-                if package.demo:
+                demo_attempted = package.demo
+                if demo_attempted:
                     package.demo = load_demo(env, package, idref, mode)
+            if demo_attempted and not package.demo:
+                self.record_demo_failure()
             span.set(idrefs=len(idref), demo=bool(package.demo))
         env.cr.execute(
             "UPDATE ir_module_module SET demo = %s WHERE id = %s",
             (package.demo, package.id),
         )
         self.module.invalidate_model(["demo"])
+
+    def record_demo_failure(self) -> None:
+        # a failed demo is a warning to an install, so it can hide for months;
+        # a run with tests is where it must turn red
+        from odoo.tests.result import REQUIRE_DEMO
+
+        report = self.report if REQUIRE_DEMO else None
+        _debug.logic(
+            "modules.package.demo_failure",
+            module=self.name,
+            test_run=self.report is not None,
+            strict=report is not None,
+        )
+        if report is None:
+            return
+        _logger.error(
+            "Module %s demo data failed to load while tests run: an error of this "
+            "run (ODOO_REQUIRE_DEMO=0 explicitly permits it)",
+            self.name,
+        )
+        report.record_demo_failure(self.name)
 
     def run_post_migration(self) -> None:
         if not self.operation:
