@@ -4,7 +4,6 @@ from freezegun import freeze_time
 
 from odoo.api import Environment
 from odoo.tests import tagged
-from odoo.tools import SQL
 
 from odoo.addons.base.tests.common import BaseCommon
 from odoo.addons.http_routing.tests.common import MockRequest
@@ -20,47 +19,28 @@ class TestWebsiteSequence(BaseCommon):
         cls.public_user = cls.env.ref("base.public_user")
 
         ProductTemplate = cls.env["product.template"]
-        product_templates = ProductTemplate.search([])
-        if "orderpoint_ids" in cls.env["product.product"]:
-            product_templates.mapped("product_variant_ids.orderpoint_ids").write(
-                {"active": False}
-            )
-        if "loyalty.program" in cls.env:
-            programs = cls.env["loyalty.program"].search([])
-            programs.active = False
-            programs.coupon_ids.unlink()
-            programs.unlink()
-        if time_product := cls.env.ref(
-            "sale_timesheet.time_product", raise_if_not_found=False
-        ):
-            product_templates -= time_product.product_tmpl_id
-            cls.env.cr.execute(
-                SQL(
-                    "UPDATE product_template SET active = false WHERE id = %s",
-                    time_product.product_tmpl_id.id,
-                )
-            )
-        product_templates.write({"active": False})
+        # the products this class orders sit above every existing sequence, so
+        # moving one up or down only ever meets another of them
+        cls.base = (
+            ProductTemplate.with_context(active_test=False)
+            .search([], order="website_sequence DESC", limit=1)
+            .website_sequence
+            or 0
+        )
         cls.product_tmpls = cls.p1, cls.p2, cls.p3, cls.p4 = ProductTemplate.create(
             [
-                {
-                    "name": "First Product",
-                    "website_sequence": 100,
-                },
-                {
-                    "name": "Second Product",
-                    "website_sequence": 180,
-                },
-                {
-                    "name": "Third Product",
-                    "website_sequence": 225,
-                },
-                {
-                    "name": "Last Product",
-                    "website_sequence": 250,
-                },
+                {"name": "First Product", "website_sequence": cls.base + 100},
+                {"name": "Second Product", "website_sequence": cls.base + 180},
+                {"name": "Third Product", "website_sequence": cls.base + 225},
+                {"name": "Last Product", "website_sequence": cls.base + 250},
             ]
         )
+
+    def _sequence_bounds(self):
+        ProductTemplate = self.env["product.template"]
+        lowest = ProductTemplate.search([], order="website_sequence ASC", limit=1)
+        highest = ProductTemplate.search([], order="website_sequence DESC", limit=1)
+        return lowest.website_sequence, highest.website_sequence
 
     def get_product_sort_mapping(self, label):
         context = dict(self.env.context, website_id=self.website.id, lang="en_US")
@@ -95,25 +75,31 @@ class TestWebsiteSequence(BaseCommon):
         self.assertProductOrdering(
             self.p1 + self.p3 + self.p4 + self.p2, sequence_order
         )
+        lowest, _highest = self._sequence_bounds()
         self.p2.set_sequence_top()
+        self.assertEqual(self.p2.website_sequence, lowest - 5)
         self.assertProductOrdering(
             self.p2 + self.p1 + self.p3 + self.p4, sequence_order
         )
+        _lowest, highest = self._sequence_bounds()
         self.p1.set_sequence_bottom()
+        self.assertEqual(self.p1.website_sequence, highest + 5)
         self.assertProductOrdering(
             self.p2 + self.p3 + self.p4 + self.p1, sequence_order
         )
 
         current_products = self.get_sorted_products(sequence_order)
-        current_sequences = current_products.mapped("website_sequence")
         self.assertEqual(
-            current_sequences, [95, 180, 225, 230], "Wrong sequence order (2)"
+            current_products.mapped("website_sequence")[1:],
+            [self.base + 180, self.base + 225, self.base + 230],
+            "Wrong sequence order (2)",
         )
 
-        self.p2.website_sequence = 1
+        self.p2.website_sequence = min(self._sequence_bounds()[0], 1)
         self.p3.set_sequence_top()
-        self.assertEqual(
-            self.p3.website_sequence, -4, "`website_sequence` should go below 0"
+        self.assertEqual(self.p3.website_sequence, self.p2.website_sequence - 5)
+        self.assertLess(
+            self.p3.website_sequence, 0, "`website_sequence` should go below 0"
         )
 
         new_product = self.env["product.template"].create(
