@@ -1,13 +1,17 @@
+import contextlib
 import datetime
 import gc
 import itertools
 import json
 import logging
 import sys
+import threading
 import time
 import traceback
 import types
 import typing
+
+import psycopg
 
 import odoo.db
 from odoo import api, tools
@@ -15,6 +19,7 @@ from odoo.api import Environment
 from odoo.db import schema
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.hashing import cache_hash
+from odoo.libs.parse_version import parse_version
 from odoo.logutils import RUNBOT
 from odoo.tools import OrderedSet
 from odoo.tools.convert import ConvertMode as LoadMode
@@ -46,6 +51,13 @@ _logger = logging.getLogger(__name__)
 _debug = DebugLog(__name__)
 
 _GC_YOUNG_BACKLOG_LIMIT = 100_000
+
+# pg advisory locks are scoped to the database, so one key serializes the
+# module operations of each database; the uninstall reload re-enters
+# load_modules on another connection of the same process, hence the count
+_MODULE_OPERATIONS_LOCK_KEY = 0x0D00_0001_1A0D
+_module_operations_held: dict[str, int] = {}
+_module_operations_guard = threading.Lock()
 _GC_FULL_CYCLE_EVERY = 16
 
 
@@ -1613,6 +1625,68 @@ class _ModuleLoader:
             env[queried[table]].init()
         env.flush_all()
 
+    def warn_code_ahead_of_database(self) -> None:
+        if self.update_module:
+            return
+        ahead = sorted(
+            (
+                package.name,
+                package.db_version,
+                adapt_version(package.manifest["version"]),
+            )
+            for package in self.graph
+            if package.state == "installed"
+            and package.db_version
+            and package.manifest.get("version")
+            and parse_version(adapt_version(package.manifest["version"]))
+            > parse_version(package.db_version)
+        )
+        registry = self.registry
+        expected: dict[str, set[str]] = {}
+        for model in registry.models.values():
+            if model._abstract or model._table_query or not model._auto:
+                continue
+            columns = expected.setdefault(model._table, set())
+            columns.update(
+                name
+                for name, field in model._fields.items()
+                if field.store and field.column_type and not field.manual
+            )
+        self.cr.execute(
+            """
+            SELECT table_name, column_name
+              FROM information_schema.columns
+             WHERE table_schema = current_schema AND table_name = ANY(%s)
+            """,
+            [list(expected)],
+        )
+        present: dict[str, set[str]] = {}
+        for table, column in self.cr.fetchall():
+            present.setdefault(table, set()).add(column)
+        missing = sorted(
+            f"{table}.{column}"
+            for table, columns in expected.items()
+            if table in present
+            for column in columns - present[table]
+        )
+        _debug.logic(
+            "modules.code_ahead_of_database", modules=len(ahead), columns=len(missing)
+        )
+        if ahead:
+            _logger.warning(
+                "The code is ahead of the database for %d installed module(s) "
+                "(%s); run with -u %s",
+                len(ahead),
+                ", ".join(f"{name} {db} < {code}" for name, db, code in ahead),
+                ",".join(name for name, _db, _code in ahead),
+            )
+        if missing:
+            _logger.error(
+                "Stored fields have no column (%s); every read of them will fail "
+                "until the module that declares them is upgraded with -u",
+                ", ".join(missing[:20]) + (" ..." if len(missing) > 20 else ""),
+            )
+
     def log_pending_module_states(self) -> None:
         cr = self.cr
         cr.execute(
@@ -1857,6 +1931,65 @@ class _ModuleLoader:
         )
 
 
+class ModuleOperationInProgress(RuntimeError):
+    pass
+
+
+@contextlib.contextmanager
+def _module_operations_lock(cr: typing.Any, db_name: str) -> typing.Iterator[None]:
+    with _module_operations_guard:
+        reentered = _module_operations_held.get(db_name, 0) > 0
+        if reentered:
+            _module_operations_held[db_name] += 1
+    if reentered:
+        try:
+            yield
+        finally:
+            with _module_operations_guard:
+                _module_operations_held[db_name] -= 1
+        return
+
+    cr.execute("SELECT pg_try_advisory_lock(%s)", [_MODULE_OPERATIONS_LOCK_KEY])
+    if not cr.fetchone()[0]:
+        cr.execute(
+            """
+            SELECT a.pid, a.application_name
+              FROM pg_locks l
+              JOIN pg_stat_activity a ON a.pid = l.pid
+             WHERE l.locktype = 'advisory'
+               AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
+               AND (l.classid::bigint << 32) | l.objid::bigint = %s
+            """,
+            [_MODULE_OPERATIONS_LOCK_KEY],
+        )
+        holders = ", ".join(
+            f"{name or '?'} (backend {pid})" for pid, name in cr.fetchall()
+        )
+        raise ModuleOperationInProgress(
+            f"another process is installing, upgrading or removing modules in "
+            f"database {db_name!r}: {holders or 'holder unknown'}; wait for it to "
+            f"finish, then run this again"
+        )
+    with _module_operations_guard:
+        _module_operations_held[db_name] = 1
+    _debug.lifecycle("modules.operations_lock.acquired", db=db_name)
+    try:
+        with cr.holding_session_state():
+            yield
+    finally:
+        with _module_operations_guard:
+            _module_operations_held.pop(db_name, None)
+        # an aborted transaction refuses the unlock; the pool's reset of the
+        # returned connection (pg_advisory_unlock_all / DISCARD ALL) releases it
+        try:
+            cr.execute("SELECT pg_advisory_unlock(%s)", [_MODULE_OPERATIONS_LOCK_KEY])
+        except psycopg.Error as e:
+            _debug.logic(
+                "modules.operations_lock.unlock_deferred", error=type(e).__name__
+            )
+        _debug.lifecycle("modules.operations_lock.released", db=db_name)
+
+
 def load_modules(
     registry: Registry,
     *,
@@ -1885,6 +2018,11 @@ def load_modules(
             reinit=len(reinit_modules),
             run_tests=run_tests,
         ) as span,
+        (
+            _module_operations_lock(cr, registry.db_name)
+            if update_module
+            else contextlib.nullcontext()
+        ),
     ):
         if not isinstance(cr, odoo.db.Cursor):
             raise TypeError("Need a real Cursor to load modules")
@@ -1918,6 +2056,7 @@ def load_modules(
         loader.run_end_migrations()
         loader.restore_relations_dropped_by_migrations()
         loader.log_pending_module_states()
+        loader.warn_code_ahead_of_database()
         loader.finalize_constraints()
         loader.run_post_update_model_checks()
 

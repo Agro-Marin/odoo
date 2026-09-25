@@ -33,13 +33,13 @@ on `_ModuleLoader` and run in this order:
 | 13 | `uninstall_removed_modules()` | data + module |
 | 14 | `reinit_models_to_check()` | runtime |
 
-Fourteen of `load_modules`' 25 calls, in call order. The numbering is this
+Fourteen of `load_modules`' 26 calls, in call order. The numbering is this
 table's, not the loader's; the order is pinned against a real load by
-`tests/loading/test_load_modules_phases.py`. The eleven left out split two ways:
+`tests/loading/test_load_modules_phases.py`. The twelve left out split two ways:
 
 | Left out | Why |
 |---|---|
-| `log_modules_that_never_loaded`, `log_pending_module_states`, `log_unresolved_access_domains`, `log_assertion_report`, `mark_database_partially_updated`, `collect_models_with_manual_fields` | reporting and bookkeeping — they cross no view |
+| `log_modules_that_never_loaded`, `log_pending_module_states`, `warn_code_ahead_of_database`, `log_unresolved_access_domains`, `log_assertion_report`, `mark_database_partially_updated`, `collect_models_with_manual_fields` | reporting and bookkeeping — they cross no view |
 | `register_model_hooks`, `check_null_constraints`, `warn_invalid_custom_views`, `run_post_update_model_checks`, `run_deferred_at_install_tests` | real work, selected out of *this* thread rather than out of the loader. Three of the five appear in [`runtime.md`](runtime.md#registry-build)'s sketch; the fifth runs the `at_install` suites the loader held back until their installed dependents had loaded |
 
 Three things this ordering encodes that no other view states:
