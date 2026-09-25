@@ -2,6 +2,8 @@
 import { computeSAQRCode } from "@l10n_sa_pos/app/utils/qr";
 import { PosOrder } from "@point_of_sale/app/models/pos_order";
 import { patch } from "@web/core/utils/patch";
+import { BrowserQRCodeSvgWriter } from "zxing-library";
+
 patch(PosOrder.prototype, {
     isSACompany() {
         return this.company.country_id?.code === "SA";
@@ -11,7 +13,7 @@ patch(PosOrder.prototype, {
         if (this.isSACompany()) {
             if (!this.isSettlement()) {
                 const company = this.company;
-                const codeWriter = new window.ZXing.BrowserQRCodeSvgWriter();
+                const codeWriter = new BrowserQRCodeSvgWriter();
                 const qr_values = this.compute_sa_qr_code(
                     company.name,
                     company.vat,
