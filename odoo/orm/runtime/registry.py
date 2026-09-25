@@ -501,6 +501,7 @@ class Registry(
                 self._setup_field_depends(env, models_field_depends_done)
 
                 reset_cached_properties(self)
+                self.model_anchors  # noqa: B018  reading it checks every declared anchor, and a bad one stops the registry
 
             finally:
                 self.model_graph.end_invalidation()

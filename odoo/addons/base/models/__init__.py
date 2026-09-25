@@ -12,6 +12,7 @@ from . import ir_model_fields_selection
 from . import ir_model_reflection
 from . import ir_access
 from . import ir_access_obligation
+from . import ir_access_predicate
 from . import ir_model_data
 from . import ir_sequence
 

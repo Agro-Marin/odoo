@@ -333,10 +333,13 @@ the model: `has_access`, `check_access`, `_filtered_access`, `_access_domain`.
 - `group_id` (Many2one → res.groups, required, indexed) — a row created without one is `base.group_everyone`'s
 - `kind` (Selection permission/guard, required), `guard_scope` (Selection everyone/members, default everyone)
 - `operation` (Selection, a subset of `crud`), `verbs` (Char, the declared verbs of the model it grants, comma-separated; a row names an operation, verbs or both), `domain` (Char)
-- `for_read`, `for_write`, `for_create`, `for_unlink` (Boolean, stored computes of `operation`, with inverse)
+- `for_read`, `for_write`, `for_create`, `for_unlink` (Boolean, computed from `operation`, not stored, with inverse and search)
+- `reach` (Selection none/own/team/unit/unit_tree/company/partner/all/predicate), `anchor` (Char) — how far the row reaches, through an anchor the model declares in `_access_anchors` (`registry.model_anchors`); the `domain` beside a reach is a fixed filter only
+- `predicate_id` (Many2one → ir.access.predicate), `predicate_args` (Json) — a named reach the anchors cannot state
 - `is_standard` (Boolean, computed, searchable) — the row comes from a module
 
 **Key Methods:**
+- `_row_domains()` — a row's domain for the principal: its reach compiled through the anchor with the principal's binds (`_access_bind_<name>`: user, partner, commercial_partner, companies here; employees and units in hr; teams in team) and its fixed filter, or its domain evaluated
 - `_get_all_access()` — every active row by model, literal domains pre-parsed (ormcache stable, dropped by any write to the rows or to a group); refuses a cycle of `'access'` conditions
 - `_check_domain()` — a domain validates against the registry, reads the user's groups only in ways more groups can only widen, and closes no `'access'` cycle
 - `_load_records()` — refuses while `ir.model.data` still maps an external id to an access line or a rule: base's 1.97 migration has not run
@@ -363,6 +366,22 @@ extends it.
 - `_at_door(records, verb, call)` — run `call(records)` for what the obligation admits
 - `_at_checkpoint(records, verb)` — refuse, or let through, what no door admitted
 - `_after_move(records, verb)` — act on the records a write moved into the verb's target, in their new state
+
+### models/ir_access_predicate.py
+
+#### IrAccessPredicate — `ir.access.predicate` (`_name`)
+
+A reach the anchors cannot state, named once and applied by any row whose
+`reach` is `predicate` (with `predicate_args`): a template domain reading only
+`P` (the principal's binds: user, partner, commercial_partner, companies,
+employees, teams, units) and `args`, or a model method
+`_access_predicate_<name>(bind, args)`. Validated when saved; a template that
+tests the user's groups is refused.
+
+**Fields:**
+- `name` (Char, unique), `description` (Char, translated: the explanation's words)
+- `model_id` (Many2one → ir.model; empty for a generic predicate)
+- `template`, `method` (Char; exactly one)
 
 ### models/ir_access_log.py
 

@@ -4,3 +4,4 @@ from . import res_users
 from . import team
 from . import team_alias
 from . import team_member
+from . import ir_access

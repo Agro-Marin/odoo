@@ -3,9 +3,18 @@ import tempfile
 from collections import defaultdict
 from pathlib import Path
 
+from odoo.fields import Domain
+from odoo.orm.models.anchors import ANCHOR_KINDS
+
 from . import _access_index as index
 from . import lint_case
-from odoo.addons.base.models.ir_access import domain_group_tests, find_access_cycle
+from odoo.addons.base.models.ir_access import (
+    REACH_ANCHOR,
+    REACH_KINDS,
+    domain_group_tests,
+    find_access_cycle,
+    parse_access_domain,
+)
 
 # the methods through which a model decides access in code instead of in rows
 _CHECK_OVERRIDES = frozenset({"_check_access", "_has_field_access", "_access_domain"})
@@ -234,6 +243,70 @@ def override_paths():
     ]
 
 
+def reach_findings(rows):
+    # a row that reaches through an anchor its model declares, of a kind its
+    # rung can read, with nothing but a fixed filter beside it
+    findings = []
+    for row in rows:
+        if not row.reach:
+            continue
+        if row.domain and not isinstance(parse_access_domain(row.domain), Domain):
+            findings.append(
+                f"{row.where()}: a reach beside a domain that reads the user"
+            )
+        if row.reach not in REACH_ANCHOR or not index.known_model(row.model):
+            continue
+        key = row.anchor or REACH_ANCHOR[row.reach]
+        declared = index.anchors(row.model)
+        if key not in declared:
+            findings.append(f"{row.where()}: {row.model} declares no anchor {key}")
+        elif declared[key][1] not in REACH_KINDS[row.reach]:
+            findings.append(
+                f"{row.where()}: the reach {row.reach} cannot read {key}, a "
+                f"{declared[key][1]}"
+            )
+    return findings
+
+
+def anchor_findings(models):
+    # every declared anchor follows fields the models have, to the model its
+    # kind names
+    findings = []
+    for name, info in sorted(models.items()):
+        if info.kind == "abstract" or not _production(info.module):
+            continue
+        for key, path in info.anchors.items():
+            kind = info.anchor_kinds.get(key, key)
+            if kind not in ANCHOR_KINDS:
+                findings.append(f"{info.defined_in}: {name} anchor {key} has no kind")
+                continue
+            if not path or path == "id":
+                continue
+            owner = name
+            for part in path.split("."):
+                field_info = index.fields_of(owner).get(part)
+                if field_info is None:
+                    findings.append(
+                        f"{info.defined_in}: {name} anchor {key}: {owner}.{part} "
+                        f"does not exist"
+                    )
+                    break
+                owner = index.comodel_of(owner, field_info)
+                if owner is None:
+                    findings.append(
+                        f"{info.defined_in}: {name} anchor {key}: {part} is not "
+                        f"relational"
+                    )
+                    break
+            else:
+                if owner != ANCHOR_KINDS[kind]:
+                    findings.append(
+                        f"{info.defined_in}: {name} anchor {key} leads to {owner}, "
+                        f"not to {ANCHOR_KINDS[kind]}"
+                    )
+    return findings
+
+
 class TestAccessRows(lint_case.LintCase):
     @classmethod
     def setUpClass(cls):
@@ -247,6 +320,25 @@ class TestAccessRows(lint_case.LintCase):
         self.assertTrue(
             any(row.path.endswith(".xml") for row in self.rows),
             "the scan reached no ir_access.xml",
+        )
+
+    def test_a_reach_reads_an_anchor_its_model_declares(self):
+        self.assert_ratchet(
+            reach_findings(self.rows),
+            "access_reach_anchor",
+            "ir.access row(s) whose reach its model cannot read",
+            "A row with a reach reads the model's anchor: declare it in "
+            "`_access_anchors`, name the anchor the row means, and keep only a fixed "
+            "filter in the domain.",
+        )
+
+    def test_every_anchor_leads_where_its_kind_says(self):
+        self.assert_ratchet(
+            anchor_findings(index.models()),
+            "access_anchor_valid",
+            "declared anchor(s) whose path the models do not follow",
+            "An anchor's path follows relational fields to the model its kind "
+            "names (owner: res.users, company: res.company...).",
         )
 
     def test_every_row_declares_its_kind(self):
@@ -424,6 +516,38 @@ class TestAccessRowGatesSeeTheirFaults(lint_case.LintCase):
                 [self._row(domain="['!', ('group_ids', 'in', group_ids)]")]
             )
         )
+
+    def test_a_reach_its_model_cannot_read(self):
+        self.assertTrue(reach_findings([self._row(reach="team")]))
+        self.assertTrue(reach_findings([self._row(reach="partner", anchor="creator")]))
+        self.assertTrue(
+            reach_findings(
+                [self._row(reach="own", domain="[('user_id', '=', user.id)]")]
+            )
+        )
+        self.assertFalse(reach_findings([self._row(reach="own", anchor="creator")]))
+        self.assertFalse(
+            reach_findings(
+                [self._row(reach="company", domain="[('is_company', '=', True)]")]
+            )
+        )
+
+    def test_an_anchor_its_path_does_not_follow(self):
+        def planted(path, kind):
+            # planted on a real model, so its fields are the index's
+            return {
+                "res.partner": index.ModelInfo(
+                    "res.partner",
+                    module="planted",
+                    anchors={"owner": path},
+                    anchor_kinds={"owner": kind},
+                )
+            }
+
+        self.assertTrue(anchor_findings(planted("no_such_field", "owner")))
+        self.assertTrue(anchor_findings(planted("create_uid.partner_id", "owner")))
+        self.assertTrue(anchor_findings(planted("create_uid", "no_such_kind")))
+        self.assertFalse(anchor_findings(planted("create_uid", "owner")))
 
     def test_a_company_guard_on_another_field(self):
         guard = self._row(

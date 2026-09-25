@@ -7,6 +7,7 @@ from operator import attrgetter
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 
+from ..models.anchors import Anchor, anchor_path_error, collect_anchors
 from ..models.verbs import Verb, collect_verbs
 from ._registry_stubs import _RegistryStubs
 
@@ -81,6 +82,25 @@ class _RegistryModelsMixin(_RegistryStubs):
             for name, model_cls in self.models.items()
             if not model_cls._abstract and (verbs := collect_verbs(model_cls))
         }
+
+    @functools.cached_property
+    def model_anchors(self) -> dict[str, dict[str, Anchor]]:
+        # where each model's records meet a principal, checked against the
+        # loaded models: a rung compiles against these paths
+        result: dict[str, dict[str, Anchor]] = {}
+        errors = []
+        for name, model_cls in self.models.items():
+            if model_cls._abstract:
+                continue
+            anchors = collect_anchors(model_cls)
+            for key, anchor in anchors.items():
+                if error := anchor_path_error(model_cls, key, anchor, self.models):
+                    errors.append(f"{name}: anchor {key!r} ({anchor.path}): {error}")
+            if anchors:
+                result[name] = anchors
+        if errors:
+            raise TypeError("Invalid access anchors:\n" + "\n".join(errors))
+        return result
 
     @functools.cached_property
     def verb_transitions(self) -> dict[str, dict[str, tuple[tuple[str, Verb], ...]]]:

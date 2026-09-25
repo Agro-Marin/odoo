@@ -18,6 +18,7 @@ if typing.TYPE_CHECKING:
     from ...domain import Domain
     from ...fields.base import Field
     from ...runtime import Environment
+    from ..anchors import Anchor
 
 
 class _ModelStubs:
@@ -68,7 +69,7 @@ class _ModelStubs:
         _display_name_search_exact: tuple[str, ...]
         _inherits_sudo_fields: tuple[str, ...]
         _inherits_rules: bool
-        _access_anchors: frozendict[str, str]
+        _access_anchors: frozendict[str, str | Anchor]
         _access_audit: bool
         _table_objects: dict
         _table_inheritance_root: str

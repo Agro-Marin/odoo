@@ -362,19 +362,8 @@ class AccessMixin(_ModelStubs):
         # to some companies compiles against: declared in _access_anchors, or
         # the model's own company_id / company_ids; None for a model whose
         # records belong to no company
-        if "company" in self._access_anchors:
-            return self._access_anchors["company"] or None
-        if self._name == "res.company":
-            return "id"
-        for name in ("company_id", "company_ids"):
-            field = self._fields.get(name)
-            if (
-                field is not None
-                and field.comodel_name == "res.company"
-                and (field.store or field.related or field.search)
-            ):
-                return name
-        return None
+        anchor = self.env.registry.model_anchors.get(self._name, {}).get("company")
+        return anchor.path if anchor else None
 
     def _verb_door(self, verb: str, call: Callable[[Self], typing.Any]) -> typing.Any:
         # a door of the verb: the principal must hold it, what it obliges is

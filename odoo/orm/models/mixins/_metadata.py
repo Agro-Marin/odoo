@@ -12,6 +12,7 @@ if typing.TYPE_CHECKING:
     from ..._typing import BaseModel
     from ...fields.base import Field
     from ...runtime import Registry
+    from ..anchors import Anchor
     from ..table_objects import TableObject
 
 _debug = DebugLog(__name__)
@@ -64,7 +65,7 @@ class _ModelMetadataMixin(_ModelStubs):
     _display_name_search_exact: tuple[str, ...] = ()
     _inherits_sudo_fields: tuple[str, ...] = ()
     _inherits_rules: bool = True
-    _access_anchors: frozendict[str, str] = frozendict()
+    _access_anchors: frozendict[str, str | Anchor] = frozendict()
     _access_audit: bool = False
     _fold_name: str = "fold"
 

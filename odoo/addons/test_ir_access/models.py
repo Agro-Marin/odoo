@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
+from odoo.tools import frozendict
 
 
 class TestIrAccessCategory(models.Model):
@@ -97,6 +98,32 @@ class TestIrAccessOwned(models.Model):
 
     name = fields.Char()
     item_id = fields.Many2one(comodel_name="test_ir_access.item")
+
+
+class TestIrAccessReached(models.Model):
+    _name = "test_ir_access.reached"
+    _description = "Reached through the anchors it declares"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+            "assignee": models.Anchor("user_id", kind="owner", shared=True),
+            "approver": models.Anchor("approver_ids", kind="owner"),
+            "partner": "partner_id",
+            "company": models.Anchor("company_id", shared=True),
+            "parent_company": models.Anchor(
+                "company_id", kind="company", hierarchy="parent_of"
+            ),
+        }
+    )
+
+    name = fields.Char()
+    user_id = fields.Many2one(comodel_name="res.users")
+    approver_ids = fields.Many2many(comodel_name="res.users")
+    partner_id = fields.Many2one(comodel_name="res.partner")
+    company_id = fields.Many2one(comodel_name="res.company")
+
+    def _access_predicate_named(self, bind, args):
+        return Domain("name", "=", args["name"])
 
 
 class TestIrAccessDocument(models.Model):

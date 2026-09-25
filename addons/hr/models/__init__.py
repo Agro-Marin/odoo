@@ -27,3 +27,4 @@ from . import resource_calendar
 from . import resource_schedule_exception
 from . import ir_ui_menu
 from . import hr_employee_change_request
+from . import ir_access

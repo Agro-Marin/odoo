@@ -21,6 +21,7 @@ from odoo.orm.models import (
 )
 
 from odoo.orm.models.table_objects import Constraint, Index, UniqueIndex
+from odoo.orm.models.anchors import Anchor
 from odoo.orm.models.verbs import Verb
 
 from odoo.orm.registration import (
@@ -57,6 +58,7 @@ __all__ = [
     "READ_GROUP_NUMBER_GRANULARITY",
     "READ_GROUP_TIME_GRANULARITY",
     "AbstractModel",
+    "Anchor",
     "BaseModel",
     "Constraint",
     "Index",

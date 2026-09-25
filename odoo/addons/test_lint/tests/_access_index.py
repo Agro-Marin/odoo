@@ -81,6 +81,7 @@ class ModelInfo:
     inherits_rules: bool = True
     auto: bool = True
     anchors: dict[str, str] = field(default_factory=dict)
+    anchor_kinds: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -97,6 +98,8 @@ class Row:
     creates: bool
     guard_scope: str | None = None
     verbs: str | None = None
+    reach: str | None = None
+    anchor: str | None = None
 
     def where(self) -> str:
         return f"{self.path}:{self.line} {self.xmlid}"
@@ -155,6 +158,8 @@ def _csv_rows(module: str, path: Path) -> list[Row]:
         "domain": column(("domain",)),
         "guard_scope": column(("guard_scope",)),
         "verbs": column(("verbs",)),
+        "reach": column(("reach",)),
+        "anchor": column(("anchor",)),
     }
     rows = []
     for line, values in enumerate(reader, start=2):
@@ -177,6 +182,8 @@ def _csv_rows(module: str, path: Path) -> list[Row]:
                 creates=True,
                 guard_scope=value("guard_scope"),
                 verbs=value("verbs"),
+                reach=value("reach"),
+                anchor=value("anchor"),
             )
         )
     return rows
@@ -212,6 +219,8 @@ def _xml_rows(module: str, path: Path) -> list[Row]:
                 creates=xmlid.startswith(f"{module}.") and "model_id" in present,
                 guard_scope=values.get("guard_scope"),
                 verbs=values.get("verbs"),
+                reach=values.get("reach"),
+                anchor=values.get("anchor"),
             )
         )
     return rows
@@ -249,6 +258,20 @@ def _rows() -> list[Row]:
 def _string(node: ast.AST | None) -> str | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
+    return None
+
+
+def _anchor(key: str, node: ast.AST) -> tuple[str, str] | None:
+    # a declared anchor as (path, kind): a bare path, or models.Anchor(path,
+    # kind=..., ...)
+    if (path := _string(node)) is not None:
+        return path, key
+    if isinstance(node, ast.Call) and getattr(node.func, "attr", None) == "Anchor":
+        keywords = {keyword.arg: keyword.value for keyword in node.keywords}
+        path = _string(node.args[0]) if node.args else _string(keywords.get("path"))
+        if path is None:
+            return None
+        return path, _string(keywords.get("kind")) or key
     return None
 
 
@@ -349,12 +372,12 @@ def _class_defs(path: Path) -> list[_ClassDef]:
                         value = value.args[0]
                     if isinstance(value, ast.Dict):
                         attributes[target.id] = {
-                            key: path
+                            key: anchor
                             for key_node, value_node in zip(
                                 value.keys, value.values, strict=True
                             )
                             if (key := _string(key_node)) is not None
-                            and (path := _string(value_node)) is not None
+                            and (anchor := _anchor(key, value_node)) is not None
                         }
                 elif target.id in ("_log_access", "_inherits_rules", "_auto"):
                     if isinstance(value, ast.Constant):
@@ -442,7 +465,11 @@ def models() -> dict[str, ModelInfo]:
                 info.inherits_rules = False
             if class_def.attributes.get("_auto") is False:
                 info.auto = False
-            info.anchors.update(class_def.attributes.get("_access_anchors") or {})
+            for key, (path, kind) in (
+                class_def.attributes.get("_access_anchors") or {}
+            ).items():
+                info.anchors[key] = path
+                info.anchor_kinds[key] = kind
         result[name] = info
     return result
 
@@ -626,6 +653,26 @@ def access_edges(row: Row) -> list[tuple[str, str]]:
         ):
             edges.append((comodel, operation))
     return edges
+
+
+def anchors(model_name: str) -> dict[str, tuple[str, str]]:
+    # every anchor the model declares or the ORM infers, as (path, kind)
+    result: dict[str, tuple[str, str]] = {}
+    info = models().get(model_name)
+    if info is not None:
+        for parent in reversed([model_name, *info.inherit]):
+            parent_info = models().get(parent, info)
+            for key, path in parent_info.anchors.items():
+                result[key] = (path, parent_info.anchor_kinds.get(key, key))
+    result = {key: value for key, value in result.items() if value[0]}
+    if "company" not in result and (company := company_anchor(model_name)):
+        result["company"] = (company, "company")
+    creator = fields_of(model_name).get("create_uid")
+    if "creator" not in result and (
+        creator is not None and comodel_of(model_name, creator) == "res.users"
+    ):
+        result["creator"] = ("create_uid", "creator")
+    return result
 
 
 def company_anchor(model_name: str) -> str | None:

@@ -4,6 +4,7 @@ import re
 import typing
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Mapping
+from types import SimpleNamespace
 from typing import Any, Self
 
 from odoo import api, fields, models, tools
@@ -47,6 +48,35 @@ CRUD_SELECTION = {
 }
 OPERATION_LETTER = {"create": "c", "read": "r", "write": "u", "unlink": "d"}
 ANY_OPERATORS = frozenset({"any", "not any", "any!", "not any!"})
+REACH_SELECTION = [
+    ("none", "Nothing"),
+    ("own", "Own"),
+    ("team", "Team"),
+    ("unit", "Unit"),
+    ("unit_tree", "Unit and sub-units"),
+    ("company", "Company"),
+    ("partner", "Commercial partner"),
+    ("all", "All"),
+    ("predicate", "Named predicate"),
+]
+# the anchor a rung reads when the row names none
+REACH_ANCHOR = {
+    "own": "owner",
+    "team": "team",
+    "unit": "unit",
+    "unit_tree": "unit",
+    "company": "company",
+    "partner": "partner",
+}
+# the anchor kinds each rung can read
+REACH_KINDS = {
+    "own": frozenset({"owner", "creator", "employee", "partner"}),
+    "team": frozenset({"team"}),
+    "unit": frozenset({"unit"}),
+    "unit_tree": frozenset({"unit"}),
+    "company": frozenset({"company"}),
+    "partner": frozenset({"partner"}),
+}
 # a domain that can hold an 'access' condition: only those are parsed for the
 # cycle check (an unrelated text is not evaluated, which a rule calling back
 # into the decision would turn into a recursion)
@@ -83,6 +113,10 @@ class AccessInfo(typing.NamedTuple):
     name: str = ""
     text: str = ""
     verbs: frozenset[str] = frozenset()
+    reach: str = ""
+    anchor: str = ""
+    predicate: tuple[str, str, str, str] = ("", "", "", "")
+    predicate_args: tuple[tuple[str, Any], ...] = ()
 
 
 def covers(row: AccessInfo, operation: str) -> bool:
@@ -290,6 +324,48 @@ def _missing_fields(model: models.BaseModel, node: ast.AST) -> Iterator[str]:
         yield from _missing_fields(model, child)
 
 
+PREDICATE_BINDS = frozenset(
+    {
+        "user",
+        "partner",
+        "commercial_partner",
+        "companies",
+        "employees",
+        "teams",
+        "units",
+    }
+)
+
+
+class _Principal:
+    # the binds a predicate's template reads, fetched only when read
+    __slots__ = ("_bind",)
+
+    def __init__(self, bind: typing.Callable[..., Any]) -> None:
+        self._bind = bind
+
+    def __getattr__(self, name: str) -> Any:
+        if name not in PREDICATE_BINDS:
+            raise AttributeError(name)
+        return self._bind(name, None) if name == "teams" else self._bind(name)
+
+
+def compile_predicate(
+    model: models.BaseModel,
+    predicate: tuple[str, str, str, str],
+    args: dict[str, Any],
+    bind: typing.Callable[..., Any],
+) -> Domain:
+    # a named predicate's domain for the principal: its method on the model,
+    # or its template reading P (the binds) and args
+    _name, template, method, _description = predicate
+    if method:
+        return Domain(getattr(model, method)(bind, args))
+    return Domain(
+        safe_eval(template, {"P": _Principal(bind), "args": SimpleNamespace(**args)})
+    )
+
+
 def find_access_cycle(
     edges: Mapping[tuple[str, str], Iterable[tuple[str, str]]],
 ) -> list[tuple[str, str]] | None:
@@ -362,7 +438,27 @@ class IrAccess(models.Model):
         "operation it requires.",
     )
     domain = fields.Char(
-        help="The operations are allowed only on the records in this domain.",
+        help="The operations are allowed only on the records in this domain. "
+        "With a reach, it can only be a fixed filter that reads no user.",
+    )
+    reach = fields.Selection(
+        selection=REACH_SELECTION,
+        help="How far the row reaches, read through an anchor the model declares: "
+        "the principal's own records, their team's, their unit's, their "
+        "companies', their commercial partner's, all of them, or what a named "
+        "predicate selects. Empty: the domain says it alone.",
+    )
+    anchor = fields.Char(
+        help="The model's anchor the reach reads, when not the reach's own: "
+        "creator, employee or a second anchor the model names.",
+    )
+    predicate_id = fields.Many2one(
+        comodel_name="ir.access.predicate",
+        ondelete="restrict",
+        help="The named predicate a row with the reach Named predicate applies.",
+    )
+    predicate_args = fields.Json(
+        help="The arguments the named predicate takes, as its schema states.",
     )
     for_read = fields.Boolean(
         string="Read",
@@ -579,7 +675,7 @@ class IrAccess(models.Model):
             order="id",
         )
         registry = self.env.registry
-        return [
+        unresolved = [
             (access, missing)
             for access in accesses
             if access.model_id.model in registry
@@ -587,6 +683,21 @@ class IrAccess(models.Model):
                 self.env[access.model_id.model], access.domain
             )
         ]
+        # a row reaching through an anchor its model no longer declares
+        for access in self.with_context(active_test=False).search_fetch(
+            Domain("active", "=", True)
+            & Domain("reach", "in", list(REACH_ANCHOR))
+            & unloaded_module_domain(self.env, self._name),
+            ["model_id", "reach", "anchor", "name"],
+            order="id",
+        ):
+            model_name = access.model_id.model
+            key = access.anchor or REACH_ANCHOR[access.reach]
+            if model_name in registry and key not in registry.model_anchors.get(
+                model_name, {}
+            ):
+                unresolved.append((access, f"{model_name} anchor {key}"))
+        return unresolved
 
     @api.model
     def _log_unresolved_domains(self) -> None:
@@ -608,6 +719,179 @@ class IrAccess(models.Model):
                 missing,
                 access.model_id.model,
             )
+
+    @api.constrains("reach", "anchor", "domain", "predicate_id", "model_id")
+    def _check_reach(self) -> None:
+        anchors = self.env.registry.model_anchors
+        for access in self:
+            model_name = access.model_id.model
+            if not access.reach:
+                if access.anchor or access.predicate_id:
+                    raise ValidationError(
+                        self.env._(
+                            "%(access)s names an anchor or a predicate but no reach.",
+                            access=access.name,
+                        )
+                    )
+                continue
+            if (access.reach == "predicate") != bool(access.predicate_id):
+                raise ValidationError(
+                    self.env._(
+                        "%(access)s: a named predicate is the reach Named predicate, "
+                        "and that reach needs one.",
+                        access=access.name,
+                    )
+                )
+            predicate_model = access.predicate_id.model_id.model
+            if predicate_model and predicate_model != model_name:
+                raise ValidationError(
+                    self.env._(
+                        "%(access)s: the predicate %(predicate)s is for %(model)s.",
+                        access=access.name,
+                        predicate=access.predicate_id.name,
+                        model=predicate_model,
+                    )
+                )
+            if access.reach in REACH_ANCHOR:
+                key = access.anchor or REACH_ANCHOR[access.reach]
+                anchor = anchors.get(model_name, {}).get(key)
+                if anchor is None:
+                    raise ValidationError(
+                        self.env._(
+                            "%(access)s reaches %(reach)s records through the anchor "
+                            "%(anchor)s, which %(model)s does not declare "
+                            "(_access_anchors).",
+                            access=access.name,
+                            reach=access.reach,
+                            anchor=key,
+                            model=model_name,
+                        )
+                    )
+                if anchor.kind not in REACH_KINDS[access.reach]:
+                    raise ValidationError(
+                        self.env._(
+                            "%(access)s: the reach %(reach)s cannot read the anchor "
+                            "%(anchor)s, a %(kind)s.",
+                            access=access.name,
+                            reach=access.reach,
+                            anchor=key,
+                            kind=anchor.kind,
+                        )
+                    )
+            elif access.anchor:
+                raise ValidationError(
+                    self.env._(
+                        "%(access)s: the reach %(reach)s reads no anchor.",
+                        access=access.name,
+                        reach=access.reach,
+                    )
+                )
+            if access.domain and not isinstance(
+                parse_access_domain(access.domain), Domain
+            ):
+                raise ValidationError(
+                    self.env._(
+                        "%(access)s: beside a reach, the domain can only be a fixed "
+                        "filter; it reads the user or the companies, which is what "
+                        "the reach says.",
+                        access=access.name,
+                    )
+                )
+
+    def _row_domains(self) -> typing.Callable[[str, AccessInfo], Domain]:
+        # a row's domain for the principal: its reach through the model's
+        # anchor, or its predicate, and its fixed filter; else its domain
+        # evaluated as it always was
+        eval_context: dict[str, Any] | None = None
+        binds: dict[tuple, Any] = {}
+
+        def bind(name: str, *args: Any) -> Any:
+            key = (name, *args)
+            if key not in binds:
+                binds[key] = getattr(self, f"_access_bind_{name}")(*args)
+            return binds[key]
+
+        def domain_of(model_name: str, row: AccessInfo) -> Domain:
+            nonlocal eval_context
+            if row.reach:
+                static = row.domain if isinstance(row.domain, Domain) else Domain.TRUE
+                return self._reach_domain(model_name, row, bind) & static
+            if isinstance(row.domain, Domain):
+                return row.domain
+            if eval_context is None:
+                eval_context = self._eval_context()
+            return Domain(safe_eval(row.domain, eval_context))
+
+        return domain_of
+
+    def _reach_domain(
+        self, model_name: str, row: AccessInfo, bind: typing.Callable[..., Any]
+    ) -> Domain:
+        if row.reach == "all":
+            return Domain.TRUE
+        if row.reach == "none":
+            return Domain.FALSE
+        if row.reach == "predicate":
+            return compile_predicate(
+                self.env[model_name], row.predicate, dict(row.predicate_args), bind
+            )
+        key = row.anchor or REACH_ANCHOR[row.reach]
+        anchor = self.env.registry.model_anchors[model_name][key]
+        path = anchor.path
+        match row.reach, anchor.kind:
+            case "own", "owner" | "creator":
+                domain = Domain(path, "in", [bind("user")])
+            case "own", "employee":
+                domain = Domain(path, "in", bind("employees"))
+            case "own", "partner":
+                domain = Domain(path, "in", [bind("partner")])
+            case "team", _:
+                domain = Domain(path, "in", bind("teams", anchor.usage))
+            case "unit", _:
+                domain = Domain(path, "in", bind("units"))
+            case "unit_tree", _:
+                units = bind("units")
+                domain = Domain(path, "child_of", units) if units else Domain.FALSE
+            case "company", _:
+                domain = Domain(path, anchor.hierarchy or "in", bind("companies"))
+            case "partner", _:
+                domain = Domain(path, "child_of", [bind("commercial_partner")])
+            case _:
+                raise ValueError(f"reach {row.reach!r} cannot read a {anchor.kind}")
+        if anchor.shared:
+            domain |= Domain(path, "=", False)
+        return domain
+
+    # what the rungs compare an anchor with, read once per principal; a module
+    # that brings a kind of anchor brings its bind (hr: employees and units,
+    # team: teams)
+    def _access_bind_user(self) -> int:
+        return self.env.uid
+
+    def _access_bind_partner(self) -> int:
+        return self.env.user.partner_id.id
+
+    def _access_bind_commercial_partner(self) -> int:
+        return self.env.user.commercial_partner_id.id
+
+    def _access_bind_companies(self) -> list[int]:
+        return self.env.companies.ids
+
+    def _reach_words(self, model_name: str, row: AccessInfo) -> str:
+        # what the row's reach says, for the explanation
+        if row.reach in ("all", "none", ""):
+            return ""
+        if row.reach == "predicate":
+            name, _template, _method, description = row.predicate
+            return description or name
+        key = row.anchor or REACH_ANCHOR[row.reach]
+        anchor = self.env.registry.model_anchors.get(model_name, {}).get(key)
+        if anchor is None:
+            return ""
+        label = anchor.path
+        return self.env._(
+            "%(reach)s, read through %(path)s", reach=row.reach, path=label
+        )
 
     def _check_access_graph(self) -> None:
         rows = (
@@ -829,6 +1113,15 @@ class IrAccess(models.Model):
                     access.name,
                     text,
                     parse_verbs(access.verbs),
+                    access.reach or "",
+                    access.anchor or "",
+                    (
+                        access.predicate_id.name or "",
+                        access.predicate_id.template or "",
+                        access.predicate_id.method or "",
+                        access.predicate_id.description or "",
+                    ),
+                    tuple(sorted((access.predicate_args or {}).items())),
                 )
             )
         return {model_name: tuple(infos) for model_name, infos in result.items()}
@@ -879,18 +1172,14 @@ class IrAccess(models.Model):
         scopes = self.env.user._get_group_scopes()
         permissions: list[Domain] = []
         guards: list[Domain] = []
-        eval_context = None
+        domain_of = self._row_domains()
         for row in self._get_all_access().get(model_name, ()):
             if not covers(row, operation):
                 continue
             binds = row.kind == "guard" and row.guard_scope == "everyone"
             if not binds and row.group_id not in scopes:
                 continue
-            domain = row.domain
-            if not isinstance(domain, Domain):
-                if eval_context is None:
-                    eval_context = self._eval_context()
-                domain = Domain(safe_eval(domain, eval_context))
+            domain = domain_of(model_name, row)
             if not binds:
                 domain = self._scoped(model_name, row, domain, scopes[row.group_id])
             (permissions if row.kind == "permission" else guards).append(domain)
@@ -919,10 +1208,9 @@ class IrAccess(models.Model):
         # their own permission rows, the user's groups set aside
         self._check_operation(model_name, operation)
         privileges = self.env.privileges
+        domain_of = self._row_domains()
         domains = [
-            row.domain
-            if isinstance(row.domain, Domain)
-            else Domain(safe_eval(row.domain, self._eval_context()))
+            domain_of(model_name, row)
             for row in self._get_all_access().get(model_name, ())
             if row.kind == "permission"
             and row.group_id in privileges
@@ -944,6 +1232,8 @@ class IrAccess(models.Model):
         for row in self._get_all_access().get(model_name, ()):
             if not covers(row, operation):
                 continue
+            if words := self._reach_words(model_name, row):
+                row = row._replace(name=f"{row.name} ({words})")
             if row.kind == "guard" and row.guard_scope == "everyone":
                 lines.append(self.env._("guard %(row)s, for everyone", row=row.name))
                 continue
@@ -1284,12 +1574,10 @@ class IrAccess(models.Model):
         user_model = records.browse()
         model = user_model.sudo().with_context(active_test=False)
         scopes = self.env.user._get_group_scopes()
-        eval_context = self._eval_context()
+        row_domain = self._row_domains()
 
         def domain_of(row: AccessInfo) -> Domain:
-            domain = row.domain
-            if not isinstance(domain, Domain):
-                domain = Domain(safe_eval(domain, eval_context))
+            domain = row_domain(model._name, row)
             if row.group_id in scopes and not (
                 row.kind == "guard" and row.guard_scope == "everyone"
             ):
