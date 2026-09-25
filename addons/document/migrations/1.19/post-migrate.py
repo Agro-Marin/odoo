@@ -1,6 +1,6 @@
+import base64
 import logging
-
-from odoo.addons.document.models.document_document import new_document_token
+import uuid
 
 _logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def migrate(cr, version):
     for document_id in document_ids:
         cr.execute(
             "UPDATE document_document SET document_token = %s WHERE id = %s",
-            [new_document_token(), document_id],
+            [_new_document_token(), document_id],
         )
     if document_ids:
         _logger.info(
@@ -33,3 +33,10 @@ def migrate(cr, version):
             len(document_ids),
             document_ids,
         )
+
+
+def _new_document_token() -> str:
+    # the token document generated when 1.19 was written; a migration keeps
+    # its own copy, since the module's code moves on (document_token itself
+    # is gone after 1.21)
+    return base64.urlsafe_b64encode(uuid.uuid4().bytes).decode().removesuffix("==")

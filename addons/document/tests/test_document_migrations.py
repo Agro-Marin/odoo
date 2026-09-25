@@ -113,6 +113,39 @@ class TestDocumentTokenMigration(TransactionCaseDocuments):
         )
         self.assertEqual(self.env.cr.fetchone()[0], 0)
 
+    def test_1_19_loads_on_todays_code_and_rotates_a_typed_token(self):
+        typed, generated = self.env["document.document"].create(
+            [
+                {"name": "typed.txt", "raw": b"x", "folder_id": self.folder_a.id},
+                {"name": "generated.txt", "raw": b"y", "folder_id": self.folder_a.id},
+            ]
+        )
+        self.env.flush_all()
+        self.env.cr.execute(
+            "ALTER TABLE document_document ADD COLUMN document_token varchar"
+        )
+        for document, token in (
+            (typed, "aaaaaaaaaaaaaaaaaaaaaa"),
+            (generated, "Qx7kP2mN9vR4tY6wZ1aB3c"),
+        ):
+            self.env.cr.execute(
+                "UPDATE document_document SET document_token = %s WHERE id = %s",
+                [token, document.id],
+            )
+        script = load_script(
+            f"{get_module_path('document')}/migrations/1.19/post-migrate.py",
+            "document_1_19_post_migrate",
+        )
+        script.migrate(self.env.cr, "1.18")
+        self.env.cr.execute(
+            "SELECT id, document_token FROM document_document WHERE id = ANY(%s)",
+            [[typed.id, generated.id]],
+        )
+        tokens = dict(self.env.cr.fetchall())
+        self.assertNotEqual(tokens[typed.id], "aaaaaaaaaaaaaaaaaaaaaa")
+        self.assertEqual(len(tokens[typed.id]), 22)
+        self.assertEqual(tokens[generated.id], "Qx7kP2mN9vR4tY6wZ1aB3c")
+
     def test_a_database_without_the_token_column_is_left_alone(self):
         self._script("pre").migrate(self.env.cr, "1.20")
         self._script("post").migrate(self.env.cr, "1.20")
