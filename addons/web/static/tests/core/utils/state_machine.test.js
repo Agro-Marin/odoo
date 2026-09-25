@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
+import { reactive } from "@odoo/owl";
 import { InvalidTransitionError, StateMachine } from "@web/core/utils/state_machine";
 
 describe.current.tags("headless");
@@ -102,7 +103,6 @@ test("the error carries name, message, from and event", () => {
 test("the status is reactive, as SignalStore promises", () => {
     const m = new ProbeMachine();
     const steps = [];
-    const { reactive } = /** @type {any} */ (odoo.loader.modules.get("@odoo/owl"));
     const tracked = reactive(m, () => steps.push(tracked.status));
     void tracked.status;
     tracked._transition("begin");
