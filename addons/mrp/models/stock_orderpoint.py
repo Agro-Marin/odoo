@@ -75,49 +75,27 @@ class StockWarehouseOrderpoint(models.Model):
     def _prepare_lead_time_params(self):
         values = super()._prepare_lead_time_params()
         if self.bom_id:
-            values["bom"] = self.bom_id
+            values["bom_id"] = self.bom_id
         return values
 
     def _prepare_lead_time_params_map(self):
         result = super()._prepare_lead_time_params_map()
-        for orderpoint, bom in (
-            self.filtered(lambda orderpoint: not orderpoint.bom_id)
-            ._get_manufacture_bom_map()
-            .items()
-        ):
-            result[orderpoint.id]["bom"] = bom
+        default_boms = self.filtered(
+            lambda orderpoint: not orderpoint.bom_id
+        )._get_default_boms()
+        for orderpoint, bom in default_boms.items():
+            if bom:
+                result[orderpoint.id]["bom_id"] = bom
         return result
 
-    def _get_manufacture_bom_map(self):
-        result = {}
-        orderpoints_by_lookup = defaultdict(
-            lambda: self.env["stock.warehouse.orderpoint"],
-        )
-        for orderpoint in self:
-            if orderpoint.bom_id:
-                result[orderpoint] = orderpoint.bom_id
-                continue
-            manufacture_rule = orderpoint.rule_ids.filtered(
-                lambda rule: rule.action == "manufacture",
-            )[:1]
-            if not manufacture_rule:
-                continue
-            orderpoints_by_lookup[
-                manufacture_rule.picking_type_id,
-                manufacture_rule.company_id,
-            ] |= orderpoint
-        for (picking_type, company), orderpoints in orderpoints_by_lookup.items():
-            boms = self.env["mrp.bom"]._get_bom_by_product(
-                orderpoints.product_id,
-                picking_type=picking_type,
-                company_id=company.id,
-            )
-            for orderpoint in orderpoints:
-                result[orderpoint] = boms[orderpoint.product_id]
-        prefetch_ids = [bom.id for bom in result.values() if bom]
+    def _get_manufacture_rule_map(self):
+        no_rule = self.env["stock.rule"]
         return {
-            orderpoint: bom.with_prefetch(prefetch_ids)
-            for orderpoint, bom in result.items()
+            orderpoint: next(
+                (rule for rule in orderpoint.rule_ids if rule.action == "manufacture"),
+                no_rule,
+            )
+            for orderpoint in self
         }
 
     @api.depends(
@@ -133,8 +111,8 @@ class StockWarehouseOrderpoint(models.Model):
 
     def _compute_allowed_replenishment_uom_ids(self):
         super()._compute_allowed_replenishment_uom_ids()
-        for orderpoint in self:
-            if "manufacture" in orderpoint.rule_ids.mapped("action"):
+        for orderpoint, rule in self._get_manufacture_rule_map().items():
+            if rule:
                 orderpoint.allowed_replenishment_uom_ids += (
                     orderpoint.product_id.bom_ids.product_uom_id
                 )
@@ -143,13 +121,18 @@ class StockWarehouseOrderpoint(models.Model):
     def _compute_rule_ids(self):
         super()._compute_rule_ids()
 
-    @api.depends("product_id.bom_ids")
+    @api.depends("product_id.bom_ids", "bom_id")
     def _compute_show_supply_warning(self):
-        for orderpoint in self:
-            if "manufacture" in orderpoint.rule_ids.mapped("action"):
-                orderpoint.show_supply_warning = not orderpoint.product_id.bom_ids
-                continue
-            super(StockWarehouseOrderpoint, orderpoint)._compute_show_supply_warning()
+        rules = self._get_manufacture_rule_map()
+        manufactured = self.filtered(lambda orderpoint: rules[orderpoint])
+        default_boms = manufactured._get_default_boms()
+        for orderpoint in manufactured:
+            orderpoint.show_supply_warning = not (
+                orderpoint.bom_id or default_boms[orderpoint]
+            )
+        super(
+            StockWarehouseOrderpoint, self - manufactured
+        )._compute_show_supply_warning()
 
     @api.depends("effective_route_id")
     def _compute_show_bom(self):
@@ -217,34 +200,40 @@ class StockWarehouseOrderpoint(models.Model):
     )
     def _compute_days_to_order(self):
         super()._compute_days_to_order()
-        manufactured = self.filtered(
-            lambda orderpoint: "manufacture" in orderpoint.rule_ids.mapped("action")
-        )
-        for orderpoint, bom in manufactured._get_manufacture_bom_map().items():
+        rules = self._get_manufacture_rule_map()
+        manufactured = self.filtered(lambda orderpoint: rules[orderpoint])
+        default_boms = manufactured._get_default_boms()
+        for orderpoint in manufactured:
+            bom = orderpoint.bom_id or default_boms[orderpoint]
             if bom:
                 orderpoint.days_to_order = bom.days_to_prepare_mo
 
     def _get_default_route_map(self):
         routes = super()._get_default_route_map()
-        manufacture_routes = self.env["stock.rule"]._get_manufacture_rules().route_id
-        for orderpoint in self.filtered("location_id"):
-            route_id = orderpoint.rule_ids.route_id & manufacture_routes
-            if orderpoint.product_id.bom_ids and route_id:
-                routes[orderpoint.id] = route_id[0]
+        Rule = self.env["stock.rule"]
+        manufacture_routes = Rule._get_manufacture_rules().route_id
+        for company, orderpoints in (
+            self.filtered("location_id").grouped("company_id").items()
+        ):
+            manufacturable = Rule._get_manufacturable(orderpoints.product_id, company)
+            for orderpoint in orderpoints:
+                route_id = orderpoint.rule_ids.route_id & manufacture_routes
+                if route_id and manufacturable[orderpoint.product_id.id]:
+                    routes[orderpoint.id] = route_id[0]
         return routes
 
     def _get_default_boms(self):
         Bom = self.env["mrp.bom"]
         result = dict.fromkeys(self, Bom)
         by_lookup = defaultdict(lambda: self.env["stock.warehouse.orderpoint"])
-        shown = self.filtered("show_bom")
-        for orderpoint, rule in shown._get_default_rule_map().items():
-            by_lookup[(rule, orderpoint.company_id)] |= orderpoint
-        for (rule, company), orderpoints in by_lookup.items():
+        for orderpoint, rule in self._get_manufacture_rule_map().items():
+            if rule:
+                by_lookup[rule.picking_type_id, orderpoint.company_id] |= orderpoint
+        for (picking_type, company), orderpoints in by_lookup.items():
             products = orderpoints.product_id
             boms = Bom._get_bom_by_product(
                 products,
-                picking_type=rule.picking_type_id,
+                picking_type=picking_type,
                 bom_type="normal",
                 company_id=company.id,
             )
@@ -256,7 +245,7 @@ class StockWarehouseOrderpoint(models.Model):
                 orderpoints=orderpoints,
                 products=len(products),
                 unmatched=len(unmatched),
-                rule=rule.id,
+                picking_type=picking_type.id,
             )
             if unmatched:
                 boms.update(
@@ -276,87 +265,24 @@ class StockWarehouseOrderpoint(models.Model):
         return result
 
     def _get_replenishment_multiple_alternative_map(self, qty_by_orderpoint):
-        manufactured = self.filtered(
-            lambda orderpoint: any(
-                rule.action == "manufacture"
-                for rule in (
-                    orderpoint.effective_route_id or orderpoint.product_id.route_ids
-                ).rule_ids
-            ),
-        )
+        rules = self._get_manufacture_rule_map()
+        manufactured = self.filtered(lambda orderpoint: rules[orderpoint])
         result = super(
             StockWarehouseOrderpoint,
             self - manufactured,
         )._get_replenishment_multiple_alternative_map(qty_by_orderpoint)
-        if not manufactured:
-            return result
-        for company, in_company in manufactured.grouped("company_id").items():
-            boms_by_product = self.env["mrp.bom"]._get_bom_by_product(
-                in_company.product_id,
-                picking_type=False,
-                bom_type="normal",
-                company_id=company.id,
-            )
-            for orderpoint in in_company:
-                bom = orderpoint.bom_id or boms_by_product[orderpoint.product_id]
-                result[orderpoint.id] = bom.product_uom_id
+        default_boms = manufactured._get_default_boms()
+        for orderpoint in manufactured:
+            bom = orderpoint.bom_id or default_boms[orderpoint]
+            result[orderpoint.id] = bom.product_uom_id
         return result
 
     def _get_quantity_in_progress(self):
-        bom_kits = self.env["mrp.bom"]._get_bom_by_product(
-            self.product_id, bom_type="phantom"
-        )
-        bom_kit_orderpoints = {
-            orderpoint: bom_kits[orderpoint.product_id]
-            for orderpoint in self
-            if orderpoint.product_id in bom_kits
-        }
-        orderpoints_without_kit = self - self.env["stock.warehouse.orderpoint"].concat(
-            *bom_kit_orderpoints.keys()
-        )
-        _debug.pipeline(
-            "orderpoint_in_progress",
-            orderpoints=self,
-            kits=len(bom_kit_orderpoints),
-            plain=len(orderpoints_without_kit),
-        )
-        res = super(
-            StockWarehouseOrderpoint, orderpoints_without_kit
-        )._get_quantity_in_progress()
-        for orderpoint, bom_kit in bom_kit_orderpoints.items():
-            _dummy, bom_sub_lines = bom_kit._explode(orderpoint.product_id, 1)
-            ratios_qty_available = []
-            ratios_total = []
-            for bom_line, bom_line_data in bom_sub_lines:
-                component = bom_line.product_id
-                if not component.is_storable or bom_line.product_uom_id.is_zero(
-                    bom_line_data["qty"]
-                ):
-                    continue
-                uom_qty_per_kit = bom_line_data["qty"] / bom_line_data["original_qty"]
-                qty_per_kit = bom_line.product_uom_id._get_quantity_estimate(
-                    uom_qty_per_kit, bom_line.product_id.uom_id
-                )
-                if not qty_per_kit:
-                    continue
-                qty_by_product_location, _dummy = component._get_quantity_in_progress(
-                    orderpoint.location_id.ids
-                )
-                qty_in_progress = qty_by_product_location.get(
-                    (component.id, orderpoint.location_id.id), 0.0
-                )
-                qty_available = component.qty_available / qty_per_kit
-                ratios_qty_available.append(qty_available)
-                ratios_total.append(qty_available + (qty_in_progress / qty_per_kit))
-            product_qty = min(ratios_total or [0]) - min(ratios_qty_available or [0])
-            res[orderpoint.id] = orderpoint.product_id.uom_id._get_quantity_estimate(
-                product_qty, orderpoint.product_uom_id, round=False
-            )
-
+        res = super()._get_quantity_in_progress()
         productions_group = self.env["mrp.production"]._read_group(
             [
                 ("state", "=", "draft"),
-                ("orderpoint_id", "in", orderpoints_without_kit.ids),
+                ("orderpoint_id", "in", self.ids),
                 ("id", "not in", self.env.context.get("ignore_mo_ids", [])),
             ],
             ["orderpoint_id", "product_uom_id"],
@@ -370,7 +296,7 @@ class StockWarehouseOrderpoint(models.Model):
         in_progress_productions = self.env["mrp.production"].search(
             [
                 ("state", "=", "confirmed"),
-                ("orderpoint_id", "in", orderpoints_without_kit.ids),
+                ("orderpoint_id", "in", self.ids),
                 ("id", "not in", self.env.context.get("ignore_mo_ids", [])),
             ]
         )

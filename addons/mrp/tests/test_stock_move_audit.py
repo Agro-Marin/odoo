@@ -1,3 +1,5 @@
+import gc
+
 from psycopg.errors import CheckViolation
 
 from odoo import Command
@@ -390,6 +392,105 @@ class TestStockMoveAudit(TestMrpCommon):
             "asked once. Asked once per move it cost three calls per kit instead "
             "of one (measured: %d calls for 2 kits, %d for 10)" % (few, many),
         )
+
+    def test_component_lines_follow_their_move_to_another_work_order(self):
+        component = self._make_product("Relinked part")
+        bom = self._make_bom(self.finished, [(component, 1.0)])
+        first, second = self.env["mrp.routing.workcenter"].create(
+            [
+                {
+                    "name": name,
+                    "bom_id": bom.id,
+                    "workcenter_id": self.workcenter_1.id,
+                    "time_cycle_manual": 10,
+                }
+                for name in ("First", "Second")
+            ]
+        )
+        bom.bom_line_ids.operation_id = first
+        production = self._confirmed_order(bom)
+        self.env["stock.quant"]._update_available_quantity(
+            component, production.location_src_id, 10
+        )
+        production.action_assign()
+        move = production.move_raw_ids
+        self.assertTrue(move.move_line_ids)
+        production.button_plan()
+        self.assertEqual(move.workorder_id.operation_id, first)
+        self.assertEqual(move.move_line_ids.workorder_id, move.workorder_id)
+        move.operation_id = second
+        production._link_moves_to_workorders()
+        self.assertEqual(move.workorder_id.operation_id, second)
+        self.assertEqual(move.move_line_ids.workorder_id, move.workorder_id)
+        self.assertEqual(move.move_line_ids.production_id, production)
+
+    def _make_kits(self, count, tag):
+        kits = self.env["product.product"]
+        for index in range(count):
+            first = self._make_product("Warm %s A %d" % (tag, index))
+            second = self._make_product("Warm %s B %d" % (tag, index))
+            kit = self._make_product("Warm %s Kit %d" % (tag, index))
+            self._make_bom(kit, [(first, 2.0), (second, 1.0)], bom_type="phantom")
+            for component in first | second:
+                self.env["stock.quant"]._update_available_quantity(
+                    component, self.stock_location, 10
+                )
+            kits |= kit
+        return kits
+
+    def _cold_statements(self, action):
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.env.registry.clear_all_caches()
+        self.env.cr.cache.clear()
+        gc.collect()
+        before = self.env.cr.sql_statement_count
+        result = action()
+        self.env.flush_all()
+        return self.env.cr.sql_statement_count - before, result
+
+    def _kit_quantity_statements(self, count, tag):
+        kits = self._make_kits(count, tag)
+        statements, quantities = self._cold_statements(
+            lambda: kits.browse(kits.ids).mapped("qty_available")
+        )
+        self.assertEqual(set(quantities), {5.0})
+        return statements
+
+    def test_kit_quantities_walk_every_kit_closure_at_once(self):
+        self._kit_quantity_statements(1, "Warmup")
+        self.assertEqual(
+            self._kit_quantity_statements(3, "Few"),
+            self._kit_quantity_statements(12, "Many"),
+        )
+
+    def _kit_explode_statements(self, count, tag):
+        kits = self._make_kits(count, tag)
+        moves = self.env["stock.move"].create(
+            [
+                {
+                    "product_id": kit.id,
+                    "product_uom_qty": 1.0,
+                    "location_id": self.stock_location.id,
+                    "location_dest_id": self.env.ref(
+                        "stock.stock_location_customers"
+                    ).id,
+                    "picking_type_id": self.warehouse_1.out_type_id.id,
+                }
+                for kit in kits
+            ]
+        )
+        statements, exploded = self._cold_statements(
+            lambda: moves.browse(moves.ids).action_explode()
+        )
+        self.assertEqual(len(exploded), 2 * count)
+        return statements
+
+    def test_exploding_kits_walks_every_kit_closure_at_once(self):
+        self._kit_explode_statements(1, "Warmup")
+        few = self._kit_explode_statements(3, "Few")
+        many = self._kit_explode_statements(12, "Many")
+        self.assertLessEqual(many - few, 12 - 3, "one statement per kit at most")
 
     def test_creating_moves_for_many_orders_reads_the_orders_once(self):
         component = self._make_product("Audit Batch Component")

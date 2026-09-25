@@ -383,25 +383,11 @@ class StockWarehouseOrderpoint(models.Model):
         orderpoints_to_compute = self.filtered(
             lambda orderpoint: orderpoint.product_id and orderpoint.location_id,
         )
-        Rule = self.env["stock.rule"]
-        warehouses = Rule._get_rule_chain_warehouses()
-        rules_cache = {}
         for orderpoint in orderpoints_to_compute:
-            cache_key = Rule._get_rule_chain_key(
-                orderpoint.product_id,
+            orderpoint.rule_ids = orderpoint.product_id._get_rules_from_location(
                 orderpoint.location_id,
-                orderpoint.route_id,
-                warehouses,
+                route_ids=orderpoint.route_id,
             )
-            if cache_key in rules_cache:
-                rule_ids = rules_cache[cache_key]
-            else:
-                rule_ids = orderpoint.product_id._get_rules_from_location(
-                    orderpoint.location_id,
-                    route_ids=orderpoint.route_id,
-                )
-                rules_cache[cache_key] = rule_ids
-            orderpoint.rule_ids = rule_ids
         (self - orderpoints_to_compute).rule_ids = False
 
     @api.depends("product_min_qty")

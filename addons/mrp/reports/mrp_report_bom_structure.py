@@ -926,7 +926,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         if manufacture_rules:
             delays, _description = rules.with_context(
                 bypass_delay_description=True
-            )._get_lead_days(product, bom=bom)
+            )._get_lead_days(product, bom_id=bom)
             return {
                 "route_type": "manufacture",
                 "route_name": manufacture_rules[0].route_id.display_name,

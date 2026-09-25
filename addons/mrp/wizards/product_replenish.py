@@ -59,7 +59,7 @@ class ProductReplenish(models.TransientModel):
         )
         delays, _description = rules.with_context(
             bypass_delay_description=True
-        )._get_lead_days(product, bom=bom)
+        )._get_lead_days(product, bom_id=bom)
         _debug.logic(
             "replenish_date_planned",
             product=product.id,

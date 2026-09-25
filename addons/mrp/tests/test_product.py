@@ -297,7 +297,9 @@ class TestMrpProductRoutes(TestMrpCommon):
             self.env["stock.route"],
             warehouses,
         )
-        return self.env["stock.route"].browse(key[-1])
+        return self.env["stock.route"].browse(
+            {route_id for _company, route_ids in key[-1] for route_id in route_ids}
+        )
 
     def test_manufacture_route_follows_the_variant_that_has_the_bom(self):
         attribute = self.env["product.attribute"].create(

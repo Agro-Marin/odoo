@@ -105,8 +105,16 @@ class PurchaseOrderLine(models.Model):
                 "incoming_moves": lambda m: True,
                 "outgoing_moves": lambda m: False,
             }
-            return move_dests._get_kit_quantity(
-                self.product_id, self.product_qty, kit_bom, filters
+            kits = move_dests._get_kit_quantity(
+                self.product_id,
+                self.product_uom_id._get_quantity_reconcile(
+                    self.product_qty, kit_bom.product_uom_id
+                ),
+                kit_bom,
+                filters,
+            )
+            return kit_bom.product_uom_id._get_quantity_in_unit(
+                kits, self.product_uom_id, rounding_method="HALF-UP"
             )
         return super()._get_stock_move_dests_initial_demand(move_dests)
 

@@ -379,13 +379,17 @@ class StockScrap(models.Model):
             return True
 
         precision = self.env["decimal.precision"].get_precision("Product Unit")
-        available_qty = self.with_context(
-            location=self.location_id.id,
-            lot_id=self.lot_id.id,
-            package_id=self.package_id.id,
-            owner_id=self.owner_id.id,
-            strict=True,
-        ).product_id.qty_available
+        available_qty = (
+            self.with_company(self.company_id)
+            .with_context(
+                location=self.location_id.id,
+                lot_id=self.lot_id.id,
+                package_id=self.package_id.id,
+                owner_id=self.owner_id.id,
+                strict=True,
+            )
+            .product_id.qty_available
+        )
         scrap_qty = self.product_uom_id._get_quantity_in_unit(
             self.scrap_qty, self.product_id.uom_id
         )

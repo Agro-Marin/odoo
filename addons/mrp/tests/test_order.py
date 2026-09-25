@@ -5154,7 +5154,7 @@ class TestMrpOrder(TestMrpCommon):
 
         self.bom_1.days_to_prepare_mo = 2
         self.bom_1.produce_delay = 3
-        delays, _ = rule._get_lead_days(self.bom_1.product_id, bom=self.bom_1)
+        delays, _ = rule._get_lead_days(self.bom_1.product_id, bom_id=self.bom_1)
         self.assertEqual(
             delays["total_delay"],
             +self.bom_1.days_to_prepare_mo + self.bom_1.produce_delay,
@@ -5162,7 +5162,7 @@ class TestMrpOrder(TestMrpCommon):
 
         warehouse.manufacture_steps = "pbm_sam"
         warehouse.pbm_route_id.rule_ids.delay = 100
-        delays, _ = rule._get_lead_days(self.bom_1.product_id, bom=self.bom_1)
+        delays, _ = rule._get_lead_days(self.bom_1.product_id, bom_id=self.bom_1)
         self.assertEqual(
             delays["total_delay"],
             +self.bom_1.days_to_prepare_mo + self.bom_1.produce_delay + 100 * 2,

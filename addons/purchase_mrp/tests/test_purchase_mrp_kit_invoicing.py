@@ -72,6 +72,44 @@ class TestKitQtyTransferred(AccountTestInvoicingCommon):
         res = po.line_ids._prepare_qty_transferred()
         self.assertEqual(res[po.line_ids], 1.0)
 
+    def test_half_a_dozen_kit_received_counts_six_units(self):
+        kit = self.env["product.product"].create(
+            {"name": "KI Dozen kit", "is_storable": True, "purchase_ok": True}
+        )
+        self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": kit.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "product_uom_id": self.env.ref("uom.product_uom_dozen").id,
+                "type": "phantom",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 12})
+                    for component in self.component_a | self.component_b
+                ],
+            },
+        )
+        po = self.env["purchase.order"].create(
+            {
+                "partner_id": self.partner.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": kit.id,
+                            "product_qty": 12,
+                            "product_uom_id": self.uom_unit.id,
+                            "price_unit": 60.0,
+                        }
+                    )
+                ],
+            },
+        )
+        po.action_confirm()
+        picking = po.picking_ids
+        picking.move_ids.write({"quantity": 6, "picked": True})
+        picking.with_context(cancel_backorder=False)._action_done()
+        self.assertEqual(po.line_ids._prepare_qty_transferred()[po.line_ids], 6.0)
+        self.assertEqual(po.line_ids.qty_transferred, 6.0)
+
     def test_prepare_qty_transferred_unreceived_kit_is_zero(self):
         po = self._make_confirmed_kit_po()
 

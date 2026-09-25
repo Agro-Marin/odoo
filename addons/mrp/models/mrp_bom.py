@@ -897,6 +897,31 @@ class MrpBom(models.Model):
             )
         return component_qty, kit_qty
 
+    def _warm_kit_closures(self):
+        by_scope = defaultdict(lambda: self.env["mrp.bom"])
+        for bom in self:
+            by_scope[bom.picking_type_id, bom.company_id] |= bom
+        for (picking_type, company), boms in by_scope.items():
+            seen = self.env["product.product"]
+            frontier = boms
+            while frontier:
+                products = frontier.bom_line_ids.product_id - seen
+                if not products:
+                    break
+                seen |= products
+                found = self._get_bom_by_product(
+                    products,
+                    picking_type=picking_type,
+                    company_id=company.id,
+                    bom_type="phantom",
+                )
+                frontier = self.env["mrp.bom"].union(*found.values())
+            _debug.perf.count(
+                "kit_closures_warmed",
+                boms=len(boms),
+                products=len(seen),
+            )
+
     def _get_kit_closure(
         self, product, picking_type=False, never_attribute_values=False
     ):

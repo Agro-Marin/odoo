@@ -1595,7 +1595,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             return False
         delays, _description = rules.with_context(
             bypass_delay_description=True
-        )._get_lead_days(product, bom=bom)
+        )._get_lead_days(product, bom_id=bom)
         return {
             "delay": delays["total_delay"],
             "cost": product.standard_price

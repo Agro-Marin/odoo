@@ -1,4 +1,5 @@
-from collections import defaultdict
+from functools import reduce
+from operator import or_
 
 from odoo import Command, api, fields, models
 from odoo.exceptions import ValidationError
@@ -510,6 +511,10 @@ class StockMove(models.Model):
             else {}
         )
         res = super().write(vals)
+        if "workorder_id" in vals:
+            self.filtered("raw_material_production_id").move_line_ids.filtered(
+                lambda line: line.state not in ("done", "cancel")
+            ).write({"workorder_id": vals["workorder_id"]})
         _debug.lifecycle(
             "write",
             moves=self,
@@ -610,21 +615,6 @@ class StockMove(models.Model):
         if procurements:
             self.env["stock.rule"].run(procurements)
 
-    def _action_assign(self):
-        res = super()._action_assign()
-        lines_by_owner = defaultdict(list)
-        for move in self.filtered("raw_material_production_id"):
-            if move.move_line_ids:
-                key = (move.raw_material_production_id.id, move.workorder_id.id)
-                lines_by_owner[key].extend(move.move_line_ids.ids)
-        move_lines = self.env["stock.move.line"]
-        _debug.pipeline("raw_move_lines_owned", moves=self, owners=len(lines_by_owner))
-        for (production_id, workorder_id), line_ids in lines_by_owner.items():
-            move_lines.browse(line_ids).write(
-                {"production_id": production_id, "workorder_id": workorder_id}
-            )
-        return res
-
     def _action_confirm(self, merge=True, merge_into=False, create_proc=True):
         moves = self.action_explode()
         merge_into = merge_into and merge_into.action_explode()
@@ -633,9 +623,9 @@ class StockMove(models.Model):
         )
 
     def _action_done(self, cancel_backorder=False):
-        moves_to_explode = self.filtered(
-            lambda m: m.product_id.is_kit and m.state not in ("cancel", "done")
-        )
+        open_moves = self.filtered(lambda m: m.state not in ("cancel", "done"))
+        kit_boms = open_moves._get_kit_boms()
+        moves_to_explode = open_moves.filtered(lambda m: m in kit_boms)
         exploded_moves = moves_to_explode.action_explode()
         moves = (self - moves_to_explode) | exploded_moves
         return super(StockMove, moves)._action_done(cancel_backorder)
@@ -659,19 +649,18 @@ class StockMove(models.Model):
 
     def _get_kit_boms(self):
         boms = {}
-        moves_by_company = defaultdict(list)
-        for move in self:
-            moves_by_company[move.company_id].append(move.id)
-        for company, move_ids in moves_by_company.items():
-            boms.update(
-                self.env["mrp.bom"]
-                .sudo()
-                ._get_bom_by_product(
-                    self.browse(move_ids).product_id,
-                    company_id=company.id,
-                    bom_type="phantom",
-                )
+        Bom = self.env["mrp.bom"].sudo()
+        for company, moves in self.grouped("company_id").items():
+            by_product = Bom._get_bom_by_product(
+                moves.product_id, company_id=company.id, bom_type="phantom"
             )
+            for move in moves:
+                scrap = move.scrap_id
+                bom = (
+                    scrap.product_id == move.product_id and scrap.bom_id
+                ) or by_product.get(move.product_id)
+                if bom:
+                    boms[move] = bom
         return boms
 
     def action_explode(self):
@@ -683,6 +672,8 @@ class StockMove(models.Model):
         )
         explodable = self.filtered(lambda move: move._is_explodable())
         kit_boms = explodable._get_kit_boms()
+        if kit_boms:
+            reduce(or_, kit_boms.values())._warm_kit_closures()
         _debug.pipeline(
             "move_explode",
             moves=self,
@@ -690,7 +681,7 @@ class StockMove(models.Model):
             kits=len(kit_boms),
         )
         for move in self:
-            bom = kit_boms.get(move.product_id) if move in explodable else None
+            bom = kit_boms.get(move)
             if not bom:
                 moves_ids_to_return.add(move.id)
                 continue
@@ -963,23 +954,32 @@ class StockMove(models.Model):
                 final_outgoing_moves = outgoing_moves - outgoing_moves.move_orig_ids
                 qty_outgoing = sum(final_outgoing_moves.mapped(get_qty))
                 qty_processed = qty_incoming - qty_outgoing
-                qty_ratios.append(
-                    bom_line.product_id.uom_id.round(qty_processed / qty_per_kit)
-                )
+                qty_ratios.append(qty_processed / qty_per_kit)
             else:
                 return 0.0
+        if not qty_ratios:
+            return 0.0
+        product_uom = product_id.uom_id
+        whole_kits = (
+            product_uom.round(
+                kit_bom.product_uom_id._get_quantity_in_unit(
+                    min(qty_ratios), product_uom, round=False
+                ),
+                rounding_method="DOWN",
+            )
+            // 1
+        )
         _debug.logic(
             "kit_quantity",
             kit_bom=kit_bom.id,
             product=product_id.id,
             lines=len(bom_sub_lines),
             ratios=len(qty_ratios),
-            qty=min(qty_ratios) // 1 if qty_ratios else 0.0,
+            qty=whole_kits,
         )
-        if qty_ratios:
-            return min(qty_ratios) // 1
-        else:
-            return 0.0
+        return product_uom._get_quantity_in_unit(
+            whole_kits, kit_bom.product_uom_id, round=False
+        )
 
     @api.model
     def _is_kit_component_moved(self, bom_line):

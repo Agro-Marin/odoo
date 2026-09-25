@@ -136,6 +136,28 @@ class TestSaleMrpKitQuantity(BaseCommon):
 
         self.assertEqual(line.qty_transferred, 20.0)
 
+    def test_half_a_dozen_kit_delivered_counts_six_units(self):
+        first = self._create_product("Dozen first")
+        second = self._create_product("Dozen second")
+        kit = self._create_product("Dozen kit")
+        self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": kit.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "type": "phantom",
+                "product_uom_id": self.uom_dozen.id,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 12})
+                    for component in first | second
+                ],
+            }
+        )
+        order = self._sell(kit, 12.0)
+        picking = order.picking_ids
+        picking.move_ids.write({"quantity": 6, "picked": True})
+        picking.with_context(cancel_backorder=False)._action_done()
+        self.assertEqual(order.line_ids.qty_transferred, 6.0)
+
     def test_compute_uom_qty_scales_by_the_bom_batch(self):
         component = self._create_product("Scaled component")
         kit = self._create_kit(

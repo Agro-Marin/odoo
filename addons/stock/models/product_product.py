@@ -482,9 +482,10 @@ class ProductProduct(models.Model):
     def _get_quantity_in_progress(self, location_ids=False, warehouse_ids=False):
         return defaultdict(float), defaultdict(float)
 
-    def _get_rules_from_location(self, location, route_ids=False, seen_rules=False):
-        if not seen_rules:
-            seen_rules = self.env["stock.rule"]
+    def _get_rules_from_location(self, location, route_ids=False):
+        return self.env["stock.rule"]._get_rule_chain(self, location, route_ids)
+
+    def _walk_rules_from_location(self, location, route_ids, seen_rules):
         warehouse = location.warehouse_id
         rule = (
             self.env["stock.rule"]
@@ -533,10 +534,8 @@ class ProductProduct(models.Model):
                 rule=rule.id,
                 next_location=rule.location_src_id.id,
             )
-            return self._get_rules_from_location(
-                rule.location_src_id,
-                route_ids=route_ids,
-                seen_rules=seen_rules | rule,
+            return self._walk_rules_from_location(
+                rule.location_src_id, route_ids, seen_rules | rule
             )
 
     def _get_dates_info(self, date_planned, location, route_ids=False, rules=None):

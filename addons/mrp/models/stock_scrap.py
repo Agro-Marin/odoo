@@ -19,7 +19,7 @@ class StockScrap(models.Model):
         index="btree_not_null",
         check_company=True,
     )
-    product_is_kit = fields.Boolean(related="product_id.is_kit")
+    product_is_kit = fields.Boolean(compute="_compute_product_is_kit")
     product_template = fields.Many2one(related="product_id.product_tmpl_id")
     bom_id = fields.Many2one(
         comodel_name="mrp.bom",
@@ -91,28 +91,39 @@ class StockScrap(models.Model):
         else:
             self.bom_id = False
 
+    @api.depends("product_id", "company_id")
+    def _compute_product_is_kit(self):
+        for scrap in self:
+            scrap.product_is_kit = scrap.product_id.with_company(
+                scrap.company_id
+            ).is_kit
+
     @api.depends("move_ids", "move_ids.move_line_ids.quantity", "product_id")
     def _compute_scrap_qty(self):
-        self.scrap_qty = 1
-        for scrap in self:
-            if not scrap.bom_id:
-                super(StockScrap, scrap)._compute_scrap_qty()
+        kit_scraps = self.filtered("bom_id")
+        super(StockScrap, self - kit_scraps)._compute_scrap_qty()
+        filters = {
+            "incoming_moves": lambda m: True,
+            "outgoing_moves": lambda m: False,
+        }
+        for scrap in kit_scraps:
+            if not scrap.move_ids:
+                scrap.scrap_qty = 1
                 continue
-            if scrap.move_ids:
-                filters = {
-                    "incoming_moves": lambda m: True,
-                    "outgoing_moves": lambda m: False,
-                }
-                scrap.scrap_qty = scrap.move_ids._get_kit_quantity(
-                    scrap.product_id, scrap.scrap_qty, scrap.bom_id, filters
-                )
+            bom = scrap.bom_id
+            kits = scrap.move_ids._get_kit_quantity(
+                scrap.product_id, bom.product_qty, bom, filters
+            )
+            scrap.scrap_qty = bom.product_uom_id._get_quantity_stored(
+                kits, scrap.product_uom_id
+            )
 
     def _is_available_qty_check_required(self):
         return super()._is_available_qty_check_required() or self.product_is_kit
 
     def _create_scrap_move(self):
         move = super()._create_scrap_move()
-        if self.product_id.is_kit:
+        if self.product_is_kit:
             move = move.with_context(is_scrap=True).action_explode()
         return move
 

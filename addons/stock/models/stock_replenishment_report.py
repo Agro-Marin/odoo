@@ -104,22 +104,12 @@ class StockReplenishmentReport(models.AbstractModel):
 
         location_by_id = {location.id: location for location in locations}
         Orderpoint = self.env["stock.warehouse.orderpoint"]
-        Rule = self.env["stock.rule"]
-        warehouses = Rule._get_rule_chain_warehouses()
-        no_route = self.env["stock.route"]
-        rules_cache = {}
         products_by_horizon = defaultdict(set)
         for (product, location_id), quantity in uncovered.items():
             if product.uom_id.compare(quantity, 0) >= 0:
                 continue
             location = location_by_id[location_id]
-            cache_key = Rule._get_rule_chain_key(
-                product, location, no_route, warehouses
-            )
-            rules = rules_cache.get(cache_key)
-            if rules is None:
-                rules = product._get_rules_from_location(location)
-                rules_cache[cache_key] = rules
+            rules = product._get_rules_from_location(location)
             lead_days = rules.with_context(
                 bypass_delay_description=True,
                 global_horizon_days=Orderpoint._get_horizon_days(location.company_id),
@@ -131,7 +121,6 @@ class StockReplenishmentReport(models.AbstractModel):
         _debug.perf.count(
             "projected_shortages_reads",
             forecast_reads=len(products_by_horizon),
-            rule_lookups=len(rules_cache),
         )
         for (horizon, location), product_ids in products_by_horizon.items():
             candidates = self.env["product.product"].browse(product_ids)

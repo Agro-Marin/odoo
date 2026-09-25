@@ -79,6 +79,9 @@ class StockRule(models.Model):
             )
             for company, product_ids in product_by_company.items()
         }
+        self.env["mrp.bom"].union(
+            *(bom for kits in kits_by_company.values() for bom in kits.values())
+        )._warm_kit_closures()
         for procurement in procurements:
             bom_kit = kits_by_company[procurement.company_id].get(
                 procurement.product_id
@@ -513,15 +516,8 @@ class StockRule(models.Model):
         if not manufacture_rule:
             return delays, delay_description
         manufacture_rule.check_singleton()
-        bom = (
-            values.get("bom")
-            or (
-                self.env["mrp.bom"]._get_bom_by_product(
-                    product,
-                    picking_type=manufacture_rule.picking_type_id,
-                    company_id=manufacture_rule.company_id.id,
-                )[product]
-            )
+        bom = manufacture_rule._get_matching_bom(
+            product, manufacture_rule.company_id or self.env.company, values
         )
         if not bom:
             _debug.logic(

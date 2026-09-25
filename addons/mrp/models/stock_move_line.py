@@ -167,14 +167,15 @@ class StockMoveLine(models.Model):
 
     def _prepare_stock_move_vals(self):
         move_vals = super()._prepare_stock_move_vals()
-        if self.env["product.product"].browse(move_vals["product_id"]).is_kit:
+        product = self.env["product.product"].browse(move_vals["product_id"])
+        if product.with_company(self.company_id).is_kit:
             move_vals["location_id"] = self.location_id.id
             move_vals["location_dest_id"] = self.location_dest_id.id
         return move_vals
 
     def _get_linkable_moves(self):
         moves = super()._get_linkable_moves()
-        if not self.product_id.is_kit:
+        if not self.product_id.with_company(self.company_id).is_kit:
             return moves
         return moves.filtered(
             lambda move: (

@@ -261,7 +261,7 @@ class TestOrderGuards(TestMrpCommon):
         self.bom.produce_delay = 5
         rule = self.warehouse_1.manufacture_pull_id
         delays, _descriptions = rule._get_lead_days(
-            self.finished, bom=self.env["mrp.bom"]
+            self.finished, bom_id=self.env["mrp.bom"]
         )
         self.assertEqual(delays["no_bom_found_delay"], 0)
         self.assertEqual(delays["manufacture_delay"], 5)

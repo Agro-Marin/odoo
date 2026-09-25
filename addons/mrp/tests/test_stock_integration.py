@@ -1,3 +1,4 @@
+import gc
 from datetime import timedelta
 
 from odoo import Command, fields
@@ -298,6 +299,284 @@ class TestStockIntegration(TestMrpCommon):
         scrap.action_validate()
         self.assertEqual(scrap.move_ids.product_id, component)
         self.assertEqual(scrap.scrap_qty, 2)
+
+    def make_kit(self, product, components, **values):
+        return self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": product.product_tmpl_id.id,
+                "type": "phantom",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": qty})
+                    for component, qty in components
+                ],
+                **values,
+            }
+        )
+
+    def make_storables(self, *names, **values):
+        return self.env["product.product"].create(
+            [{"name": name, "is_storable": True, **values} for name in names]
+        )
+
+    def test_half_a_dozen_kit_scrapped_in_units_counts_six_units(self):
+        first, second, kit = self.make_storables(
+            "Half first", "Half second", "Half kit"
+        )
+        bom = self.make_kit(
+            kit, [(first, 12), (second, 12)], product_uom_id=self.uom_dozen.id
+        )
+        for component in first | second:
+            self.env["stock.quant"]._update_available_quantity(
+                component, self.stock_location, 100
+            )
+        scrap = self.env["stock.scrap"].create(
+            {
+                "product_id": kit.id,
+                "product_uom_id": self.uom_unit.id,
+                "bom_id": bom.id,
+                "scrap_qty": 6,
+                "location_id": self.stock_location.id,
+            }
+        )
+        scrap.action_validate()
+        self.assertEqual(
+            sorted(scrap.move_ids.mapped("quantity")), [6.0, 6.0], "6 + 6 scrapped"
+        )
+        self.assertEqual(self.stored(scrap, "scrap_qty"), 6)
+        filters = {"incoming_moves": lambda m: True, "outgoing_moves": lambda m: False}
+        self.assertEqual(
+            scrap.move_ids._get_kit_quantity(kit, 1, bom, filters),
+            0.5,
+            "six whole kits are half of the BoM's dozen",
+        )
+
+    def test_a_kit_scrapped_in_dozens_reads_its_units_in_dozens(self):
+        component, kit = self.make_storables("Dozen part", "Dozen kit")
+        bom = self.make_kit(kit, [(component, 1)])
+        self.env["stock.quant"]._update_available_quantity(
+            component, self.stock_location, 100
+        )
+        scrap = self.env["stock.scrap"].create(
+            {
+                "product_id": kit.id,
+                "product_uom_id": self.uom_dozen.id,
+                "bom_id": bom.id,
+                "scrap_qty": 2,
+                "location_id": self.stock_location.id,
+            }
+        )
+        scrap.action_validate()
+        self.assertEqual(scrap.move_ids.quantity, 24)
+        self.assertEqual(self.stored(scrap, "scrap_qty"), 2)
+
+    def test_a_scrap_explodes_the_kit_it_names(self):
+        first, second, kit = self.make_storables("Named A", "Named B", "Named kit")
+        self.make_kit(kit, [(first, 1)], sequence=1)
+        chosen = self.make_kit(kit, [(second, 1)], sequence=2)
+        for component in first | second:
+            self.env["stock.quant"]._update_available_quantity(
+                component, self.stock_location, 10
+            )
+        scrap = self.env["stock.scrap"].create(
+            {
+                "product_id": kit.id,
+                "bom_id": chosen.id,
+                "scrap_qty": 2,
+                "location_id": self.stock_location.id,
+            }
+        )
+        scrap.action_validate()
+        self.assertEqual(scrap.move_ids.product_id, second)
+        self.assertEqual(scrap.move_ids.bom_line_id.bom_id, chosen)
+        self.assertEqual(self.stored(scrap, "scrap_qty"), 2)
+
+    def test_a_kit_of_another_company_is_scrapped_from_that_company(self):
+        component, kit = self.make_storables(
+            "Other company part", "Other company kit", company_id=False
+        )
+        self.make_kit(kit, [(component, 2)], company_id=self.company_b.id)
+        self.env["stock.quant"].with_company(self.company_b)._update_available_quantity(
+            component, self.warehouse_b.lot_stock_id, 10
+        )
+        scrap = self.env_ab()["stock.scrap"].create(
+            {
+                "product_id": kit.id,
+                "scrap_qty": 1,
+                "company_id": self.company_b.id,
+                "location_id": self.warehouse_b.lot_stock_id.id,
+            }
+        )
+        self.assertTrue(scrap.product_is_kit)
+        self.assertIs(scrap.action_validate(), True)
+        self.assertEqual(
+            [(move.product_id, move.quantity) for move in scrap.move_ids],
+            [(component, 2.0)],
+        )
+
+    def test_a_kit_of_another_company_is_exploded_when_done_from_elsewhere(self):
+        component, kit = self.make_storables(
+            "Done elsewhere part", "Done elsewhere kit", company_id=False
+        )
+        self.make_kit(kit, [(component, 2)], company_id=self.company_b.id)
+        env = self.env_ab()
+        move = env["stock.move"].create(
+            {
+                "product_id": kit.id,
+                "product_uom_qty": 0,
+                "quantity": 1,
+                "picked": True,
+                "company_id": self.company_b.id,
+                "location_id": self.warehouse_b.lot_stock_id.id,
+                "location_dest_id": self.customer_location.id,
+                "picking_type_id": self.warehouse_b.out_type_id.id,
+                "state": "assigned",
+            }
+        )
+        done = move._action_done()
+        self.assertEqual(
+            [(done_move.product_id, done_move.quantity) for done_move in done],
+            [(component, 2.0)],
+        )
+
+    def test_a_kit_of_another_company_leaves_the_orders_in_progress(self):
+        component, product = self.make_storables(
+            "In progress part", "In progress made", company_id=False
+        )
+        self.make_kit(product, [(component, 1)], company_id=self.company_b.id)
+        orderpoint = self.env["stock.warehouse.orderpoint"].create(
+            {
+                "product_id": product.id,
+                "warehouse_id": self.warehouse_1.id,
+                "location_id": self.warehouse_1.lot_stock_id.id,
+                "product_min_qty": 5,
+                "product_max_qty": 10,
+            }
+        )
+        self.env["mrp.production"].create(
+            {
+                "product_id": product.id,
+                "product_qty": 5,
+                "orderpoint_id": orderpoint.id,
+                "bom_id": False,
+            }
+        )
+        for env in (self.env, self.env_ab()):
+            with self.subTest(companies=env.companies.ids):
+                self.assertEqual(
+                    orderpoint.with_env(env)._get_quantity_in_progress()[orderpoint.id],
+                    5,
+                )
+
+    def make_other_manufacture_type(self):
+        return self.warehouse_1.manu_type_id.copy(
+            {"name": "Other manufacturing", "sequence_code": "OMO"}
+        )
+
+    def make_orderpoint(self, product, **values):
+        return self.env["stock.warehouse.orderpoint"].create(
+            {
+                "product_id": product.id,
+                "warehouse_id": self.warehouse_1.id,
+                "location_id": self.warehouse_1.lot_stock_id.id,
+                "product_min_qty": 5,
+                "product_max_qty": 10,
+                **values,
+            }
+        )
+
+    def test_lead_days_use_the_bom_of_another_operation_type_the_order_uses(self):
+        (product,) = self.make_storables("Other type made")
+        bom = self.make_bom(
+            product,
+            picking_type_id=self.make_other_manufacture_type().id,
+            produce_delay=2,
+            days_to_prepare_mo=1,
+        )
+        orderpoint = self.make_orderpoint(product)
+        self.assertEqual(orderpoint.effective_bom_id, bom)
+        self.assertEqual(orderpoint.days_to_order, 1)
+        self.assertEqual(orderpoint.lead_days, 3)
+        rule = orderpoint.rule_ids.filtered(lambda rule: rule.action == "manufacture")
+        delays, _description = rule._get_lead_days(product)
+        self.assertEqual(
+            (delays["no_bom_found_delay"], delays["manufacture_delay"]), (0, 2)
+        )
+        orderpoint.action_replenish()
+        self.assertEqual(
+            self.env["mrp.production"].search([("product_id", "=", product.id)]).bom_id,
+            bom,
+        )
+
+    def test_a_variant_without_its_own_bom_warns_on_a_manufacture_route(self):
+        without, with_bom = self.make_variants("Warned variant")
+        self.make_bom(without, product_id=with_bom.id)
+        orderpoint = self.make_orderpoint(without, route_id=self.manufacture_route.id)
+        self.assertIn("manufacture", orderpoint.rule_ids.mapped("action"))
+        self.assertFalse(orderpoint.effective_bom_id)
+        self.assertTrue(orderpoint.show_supply_warning)
+
+    def test_the_replenishment_multiple_follows_the_bom_the_order_uses(self):
+        (product,) = self.make_storables("Multiple made")
+        self.make_bom(
+            product,
+            picking_type_id=self.make_other_manufacture_type().id,
+            sequence=1,
+            product_uom_id=self.uom_dozen.id,
+        )
+        used = self.make_bom(
+            product, picking_type_id=self.warehouse_1.manu_type_id.id, sequence=2
+        )
+        orderpoint = self.make_orderpoint(product)
+        self.assertEqual(orderpoint.effective_bom_id, used)
+        self.assertEqual(
+            orderpoint._get_replenishment_multiple_alternative_map({orderpoint.id: 10})[
+                orderpoint.id
+            ],
+            self.uom_unit,
+        )
+        self.assertEqual(orderpoint.qty_to_order, 10)
+
+    def make_bom_levels(self, width):
+        def components(count):
+            return self.env["product.product"].create(
+                [
+                    {"name": f"Level part {index}", "is_storable": True}
+                    for index in range(count)
+                ]
+            )
+
+        bom = self.env["mrp.bom"]
+        below = self.env["product.product"]
+        for _level in range(3):
+            (made,) = self.make_storables("Level made")
+            bom = self.make_kit(
+                made,
+                [
+                    (component, 2)
+                    for component in components(width - len(below)) | below
+                ],
+                type="normal",
+            )
+            below = made
+        return bom
+
+    def bom_structure_statements(self, width):
+        bom = self.make_bom_levels(width)
+        report = self.env["report.mrp.report_bom_structure"]
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.env.registry.clear_all_caches()
+        self.env.cr.cache.clear()
+        gc.collect()
+        before = self.env.cr.sql_statement_count
+        report._get_report_data(bom.id)
+        return self.env.cr.sql_statement_count - before
+
+    def test_the_bom_structure_resolves_one_rule_chain_per_route_set(self):
+        self.bom_structure_statements(2)
+        self.assertLessEqual(
+            self.bom_structure_statements(20), self.bom_structure_statements(5)
+        )
 
     def make_lead_time_orderpoint(self, horizon_days=0, **orderpoint_values):
         self.env.company.stock_config_id.horizon_days = horizon_days

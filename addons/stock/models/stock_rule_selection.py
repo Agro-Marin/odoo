@@ -16,6 +16,10 @@ RULE_IDS_BY_ROUTE = TransactionMemo(
 CHAIN_WAREHOUSE_IDS = TransactionMemo(
     "stock.rule.chain_warehouse_ids", invalidated_by=("stock.warehouse",)
 )
+RULE_CHAIN_IDS = TransactionMemo(
+    "stock.rule.chain_ids",
+    invalidated_by=("stock.rule", "stock.route", "stock.location", "stock.warehouse"),
+)
 
 
 class StockRuleSelection(models.Model):
@@ -59,14 +63,47 @@ class StockRuleSelection(models.Model):
     @api.model
     def _get_rule_chain_key(self, product, location, route_ids, warehouses):
         # a chain can step into any warehouse, so usability is keyed over all of
-        # them; product and category routes stay apart because they rank first
+        # them, per company because a route is usable per company; product and
+        # category routes stay apart because they rank first
         return (
             location.id,
             frozenset(route_ids.ids),
             frozenset(product.route_ids.ids),
             frozenset(product.categ_id.total_route_ids.ids),
-            frozenset(self._get_valid_route_ids(route_ids, False, product, warehouses)),
+            frozenset(
+                (
+                    company.id,
+                    frozenset(
+                        self._get_valid_route_ids(
+                            route_ids, False, product, company_warehouses
+                        )
+                    ),
+                )
+                for company, company_warehouses in warehouses.grouped(
+                    "company_id"
+                ).items()
+            ),
         )
+
+    @api.model
+    def _get_rule_chain(self, product, location, route_ids):
+        route_ids = route_ids or self.env["stock.route"]
+        memo = RULE_CHAIN_IDS(self.env)
+        key = (
+            self.env.uid,
+            self.env.su,
+            tuple(self.env.companies.ids),
+            self._get_rule_chain_key(
+                product, location, route_ids, self._get_rule_chain_warehouses()
+            ),
+        )
+        rule_ids = memo.get(key)
+        _debug.perf.count("rule_chain_memo", hit=rule_ids is not None)
+        if rule_ids is None:
+            rule_ids = memo[key] = product._walk_rules_from_location(
+                location, route_ids, self.env["stock.rule"]
+            ).ids
+        return self.env["stock.rule"].browse(rule_ids)
 
     @api.model
     def _get_rule_candidates(self, values, locations, warehouse_ids, valid_route_ids):

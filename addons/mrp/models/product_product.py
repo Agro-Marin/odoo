@@ -198,12 +198,9 @@ class ProductProduct(models.Model):
             )
 
     def _prepare_quantities_vals(self, filters, location_domains=None):
-        bom_kits = (
-            self.env["mrp.bom"]
-            .sudo()
-            ._get_bom_by_product(
-                self, bom_type="phantom", company_id=self.env.company.id
-            )
+        Bom = self.env["mrp.bom"].sudo()
+        bom_kits = Bom._get_bom_by_product(
+            self, bom_type="phantom", company_id=self.env.company.id
         )
         kits = self.filtered(bom_kits.get)
         regular_products = self - kits
@@ -218,6 +215,7 @@ class ProductProduct(models.Model):
             return res
         qties = self.env.context.get("mrp_compute_quantities", {})
         qties.update(res)
+        Bom.union(*(bom_kits[product] for product in kits))._warm_kit_closures()
         exploded = {
             product: bom_kits[product]._explode(product, 1)[1] for product in kits
         }

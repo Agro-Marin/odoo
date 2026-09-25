@@ -72,6 +72,7 @@ class TestMrpOrderpointBatch(TransactionCase):
         self.env.flush_all()
         self.env.invalidate_all()
         self.env.registry.clear_all_caches()
+        self.env.cr.cache.clear()
         gc.collect()
         orderpoints = orderpoints.browse(orderpoints.ids)
         before = self.env.cr.sql_statement_count
@@ -128,6 +129,21 @@ class TestMrpOrderpointBatch(TransactionCase):
     def test_lead_time_statements_do_not_grow_without_boms(self):
         self.lead_time_statements(1)
         self.assertEqual(self.lead_time_statements(3), self.lead_time_statements(12))
+
+    def pbm_lead_days_statements(self, count):
+        count, lead_days = self.statements(
+            self.make_orderpoints(self.make_products(count, with_bom=True)),
+            lambda orderpoints: orderpoints.mapped("lead_days"),
+        )
+        self.assertEqual(set(lead_days), {0.0})
+        return count
+
+    def test_lead_days_in_steps_resolve_the_component_chain_once(self):
+        self.warehouse.manufacture_steps = "pbm"
+        self.pbm_lead_days_statements(1)
+        self.assertEqual(
+            self.pbm_lead_days_statements(3), self.pbm_lead_days_statements(12)
+        )
 
     def placeholder_statements(self, count):
         count, placeholders = self.statements(
