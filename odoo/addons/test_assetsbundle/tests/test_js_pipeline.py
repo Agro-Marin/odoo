@@ -477,3 +477,30 @@ class TestJsSourceMapAccuracy(TransactionCase):
             )
             checked += 1
         self.assertGreaterEqual(checked, 3, "expected several content-line mappings")
+
+
+class TestLoaderShimMinify(TransactionCase):
+    _TARGET = "odoo.addons.base.models.ir_qweb_assets"
+
+    def _fresh_shim(self):
+        IrQweb = type(self.env["ir.qweb"])
+        saved = IrQweb._loader_shim_cache
+        self.addCleanup(setattr, IrQweb, "_loader_shim_cache", saved)
+        IrQweb._loader_shim_cache = None
+        return IrQweb._prepare_loader_shim_js()
+
+    def test_shim_is_a_parsable_classic_script(self):
+        shim = self._fresh_shim()
+        self.assertIn("OdooModuleLoader", shim)
+        self.assertFalse(_MODULE_SYNTAX_RE.search(shim))
+
+    def test_shim_takes_esbuild_when_rjsmin_would_misread_it(self):
+        with (
+            patch(f"{self._TARGET}.rjsmin_misreads", return_value=True),
+            patch(f"{self._TARGET}.minify_js", return_value="/*esbuild*/") as mini,
+            patch(f"{self._TARGET}._rjsmin") as rj,
+        ):
+            shim = self._fresh_shim()
+        self.assertEqual(shim, "/*esbuild*/")
+        mini.assert_called_once()
+        rj.assert_not_called()
