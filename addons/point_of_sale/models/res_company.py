@@ -29,10 +29,7 @@ class ResCompany(models.Model):
         return self._search_config_link("point_of_sale.config", operator, value)
 
     def _compute_point_of_sale_config_id(self):
-        configs = self.env["point_of_sale.config"]._for_each(self)
-        by_company = dict(zip(configs.mapped("company_id").ids, configs, strict=True))
-        for company in self:
-            company.point_of_sale_config_id = by_company.get(company.id, False)
+        self._compute_config_link("point_of_sale_config_id")
 
     @api.model
     def _load_pos_data_domain(self, data, config):

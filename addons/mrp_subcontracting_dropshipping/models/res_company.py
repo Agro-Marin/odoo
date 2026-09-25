@@ -16,12 +16,7 @@ class ResCompany(models.Model):
         )
 
     def _compute_mrp_subcontracting_dropshipping_config_id(self):
-        configs = self.env["mrp_subcontracting_dropshipping.config"]._for_each(self)
-        by_company = dict(zip(configs.mapped("company_id").ids, configs, strict=True))
-        for company in self:
-            company.mrp_subcontracting_dropshipping_config_id = by_company.get(
-                company.id, False
-            )
+        self._compute_config_link("mrp_subcontracting_dropshipping_config_id")
 
     def _create_subcontracting_dropshipping_sequence(self):
         seq_vals = [

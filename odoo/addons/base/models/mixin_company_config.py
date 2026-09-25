@@ -201,13 +201,17 @@ class MixinCompanyConfig(models.AbstractModel):
 
     @api.model
     def _for_each(self, companies: models.Model) -> Self:
+        return self.browse(list(self._config_id_by_company(companies).values()))
+
+    @api.model
+    def _config_id_by_company(self, companies: models.Model) -> dict[int, int]:
         # a company not yet saved has no configuration to find or create
         companies = companies.filtered(lambda company: isinstance(company.id, int))
         by_company = self._config_ids_by_company()
-        config_ids = [by_company[cid] for cid in companies.ids if cid in by_company]
+        found = {cid: by_company[cid] for cid in companies.ids if cid in by_company}
         unmapped = companies.filtered(lambda company: company.id not in by_company)
         if not unmapped:
-            return self.browse(config_ids)
+            return found
         # a row another transaction committed after the map was read is found
         # here, and the map refreshed for the next request
         existing = (
@@ -225,4 +229,5 @@ class MixinCompanyConfig(models.AbstractModel):
             existing |= self.sudo().create(
                 [{"company_id": company.id} for company in missing]
             )
-        return self.browse(config_ids + existing.ids)
+        found.update((config.company_id.id, config.id) for config in existing)
+        return found

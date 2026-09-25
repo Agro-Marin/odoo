@@ -51,10 +51,7 @@ class ResCompany(models.Model):
         return self._search_config_link("mail.config", operator, value)
 
     def _compute_mail_config_id(self):
-        configs = self.env["mail.config"]._for_each(self)
-        by_company = dict(zip(configs.mapped("company_id").ids, configs, strict=True))
-        for company in self:
-            company.mail_config_id = by_company.get(company.id, False)
+        self._compute_config_link("mail_config_id")
 
     @api.depends("alias_domain_id.bounce_email", "name")
     def _compute_bounce(self) -> None:

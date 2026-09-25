@@ -22,10 +22,7 @@ class ResCompany(models.Model):
         return self._search_config_link("gateway_ml.config", operator, value)
 
     def _compute_gateway_ml_config_id(self):
-        configs = self.env["gateway_ml.config"]._for_each(self)
-        by_company = dict(zip(configs.mapped("company_id").ids, configs, strict=True))
-        for company in self:
-            company.gateway_ml_config_id = by_company.get(company.id, False)
+        self._compute_config_link("gateway_ml_config_id")
 
     def _gateway_ml_spend_this_month(self):
         self.check_singleton()

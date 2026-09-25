@@ -14,10 +14,7 @@ class ResCompany(models.Model):
         return self._search_config_link("hr_attendance.config", operator, value)
 
     def _compute_hr_attendance_config_id(self):
-        configs = self.env["hr_attendance.config"]._for_each(self)
-        by_company = dict(zip(configs.mapped("company_id").ids, configs, strict=True))
-        for company in self:
-            company.hr_attendance_config_id = by_company.get(company.id, False)
+        self._compute_config_link("hr_attendance_config_id")
 
     def _check_hr_presence_control(self, at_install):
         for company in self.env["res.company"].sudo().search([]):

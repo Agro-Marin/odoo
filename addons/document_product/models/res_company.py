@@ -15,10 +15,7 @@ class ResCompany(models.Model):
         return self._search_config_link("document_product.config", operator, value)
 
     def _compute_document_product_config_id(self):
-        configs = self.env["document_product.config"]._for_each(self)
-        by_company = dict(zip(configs.mapped("company_id").ids, configs, strict=True))
-        for company in self:
-            company.document_product_config_id = by_company.get(company.id, False)
+        self._compute_config_link("document_product_config_id")
 
     @api.model
     def _get_domain_used_folder_ids(self, folder_ids):

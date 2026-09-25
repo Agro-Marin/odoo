@@ -491,10 +491,7 @@ class ResCompany(models.Model):
         return self._search_config_link("report.config", operator, value)
 
     def _compute_report_config_id(self) -> None:
-        configs = self.env["report.config"]._for_each(self)
-        by_company = dict(zip(configs.mapped("company_id").ids, configs, strict=True))
-        for company in self:
-            company.report_config_id = by_company.get(company.id)
+        self._compute_config_link("report_config_id")
 
     @api.onchange("country_id")
     def _onchange_country_id(self) -> None:
@@ -748,6 +745,14 @@ class ResCompany(models.Model):
         )
         domain = Domain("id", "child_of", roots.ids) if roots else Domain.FALSE
         return ~domain if operator == "not in" else domain
+
+    def _compute_config_link(self, fname: str) -> None:
+        # the pairing is the registry's map, so linking a company to its
+        # configuration reads no configuration row
+        Config = self.env[self._fields[fname].comodel_name]
+        config_ids = Config._config_id_by_company(self)
+        for company in self:
+            company[fname] = Config.browse(config_ids.get(company.id))
 
     @api.model
     def _search_config_link(

@@ -78,10 +78,7 @@ class ResCompany(models.Model):
         return self._search_config_link("account_peppol.config", operator, value)
 
     def _compute_account_peppol_config_id(self):
-        configs = self.env["account_peppol.config"]._for_each(self)
-        by_company = dict(zip(configs.mapped("company_id").ids, configs, strict=True))
-        for company in self:
-            company.account_peppol_config_id = by_company.get(company.id, False)
+        self._compute_config_link("account_peppol_config_id")
 
     def _get_active_peppol_parent_company(self):
         """

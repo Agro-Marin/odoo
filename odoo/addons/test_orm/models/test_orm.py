@@ -3306,7 +3306,4 @@ class ResCompany(models.Model):
         return self._search_config_link("test_orm.company_config", operator, value)
 
     def _compute_test_orm_company_config_id(self):
-        configs = self.env["test_orm.company_config"]._for_each(self)
-        by_company = dict(zip(configs.mapped("company_id").ids, configs, strict=True))
-        for company in self:
-            company.test_orm_company_config_id = by_company.get(company.id, False)
+        self._compute_config_link("test_orm_company_config_id")

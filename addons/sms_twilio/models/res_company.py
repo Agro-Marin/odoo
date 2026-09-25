@@ -37,10 +37,7 @@ class ResCompany(models.Model):
         return self._search_config_link("sms_twilio.config", operator, value)
 
     def _compute_sms_twilio_config_id(self):
-        configs = self.env["sms_twilio.config"]._for_each(self)
-        by_company = dict(zip(configs.mapped("company_id").ids, configs, strict=True))
-        for company in self:
-            company.sms_twilio_config_id = by_company.get(company.id, False)
+        self._compute_config_link("sms_twilio_config_id")
 
     def _get_sms_api_class(self):
         self.check_singleton()

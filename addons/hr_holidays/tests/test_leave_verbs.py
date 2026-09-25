@@ -32,7 +32,7 @@ ROW_CELLS = [
     access_hr_leave_allocation_refuse_manager_first_step manager allocation both employee validate1 refuse
     access_hr_leave_allocation_reset_officer officer allocation hr employee validate reset
     access_hr_leave_allocation_reset_administrator admin allocation hr admin validate reset
-""".strip().splitlines()
+    """.strip().splitlines()
 ]
 
 

@@ -16,10 +16,7 @@ class ResCompany(models.Model):
         return self._search_config_link("web.config", operator, value)
 
     def _compute_web_config_id(self):
-        configs = self.env["web.config"]._for_each(self)
-        by_company = dict(zip(configs.mapped("company_id").ids, configs, strict=True))
-        for company in self:
-            company.web_config_id = by_company.get(company.id, False)
+        self._compute_config_link("web_config_id")
 
     def _get_asset_style_b64(self) -> bytes:
         company_ids = self.sudo().search([])
