@@ -2536,9 +2536,19 @@ class AccountReturn(models.Model):
     def _check_suite_annual_closing(self, check_codes_to_ignore):
         report_company_ids = self._get_report_allowed_company_ids(accessible_only=True)
 
+        def closing_options(**extra_options):
+            return {
+                "date": {
+                    "date_to": fields.Date.to_string(self.date_to),
+                    "filter": "custom",
+                    "mode": "single",
+                },
+                **extra_options,
+            }
+
         def get_unknown_partner_aml_ids(report):
             report = report.with_context(allowed_company_ids=report_company_ids)
-            options = report.get_options({})
+            options = report.get_options(closing_options())
             unknown_partner_line = next(
                 (
                     line
@@ -2558,12 +2568,29 @@ class AccountReturn(models.Model):
                 ]
             return aml_ids
 
+        # 15-day intervals so amounts aged over 60 fall under 'Older' column
+        overdue_aging_interval = 15
+
         def has_overdue_aged_balance(report, older_expr):
             report = report.with_context(allowed_company_ids=report_company_ids)
             options = report.get_options(
-                {"aging_interval": 15}
-            )  # 15-day intervals so amounts aged over 60 fall under 'Older' column
+                closing_options(aging_interval=overdue_aging_interval)
+            )
             return report._get_expression_values(options, older_expr).get(older_expr)
+
+        def overdue_review_action(action_xml_id, report):
+            action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
+                action_xml_id
+            )
+            action["context"] = {
+                "report_id": report.id,
+                "allowed_company_ids": report_company_ids,
+            }
+            action["params"] = {
+                "options": closing_options(aging_interval=overdue_aging_interval),
+                "ignore_session": True,
+            }
+            return action
 
         checks = []
         if "check_bank_reconcile" not in check_codes_to_ignore:
@@ -2621,10 +2648,9 @@ class AccountReturn(models.Model):
             )
             action = None
             if has_overdue_receivables:
-                action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
-                    "account.action_account_report_ar"
+                action = overdue_review_action(
+                    "account.action_account_report_ar", receivable_report
                 )
-                action["params"] = {"ignore_session": True}
             checks.append(
                 {
                     "name": _lt("Overdue receivables"),
@@ -2680,10 +2706,9 @@ class AccountReturn(models.Model):
             )
             action = None
             if has_overdue_payables:
-                action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
-                    "account.action_account_report_ap"
+                action = overdue_review_action(
+                    "account.action_account_report_ap", payable_report
                 )
-                action["params"] = {"ignore_session": True}
             checks.append(
                 {
                     "name": _lt("Overdue payables"),

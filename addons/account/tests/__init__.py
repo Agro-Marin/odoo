@@ -171,3 +171,4 @@ from . import test_marin_report_fiscalyear_scopes
 from . import test_marin_report_external_fiscalyear
 from . import test_marin_report_manual_value_company
 from . import test_marin_report_fiscalyear_anchor
+from . import test_marin_return_closing_date
