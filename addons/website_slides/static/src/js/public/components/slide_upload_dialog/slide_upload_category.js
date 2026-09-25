@@ -5,13 +5,14 @@ import { SelectMenu } from "@web/components/select_menu";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { uniqueId } from "@web/core/utils/functions";
+import { Portal } from "@web/core/utils/owl_bridge";
 import { loadPDFJS } from "@web/core/utils/pdfjs";
 import { getDataURLFromFile } from "@web/core/utils/urls";
 
 import { SlideUploadSourceTypes } from "./slide_upload_source_types.js";
 
 export class SlideUploadCategory extends Component {
-    static components = { DropdownItem, SelectMenu, SlideUploadSourceTypes };
+    static components = { DropdownItem, SelectMenu, SlideUploadSourceTypes, Portal };
     static props = {
         alertMsg: { type: String, optional: true },
         channelId: Number,

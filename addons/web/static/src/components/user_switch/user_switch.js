@@ -6,10 +6,12 @@ import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { getLastConnectedUsers, setLastConnectedUsers } from "@web/core/user";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { Portal } from "@web/core/utils/owl_bridge";
 import { imageUrl } from "@web/core/utils/urls";
 
 export class UserSwitch extends Component {
     static template = "web.login_user_switch";
+    static components = { Portal };
     static props = {};
 
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */

@@ -1,9 +1,11 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
+import { Portal } from "@web/core/utils/owl_bridge";
 
 export class DashboardMobileSearchPanel extends Component {
     static template = "spreadsheet_dashboard.DashboardMobileSearchPanel";
+    static components = { Portal };
     static props = {
         /**
          * (dashboardId: number) => void

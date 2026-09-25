@@ -1,9 +1,10 @@
 /** @odoo-module native */
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
+import { Component, onMounted, useRef } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { _t } from "@web/core/translation";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export class TableMenu extends Component {
     static template = "html_editor.TableMenu";
@@ -54,10 +55,10 @@ export class TableMenu extends Component {
             () => [this.props.target],
         );
         if (this.props.document.defaultView.frameElement) {
-            useExternalListener(this.props.document, "scroll", () => {
+            useListener(this.props.document, "scroll", () => {
                 this.updatePosition();
             });
-            useExternalListener(this.props.document, "pointerdown", (ev) => {
+            useListener(this.props.document, "pointerdown", (ev) => {
                 if (!this.overlayEl.contains(ev.target)) {
                     this.props.close();
                 }

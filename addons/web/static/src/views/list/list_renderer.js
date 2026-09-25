@@ -9,7 +9,6 @@ import {
     onWillPatch,
     reactive,
     status,
-    useExternalListener,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -27,6 +26,7 @@ import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { _t } from "@web/core/translation";
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { Field } from "@web/fields/field";
@@ -261,7 +261,7 @@ export class ListRenderer extends Component {
         this.cellClassByColumn = {};
         this.tooltipInfoDebug = this.isDebugMode;
         this.groupByButtons = this.props.archInfo.groupBy.buttons;
-        useExternalListener(
+        useListener(
             document,
             "click",
             /** @type {EventListener} */ (this.onGlobalClick.bind(this)),

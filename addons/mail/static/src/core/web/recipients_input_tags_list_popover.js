@@ -1,10 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 import { parseEmail } from "@mail/utils/common/format";
-import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { isEmail } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 export class RecipientsInputTagsListPopover extends Component {
     static props = {
         tagToUpdate: { type: Object },
@@ -17,7 +18,7 @@ export class RecipientsInputTagsListPopover extends Component {
         this.orm = useService("orm");
         this.state = useState({ value: "", error: false });
         this.popoverRef = useRef("tagsListPopoverRef");
-        useExternalListener(
+        useListener(
             window,
             "click",
             /** @param {MouseEvent} ev */ (ev) => {

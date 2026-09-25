@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
+import { Component, onMounted, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { router, routerBus } from "@web/core/browser/router";
 import { provideDebugContext, useDebugMode } from "@web/core/debug/debug_context";
@@ -12,6 +12,7 @@ import { AppEvent, RouterEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { SupersededError } from "@web/core/utils/concurrency";
 import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { DebugMenu } from "@web/webclient/debug/debug_menu";
 
@@ -74,9 +75,14 @@ export class WebClient extends Component {
             this.loadRouterState();
             this.bus.trigger(AppEvent.WEB_CLIENT_READY);
         });
-        useExternalListener(window, "click", /** @type {any} */ (this.onGlobalClick), {
-            capture: true,
-        });
+        useListener(
+            window,
+            "click",
+            /** @type {any} */ (this.onGlobalClick.bind(this)),
+            {
+                capture: true,
+            },
+        );
     }
 
     /**

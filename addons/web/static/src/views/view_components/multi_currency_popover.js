@@ -1,17 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    Component,
-    onWillStart,
-    useExternalListener,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onWillStart, useRef, useState } from "@odoo/owl";
 import { getCurrency, getCurrencyRates } from "@web/core/currency";
 import { formatMonetary } from "@web/core/formatters";
 import { toLocaleDateString } from "@web/core/l10n/dates";
 import { user } from "@web/core/user";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export class MultiCurrencyPopover extends Component {
     static template = "web.MultiCurrencyPopover";
@@ -34,7 +29,7 @@ export class MultiCurrencyPopover extends Component {
         onWillStart(async () => {
             this.state.rates = await getCurrencyRates();
         });
-        useExternalListener(window, "mouseover", (ev) => {
+        useListener(window, "mouseover", (ev) => {
             const popoverEl = this.rootRef.el;
             const target = /** @type {Node} */ (ev.target);
             if (!this.props.target.contains(target) && !popoverEl?.contains(target)) {

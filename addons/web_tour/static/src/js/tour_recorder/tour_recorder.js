@@ -1,11 +1,12 @@
 /** @odoo-module native */
 import { queryAll, queryFirst, queryOne } from "@odoo/hoot-dom";
-import { Component, useExternalListener, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { x2ManyCommands } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 import { tourRecorderState } from "./tour_recorder_state.js";
 
@@ -116,16 +117,21 @@ export class TourRecorder extends Component {
 
         this.state.steps = tourRecorderState.getCurrentTourRecorder();
         this.state.recording = tourRecorderState.isRecording() === "1";
-        useExternalListener(document, "pointerdown", this.setStartingEvent, {
+        useListener(document, "pointerdown", this.setStartingEvent.bind(this), {
             capture: true,
         });
-        useExternalListener(document, "pointerup", this.recordClickEvent, {
+        useListener(document, "pointerup", this.recordClickEvent.bind(this), {
             capture: true,
         });
-        useExternalListener(document, "keydown", this.recordConfirmationKeyboardEvent, {
-            capture: true,
-        });
-        useExternalListener(document, "keyup", this.recordKeyboardEvent, {
+        useListener(
+            document,
+            "keydown",
+            this.recordConfirmationKeyboardEvent.bind(this),
+            {
+                capture: true,
+            },
+        );
+        useListener(document, "keyup", this.recordKeyboardEvent.bind(this), {
             capture: true,
         });
     }

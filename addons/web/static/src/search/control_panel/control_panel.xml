@@ -29,7 +29,9 @@
                     </t>
                     <t t-elif="this.ui.isSmall">
                         <div class="o_fallback_breadcrumbs d-contents"/>
-                        <Breadcrumbs breadcrumbs="this.breadcrumbs" t-portal="'.o_navbar_breadcrumbs, .o_fallback_breadcrumbs'"/>
+                        <Portal target="'.o_navbar_breadcrumbs, .o_fallback_breadcrumbs'">
+                            <Breadcrumbs breadcrumbs="this.breadcrumbs"/>
+                        </Portal>
                         <section class="o_control_panel_breadcrumbs_actions d-contents">
                             <t t-slot="control-panel-additional-actions"/>
                             <t t-slot="control-panel-status-indicator" />

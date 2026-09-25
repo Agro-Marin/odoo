@@ -3,12 +3,12 @@
     <t t-name="product.ProductCatalogOrderLine">
         <!-- Replace the element found using the css selector by the content of the portalled
              template.  -->
-        <t t-portal="`#product-${this.props.productId}-price`">
+        <Portal target="`#product-${this.props.productId}-price`">
             <div class="d-inline-flex align-items-baseline">
                 <span t-if="this.showPrice" t-out="this.price" class="o_product_catalog_price fw-bold me-4"/>
                 <span t-if="this.props.code" t-out="this.props.code" class="text-muted"/>
             </div>
-        </t>
+        </Portal>
         <div 
             t-if="this.props.readOnly and this.props.warning"
             class="text-danger text-truncate my-2 pt-3 border-top">

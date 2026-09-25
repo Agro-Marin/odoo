@@ -1,6 +1,7 @@
 /** @odoo-module native */
-import { Component, onPatched, useExternalListener, useRef } from "@odoo/owl";
+import { Component, onPatched, useRef } from "@odoo/owl";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export class Powerbox extends Component {
     static template = "html_editor.Powerbox";
@@ -24,7 +25,7 @@ export class Powerbox extends Component {
 
         this.mouseSelectionActive = false;
         const onMouseMove = () => (this.mouseSelectionActive = true);
-        useExternalListener(this.props.document, "mousemove", onMouseMove);
+        useListener(this.props.document, "mousemove", onMouseMove);
 
         useLayoutEffect(
             (ownDoc, propsDoc) => {

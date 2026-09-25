@@ -3,7 +3,7 @@
 import { ImStatus } from "@mail/core/common/im_status";
 import { onExternalClick } from "@mail/utils/common/hooks";
 import { navigateIndex } from "@mail/utils/common/misc";
-import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -12,6 +12,7 @@ import { delay } from "@web/core/utils/concurrency";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 const log = makeLogger("mail.navigable_list");
 export class NavigableList extends Component {
@@ -48,7 +49,7 @@ export class NavigableList extends Component {
         /** @type {Map<Object, string>} */
         this.optionKeys = new Map();
 
-        useExternalListener(window, "keydown", this.onKeydown, true);
+        useListener(window, "keydown", this.onKeydown.bind(this), true);
         onExternalClick(
             "root",
             /** @param {MouseEvent} ev */ async (ev) => {

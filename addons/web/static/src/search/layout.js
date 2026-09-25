@@ -5,6 +5,7 @@ import { Component, useRef } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useDialogContext } from "@web/core/dialog_context_hooks";
+import { Portal } from "@web/core/utils/owl_bridge";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
@@ -25,6 +26,7 @@ const log = makeLogger("web.search.layout");
 
 export class Layout extends Component {
     static template = "web.Layout";
+    static components = { Portal };
     static props = {
         className: { type: String, optional: true },
         display: { type: Object, optional: true },

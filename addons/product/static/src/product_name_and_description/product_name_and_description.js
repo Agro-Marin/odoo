@@ -1,8 +1,9 @@
 /** @odoo-module native */
 
-import { Component, onPatched, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, onPatched, useRef, useState } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { _t } from "@web/core/translation";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { useInputField } from "@web/fields/input_field_hook";
 import {
     computeM2OProps,
@@ -100,10 +101,10 @@ export class ProductNameAndDescriptionField extends Component {
         // the normal view because it adds an empty line. This is done by switching an attribute to
         // true only during the print view life cycle and including the said div in a t-if depending
         // on that attribute.
-        useExternalListener(window, "beforeprint", () => {
+        useListener(window, "beforeprint", () => {
             this.isPrintMode.value = true;
         });
-        useExternalListener(window, "afterprint", () => {
+        useListener(window, "afterprint", () => {
             this.isPrintMode.value = false;
         });
     }

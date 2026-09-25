@@ -1,16 +1,10 @@
 /** @odoo-module native */
 import { provideEditorOverlayContext } from "@html_editor/core/editor_overlay_context";
-import {
-    Component,
-    onWillDestroy,
-    useExternalListener,
-    useRef,
-    useState,
-    xml,
-} from "@odoo/owl";
+import { Component, onWillDestroy, useRef, useState, xml } from "@odoo/owl";
 import { usePosition } from "@web/core/position/position_hook";
 import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { useOverlayScope } from "@web/ui/overlay/overlay_container";
 import { useActiveElement } from "@web/ui/ui_service";
 
@@ -62,7 +56,7 @@ export class EditorOverlay extends Component {
             getTarget = this.getSelectionTarget.bind(this);
         }
 
-        useExternalListener(this.props.bus, "updatePosition", () => {
+        useListener(this.props.bus, "updatePosition", () => {
             position.unlock();
         });
 
@@ -90,9 +84,9 @@ export class EditorOverlay extends Component {
                 }
             };
             const editableDocument = this.props.editable.ownerDocument;
-            useExternalListener(editableDocument, "pointerdown", clickAway);
+            useListener(editableDocument, "pointerdown", clickAway);
             if (editableDocument !== document) {
-                useExternalListener(document, "pointerdown", clickAway);
+                useListener(document, "pointerdown", clickAway);
             }
         }
 

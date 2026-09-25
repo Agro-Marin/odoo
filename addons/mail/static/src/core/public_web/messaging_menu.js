@@ -6,13 +6,7 @@ import { NotificationItem } from "@mail/core/public_web/notification_item";
 import { useDiscussSystray } from "@mail/utils/common/hooks";
 import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
 import { navigateIndex } from "@mail/utils/common/misc";
-import {
-    Component,
-    onWillDestroy,
-    useExternalListener,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import {
     hasTouch,
@@ -25,6 +19,7 @@ import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 import { DiscussContent } from "./discuss_content.js";
 
@@ -61,7 +56,7 @@ export class MessagingMenu extends Component {
         provideMailContext({ inMessagingMenu: { dropdown: this.dropdown } });
         this.mailContext = useMailContext();
 
-        useExternalListener(window, "keydown", this.onKeydown, true);
+        useListener(window, "keydown", this.onKeydown.bind(this), true);
     }
 
     /**

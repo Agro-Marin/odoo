@@ -6,7 +6,6 @@ import {
     onWillStart,
     reactive,
     useEnv,
-    useExternalListener,
     useRef,
     useState,
     useSubEnv,
@@ -26,6 +25,7 @@ import { mixCssColors } from "@web/core/utils/format/colors";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { fuzzyLevenshteinLookup } from "@web/core/utils/search";
 import { getDataURLFromFile, redirect } from "@web/core/utils/urls";
 import { standardActionServiceProps } from "@web/webclient/actions";
@@ -961,7 +961,7 @@ export class Configurator extends Component {
         this.action = useService("action");
         this.website = useService("website");
 
-        useExternalListener(window, "popstate", (ev) => {
+        useListener(window, "popstate", (ev) => {
             if (ev.state && "configuratorStep" in ev.state) {
                 log.logic("popstate restore step", () => ({
                     step: ev.state.configuratorStep,

@@ -6,13 +6,7 @@ import { CallParticipantVideo } from "@mail/discuss/call/common/call_participant
 import { CONNECTION_TYPES } from "@mail/discuss/call/common/rtc_service";
 import { useHover } from "@mail/utils/common/hooks";
 import { useMailContext } from "@mail/utils/common/mail_context";
-import {
-    Component,
-    onMounted,
-    onWillUnmount,
-    useExternalListener,
-    useRef,
-} from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { useDebugMode } from "@web/core/debug/debug_context";
@@ -20,6 +14,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { isEventHandled } from "@web/core/utils/dom/events";
 import { useEventBus, useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 const log = makeLogger("mail.rtc.ui");
 /** @type {Set<string>} */
@@ -71,7 +66,7 @@ export class CallParticipantCard extends Component {
                 viewCountIncrement: -1,
             });
         });
-        useExternalListener(browser, "fullscreenchange", this.onFullScreenChange);
+        useListener(browser, "fullscreenchange", this.onFullScreenChange.bind(this));
     }
 
     get isContextMenuAvailable() {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillDestroy, useExternalListener, useState } from "@odoo/owl";
+import { Component, onWillDestroy, useState } from "@odoo/owl";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
@@ -13,6 +13,7 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { uniqueId } from "@web/core/utils/functions";
 import { useForwardRefToParent, useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useActiveElement } from "@web/ui/active_element";
 
@@ -140,7 +141,7 @@ export class Dialog extends Component {
                 }),
             );
             const throttledResize = useThrottleForAnimation(this.onResize.bind(this));
-            useExternalListener(window, "resize", throttledResize);
+            useListener(window, "resize", throttledResize);
         }
         onWillDestroy(() => {
             if (this.ui.isSmall) {

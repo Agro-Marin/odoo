@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 import { useMailContext } from "@mail/utils/common/mail_context";
-import { Component, useExternalListener, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useAutofocus } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 const log = makeLogger("mail.message.search");
 /**
@@ -33,7 +34,7 @@ export class SearchMessageInput extends Component {
         this.mailContext = useMailContext();
         this.state = useState({ searchTerm: "", searchedTerm: "" });
         useAutofocus();
-        useExternalListener(
+        useListener(
             browser,
             "keydown",
             /** @param {Event} event */

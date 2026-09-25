@@ -6,7 +6,6 @@ import {
     onMounted,
     onWillUnmount,
     onWillUpdateProps,
-    useExternalListener,
     useRef,
 } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
@@ -22,6 +21,7 @@ import {
 } from "@web/core/utils/format/colors";
 import { clamp } from "@web/core/utils/format/numbers";
 import { uniqueId } from "@web/core/utils/functions";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 const log = makeLogger("web.components.custom_color_picker");
@@ -129,10 +129,10 @@ export class CustomColorPicker extends Component {
             }
         };
         for (const doc of this.reachableDocuments()) {
-            useExternalListener(
+            useListener(
                 doc,
                 "keydown",
-                /** @type {EventListener} */ (this.onEscapeKeydown),
+                /** @type {EventListener} */ (this.onEscapeKeydown.bind(this)),
                 { capture: true },
             );
         }

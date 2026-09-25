@@ -9,16 +9,11 @@ import {
     preprocessReferenceChanges,
     preprocessX2manyChanges,
 } from "@web/model/relational_model";
-import {
-    onWillUnmount,
-    onWillUpdateProps,
-    useExternalListener,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { onWillUnmount, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { useViewModel } from "@web/model/model";
 import { useSearchModel } from "@web/search/search_model";
 import { useViewConfig } from "@web/core/view_config_hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export const DocumentsRendererMixin = (component) =>
     class extends component {
@@ -113,17 +108,17 @@ export const DocumentsRendererMixin = (component) =>
             const setShortcutModifier = (active) => {
                 this.root?.el?.classList.toggle("o_documents_dnd_shortcut", active);
             };
-            useExternalListener(window, "keydown", (ev) => {
+            useListener(window, "keydown", (ev) => {
                 if (ev.key === "Control") {
                     setShortcutModifier(true);
                 }
             });
-            useExternalListener(window, "keyup", (ev) => {
+            useListener(window, "keyup", (ev) => {
                 if (ev.key === "Control") {
                     setShortcutModifier(false);
                 }
             });
-            useExternalListener(window, "blur", () => setShortcutModifier(false));
+            useListener(window, "blur", () => setShortcutModifier(false));
 
             onWillUpdateProps((nextProps) => {
                 if (nextProps.list !== this.props.list) {

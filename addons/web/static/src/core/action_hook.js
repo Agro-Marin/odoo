@@ -1,16 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    onMounted,
-    useChildSubEnv,
-    useEnv,
-    useExternalListener,
-    useSubEnv,
-} from "@odoo/owl";
+import { onMounted, useChildSubEnv, useEnv, useSubEnv } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
-import { useProps } from "@web/core/utils/owl_bridge";
+import { useListener, useProps } from "@web/core/utils/owl_bridge";
 
 export const scrollSymbol = Symbol("scroll");
 
@@ -115,12 +109,12 @@ export function useSetupAction(params = {}) {
         rootRef,
     } = params;
 
-    useExternalListener(
+    useListener(
         document,
         "visibilitychange",
         /** @type {EventListener} */ (beforeVisibilityChange ?? (() => {})),
     );
-    useExternalListener(
+    useListener(
         window,
         "beforeunload",
         /** @type {EventListener} */ (beforeUnload ?? (() => {})),

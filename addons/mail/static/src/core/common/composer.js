@@ -42,7 +42,6 @@ import {
     reactive,
     status,
     toRaw,
-    useExternalListener,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -63,6 +62,7 @@ import { htmlJoin, isHtmlEmpty, setElementContent } from "@web/core/utils/dom/ht
 import { isEmail } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { rootIdOf } from "@web/ui/overlay/root_id";
 const EDIT_CLICK_TYPE = {
     CANCEL: "cancel",
@@ -182,7 +182,7 @@ export class Composer extends Component {
         this.markEventHandled = markEventHandled;
         this.onDropFile = this.onDropFile.bind(this);
         this.updateFromEditor = false;
-        useExternalListener(
+        useListener(
             window,
             "click",
             /** @param {MouseEvent} ev */

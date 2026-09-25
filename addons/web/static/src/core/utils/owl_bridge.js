@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useComponent } from "@odoo/owl";
+import { Component, onWillDestroy, useComponent, xml } from "@odoo/owl";
 
 /**
  * @returns {Record<string, any>}
@@ -29,4 +29,30 @@ export function useProps() {
 export function useComponentName() {
     // OWL 2 twin of OWL 3's getComponentScope().componentName
     return useComponent().constructor.name;
+}
+
+/**
+ * @param {EventTarget} target
+ * @param {string} eventName
+ * @param {EventListener} handler
+ * @param {AddEventListenerOptions} [eventParams]
+ */
+export function useListener(target, eventName, handler, eventParams) {
+    // OWL 2 twin of OWL 3's useListener: attached at setup, removed on destroy,
+    // handler unbound; the event being dispatched while a component is set up
+    // (window.event survives the microtasks between its listeners) is skipped
+    const attachedDuring = window.event;
+    const listener = (/** @type {Event} */ ev) => {
+        if (ev !== attachedDuring) {
+            handler.call(target, ev);
+        }
+    };
+    target.addEventListener(eventName, listener, eventParams);
+    onWillDestroy(() => target.removeEventListener(eventName, listener, eventParams));
+}
+
+export class Portal extends Component {
+    // OWL 2 twin of OWL 3's Portal component, which replaces the t-portal directive
+    static template = xml`<t t-portal="this.props.target"><t t-slot="default"/></t>`;
+    static props = { target: String, slots: Object };
 }

@@ -1,16 +1,11 @@
 /** @odoo-module native */
 import { stores } from "@odoo/o-spreadsheet";
-import {
-    useChildSubEnv,
-    useEnv,
-    useExternalListener,
-    useState,
-    useSubEnv,
-} from "@odoo/owl";
+import { useChildSubEnv, useEnv, useState, useSubEnv } from "@odoo/owl";
 import { loadBundle } from "@web/core/assets";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { ConfirmationDialog } from "@web/ui/dialog";
 
 const { useStore, useStoreProvider, NotificationStore, GridRenderer } = stores;
@@ -42,7 +37,7 @@ export function useSpreadsheetPrint(model) {
     const printState = useState({ active: false });
     const env = useEnv();
 
-    useExternalListener(
+    useListener(
         window,
         "keydown",
         async (ev) => {
@@ -58,7 +53,7 @@ export function useSpreadsheetPrint(model) {
         },
         { capture: true },
     );
-    useExternalListener(window, "afterprint", afterPrint);
+    useListener(window, "afterprint", afterPrint);
 
     useLayoutEffect(
         () => {

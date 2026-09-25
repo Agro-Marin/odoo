@@ -1,8 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 export class Dropzone extends Component {
@@ -29,10 +30,10 @@ export class Dropzone extends Component {
         const throttledUpdatePosition = useThrottleForAnimation(() =>
             this.updatePosition(),
         );
-        useExternalListener(document, "scroll", throttledUpdatePosition, {
+        useListener(document, "scroll", throttledUpdatePosition, {
             capture: true,
         });
-        useExternalListener(window, "resize", throttledUpdatePosition);
+        useListener(window, "resize", throttledUpdatePosition);
     }
 
     updatePosition() {

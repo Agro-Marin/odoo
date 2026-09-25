@@ -1,10 +1,11 @@
 // @ts-check
 /** @odoo-module native */
-import { Component, onMounted, useExternalListener } from "@odoo/owl";
+import { Component, onMounted } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { isHtmlEmpty, isMarkup } from "@web/core/utils/dom/html";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { useDebounced } from "@web/core/utils/timing";
 import { usePopover } from "@web/ui/popover";
 
@@ -111,7 +112,7 @@ export function useComposerDraft(comp) {
     const saveContentDebounced = useDebounced(() => comp.saveContent(), 5000, {
         execBeforeUnmount: true,
     });
-    useExternalListener(window, "beforeunload", () => comp.saveContent());
+    useListener(window, "beforeunload", () => comp.saveContent());
     useLayoutEffect(
         () => {
             saveContentDebounced();

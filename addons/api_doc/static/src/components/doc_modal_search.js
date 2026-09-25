@@ -1,7 +1,8 @@
 /** @odoo-module native */
 import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { search } from "@api_doc/utils/doc_model_search";
-import { Component, onMounted, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, onMounted, useRef, useState } from "@odoo/owl";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { useDebounced } from "@web/core/utils/timing";
 
 export class SearchModal extends Component {
@@ -43,13 +44,13 @@ export class SearchModal extends Component {
             this.onScroll(this.scrollRef.el);
         }, 300);
 
-        useExternalListener(window, "keydown", (event) => {
+        useListener(window, "keydown", (event) => {
             if (event.key === "Escape") {
                 this.props.close();
             }
         });
 
-        useExternalListener(window, "click", (event) => {
+        useListener(window, "click", (event) => {
             if (!this.modalRef.el.contains(event.target)) {
                 this.props.close();
             }

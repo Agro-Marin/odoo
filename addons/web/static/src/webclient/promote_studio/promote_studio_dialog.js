@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onWillDestroy, useExternalListener } from "@odoo/owl";
+import { Component, onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useChildRef, useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { Dialog } from "@web/ui/dialog";
 
 export class PromoteStudioDialog extends Component {
@@ -31,7 +32,7 @@ export class PromoteStudioDialog extends Component {
         this.modalRef = useChildRef();
         onWillDestroy(() => this.releaseInstallBlock());
 
-        useExternalListener(window, "mousedown", this.onWindowMouseDown);
+        useListener(window, "mousedown", this.onWindowMouseDown.bind(this));
     }
 
     async onClickInstallStudio() {

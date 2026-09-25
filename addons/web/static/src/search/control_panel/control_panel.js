@@ -15,6 +15,7 @@ import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { _t } from "@web/core/translation";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { Portal } from "@web/core/utils/owl_bridge";
 import { useViewConfig } from "@web/core/view_config_hooks";
 import { Breadcrumbs } from "@web/search/breadcrumbs/breadcrumbs";
 import { useEmbeddedActions } from "@web/search/embedded_actions_bar/embedded_actions";
@@ -51,6 +52,7 @@ export class ControlPanel extends Component {
         Breadcrumbs,
         EmbeddedActionsBar,
         EmbeddedActionsDropdown,
+        Portal,
     };
     static props = {
         display: { type: Object, optional: true },

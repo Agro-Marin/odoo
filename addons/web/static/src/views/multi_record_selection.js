@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillDestroy, useExternalListener } from "@odoo/owl";
+import { onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 /**
  * @typedef {object} RecordSelectionContext
@@ -128,13 +129,13 @@ export function useRecordSelection(ctx) {
     const { onSelectionModifier } = ctx;
     const self = new RecordSelection(ctx);
 
-    useExternalListener(window, "keydown", (ev) => {
+    useListener(window, "keydown", (ev) => {
         self.shiftKeyMode = ev.shiftKey;
         if (ev.key === "Alt") {
             onSelectionModifier?.(true);
         }
     });
-    useExternalListener(window, "keyup", (ev) => {
+    useListener(window, "keyup", (ev) => {
         self.shiftKeyMode = ev.shiftKey;
         if (getActiveHotkey(ev) === "shift") {
             self.shiftKeyedRecord = undefined;
@@ -143,7 +144,7 @@ export function useRecordSelection(ctx) {
             onSelectionModifier?.(false);
         }
     });
-    useExternalListener(window, "blur", () => {
+    useListener(window, "blur", () => {
         self.shiftKeyMode = false;
         self.shiftKeyedRecord = undefined;
         onSelectionModifier?.(false);

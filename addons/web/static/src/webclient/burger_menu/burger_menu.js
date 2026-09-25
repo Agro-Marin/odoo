@@ -8,6 +8,7 @@ import { registry } from "@web/core/registry";
 import { Transition } from "@web/core/transition";
 import { user } from "@web/core/user";
 import { useBus, useEventBus } from "@web/core/utils/hooks";
+import { Portal } from "@web/core/utils/owl_bridge";
 
 import { shareUrl } from "../share_url/share_url.js";
 import { SWIPE_RIGHT, SwipeTracker } from "../swipe.js";
@@ -21,6 +22,7 @@ export class BurgerMenu extends Component {
         BurgerUserMenu,
         MobileSwitchCompanyMenu,
         Transition,
+        Portal,
     };
 
     /** @type {{ isBurgerOpened: boolean }} */

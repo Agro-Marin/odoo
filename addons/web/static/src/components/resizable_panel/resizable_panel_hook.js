@@ -1,15 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    onWillUnmount,
-    onWillUpdateProps,
-    useExternalListener,
-    useRef,
-} from "@odoo/owl";
+import { onWillUnmount, onWillUpdateProps, useRef } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
-import { useProps } from "@web/core/utils/owl_bridge";
+import { useListener, useProps } from "@web/core/utils/owl_bridge";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 const log = makeLogger("web.components.resizable_panel");
@@ -226,7 +221,7 @@ export function useResizable({
         props,
     );
 
-    useExternalListener(
+    useListener(
         window,
         "resize",
         useThrottleForAnimation(() => controller.onWindowResize()),

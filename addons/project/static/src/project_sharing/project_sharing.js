@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
+import { Component, onMounted, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { provideDebugContext } from "@web/core/debug/debug_context";
 import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { ActionContainer } from "@web/webclient/actions";
 
@@ -27,7 +28,7 @@ export class ProjectSharingWebClient extends Component {
             this.loadRouterState();
             this.bus.trigger("WEB_CLIENT_READY");
         });
-        useExternalListener(window, "click", this.onGlobalClick, { capture: true });
+        useListener(window, "click", this.onGlobalClick.bind(this), { capture: true });
     }
 
     async loadRouterState() {

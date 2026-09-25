@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { onWillUnmount, useExternalListener, useState } from "@odoo/owl";
+import { onWillUnmount, useState } from "@odoo/owl";
 import { LoginScreen } from "@point_of_sale/app/screens/login_screen/login_screen";
 import { useCashierSelector } from "@pos_hr/app/utils/select_cashier_mixin";
 import { _t } from "@web/core/translation";
 import { useAutofocus } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { patch } from "@web/core/utils/patch";
 patch(LoginScreen.prototype, {
     setup() {
@@ -20,7 +21,7 @@ patch(LoginScreen.prototype, {
             });
 
             useAutofocus();
-            useExternalListener(window, "keypress", async (ev) => {
+            useListener(window, "keypress", async (ev) => {
                 if (this.pos.login && ev.key === "Enter" && this.state.pin) {
                     await this.selectCashier(this.state.pin, true);
                 }

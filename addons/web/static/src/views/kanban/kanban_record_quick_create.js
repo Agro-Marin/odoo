@@ -1,20 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    Component,
-    onMounted,
-    onWillStart,
-    status,
-    useExternalListener,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onMounted, onWillStart, status, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { RPCError } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
 import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { provideViewConfig } from "@web/core/view_config_hooks";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { formView } from "@web/views/form/form_view";
@@ -112,10 +105,10 @@ export class KanbanQuickCreateController extends Component {
         onMounted(() => {
             this.uiActiveElement = this.uiService.activeElement;
         });
-        useExternalListener(window, "mousedown", (/** @type {Event} */ ev) => {
+        useListener(window, "mousedown", (/** @type {Event} */ ev) => {
             this.mousedownTarget = ev.target;
         });
-        useExternalListener(
+        useListener(
             window,
             "click",
             (/** @type {Event} */ ev) => {

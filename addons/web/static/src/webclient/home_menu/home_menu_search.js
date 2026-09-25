@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { hasTouch, isMacOS } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 class FooterComponent extends Component {
     static template = "web.HomeMenu.CommandPalette.Footer";
@@ -139,7 +140,7 @@ function handOverToPalette(command, searchValue, refocus) {
  * @param {() => void} focus
  */
 function useTypeToFocus(inputRef, ui, focus) {
-    useExternalListener(window, "keydown", (/** @type {KeyboardEvent} */ ev) => {
+    useListener(window, "keydown", (/** @type {KeyboardEvent} */ ev) => {
         const printable =
             ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey;
         if (

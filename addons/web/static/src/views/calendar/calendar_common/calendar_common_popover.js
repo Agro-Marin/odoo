@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useExternalListener } from "@odoo/owl";
+import { Component } from "@odoo/owl";
 import { is24HourFormat } from "@web/core/l10n/time";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { Field } from "@web/fields/field";
 import { Record } from "@web/model/record";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -48,7 +49,7 @@ export class CalendarCommonPopover extends Component {
         this.date = null;
         this.dateDuration = null;
 
-        useExternalListener(
+        useListener(
             window,
             "pointerdown",
             (e) => {

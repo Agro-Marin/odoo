@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { useEnv, useExternalListener, useState, useSubEnv } from "@odoo/owl";
+import { useEnv, useState, useSubEnv } from "@odoo/owl";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 function isSmall() {
     return window.innerWidth < 960;
@@ -26,7 +27,7 @@ export function useDocUI() {
     });
 
     provideDocUI(ui);
-    useExternalListener(window, "resize", () => {
+    useListener(window, "resize", () => {
         ui.size = window.innerWidth;
         ui.isSmall = isSmall();
     });

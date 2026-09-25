@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
+import { Component, onMounted, useRef } from "@odoo/owl";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 import { Toolbar } from "./toolbar.js";
 
@@ -25,15 +26,15 @@ export class ToolbarMobile extends Component {
         } catch {
             this.targetWindow = window;
         }
-        useExternalListener(
+        useListener(
             this.targetWindow.visualViewport,
             "resize",
-            this.fixToolbarPosition,
+            this.fixToolbarPosition.bind(this),
         );
-        useExternalListener(
+        useListener(
             this.targetWindow.visualViewport,
             "scroll",
-            this.fixToolbarPosition,
+            this.fixToolbarPosition.bind(this),
         );
 
         onMounted(() => this.fixToolbarPosition());

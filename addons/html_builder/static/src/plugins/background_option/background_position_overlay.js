@@ -1,15 +1,9 @@
 /** @odoo-module native */
 import { getBootstrapComponent } from "@html_builder/core/bootstrap_realm";
 import { scrollTo } from "@html_builder/utils/scrolling";
-import {
-    Component,
-    onMounted,
-    onWillStart,
-    onWillUnmount,
-    useExternalListener,
-    useRef,
-} from "@odoo/owl";
+import { Component, onMounted, onWillStart, onWillUnmount, useRef } from "@odoo/owl";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export class BackgroundPositionOverlay extends Component {
     static template = "html_builder.BackgroundPositionOverlay";
@@ -45,20 +39,12 @@ export class BackgroundPositionOverlay extends Component {
 
         // Discard when clicking anywhere on the page
         const editableDocument = this.props.editable.ownerDocument;
-        useExternalListener(editableDocument, "pointerdown", this.discard.bind(this));
-        useExternalListener(document, "pointerdown", this.discard.bind(this));
+        useListener(editableDocument, "pointerdown", this.discard.bind(this));
+        useListener(document, "pointerdown", this.discard.bind(this));
 
-        useExternalListener(window, "resize", this._dimensionOverlay);
-        useExternalListener(
-            this.iframe.contentWindow,
-            "resize",
-            this._dimensionOverlay,
-        );
-        useExternalListener(
-            this.iframe.contentWindow,
-            "scroll",
-            this._dimensionOverlay,
-        );
+        useListener(window, "resize", this._dimensionOverlay);
+        useListener(this.iframe.contentWindow, "resize", this._dimensionOverlay);
+        useListener(this.iframe.contentWindow, "scroll", this._dimensionOverlay);
 
         onWillStart(async () => {
             const position = getComputedStyle(this.props.editingElement)
@@ -189,6 +175,9 @@ export class BackgroundPositionOverlay extends Component {
     }
 
     dimensionOverlay() {
+        if (!this.overlayMaskRef.el) {
+            return;
+        }
         const iframeRect = this.iframe.getBoundingClientRect();
         const targetContainerRect = this.targetContainerEl.getBoundingClientRect();
         const scale = this.getIframeContainerScale();

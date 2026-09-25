@@ -1,10 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-import { markRaw, toRaw, useExternalListener, useState } from "@odoo/owl";
+import { markRaw, toRaw, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { pick, shallowEqual } from "@web/core/utils/collections/objects";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 /**
@@ -169,7 +170,7 @@ export function useVirtualGrid({
         },
         () => [scrollableRef.el],
     );
-    useExternalListener(window, "resize", () => throttledCompute());
+    useListener(window, "resize", () => throttledCompute());
     return {
         get columnsIndexes() {
             return visible.columnsIndexes;

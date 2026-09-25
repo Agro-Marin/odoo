@@ -8,7 +8,6 @@ import {
     onWillDestroy,
     onWillStart,
     status,
-    useExternalListener,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -26,6 +25,7 @@ import { KeepLast, Race } from "@web/core/utils/concurrency";
 import { highlightText } from "@web/core/utils/dom/html";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { useAutofocus, useChildRef, useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -258,7 +258,7 @@ export class CommandPalette extends Component {
             ...inPalette,
             allowRepeat: true,
         });
-        useExternalListener(window, "mousedown", this.onWindowMouseDown);
+        useListener(window, "mousedown", this.onWindowMouseDown.bind(this));
 
         /**
          * @type {{

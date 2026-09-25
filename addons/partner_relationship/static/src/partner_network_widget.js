@@ -6,7 +6,6 @@ import {
     onWillStart,
     onWillUnmount,
     onWillUpdateProps,
-    useExternalListener,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -29,6 +28,7 @@ import {
     primaryTies,
     shortName,
 } from "./network_layout.js";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const ZOOM_STEP = 1.25;
@@ -79,7 +79,7 @@ export class PartnerNetwork extends Component {
                 await this.load(nextProps.record.resId);
             }
         });
-        useExternalListener(window, "resize", () => this.onResize());
+        useListener(window, "resize", () => this.onResize());
         onWillUnmount(() => this.teardown());
     }
 

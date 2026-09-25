@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, useExternalListener, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 /**
  * @typedef Common
  * @property {string} [fadeout='medium']
@@ -37,7 +38,7 @@ export class RainbowMan extends Component {
     state;
 
     setup() {
-        useExternalListener(document.body, "click", this.onBodyClick);
+        useListener(document.body, "click", this.onBodyClick.bind(this));
         this.state = useState({ isFading: false });
         this.delay =
             /** @type {Record<string, number | false>} */ (RainbowMan.rainbowFadeouts)[

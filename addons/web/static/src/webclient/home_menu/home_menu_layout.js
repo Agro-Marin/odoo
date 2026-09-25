@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillUnmount, reactive, useExternalListener } from "@odoo/owl";
+import { onWillUnmount, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { user } from "@web/core/user";
 import { Mutex } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { session } from "@web/session";
 import {
     parseHomeMenuConfig,
@@ -69,7 +70,7 @@ export function useHomeMenuLayoutSync(onChange) {
     onWillUnmount(() => {
         generation++;
     });
-    useExternalListener(window, "storage", async (event) => {
+    useListener(window, "storage", async (event) => {
         if (event.key !== homeMenuLayoutStorageKey() || !event.newValue) {
             return;
         }

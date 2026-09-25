@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-import { Component, onPatched, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, onPatched, useRef, useState } from "@odoo/owl";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export class KanbanColumnQuickCreate extends Component {
     static template = "web.KanbanColumnQuickCreate";
@@ -31,10 +32,10 @@ export class KanbanColumnQuickCreate extends Component {
         useAutofocus();
         this.inputRef = useRef("autofocus");
 
-        useExternalListener(window, "mousedown", (/** @type {Event} */ ev) => {
+        useListener(window, "mousedown", (/** @type {Event} */ ev) => {
             this.mousedownTarget = ev.target;
         });
-        useExternalListener(
+        useListener(
             window,
             "click",
             (/** @type {Event} */ ev) => {

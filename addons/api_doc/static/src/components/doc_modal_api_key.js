@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useDocModelStore } from "@api_doc/doc_model_store_context";
-import { Component, useExternalListener, useRef } from "@odoo/owl";
+import { Component, useRef } from "@odoo/owl";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export class ApiKeyModal extends Component {
     static template = "api_doc.DocApiKeyModal";
@@ -12,13 +13,13 @@ export class ApiKeyModal extends Component {
         this.docContext = useDocModelStore();
         this.modalRef = useRef("modalRef");
 
-        useExternalListener(window, "keydown", (event) => {
+        useListener(window, "keydown", (event) => {
             if (event.key === "Escape") {
                 this.cancel();
             }
         });
 
-        useExternalListener(window, "click", (event) => {
+        useListener(window, "click", (event) => {
             if (!this.modalRef.el.contains(event.target)) {
                 this.cancel();
             }

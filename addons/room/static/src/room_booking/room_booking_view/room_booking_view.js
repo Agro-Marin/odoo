@@ -13,15 +13,9 @@ import { RoomDisplayTime } from "@room/room_booking/room_display_time";
 import { useInterval } from "@room/room_booking/useInterval";
 import { useService } from "@web/core/utils/hooks";
 
-import {
-    Component,
-    markup,
-    onWillStart,
-    onWillUnmount,
-    useExternalListener,
-    useState,
-} from "@odoo/owl";
+import { Component, markup, onWillStart, onWillUnmount, useState } from "@odoo/owl";
 import * as luxon from "luxon";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 // Time (in ms, so 2 minutes) after which the user is considered inactive
 // and the app goes back to the main screen
@@ -108,7 +102,7 @@ export class RoomBookingView extends Component {
 
         // If the user is inactive for more than the  INACTIVITY_TIMEOUT, reset the view
         ["pointerdown", "keydown"].forEach((event) =>
-            useExternalListener(window, event, () => {
+            useListener(window, event, () => {
                 browser.clearTimeout(this.inactivityTimer);
                 this.inactivityTimer = browser.setTimeout(() => {
                     this.resetBookingForm();

@@ -1,13 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useExternalListener, useRef } from "@odoo/owl";
+import { useRef } from "@odoo/owl";
 import { useCallbackRecorder } from "@web/core/action_hook";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { closest } from "@web/core/utils/dom/ui";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
-import { useProps } from "@web/core/utils/owl_bridge";
+import { useListener, useProps } from "@web/core/utils/owl_bridge";
 
 const CELL_SELECTOR = `.fc-day:not(.fc-col-header-cell)`;
 const ROW_SELECTOR = `[role="row"]`;
@@ -148,17 +148,17 @@ function combineCells(state, cells, action) {
 /** @returns {() => boolean} */
 function useCtrlKey() {
     let ctrlPressed = false;
-    useExternalListener(window, "keydown", (ev) => {
+    useListener(window, "keydown", (ev) => {
         if (ev.key === "Control") {
             ctrlPressed = true;
         }
     });
-    useExternalListener(window, "keyup", (ev) => {
+    useListener(window, "keyup", (ev) => {
         if (ev.key === "Control") {
             ctrlPressed = false;
         }
     });
-    useExternalListener(window, "blur", () => {
+    useListener(window, "blur", () => {
         ctrlPressed = false;
     });
     return () => ctrlPressed;

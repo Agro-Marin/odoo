@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { Component, useExternalListener, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 const log = makeLogger("pos.screen.ticket.search");
 /**
  * @prop {{
@@ -27,7 +28,7 @@ export class SearchBar extends Component {
         useLifecycleLog(log);
         this.ui = useService("ui");
         useAutofocus();
-        useExternalListener(window, "click", this._hideOptions);
+        useListener(window, "click", this._hideOptions.bind(this));
         this.filterOptionsList = [...this.props.config.filter.options.keys()];
         this.searchFieldsList = [...this.props.config.searchFields.keys()];
         const defaultSearchFieldId = this.searchFieldsList.indexOf(

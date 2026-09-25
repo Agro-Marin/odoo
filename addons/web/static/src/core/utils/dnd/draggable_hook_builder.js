@@ -38,7 +38,6 @@ export { DRAGGED_CLASS };
  * @property {Record<string, string[]>} [acceptedParams]
  * @property {Record<string, any>} [defaultParams]
  * @property {{
- * addListener?: typeof import("@odoo/owl")["useExternalListener"];
  * setup: typeof import("@web/core/utils/layout_effect")["useLayoutEffect"];
  * teardown: typeof import("@odoo/owl")["onWillUnmount"];
  * throttle: typeof import("@web/core/utils/timing")["useThrottleForAnimation"];

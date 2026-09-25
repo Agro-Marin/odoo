@@ -10,7 +10,8 @@ import {
     useDocModelStore,
 } from "@api_doc/doc_model_store_context";
 import { useDocUI } from "@api_doc/utils/doc_ui_store";
-import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
+import { Component, onMounted, useState } from "@odoo/owl";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export class DocClient extends Component {
     static template = "api_doc.DocClient";
@@ -39,9 +40,9 @@ export class DocClient extends Component {
             this.selectUrlModel();
         });
 
-        // useExternalListener rather than addEventListener: the raw listener
+        // useListener rather than addEventListener: the raw listener
         // outlives the component and keeps it alive with it.
-        useExternalListener(window, "popstate", () => {
+        useListener(window, "popstate", () => {
             this.selectUrlModel();
         });
     }

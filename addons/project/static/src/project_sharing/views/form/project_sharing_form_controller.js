@@ -1,7 +1,7 @@
 /** @odoo-module native */
-import { useExternalListener } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { FormController } from "@web/views/form";
 
 export class ProjectSharingFormController extends FormController {
@@ -12,8 +12,8 @@ export class ProjectSharingFormController extends FormController {
     setup() {
         super.setup();
         this.notification = useService("notification");
-        useExternalListener(window, "paste", this.onGlobalPaste, { capture: true });
-        useExternalListener(window, "drop", this.onGlobalDrop, { capture: true });
+        useListener(window, "paste", this.onGlobalPaste.bind(this), { capture: true });
+        useListener(window, "drop", this.onGlobalDrop.bind(this), { capture: true });
     }
 
     get actionMenuItems() {

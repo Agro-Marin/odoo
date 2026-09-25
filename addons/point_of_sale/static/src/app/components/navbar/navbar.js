@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { barcodeService } from "@barcodes/barcode_service";
-import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
+import { Component, onMounted, useState } from "@odoo/owl";
 import { Input } from "@point_of_sale/app/components/inputs/input/input";
 import { CashierName } from "@point_of_sale/app/components/navbar/cashier_name/cashier_name";
 import { ProxyStatus } from "@point_of_sale/app/components/navbar/proxy_status/proxy_status";
@@ -21,6 +21,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { AlertDialog } from "@web/ui/dialog";
 const log = makeLogger("pos.navbar");
 
@@ -53,7 +54,7 @@ export class Navbar extends Component {
         onMounted(async () => {
             this.hasProductCreationAccess = await this.pos.allowProductCreation();
         });
-        useExternalListener(document, "keydown", this.handleKeydown.bind(this));
+        useListener(document, "keydown", this.handleKeydown.bind(this));
         this.openPresetTiming = useAsyncLockedMethod(this.openPresetTiming.bind(this));
     }
 

@@ -5,18 +5,13 @@ import { DiscussSidebar } from "@mail/core/public_web/discuss_sidebar";
 import { MessagingMenu } from "@mail/core/public_web/messaging_menu";
 import { useMessageScrolling } from "@mail/utils/common/hooks";
 import { provideMailContext } from "@mail/utils/common/mail_context";
-import {
-    Component,
-    onMounted,
-    onWillUnmount,
-    useExternalListener,
-    useRef,
-} from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { useViewConfig } from "@web/core/view_config_hooks";
 const log = makeLogger("mail.discuss");
 
@@ -47,7 +42,7 @@ export class Discuss extends Component {
             inDiscussApp: true,
             messageHighlight: this.messageHighlight,
         });
-        useExternalListener(
+        useListener(
             window,
             "keydown",
             /** @param {KeyboardEvent} ev */

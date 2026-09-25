@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useDocModelStore } from "@api_doc/doc_model_store_context";
-import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export const TABLE_TYPES = {
     Id: "id",
@@ -31,7 +32,7 @@ export class DocTable extends Component {
         this.hideTimeout = null;
         this.requestAnim = null;
 
-        useExternalListener(window, "click", (event) => {
+        useListener(window, "click", (event) => {
             if (
                 this.subTableRef.el &&
                 this.subTableRef.el !== event.target &&
@@ -41,7 +42,7 @@ export class DocTable extends Component {
             }
         });
 
-        useExternalListener(window, "scroll", () => (this.state.subTable = null));
+        useListener(window, "scroll", () => (this.state.subTable = null));
     }
 
     showDynamicTooltip(event, content) {

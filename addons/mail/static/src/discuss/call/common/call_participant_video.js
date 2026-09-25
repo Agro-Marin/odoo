@@ -1,14 +1,8 @@
 // @ts-check
 /** @odoo-module native */
-import {
-    Component,
-    onMounted,
-    onPatched,
-    status,
-    useExternalListener,
-    useRef,
-} from "@odoo/owl";
+import { Component, onMounted, onPatched, status, useRef } from "@odoo/owl";
 import { useEventBus, useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 /**
  * @typedef {Object} Props
  * @property {"camera" | "screen"} type
@@ -29,7 +23,7 @@ export class CallParticipantVideo extends Component {
         );
         onMounted(() => this._update());
         onPatched(() => this._update());
-        useExternalListener(this.bus, "RTC-SERVICE:PLAY_MEDIA", async () => {
+        useListener(this.bus, "RTC-SERVICE:PLAY_MEDIA", async () => {
             await this.play();
         });
     }

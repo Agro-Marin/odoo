@@ -1,19 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    Component,
-    onWillUpdateProps,
-    useExternalListener,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { download } from "@web/core/network/download";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
@@ -93,7 +88,7 @@ export class FileViewer extends Component {
             innerWidth: browser.innerWidth,
             innerHeight: browser.innerHeight,
         });
-        useExternalListener(browser, "resize", () => {
+        useListener(browser, "resize", () => {
             this.viewport.innerWidth = browser.innerWidth;
             this.viewport.innerHeight = browser.innerHeight;
         });

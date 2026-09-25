@@ -56,22 +56,24 @@
 
 
     <t t-name="website_slides.UploadBtns">
-        <div t-portal="'#o_w_slide_upload_btns'">
-            <button
-                t-if="this.props.canPublish"
-                class="btn btn-primary o_w_slide_upload_published"
-                t-on-click="() => this.onClickFormSubmit(true)"
-            >
-                <span>Save and Publish</span>
-            </button>
-            <button
-                t-if="this.props.canUpload"
-                t-att-class="{ 'btn': true, 'btn-primary': !this.props.canPublish }"
-                t-on-click="() => this.onClickFormSubmit(false)"
-            >
-                <span>Save</span>
-            </button>
-        </div>
+        <Portal target="'#o_w_slide_upload_btns'">
+            <div>
+                <button
+                    t-if="this.props.canPublish"
+                    class="btn btn-primary o_w_slide_upload_published"
+                    t-on-click="() => this.onClickFormSubmit(true)"
+                >
+                    <span>Save and Publish</span>
+                </button>
+                <button
+                    t-if="this.props.canUpload"
+                    t-att-class="{ 'btn': true, 'btn-primary': !this.props.canPublish }"
+                    t-on-click="() => this.onClickFormSubmit(false)"
+                >
+                    <span>Save</span>
+                </button>
+            </div>
+        </Portal>
     </t>
 
     <t t-name="website_slides.UploadFormCommonInputs">
@@ -147,15 +149,16 @@
     </t>
 
     <t t-name="website_slides.UploadDialogLoading">
-        <div
-            t-portal="'.o_w_slide_upload_dialog_content'"
-            class="o_wslides_slide_upload_loading position-absolute h-100 w-100 text-center d-flex flex-column justify-content-center"
-        >
-            <h2 class="text-white">
-                <span class="fa-solid fa-circle-notch fa-spin"/>
-                <span>Loading content...</span>
-            </h2>
-        </div>
+        <Portal target="'.o_w_slide_upload_dialog_content'">
+            <div
+                class="o_wslides_slide_upload_loading position-absolute h-100 w-100 text-center d-flex flex-column justify-content-center"
+            >
+                <h2 class="text-white">
+                    <span class="fa-solid fa-circle-notch fa-spin"/>
+                    <span>Loading content...</span>
+                </h2>
+            </div>
+        </Portal>
     </t>
 
 </templates>

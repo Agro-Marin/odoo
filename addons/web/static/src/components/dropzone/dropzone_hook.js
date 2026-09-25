@@ -1,10 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillDestroy, useExternalListener } from "@odoo/owl";
+import { onWillDestroy } from "@odoo/owl";
 import { Dropzone } from "@web/components/dropzone/dropzone";
 import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 /**
  * @param {DragEvent} ev
@@ -16,12 +17,12 @@ function carriesFiles(ev) {
 
 /** @param {() => void} onDragSessionEnd */
 function useSuppressWindowFileDrop(onDragSessionEnd) {
-    useExternalListener(window, "dragover", (ev) => {
+    useListener(window, "dragover", (ev) => {
         if (carriesFiles(ev)) {
             ev.preventDefault();
         }
     });
-    useExternalListener(
+    useListener(
         window,
         "drop",
         (ev) => {
@@ -32,7 +33,7 @@ function useSuppressWindowFileDrop(onDragSessionEnd) {
         },
         { capture: true },
     );
-    useExternalListener(window, "dragend", () => onDragSessionEnd(), {
+    useListener(window, "dragend", () => onDragSessionEnd(), {
         capture: true,
     });
 }
@@ -57,8 +58,8 @@ export function useCustomDropzone(
     /** @type {false|(() => void)} */
     let removeDropzone = false;
 
-    useExternalListener(document, "dragenter", onDragEnter, { capture: true });
-    useExternalListener(document, "dragleave", onDragLeave, { capture: true });
+    useListener(document, "dragenter", onDragEnter, { capture: true });
+    useListener(document, "dragleave", onDragLeave, { capture: true });
     useSuppressWindowFileDrop(() => {
         dragCount = 0;
         updateDropzone();

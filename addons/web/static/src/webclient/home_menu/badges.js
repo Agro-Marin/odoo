@@ -1,12 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onMounted, onWillUnmount, useExternalListener } from "@odoo/owl";
+import { onMounted, onWillUnmount } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { UserEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user, userBus } from "@web/core/user";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 const badgeProviders = registry.category("home_menu_badges");
 badgeProviders.addValidation({
@@ -65,11 +66,11 @@ export function useHomeMenuBadgeUpdates(env, onChange) {
         }
     };
     onMounted(subscribe);
-    useExternalListener(userBus, UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
+    useListener(userBus, UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
         invalidateHomeMenuBadges(env);
         onChange();
     });
-    useExternalListener(badgeProviders, "UPDATE", () => {
+    useListener(badgeProviders, "UPDATE", () => {
         subscribe();
         onChange();
     });

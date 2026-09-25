@@ -4,7 +4,6 @@ import {
     onMounted,
     onPatched,
     onWillUnmount,
-    useExternalListener,
     useRef,
     useState,
 } from "@odoo/owl";
@@ -32,6 +31,7 @@ import { pick } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { debounce } from "@web/core/utils/timing";
 import { getDataURLFromFile } from "@web/core/utils/urls";
 import { AlertDialog } from "@web/ui/dialog";
@@ -126,7 +126,7 @@ export class FloorScreen extends Component {
             this.state.potentialLink?.parent &&
             this.state.potentialLink.time + TABLE_LINKING_DELAY < Date.now();
 
-        useExternalListener(window, "keydown", (ev) => {
+        useListener(window, "keydown", (ev) => {
             const overlayElements = document.querySelectorAll(".o-overlay-item");
             if (
                 overlayElements.length === 0 &&

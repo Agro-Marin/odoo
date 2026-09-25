@@ -3,13 +3,14 @@
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { DeviceSelect } from "@mail/discuss/call/common/device_select";
 import { useMicrophoneVolume } from "@mail/utils/common/hooks";
-import { Component, onWillStart, useExternalListener, useState, xml } from "@odoo/owl";
+import { Component, onWillStart, useState, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { Dialog } from "@web/ui/dialog";
 
 const log = makeLogger("mail.rtc.settings");
@@ -32,16 +33,16 @@ export class CallSettings extends Component {
             userDevices: [],
         });
         this.pttExtService = useService("discuss.ptt_extension");
-        useExternalListener(
+        useListener(
             browser,
             "keydown",
-            /** @type {EventListener} */ (this._onKeyDown),
+            /** @type {EventListener} */ (this._onKeyDown.bind(this)),
             { capture: true },
         );
-        useExternalListener(
+        useListener(
             browser,
             "keyup",
-            /** @type {EventListener} */ (this._onKeyUp),
+            /** @type {EventListener} */ (this._onKeyUp.bind(this)),
             { capture: true },
         );
         onWillStart(async () => {

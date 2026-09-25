@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import { onWillUnmount, useExternalListener, useRef, useState } from "@odoo/owl";
+import { onWillUnmount, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { makeLogger } from "@web/core/debug/debug_logger";
@@ -11,6 +11,7 @@ import { groupBy } from "@web/core/utils/collections/arrays";
 import { measure, mutate } from "@web/core/utils/dom/layout_batch";
 import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { throttleForAnimation } from "@web/core/utils/timing";
 import { registerField } from "@web/fields/_registry";
 import { FieldComponent } from "@web/fields/field_component";
@@ -128,7 +129,7 @@ function useOverflowAdjust(component) {
         overflow.lastWidth = null;
         layout.revision++;
     });
-    useExternalListener(window, "resize", throttledResize);
+    useListener(window, "resize", throttledResize);
     onWillUnmount(() => throttledResize.cancel());
 }
 

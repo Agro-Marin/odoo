@@ -1,8 +1,9 @@
 /** @odoo-module native */
 import { Meter } from "@auth_password_policy/password_meter";
 import { ConcretePolicy, recommendations } from "@auth_password_policy/password_policy";
-import { Component, useExternalListener, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 class PasswordMeter extends Component {
     static template = "auth_password_policy_signup.PasswordMeter";
@@ -13,7 +14,7 @@ class PasswordMeter extends Component {
 
     setup() {
         const inputEl = document.querySelector(this.props.selector);
-        useExternalListener(inputEl, "input", (e) => {
+        useListener(inputEl, "input", (e) => {
             this.state.password = e.target.value || "";
         });
 

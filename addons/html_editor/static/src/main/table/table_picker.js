@@ -1,5 +1,6 @@
 /** @odoo-module native */
-import { Component, useExternalListener, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export class TablePicker extends Component {
     static template = "html_editor.TablePicker";
@@ -17,7 +18,7 @@ export class TablePicker extends Component {
             cols: 3,
             rows: 3,
         });
-        useExternalListener(
+        useListener(
             this.props.editable.ownerDocument,
             "keydown",
             (ev) => {

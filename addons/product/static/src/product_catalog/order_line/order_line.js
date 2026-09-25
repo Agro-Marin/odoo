@@ -2,6 +2,7 @@
 import { Component } from "@odoo/owl";
 import { useProductCatalogContext } from "@product/product_catalog/product_catalog_context";
 import { formatFieldFloat, formatMonetary } from "@web/core/formatters";
+import { Portal } from "@web/core/utils/owl_bridge";
 
 export const productCatalogOrderLineProps = {
     isSample: { type: Boolean, optional: true },
@@ -18,6 +19,7 @@ export const productCatalogOrderLineProps = {
 
 export class ProductCatalogOrderLine extends Component {
     static template = "product.ProductCatalogOrderLine";
+    static components = { Portal };
     static props = productCatalogOrderLineProps;
 
     setup() {

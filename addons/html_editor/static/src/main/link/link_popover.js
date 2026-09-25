@@ -1,11 +1,12 @@
 /** @odoo-module native */
-import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox";
 import { useColorPicker } from "@web/components/color_picker";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { session } from "@web/session";
 
 import { cleanZWChars, deduceURLfromText } from "./utils.js";
@@ -263,9 +264,9 @@ export class LinkPopover extends Component {
                 this.onClickApply();
             }
         };
-        useExternalListener(this.props.document, "pointerdown", onPointerDown);
+        useListener(this.props.document, "pointerdown", onPointerDown);
         if (this.props.document !== document) {
-            useExternalListener(document, "pointerdown", onPointerDown);
+            useListener(document, "pointerdown", onPointerDown);
         }
     }
 

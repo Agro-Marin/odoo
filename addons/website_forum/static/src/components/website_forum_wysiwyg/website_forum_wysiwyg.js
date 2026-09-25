@@ -1,11 +1,12 @@
 /** @odoo-module native */
 import DOMPurify from "dompurify";
 import { removeClass } from "@html_editor/utils/dom";
-import { markup, onMounted, useExternalListener } from "@odoo/owl";
+import { markup, onMounted } from "@odoo/owl";
 import { BASIC_PLUGINS, FULL_EDIT_PLUGINS } from "../../plugins/plugin_sets.js";
 import { useResizer } from "./resizer_hook.js";
 import { Wysiwyg } from "@html_editor/wysiwyg";
 import { useEditorOverlayContext } from "@html_editor/core/editor_overlay_context";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export class WebsiteForumWysiwyg extends Wysiwyg {
     static template = "website_forum.WebsiteForumWysiwyg";
@@ -37,11 +38,7 @@ export class WebsiteForumWysiwyg extends Wysiwyg {
                 .forEach((btn) => (btn.type = "button")),
         );
         this.submitButton = form.querySelector("button[type=submit]");
-        useExternalListener(
-            this.submitButton,
-            "click",
-            this.onSubmitButtonClick.bind(this),
-        );
+        useListener(this.submitButton, "click", this.onSubmitButtonClick.bind(this));
         this.readyToSubmit = false;
 
         const postReplyWrapper = form.closest("#post_reply");
@@ -52,12 +49,12 @@ export class WebsiteForumWysiwyg extends Wysiwyg {
             const discardButton = postReplyWrapper.querySelector(
                 ".o_wforum_discard_btn",
             );
-            useExternalListener(discardButton, "click", clearSelection);
+            useListener(discardButton, "click", clearSelection);
 
             const toggleExpandButton = postReplyWrapper.querySelector(
                 ".o_wforum_expand_toggle",
             );
-            useExternalListener(toggleExpandButton, "click", clearSelection);
+            useListener(toggleExpandButton, "click", clearSelection);
         }
     }
 

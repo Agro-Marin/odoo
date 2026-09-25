@@ -6,11 +6,11 @@ import {
     onMounted,
     onWillDestroy,
     onWillUpdateProps,
-    useExternalListener,
     useRef,
     useState,
 } from "@odoo/owl";
 import { _t } from "@web/core/translation";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 import {
     getConnectionValidity,
@@ -263,10 +263,10 @@ export class FlowEditor extends Component {
             }
             this.store.setReadonly(nextProps.readonly);
         });
-        useExternalListener(window, "pointermove", this.onPointerMove);
-        useExternalListener(window, "pointerup", this.onPointerUp);
-        useExternalListener(window, "pointercancel", this.onPointerCancel);
-        useExternalListener(window, "keydown", this.onKeyDown);
+        useListener(window, "pointermove", this.onPointerMove.bind(this));
+        useListener(window, "pointerup", this.onPointerUp.bind(this));
+        useListener(window, "pointercancel", this.onPointerCancel.bind(this));
+        useListener(window, "keydown", this.onKeyDown.bind(this));
         onMounted(() => {
             if (!this.props.viewport) {
                 this.fitToContent();

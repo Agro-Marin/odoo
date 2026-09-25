@@ -1,12 +1,5 @@
 /** @odoo-module native */
-import {
-    Component,
-    onPatched,
-    onWillStart,
-    useExternalListener,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onPatched, onWillStart, useRef, useState } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
@@ -22,6 +15,7 @@ import {
 } from "@web/core/utils/dom/ui";
 import { roundDecimals } from "@web/core/utils/format/numbers";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { Field } from "@web/fields/field";
 import { placeholderFieldOption } from "@web/fields/field_options";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
@@ -76,8 +70,8 @@ export class AnalyticDistribution extends Component {
         useRecordObserver(this.willUpdateRecord.bind(this));
         onPatched(this.patched);
 
-        useExternalListener(window, "click", this.onWindowClick, true);
-        useExternalListener(window, "resize", this.onWindowResized);
+        useListener(window, "click", this.onWindowClick.bind(this), true);
+        useListener(window, "resize", this.onWindowResized.bind(this));
 
         this.openTemplate = useOpenMany2XRecord({
             resModel: "account.analytic.distribution.model",

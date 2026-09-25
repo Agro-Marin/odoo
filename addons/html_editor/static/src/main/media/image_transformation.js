@@ -26,8 +26,9 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 import { usePositionHook } from "@html_editor/position_hook";
 import { closestElement } from "@html_editor/utils/dom_traversal";
-import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
+import { Component, onMounted, useRef } from "@odoo/owl";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 const rad = Math.PI / 180;
 const MIN_IMAGE_SIZE = 20;
@@ -59,15 +60,15 @@ export class ImageTransformation extends Component {
             this.positionTransfoContainer();
             this.props.onComponentMounted();
         });
-        useExternalListener(window, "mousemove", this.mouseMove);
-        useExternalListener(window, "mouseup", this.mouseUp);
+        useListener(window, "mousemove", this.mouseMove.bind(this));
+        useListener(window, "mouseup", this.mouseUp.bind(this));
         if (this.document.defaultView.frameElement) {
             const iframeWindow = this.document.defaultView;
-            useExternalListener(iframeWindow, "mousemove", this.mouseMove);
-            useExternalListener(iframeWindow, "mouseup", this.mouseUp);
+            useListener(iframeWindow, "mousemove", this.mouseMove.bind(this));
+            useListener(iframeWindow, "mouseup", this.mouseUp.bind(this));
         }
-        useExternalListener(this.document, "selectionchange", () => this.destroy());
-        useExternalListener(this.document, "keydown", (ev) => {
+        useListener(this.document, "selectionchange", () => this.destroy());
+        useListener(this.document, "keydown", (ev) => {
             if (["Backspace", "Delete"].includes(ev.key)) {
                 this.destroy();
             }

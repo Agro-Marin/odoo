@@ -4,8 +4,9 @@ import { ActionContainer } from "@web/webclient/actions";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 import { provideDebugContext } from "@web/core/debug/debug_context";
 import { session } from "@web/session";
-import { Component, useExternalListener } from "@odoo/owl";
+import { Component } from "@odoo/owl";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 export class SubcontractingPortalWebClient extends Component {
     static components = { ActionContainer, MainComponentsContainer };
@@ -21,7 +22,7 @@ export class SubcontractingPortalWebClient extends Component {
             },
             () => [],
         );
-        useExternalListener(window, "click", this.onGlobalClick, { capture: true });
+        useListener(window, "click", this.onGlobalClick.bind(this), { capture: true });
     }
 
     async _showView() {

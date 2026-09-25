@@ -2,10 +2,11 @@
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { useService } from "@web/core/utils/hooks";
+import { Portal } from "@web/core/utils/owl_bridge";
 import { redirect } from "@web/core/utils/urls";
 
 export class SlideInstallModule extends Component {
-    static components = {};
+    static components = { Portal };
     static props = {
         moduleData: {
             name: String,

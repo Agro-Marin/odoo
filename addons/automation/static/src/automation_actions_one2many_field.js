@@ -1,9 +1,10 @@
 /** @odoo-module native */
-import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 class ActionsOne2ManyField extends Component {
     static props = ["*"];
@@ -18,7 +19,7 @@ class ActionsOne2ManyField extends Component {
             },
             () => [],
         );
-        useExternalListener(
+        useListener(
             window,
             "resize",
             useThrottleForAnimation(() => this.adapt()),

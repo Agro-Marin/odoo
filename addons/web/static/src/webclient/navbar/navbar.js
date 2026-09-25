@@ -1,14 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-import {
-    Component,
-    markRaw,
-    onWillDestroy,
-    useExternalListener,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, markRaw, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -24,6 +17,7 @@ import { _t } from "@web/core/translation";
 import { ErrorHandler } from "@web/core/utils/components";
 import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { Portal, useListener } from "@web/core/utils/owl_bridge";
 import { debounce } from "@web/core/utils/timing";
 import { usePopover } from "@web/ui/popover";
 import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
@@ -56,6 +50,7 @@ export class NavBar extends Component {
         ErrorHandler,
         QuickLauncher,
         Transition,
+        Portal,
     };
     static props = {};
 
@@ -116,7 +111,7 @@ export class NavBar extends Component {
         );
         const debouncedAdapt = debounce(this.adapt.bind(this), 250);
         onWillDestroy(() => debouncedAdapt.cancel());
-        useExternalListener(window, "resize", debouncedAdapt);
+        useListener(window, "resize", debouncedAdapt);
 
         const onSystrayUpdate = () => this.state.systrayRevision++;
         const onMenusChanged = () => this.state.menuRevision++;

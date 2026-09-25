@@ -2,9 +2,9 @@
 /** @odoo-module native */
 import { DiscussClientAction } from "@mail/core/public_web/discuss_client_action";
 import { WelcomePage } from "@mail/discuss/core/public/welcome_page";
-import { useExternalListener } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { patch } from "@web/core/utils/patch";
 
 const log = makeLogger("mail.discuss.public");
@@ -22,9 +22,7 @@ patch(DiscussClientAction.prototype, {
         const url = new URL(browser.location.href);
         url.searchParams.delete("email_token");
         browser.history.replaceState(browser.history.state, null, url.toString());
-        useExternalListener(browser, "popstate", () =>
-            this.restoreDiscussThread(this.props),
-        );
+        useListener(browser, "popstate", () => this.restoreDiscussThread(this.props));
     },
     getActiveId() {
         const currentURL = new URL(browser.location.href);

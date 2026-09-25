@@ -1,8 +1,9 @@
 /** @odoo-module native */
-import { onMounted, onWillDestroy, useExternalListener } from "@odoo/owl";
+import { onMounted, onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useIsDestroyed } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 const log = makeLogger("pos.idle_timer");
 
 const UserPresenceEvents = [
@@ -68,7 +69,7 @@ export function useIdleTimer(steps, onAlive) {
     };
 
     for (const event of UserPresenceEvents) {
-        useExternalListener(window, event, onMove);
+        useListener(window, event, onMove);
     }
 
     onMounted(resetTimers);

@@ -1,8 +1,9 @@
 // @ts-check
 /** @odoo-module native */
-import { Component, onMounted, useExternalListener, useRef } from "@odoo/owl";
+import { Component, onMounted, useRef } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 const log = makeLogger("mail.activity");
 
@@ -31,7 +32,7 @@ export class ActivityMarkAsDone extends Component {
         onMounted(() => {
             this.textArea.el.focus();
         });
-        useExternalListener(window, "keydown", this.onKeydown);
+        useListener(window, "keydown", this.onKeydown.bind(this));
     }
 
     /** @param {KeyboardEvent} ev */

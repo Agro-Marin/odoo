@@ -1,7 +1,8 @@
 /** @odoo-module native */
 import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
-import { Component, useExternalListener, useState } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { useListener } from "@web/core/utils/owl_bridge";
 
 import { ImageTransformation } from "./image_transformation.js";
 
@@ -12,7 +13,7 @@ export function useImageTransform({
 }) {
     let pointerDownInsideTransform = false;
 
-    useExternalListener(document, "pointerdown", (ev) => {
+    useListener(document, "pointerdown", (ev) => {
         if (isNodeInsideTransform(ev.target)) {
             pointerDownInsideTransform = true;
         } else {
@@ -20,7 +21,7 @@ export function useImageTransform({
             pointerDownInsideTransform = false;
         }
     });
-    useExternalListener(
+    useListener(
         document,
         "click",
         (ev) => {
@@ -31,7 +32,7 @@ export function useImageTransform({
         },
         { capture: true },
     );
-    useExternalListener(document, "selectionchange", (ev) => {
+    useListener(document, "selectionchange", (ev) => {
         closeImageTransformation();
     });
 

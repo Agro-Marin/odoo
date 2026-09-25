@@ -2,11 +2,12 @@
 /** @odoo-module native */
 import { discussComponentRegistry } from "@mail/core/common/discuss_component_registry";
 import { provideMailContext, useMailContext } from "@mail/utils/common/mail_context";
-import { Component, useExternalListener, useRef, useState } from "@odoo/owl";
+import { Component, useRef, useState } from "@odoo/owl";
 import { useNavigation } from "@web/core/navigation/navigation";
 import { usePosition } from "@web/core/position/position_hook";
 import { getComponentElement } from "@web/core/utils/components";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useListener } from "@web/core/utils/owl_bridge";
 export class CallDropdown extends Component {
     static template = "discuss.CallDropdown";
     static props = {
@@ -34,8 +35,10 @@ export class CallDropdown extends Component {
             margin: 4,
             flip: true,
         });
-        useExternalListener(this.window, "click", this.onClickAway, { capture: true });
-        useExternalListener(this.window, "keydown", this.onKeydown);
+        useListener(this.window, "click", this.onClickAway.bind(this), {
+            capture: true,
+        });
+        useListener(this.window, "keydown", this.onKeydown.bind(this));
         provideMailContext({ inCallDropdown: { close: () => this.close() } });
         this.navigation = useNavigation(this.menuRef, {
             isNavigationAvailable: () => this.state.isOpen,

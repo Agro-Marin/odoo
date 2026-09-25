@@ -1,8 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-import { useExternalListener } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
+import { useListener } from "@web/core/utils/owl_bridge";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 /**
@@ -25,7 +25,7 @@ export function useCalendarPopover(component) {
     const dialog = useService("dialog");
     let removeDialog = null;
     let fcPopover;
-    useExternalListener(
+    useListener(
         window,
         "mousedown",
         (ev) => {
