@@ -245,7 +245,7 @@ export class ControlPanel extends Component {
         return _t("%s View", view.name);
     }
 
-    /** @param {import("@web/views/view").ViewType} viewType */
+    /** @param {import("@web/webclient/actions/action_service").ViewType} viewType */
     switchView(viewType, /** @type {any} */ newWindow) {
         return this.actionService.switchView(viewType, {}, { newWindow });
     }

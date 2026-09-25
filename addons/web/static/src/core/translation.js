@@ -16,7 +16,7 @@ const log = makeLogger("web.translation");
 
 /**
  * @param {unknown} value
- * @returns {boolean}
+ * @returns {value is string}
  */
 function isNotBlank(value) {
     return typeof value === "string" && !R_BLANK.test(value);
@@ -59,7 +59,7 @@ const DEFAULT_MODULE = "base";
 const R_BLANK = /^[\s\u200B]*$/;
 
 /**
- * @param {string} source
+ * @param {string | import("@odoo/owl").Markup} source
  * @param {Substitutions} substitutions
  * @returns {string | Markup | TranslatedString}
  */
@@ -88,7 +88,7 @@ export function _pl(count, forms) {
 }
 
 /**
- * @param {string} source
+ * @param {string | import("@odoo/owl").Markup} source
  * @param {string} [moduleName]
  * @param {Substitutions} substitutions
  * @returns {string | Markup | TranslatedString}

@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { barcodeService } from "@barcodes/barcode_service";
 import { EventBus, onWillDestroy } from "@odoo/owl";
-import { useComponentName } from "@web/core/utils/owl_bridge";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { parseFloat as oParseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
+import { useComponentName } from "@web/core/utils/owl_bridge";
 import { session } from "@web/session";
 const log = makeLogger("pos.number_buffer");
 

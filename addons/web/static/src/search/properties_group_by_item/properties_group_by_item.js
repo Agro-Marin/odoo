@@ -72,8 +72,8 @@ export class PropertiesGroupByItem extends Component {
         }
     }
 
-    /** @param {number[]} ids */
-    onGroup(ids) {
-        this.props.onGroup(ids);
+    /** @param {{ itemId: number, optionId?: string }} selection */
+    onGroup(selection) {
+        this.props.onGroup(selection);
     }
 }

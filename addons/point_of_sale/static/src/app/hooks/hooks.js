@@ -1,14 +1,8 @@
 /** @odoo-module native */
-import {
-    onMounted,
-    onPatched,
-    useExternalListener,
-    useRef,
-    useState,
-} from "@odoo/owl";
-import { useComponentName } from "@web/core/utils/owl_bridge";
+import { onMounted, onPatched, useExternalListener, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { KeepLast } from "@web/core/utils/concurrency";
+import { useComponentName } from "@web/core/utils/owl_bridge";
 const log = makeLogger("pos.hooks");
 
 export function useAutoFocusToLast() {

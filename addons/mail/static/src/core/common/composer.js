@@ -818,7 +818,7 @@ export class Composer extends Component {
         return !composer.composerText && composer.message.attachment_ids.length === 0;
     }
 
-    /** @param {MouseEvent} ev */
+    /** @param {Event} ev */
     onClickInsertCannedResponse(ev) {
         markEventHandled(ev, "composer.clickInsertCannedResponse");
         const composer = toRaw(this.props.composer);
