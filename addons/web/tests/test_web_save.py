@@ -1,8 +1,10 @@
 from datetime import timedelta
 
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.fields import Command
 from odoo.tests import common
+from odoo.tests.common import HttpCase, new_test_user
+from odoo.tests.http import JsonRpcException
 
 
 @common.tagged("post_install", "-at_install", "web_unit", "web_save")
@@ -440,3 +442,127 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
             known_values={self.c1.id: {"ref": self.c1.ref or False}},
         )
         self.assertEqual(recs.mapped("ref"), ["a1", "a2"])
+
+
+@common.tagged("post_install", "-at_install", "web_unit", "web_save")
+class TestWebSaveConcurrencyAccess(common.TransactionCase):
+    def _answers(self, record, field_name, stored, other):
+        answers = []
+        for guess in (stored, other):
+            try:
+                with self.env.cr.savepoint():
+                    record.web_save(
+                        {field_name: guess},
+                        specification={"id": {}},
+                        known_values={field_name: f"{other}-baseline"},
+                    )
+                answers.append("saved")
+            except AccessError:
+                answers.append("refused")
+            except UserError:
+                answers.append("conflict")
+        return answers
+
+    def test_a_hidden_field_answers_the_same_whatever_the_guess(self):
+        portal = new_test_user(self.env, login="ws_portal", groups="base.group_portal")
+        attachment = self.env["ir.attachment"].create(
+            {"name": "ws secret", "access_token": "right-token"}
+        )
+        self.env.flush_all()
+        record = attachment.with_user(portal)
+        self.assertEqual(
+            self._answers(record, "access_token", "right-token", "wrong-token"),
+            ["refused", "refused"],
+        )
+
+    def test_a_record_the_user_cannot_read_answers_the_same_whatever_the_guess(self):
+        manager = new_test_user(
+            self.env,
+            login="ws_partner_manager",
+            groups="base.group_user,base.group_partner_manager",
+        )
+        owner = new_test_user(self.env, login="ws_owner", groups="base.group_user")
+        private = self.env["res.partner"].create(
+            {
+                "name": "ws private",
+                "type": "private",
+                "parent_id": owner.partner_id.id,
+                "street": "Right Street 1",
+            }
+        )
+        self.env.flush_all()
+        record = private.with_user(manager)
+        self.assertEqual(
+            self._answers(record, "street", "Right Street 1", "Wrong Street 2"),
+            ["refused", "refused"],
+        )
+
+    def test_a_record_the_user_cannot_read_gives_no_write_date(self):
+        manager = new_test_user(
+            self.env,
+            login="ws_partner_manager_date",
+            groups="base.group_user,base.group_partner_manager",
+        )
+        owner = new_test_user(self.env, login="ws_owner_date", groups="base.group_user")
+        private = self.env["res.partner"].create(
+            {
+                "name": "ws private date",
+                "type": "private",
+                "parent_id": owner.partner_id.id,
+            }
+        )
+        self.env.flush_all()
+        with self.assertRaises(AccessError):
+            private.with_user(manager).web_save(
+                {"street": "x"},
+                specification={"id": {}},
+                last_write_date="2000-01-01 00:00:00",
+            )
+
+    def test_a_user_still_learns_of_a_conflict_on_what_they_may_read(self):
+        manager = new_test_user(
+            self.env,
+            login="ws_partner_manager_conflict",
+            groups="base.group_user,base.group_partner_manager",
+        )
+        partner = self.env["res.partner"].create({"name": "ws shared", "ref": "111"})
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE res_partner SET ref = 'concurrent' WHERE id = %s", (partner.id,)
+        )
+        with self.assertRaisesRegex(UserError, "modified by another user"):
+            partner.with_user(manager).web_save(
+                {"ref": "mine"}, specification={"id": {}}, known_values={"ref": "111"}
+            )
+
+
+@common.tagged("post_install", "-at_install", "web_save")
+class TestWebSaveConcurrencyAccessHttp(HttpCase):
+    def test_a_portal_user_cannot_probe_a_hidden_field_through_web_save(self):
+        new_test_user(
+            self.env,
+            login="ws_http_portal",
+            password="ws_http_portal_pw",
+            groups="base.group_portal",
+        )
+        attachment = self.env["ir.attachment"].create(
+            {"name": "ws http secret", "access_token": "right-token"}
+        )
+        self.authenticate("ws_http_portal", "ws_http_portal_pw")
+        answers = []
+        for guess in ("right-token", "wrong-token"):
+            try:
+                self.call_jsonrpc(
+                    "/web/dataset/call_kw/ir.attachment/web_save",
+                    {
+                        "model": "ir.attachment",
+                        "method": "web_save",
+                        "args": [[attachment.id], {"access_token": guess}, {"id": {}}],
+                        "kwargs": {"known_values": {"access_token": "baseline"}},
+                    },
+                )
+                answers.append("saved")
+            except JsonRpcException as error:
+                answers.append(str(error))
+        self.assertEqual(answers[0], answers[1])
+        self.assertIn("AccessError", answers[0])

@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Iterable
 from typing import Any
 
 from odoo import api, models
@@ -111,6 +112,8 @@ class Base(models.AbstractModel):
     ) -> list[dict]:
         self._check_web_save_vals(vals)
         if self:
+            if known_values is not None or last_write_date:
+                self._check_concurrency_access(vals)
             if known_values is not None:
                 is_multi = known_values and all(
                     str(k).lstrip("-").isdigit() for k in known_values
@@ -211,6 +214,15 @@ class Base(models.AbstractModel):
         )
     )
 
+    def _check_concurrency_access(self, field_names: Iterable[str]) -> None:
+        # the check reads the stored values below the ORM and answers
+        # differently when a client's guess is right, so it runs only on
+        # records and fields the principal may write, and compares only the
+        # fields it may read (_get_fields_concurrency_checkable)
+        self.check_access("write")
+        self.check_access("read")
+        self._check_fields_write_access(field_names)
+
     def _get_fields_concurrency_checkable(self, vals):
         return [
             n
@@ -220,6 +232,7 @@ class Base(models.AbstractModel):
             and self._fields[n].column_type
             and self._fields[n].column_type[0] != "jsonb"
             and self._fields[n].type in self._CONCURRENCY_SAFE_TYPES
+            and self._has_field_access(self._fields[n], "read")
         ]
 
     def _is_field_modified_concurrently(self, name, server_raw, baseline_raw, new_raw):
@@ -374,6 +387,7 @@ class Base(models.AbstractModel):
             self._check_web_save_vals(vals)
 
         if known_values is not None:
+            self._check_concurrency_access(set().union(*vals_list))
             self._check_concurrent_field_changes_multi_list(vals_list, known_values)
 
         groups: dict[frozenset, list[int]] = {}
