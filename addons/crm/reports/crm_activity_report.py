@@ -1,6 +1,6 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 
 class CrmActivityReport(models.Model):
@@ -8,6 +8,11 @@ class CrmActivityReport(models.Model):
     _auto = False
     _description = "CRM Activity Analysis"
     _rec_name = "id"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("user_id", shared=True),
+        }
+    )
 
     date = fields.Datetime(
         string="Completion Date",

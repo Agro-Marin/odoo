@@ -1,4 +1,5 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 from odoo.addons.approval.models import approval_trace as trace
 
@@ -9,6 +10,11 @@ class ApproverPerformance(models.Model):
     _description = "Approver Performance Metrics"
     _auto = False
     _order = "avg_response_hours"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     user_id = fields.Many2one(
         comodel_name="res.users",

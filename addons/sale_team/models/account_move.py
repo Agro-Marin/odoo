@@ -1,12 +1,17 @@
 from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import groupby
+from odoo.tools import frozendict, groupby
 
 _debug = DebugLog(__name__)
 
 
 class AccountMove(models.Model):
     _inherit = "account.move"
+    _access_anchors = frozendict(
+        {
+            "sale_team": models.Anchor("team_id", kind="team", usage="sale"),
+        }
+    )
 
     team_id = fields.Many2one(
         comodel_name="team.team",

@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 
 class AccountDepreciationProfile(models.Model):
@@ -7,6 +8,11 @@ class AccountDepreciationProfile(models.Model):
     _inherit = ["mixin.mail.thread", "mixin.analytic"]
     _order = "name, id"
     _check_company_auto = True
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", hierarchy="parent_of"),
+        }
+    )
 
     name = fields.Char(
         translate=True,

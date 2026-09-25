@@ -7,7 +7,7 @@ from odoo import Command, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import clean_context
+from odoo.tools import clean_context, frozendict
 
 _debug = DebugLog(__name__)
 
@@ -36,6 +36,12 @@ class HrApplicant(models.Model):
     _mailing_enabled = True
     _primary_email = "email_from"
     _track_duration_field = "stage_id"
+    _access_anchors = frozendict(
+        {
+            "job_interviewer": models.Anchor("job_id.interviewer_ids", kind="owner"),
+            "owner": "interviewer_ids",
+        }
+    )
 
     sequence = fields.Integer(
         default=10,

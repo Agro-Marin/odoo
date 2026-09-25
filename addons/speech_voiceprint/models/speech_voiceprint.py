@@ -3,7 +3,7 @@ from pathlib import Path
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import config
+from odoo.tools import config, frozendict
 
 from ..tools import embedder
 from odoo.addons.media.tools.audio import SAMPLE_RATE, decode_audio
@@ -26,6 +26,12 @@ class SpeechVoiceprint(models.Model):
     _description = "Voiceprint"
     _rec_name = "employee_id"
     _order = "employee_id"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+            "owner": "user_id",
+        }
+    )
 
     employee_id = fields.Many2one(
         comodel_name="hr.employee",

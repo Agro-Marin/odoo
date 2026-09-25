@@ -1,4 +1,5 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 from odoo.addons.purchase import const
 
@@ -9,6 +10,12 @@ class PurchaseReport(models.Model):
     _description = "Purchase Report"
     _auto = False
     _order = "date_order desc, price_total desc"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+            "owner": models.Anchor("user_id", shared=True),
+        }
+    )
 
     order_reference = fields.Reference(
         selection=[("purchase.order", "Purchase Order")],

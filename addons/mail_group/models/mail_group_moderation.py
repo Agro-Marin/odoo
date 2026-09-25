@@ -1,11 +1,16 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import email_normalize
+from odoo.tools import email_normalize, frozendict
 
 
 class MailGroupModeration(models.Model):
     _name = "mail.group.moderation"
     _description = "Mailing List black/white list"
+    _access_anchors = frozendict(
+        {
+            "owner": "mail_group_id.moderator_ids",
+        }
+    )
 
     email = fields.Char(required=True)
     status = fields.Selection(

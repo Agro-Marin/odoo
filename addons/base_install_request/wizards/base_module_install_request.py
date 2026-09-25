@@ -1,5 +1,6 @@
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import frozendict
 
 
 class BaseModuleInstallRequest(models.Model):
@@ -8,6 +9,11 @@ class BaseModuleInstallRequest(models.Model):
     _description = "Module Activation Request"
     _rec_name = "module_id"
     _order = "create_date desc, id desc"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     module_id = fields.Many2one(
         comodel_name="ir.module.module",

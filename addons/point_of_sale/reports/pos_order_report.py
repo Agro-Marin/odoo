@@ -1,5 +1,6 @@
 from odoo import fields, models
 from odoo.libs.sql import SQL
+from odoo.tools import frozendict
 
 CURRENCY_RATE = "COALESCE(NULLIF(s.currency_rate, 0), 1.0)"
 
@@ -46,6 +47,11 @@ class ReportPosOrder(models.Model):
         "res.company": ["currency_id"],
         "res.currency": ["decimal_places"],
     }
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     order_id = fields.Many2one(
         comodel_name="pos.order",

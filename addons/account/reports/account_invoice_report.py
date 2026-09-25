@@ -1,6 +1,6 @@
 from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 from odoo.tools.query import Query
 
 from odoo.addons.account.models.account_move import PAYMENT_STATE_SELECTION
@@ -14,6 +14,11 @@ class AccountInvoiceReport(models.Model):
     _auto = False
     _rec_name = "invoice_date"
     _order = "invoice_date desc"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     move_id = fields.Many2one(
         comodel_name="account.move",

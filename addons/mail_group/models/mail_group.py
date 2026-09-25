@@ -12,7 +12,7 @@ from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
-from odoo.tools import consteq, hmac
+from odoo.tools import consteq, frozendict, hmac
 from odoo.tools.mail import (
     add_html_content,
     email_normalize,
@@ -33,6 +33,11 @@ class MailGroup(models.Model):
     _description = "Mail Group"
     _inherit = ["mixin.mail.alias"]
     _order = "is_closed ASC, create_date DESC, id DESC"
+    _access_anchors = frozendict(
+        {
+            "owner": "moderator_ids",
+        }
+    )
 
     @api.model
     def default_get(self, fields):

@@ -14,7 +14,7 @@ from odoo.api import DomainType, ValuesType
 from odoo.exceptions import AccessError, MissingError, UserError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL, Query, is_html_empty
+from odoo.tools import SQL, Query, frozendict, is_html_empty
 from odoo.tools.access_scan import (
     get_accessible_query,
     prepare_column_fetcher,
@@ -57,6 +57,11 @@ class MailActivity(models.Model):
         "res_model",
         "res_id",
         "user_id",
+    )
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
     )
 
     @api.model

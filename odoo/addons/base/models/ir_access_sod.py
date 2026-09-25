@@ -4,7 +4,7 @@ from typing import Any
 
 from odoo import SUPERUSER_ID, api, fields, models
 from odoo.exceptions import AccessError, ValidationError
-from odoo.tools import ormcache
+from odoo.tools import frozendict, ormcache
 
 _logger = logging.getLogger(__name__)
 
@@ -411,6 +411,11 @@ class IrAccessSodRule(models.Model):
 
 class ResUsersGrant(models.Model):
     _inherit = "res.users.grant"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     def _on_grant_changed(self, event: str) -> None:
         super()._on_grant_changed(event)

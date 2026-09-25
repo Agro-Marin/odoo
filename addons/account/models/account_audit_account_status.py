@@ -11,7 +11,11 @@ STATUS_SELECTION = [
 
 class AccountAuditAccountStatus(models.Model):
     _name = "account.audit.account.status"
-    _access_anchors = frozendict({"company": "audit_id.company_ids"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("audit_id.company_ids", shared=False),
+        }
+    )
     _description = "Account Audit Account Status"
 
     audit_id = fields.Many2one(

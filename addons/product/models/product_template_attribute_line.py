@@ -8,7 +8,13 @@ from .utils import unlink_where_possible
 
 class ProductTemplateAttributeLine(models.Model):
     _name = "product.template.attribute.line"
-    _access_anchors = frozendict({"company": "product_tmpl_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor(
+                "product_tmpl_id.company_id", hierarchy="parent_of"
+            ),
+        }
+    )
     _inherit = "mixin.attribute.line"
     _rec_name = "attribute_id"
     _rec_names_search = ["attribute_id", "value_ids"]

@@ -11,7 +11,7 @@ import psycopg
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.http import request
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 from odoo.addons.integration.tools.connection_gate import breaker_for
 
@@ -34,6 +34,11 @@ class DeviceDevice(models.Model):
         "name",
         "identifier",
     ]
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     company_id = fields.Many2one(
         comodel_name="res.company",

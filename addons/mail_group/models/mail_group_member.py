@@ -1,7 +1,7 @@
 import logging
 
 from odoo import api, fields, models
-from odoo.tools import email_normalize
+from odoo.tools import email_normalize, frozendict
 
 _logger = logging.getLogger(__name__)
 
@@ -10,6 +10,11 @@ class MailGroupMember(models.Model):
     _name = "mail.group.member"
     _description = "Mailing List Member"
     _rec_name = "email"
+    _access_anchors = frozendict(
+        {
+            "owner": "mail_group_id.moderator_ids",
+        }
+    )
 
     email = fields.Char(
         compute="_compute_email",

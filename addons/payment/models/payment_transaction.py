@@ -10,7 +10,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.http import request
-from odoo.tools import email_normalize_all, float_round
+from odoo.tools import email_normalize_all, float_round, frozendict
 
 from odoo.addons.payment import utils as payment_utils
 from odoo.addons.payment.const import CURRENCY_MINOR_UNITS, SENSITIVE_KEYS
@@ -24,6 +24,11 @@ class PaymentTransaction(models.Model):
     _description = "Payment Transaction"
     _order = "id desc"
     _rec_name = "reference"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     @api.model
     def _selection_installed_langs(self):

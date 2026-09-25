@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 
 class ProductSupplierinfo(models.Model):
@@ -7,6 +8,11 @@ class ProductSupplierinfo(models.Model):
     _description = "Supplier Pricelist"
     _order = "sequence, min_qty DESC, price, id"
     _rec_name = "partner_id"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", hierarchy="parent_of"),
+        }
+    )
 
     partner_id = fields.Many2one(
         comodel_name="res.partner",

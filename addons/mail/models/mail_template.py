@@ -19,7 +19,7 @@ from odoo.db.errors import PG_RECOVERABLE_EXCEPTIONS
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 from odoo.tools.rendering_tools import parse_inline_template
 from odoo.tools.safe_eval import safe_eval, time
 
@@ -199,6 +199,11 @@ class MailTemplate(models.Model):
 
     _unrestricted_rendering = True
     _dynamic_field_names = DYNAMIC_FIELD_NAMES
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     @api.model
     def default_get(self, fields: list[str]) -> ValuesType:

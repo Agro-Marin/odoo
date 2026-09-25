@@ -8,7 +8,13 @@ _debug = DebugLog(__name__)
 
 class TeamMember(models.Model):
     _name = "team.member"
-    _access_anchors = frozendict({"company": "team_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": "team_id.company_id",
+            "owner": "team_id.user_id",
+            "team": "team_id",
+        }
+    )
     _inherit = ["mixin.mail.thread"]
     _description = "Team Member"
     _rec_name = "user_id"

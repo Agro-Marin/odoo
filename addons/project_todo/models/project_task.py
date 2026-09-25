@@ -1,7 +1,7 @@
 from lxml import html
 
 from odoo import api, models
-from odoo.tools import html2plaintext
+from odoo.tools import frozendict, html2plaintext
 
 _BLOCK_TAGS = (
     "p",
@@ -24,6 +24,11 @@ _TITLE_MAX_LENGTH = 100
 class ProjectTask(models.Model):
     _name = "project.task"
     _inherit = "project.task"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_ids",
+        }
+    )
 
     @api.model
     def _todo_name_from_description(self, description):

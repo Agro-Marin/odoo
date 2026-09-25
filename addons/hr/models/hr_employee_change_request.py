@@ -2,6 +2,7 @@ from collections import Counter
 
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 
@@ -24,6 +25,11 @@ class HrEmployeeChangeRequest(models.Model):
         "private_phone_ids",
         "emergency_contact",
         "emergency_phone_ids",
+    )
+    _access_anchors = frozendict(
+        {
+            "employee": "employee_id",
+        }
     )
 
     employee_id = fields.Many2one(

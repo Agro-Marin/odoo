@@ -11,6 +11,7 @@ from odoo.libs.datetime import timezone
 from odoo.tools import (
     SQL,
     email_normalize_all,
+    frozendict,
     groupby,
     is_html_empty,
     parse_contact_from_email,
@@ -86,6 +87,11 @@ class CrmLead(models.Model):
     _primary_email = "email_from"
     _check_company_auto = True
     _track_duration_field = "stage_id"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("user_id", shared=True),
+        }
+    )
 
     name = fields.Char(
         string="Opportunity",

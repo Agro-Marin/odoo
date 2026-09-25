@@ -1,8 +1,14 @@
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("move_id.invoice_user_id", shared=True),
+        }
+    )
 
     purchase_line_ids = fields.Many2many(
         comodel_name="purchase.order.line",

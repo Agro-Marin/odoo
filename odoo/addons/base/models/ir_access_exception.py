@@ -16,6 +16,11 @@ EXCEPTION_LOG_EVENTS = [
 
 class IrAccessLog(models.Model):
     _inherit = "ir.access.log"
+    _access_anchors = frozendict(
+        {
+            "owner": "subject_user_id",
+        }
+    )
 
     event = fields.Selection(
         selection_add=EXCEPTION_LOG_EVENTS,
@@ -37,7 +42,13 @@ class IrAccessException(models.Model):
     _description = "Access Exception"
     _order = "date_to, id"
     _allow_sudo_commands = False
-    _access_anchors = frozendict({"company": "user_id.company_ids"})
+    _access_anchors = frozendict(
+        {
+            "company": "user_id.company_ids",
+            "owner": "reviewer_ids",
+            "user": models.Anchor("user_id", kind="owner"),
+        }
+    )
 
     user_id = fields.Many2one(
         comodel_name="res.users",

@@ -1,11 +1,23 @@
 from markupsafe import Markup
 
 from odoo import fields, models
+from odoo.tools import frozendict
 from odoo.tools.misc import clean_context
 
 
 class SurveyInvite(models.TransientModel):
     _inherit = "survey.invite"
+    _access_anchors = frozendict(
+        {
+            "owner": "survey_id.hr_job_ids.application_ids.interviewer_ids",
+            "survey_hr_job_interviewer": models.Anchor(
+                "survey_id.hr_job_ids.interviewer_ids", kind="owner"
+            ),
+            "survey_restrict_user_or_unset": models.Anchor(
+                "survey_id.restrict_user_ids", kind="owner", shared=True
+            ),
+        }
+    )
 
     applicant_id = fields.Many2one(comodel_name="hr.applicant")
 

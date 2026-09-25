@@ -5,6 +5,7 @@ from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError, ValidationError
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -13,6 +14,11 @@ class IrEmbeddedActions(models.Model):
     _name = "ir.embedded.actions"
     _description = "Embedded Actions"
     _order = "sequence, id"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("user_id", shared=True),
+        }
+    )
 
     name = fields.Char(translate=True)
     sequence = fields.Integer()

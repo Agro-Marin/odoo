@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from odoo import api, fields, models
 from odoo.http import request
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -13,6 +14,11 @@ class ProductWishlist(models.Model):
     _product_unique_partner_id = models.UniqueIndex(
         "(product_id, partner_id) WHERE partner_id IS NOT NULL",
         "Duplicated wishlisted product for this partner.",
+    )
+    _access_anchors = frozendict(
+        {
+            "partner": "partner_id",
+        }
     )
 
     partner_id = fields.Many2one(

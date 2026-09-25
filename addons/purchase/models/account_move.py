@@ -7,7 +7,7 @@ from markupsafe import Markup
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
-from odoo.tools import OrderedSet
+from odoo.tools import OrderedSet, frozendict
 
 from odoo.addons.purchase import const
 
@@ -16,6 +16,11 @@ _logger = logging.getLogger(__name__)
 
 class AccountMove(models.Model):
     _inherit = "account.move"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("invoice_user_id", shared=True),
+        }
+    )
 
     purchase_vendor_bill_id = fields.Many2one(
         comodel_name="purchase.bill.match",

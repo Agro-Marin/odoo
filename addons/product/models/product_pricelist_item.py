@@ -1,6 +1,12 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.tools import float_round, format_amount, format_datetime, formatLang
+from odoo.tools import (
+    float_round,
+    format_amount,
+    format_datetime,
+    formatLang,
+    frozendict,
+)
 
 
 class ProductPricelistItem(models.Model):
@@ -10,6 +16,11 @@ class ProductPricelistItem(models.Model):
     _check_company_auto = True
 
     _TARGETING_FIELDS = ("product_id", "product_tmpl_id", "categ_id")
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", hierarchy="parent_of"),
+        }
+    )
 
     pricelist_id = fields.Many2one(
         comodel_name="product.pricelist",

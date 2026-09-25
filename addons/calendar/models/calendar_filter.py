@@ -1,9 +1,15 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 
 class CalendarFilters(models.Model):
     _name = "calendar.filters"
     _description = "Calendar Filters"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     user_id = fields.Many2one(
         comodel_name="res.users",

@@ -168,7 +168,7 @@ for o in "${origins[@]}"; do
 done
 
 # Employees must not be able to write streaks — conventions.md §"What NOT to Do".
-if grep -qE '^streak_employee,[^,]*,[^,]*,[^,]*,permission,r,$' \
+if grep -qE '^streak_employee,[^,]*,[^,]*,[^,]*,permission,r,+$' \
         "$MOD/security/ir.access.csv"; then ok
 else bad "conventions.md says gamification.streak is read-only for employees; the ACL changed"; fi
 

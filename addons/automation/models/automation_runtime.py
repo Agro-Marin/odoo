@@ -3,6 +3,7 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import frozendict
 
 from .ir_websocket import SUBCHANNEL as BUS_SUBCHANNEL
 from .workflow_edge import SETTLED_STATES
@@ -18,6 +19,11 @@ class AutomationRuntime(models.Model):
     _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
     _check_company_auto = True
     _order = "create_date desc, id desc"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=True),
+        }
+    )
 
     company_id = fields.Many2one(
         comodel_name="res.company",

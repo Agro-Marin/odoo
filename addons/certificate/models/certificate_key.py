@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives.serialization import Encoding
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import frozendict
 
 STR_TO_HASH = {
     "sha1": hashes.SHA1(),  # noqa: S303 - kept for interoperability: signing/verification against legacy consumers still requiring SHA1 (e.g. government e-invoicing endpoints); this is a caller-selected option, not a hardcoded default
@@ -45,6 +46,11 @@ class CertificateKey(models.Model):
         "content": "content_plain",
         "password": "password_plain",
     }
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=True, hierarchy="parent_of"),
+        }
+    )
 
     company_id = fields.Many2one(
         comodel_name="res.company",

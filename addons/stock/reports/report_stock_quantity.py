@@ -1,6 +1,7 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -29,6 +30,11 @@ class ReportStockQuantity(models.Model):
         "stock.quant": ["company_id", "location_id", "product_id", "quantity"],
         "uom.uom": ["factor"],
     }
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     date = fields.Date(readonly=True)
     product_tmpl_id = fields.Many2one(

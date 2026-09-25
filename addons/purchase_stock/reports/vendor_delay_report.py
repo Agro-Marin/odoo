@@ -1,4 +1,5 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 from odoo.addons.trade.tools import PURCHASE
 
@@ -14,5 +15,10 @@ class VendorDelayReport(models.Model):
     _link_column = "purchase_line_id"
     _date_commitment_alias = "ol"
     _direction = PURCHASE
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     partner_id = fields.Many2one(string="Vendor")

@@ -1,5 +1,6 @@
 from odoo import api, exceptions, fields, models
 from odoo.db import get_or_create_row
+from odoo.tools import frozendict
 
 from ._canvas import SCALE_MAX, SCALE_MIN
 
@@ -8,6 +9,11 @@ class AutomationCanvasViewport(models.Model):
     _name = "automation.canvas.viewport"
     _description = "Workflow Canvas Viewport"
     _rec_name = "automation_rule_id"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     user_id = fields.Many2one(
         comodel_name="res.users",

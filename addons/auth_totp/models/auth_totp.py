@@ -2,6 +2,7 @@ import logging
 
 from odoo import models
 from odoo.exceptions import AccessError
+from odoo.tools import frozendict
 
 from odoo.addons.auth_totp.controllers.home import TRUSTED_DEVICE_AGE_DAYS
 from odoo.addons.auth_totp.models.res_device import ensure_trust_foreign_key
@@ -18,6 +19,11 @@ class Auth_TotpDevice(models.Model):
     _inherit = ["res.users.apikeys"]
     _description = "Authentication Device"
     _auto = False
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     def _check_generate_access(self):
         """A trusted device is not an API key, and is not gated like one.

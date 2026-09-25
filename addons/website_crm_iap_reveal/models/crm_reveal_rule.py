@@ -8,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models, tools
 from odoo.exceptions import ValidationError
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 from odoo.addons.crm.models import crm_stage
 from odoo.addons.iap.tools import iap_tools
@@ -24,6 +25,11 @@ class CrmRevealRule(models.Model):
     _name = "crm.reveal.rule"
     _description = "CRM Lead Generation Rules"
     _order = "sequence"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("user_id", shared=True),
+        }
+    )
 
     name = fields.Char(
         string="Rule Name",

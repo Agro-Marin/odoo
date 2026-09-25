@@ -24,3 +24,4 @@ from . import (
     sale_order_template_line,
     utm_campaign,
 )
+from . import access_anchors

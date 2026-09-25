@@ -41,7 +41,10 @@ ir.access rows or `_access_guard` (the owners held by a many2one_reference, unti
 P4); it only shrinks. `access_scope_anchorless` counts the models where a group
 that can be held in some companies only has a permission and the model has no
 company anchor, so such a grant applies to all its records (authorization plan
-P2); it only shrinks. The elevation gates of `tests/test_elevation.py` count, per
+P2); it only shrinks. `access_domain_free` counts the rows that still spell
+their reach out as a domain reading the user, where a reach through the
+model's anchor or a named predicate could say it (authorization plan P4); it
+only shrinks. The elevation gates of `tests/test_elevation.py` count, per
 repository, the bare `sudo()` calls (`bare_sudo_odoo`, `bare_sudo_enterprise`,
 `bare_sudo_agromarin`) that `with_privilege` replaces where code acts on someone's
 behalf, and the `has_group` checks (`has_group_odoo`, `has_group_enterprise`,

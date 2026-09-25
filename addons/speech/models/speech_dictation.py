@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 DICTATION_PURPOSE = "speech.transcription.dictation"
 DICTATION_RETENTION_DAYS = 7
@@ -13,6 +14,11 @@ class SpeechDictation(models.Model):
     _inherit = ["mixin.media.live"]
     _description = "Dictation"
     _order = "id desc"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     user_id = fields.Many2one(
         comodel_name="res.users",

@@ -1,12 +1,19 @@
 from odoo import Command, api, fields, models
 from odoo.db.schema import column_exists, create_column
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
 
 class StockPicking(models.Model):
     _inherit = "stock.picking"
+    _access_anchors = frozendict(
+        {
+            "partner": "partner_id",
+            "sale_partner": models.Anchor("sale_id.partner_id", kind="partner"),
+        }
+    )
 
     sale_id = fields.Many2one(
         comodel_name="sale.order",

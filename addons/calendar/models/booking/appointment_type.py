@@ -31,6 +31,11 @@ class AppointmentType(models.Model):
     _inherit = ["mixin.image", "mixin.mail.thread", "mixin.mail.activity"]
     _order = "sequence, id"
     _mail_post_access = "read"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("staff_user_ids", shared=True),
+        }
+    )
 
     def write(self, vals):
         result = super().write(vals)

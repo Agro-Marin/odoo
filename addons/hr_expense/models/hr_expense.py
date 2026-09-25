@@ -13,6 +13,7 @@ from odoo.tools import (
     float_repr,
     float_round,
     format_date,
+    frozendict,
     is_html_empty,
     parse_version,
 )
@@ -61,6 +62,15 @@ class HrExpense(models.Model):
             at_create=False,
         ),
     }
+    _access_anchors = frozendict(
+        {
+            "approval_pending_user": models.Anchor(
+                "approval_pending_user_ids", kind="owner"
+            ),
+            "employee": "employee_id",
+            "owner": "employee_id.expense_manager_id",
+        }
+    )
 
     name = fields.Char(
         string="Description",

@@ -1,4 +1,5 @@
 from odoo import api, exceptions, fields, models
+from odoo.tools import frozendict
 
 
 # Unlike challenges (which are flat lists of independent goals), quests
@@ -197,6 +198,11 @@ class GamificationQuestEnrollment(models.Model):
     _description = "Quest Enrollment"
     _order = "create_date desc"
     _rec_name = "quest_id"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     quest_id = fields.Many2one(
         comodel_name="gamification.quest",
@@ -409,6 +415,11 @@ class GamificationQuestStepCompletion(models.Model):
     _name = "gamification.quest.step.completion"
     _description = "Quest Step Completion"
     _order = "completion_date desc"
+    _access_anchors = frozendict(
+        {
+            "owner": "enrollment_id.user_id",
+        }
+    )
 
     enrollment_id = fields.Many2one(
         comodel_name="gamification.quest.enrollment",

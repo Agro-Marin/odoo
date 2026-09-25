@@ -1,11 +1,17 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 
 class ProjectTaskTriage(models.Model):
     _name = "project.task.triage"
     _description = "Task Triage Assignment"
     _rec_name = "triage_id"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     task_id = fields.Many2one(
         comodel_name="project.task",

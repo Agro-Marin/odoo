@@ -11,7 +11,7 @@ from odoo import Command, api, fields, models, tools
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import is_html_empty
+from odoo.tools import frozendict, is_html_empty
 
 _logger = logging.getLogger(__name__)
 _debug = DebugLog(__name__)
@@ -36,6 +36,11 @@ class SlideChannel(models.Model):
     _partner_unfollow_enabled = True
 
     _CUSTOMER_HEADERS_LIMIT_COUNT = 0
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     def _default_cover_properties(self):
         res = super()._default_cover_properties()

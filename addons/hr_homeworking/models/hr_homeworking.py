@@ -1,4 +1,5 @@
 from odoo import api, fields, models, tools
+from odoo.tools import frozendict
 
 PLAIN_IM_STATUSES = ("online", "away", "busy", "offline")
 
@@ -52,6 +53,11 @@ class HrEmployeeLocation(models.Model):
     _description = "Employee Location"
     _order = "date desc, employee_id"
     _rec_name = "work_location_name"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     company_id = fields.Many2one(
         comodel_name="res.company",

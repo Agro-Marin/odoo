@@ -1,10 +1,16 @@
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 
 class SlideEmbed(models.Model):
     _name = "slide.embed"
     _description = "Embedded Slides View Counter"
     _rec_name = "website_name"
+    _access_anchors = frozendict(
+        {
+            "owner": "slide_id.channel_id.user_id",
+        }
+    )
 
     slide_id = fields.Many2one(
         comodel_name="slide.slide",

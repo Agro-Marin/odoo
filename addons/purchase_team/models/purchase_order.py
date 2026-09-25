@@ -1,8 +1,14 @@
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
+    _access_anchors = frozendict(
+        {
+            "team": models.Anchor("team_id", usage="purchase"),
+        }
+    )
 
     team_id = fields.Many2one(
         comodel_name="team.team",

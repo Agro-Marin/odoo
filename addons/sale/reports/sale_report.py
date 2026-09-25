@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 from odoo.addons.sale import const
 
@@ -12,6 +13,12 @@ class SaleReport(models.Model):
     _description = "Sales Analysis Report"
     _auto = False
     _order = "date_order desc"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+            "owner": models.Anchor("user_id", shared=True),
+        }
+    )
 
     order_reference = fields.Reference(
         selection=[("sale.order", "Sales Order")],

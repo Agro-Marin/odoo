@@ -2,6 +2,7 @@ import logging
 from datetime import timedelta
 
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 _logger = logging.getLogger(__name__)
 
@@ -17,6 +18,11 @@ class GamificationEngagementSnapshot(models.Model):
     _description = "Gamification Engagement Snapshot"
     _order = "snapshot_date desc"
     _rec_name = "snapshot_date"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     snapshot_date = fields.Date(
         string="Date",

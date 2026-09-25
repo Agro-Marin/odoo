@@ -4,6 +4,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 from odoo.tools.misc import format_datetime
 
 from odoo.addons.account.models.account_config import SOFT_LOCK_DATE_FIELDS
@@ -14,6 +15,11 @@ _debug = DebugLog(__name__)
 class AccountLock_Exception(models.Model):
     _name = "account.lock_exception"
     _description = "Account Lock Exception"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", hierarchy="parent_of"),
+        }
+    )
 
     active = fields.Boolean(default=True)
     state = fields.Selection(

@@ -111,7 +111,7 @@ class TestIrAccessReached(models.Model):
             "partner": "partner_id",
             "company": models.Anchor("company_id", shared=True),
             "parent_company": models.Anchor(
-                "company_id", kind="company", hierarchy="parent_of"
+                "company_id", kind="company", shared=False, hierarchy="parent_of"
             ),
         }
     )

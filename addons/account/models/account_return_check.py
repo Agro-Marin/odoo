@@ -16,7 +16,11 @@ _debug = DebugLog(__name__)
 
 class AccountReturnCheck(models.Model):
     _name = "account.return.check"
-    _access_anchors = frozendict({"company": "return_id.company_ids"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("return_id.company_ids", shared=False),
+        }
+    )
     _description = "Accounting Return Check"
     _order = "name, id"
 

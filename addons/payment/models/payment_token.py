@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import frozendict
 
 
 class PaymentToken(models.Model):
@@ -8,6 +9,12 @@ class PaymentToken(models.Model):
     _description = "Payment Token"
     _check_company_auto = True
     _rec_names_search = ["payment_details", "partner_id", "provider_id"]
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False, hierarchy="parent_of"),
+            "partner": "partner_id",
+        }
+    )
 
     provider_id = fields.Many2one(
         comodel_name="payment.provider",

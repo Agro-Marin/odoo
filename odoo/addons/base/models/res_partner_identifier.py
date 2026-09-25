@@ -3,6 +3,7 @@ from collections import defaultdict
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -12,6 +13,11 @@ class ResPartnerIdentifier(models.Model):
     _description = "Partner Identifier"
     _order = "type_id, id"
     _rec_name = "value"
+    _access_anchors = frozendict(
+        {
+            "partner": "partner_id",
+        }
+    )
 
     partner_id = fields.Many2one(
         comodel_name="res.partner",

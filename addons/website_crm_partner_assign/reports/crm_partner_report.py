@@ -1,11 +1,16 @@
 from odoo import fields, models
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 
 class CrmPartnerReportAssign(models.Model):
     _name = "crm.partner.report.assign"
     _auto = False
     _description = "CRM Partnership Analysis"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("user_id", shared=True),
+        }
+    )
 
     partner_id = fields.Many2one(
         comodel_name="res.partner",

@@ -77,13 +77,26 @@ def converted_reach(env, model_name, user, operation="read"):
         .sudo()
         .search([("model_id.model", "=", model_name), ("active", "=", True)])
     )
+    infos = {
+        info.id: info
+        for info in env["ir.access"].sudo()._access_infos(accesses).get(model_name, ())
+    }
+    domain_of = env["ir.access"].with_user(user)._row_domains()
+
+    def text_of(access):
+        # a row with a reach says it through the model's anchor; the combinator
+        # reads domains, so the reach goes in as the domain it compiles to
+        if access.reach:
+            return repr(list(domain_of(model_name, infos[access.id])))
+        return access.domain
+
     rows = [
         {
             "kind": access.kind,
             "guard_scope": access.guard_scope,
             "group": access.group_id.id,
             "operation": access.operation,
-            "domain": ir_access_convert.normalize_domain(access.domain),
+            "domain": ir_access_convert.normalize_domain(text_of(access)),
         }
         for access in accesses
     ]

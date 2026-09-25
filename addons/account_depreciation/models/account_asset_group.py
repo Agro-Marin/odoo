@@ -1,4 +1,5 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 
 class AccountAssetGroup(models.Model):
@@ -7,6 +8,11 @@ class AccountAssetGroup(models.Model):
     _name = "account.asset.group"
     _description = "Asset Group"
     _order = "name"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", hierarchy="parent_of"),
+        }
+    )
 
     name = fields.Char(
         index="trigram",

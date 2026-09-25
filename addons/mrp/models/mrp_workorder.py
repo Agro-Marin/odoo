@@ -9,7 +9,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.intervals import Intervals
-from odoo.tools import format_datetime
+from odoo.tools import format_datetime, frozendict
 from odoo.tools.date_utils import get_intervals_hours, localized
 
 _debug = DebugLog(__name__)
@@ -20,6 +20,11 @@ class MrpWorkorder(models.Model):
     _description = "Work Order"
     _inherit = ["mixin.resource.scheduling"]
     _order = "sequence, date_start, id"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     OPEN_STATES = ("blocked", "ready", "progress")
     LATE_STATES = ("blocked", "ready")

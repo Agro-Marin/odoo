@@ -3,12 +3,18 @@ from typing import Self
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 
 class SurveyQuota(models.Model):
     _name = "survey.quota"
     _description = "Survey Quota"
     _order = "survey_id, question_id, id"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("survey_id.restrict_user_ids", shared=True),
+        }
+    )
 
     survey_id = fields.Many2one(
         comodel_name="survey.survey",

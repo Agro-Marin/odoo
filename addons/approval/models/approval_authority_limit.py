@@ -10,7 +10,12 @@ class ApprovalAuthorityLimit(models.Model):
     _name = "approval.authority.limit"
     _description = "Approval Authority Limit"
     _order = "grant_id, model_id, verb, amount_max"
-    _access_anchors = frozendict({"company": "grant_id.company_ids"})
+    _access_anchors = frozendict(
+        {
+            "company": "grant_id.company_ids",
+            "owner": "user_id",
+        }
+    )
 
     grant_id = fields.Many2one(
         comodel_name="res.users.grant",

@@ -8,6 +8,7 @@ from odoo import SUPERUSER_ID, api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.intervals import intervals_overlap
+from odoo.tools import frozendict
 from odoo.tools.date_utils import localized
 from odoo.tools.mail import (
     email_normalize,
@@ -22,6 +23,11 @@ _logger = logging.getLogger(__name__)
 
 class CalendarEvent(models.Model):
     _inherit = "calendar.event"
+    _access_anchors = frozendict(
+        {
+            "partner": "partner_ids",
+        }
+    )
 
     booking_capacity_enforced = fields.Boolean(
         string="Enforce Booking Ceiling",

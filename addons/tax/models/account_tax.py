@@ -4264,6 +4264,11 @@ class AccountTaxRepartitionLine(models.Model):
     _order = "document_type, repartition_type, sequence, id"
     _check_company_auto = True
     _check_company_domain = models.check_companies_domain_parent_of
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_ids", shared=False),
+        }
+    )
 
     factor_percent = fields.Float(
         string="%",

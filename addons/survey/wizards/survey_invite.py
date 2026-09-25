@@ -5,6 +5,7 @@ from typing import Any, Self
 from odoo import Command, api, fields, models, tools
 from odoo.exceptions import UserError
 from odoo.models import ValuesType
+from odoo.tools import frozendict
 from odoo.tools.mail import email_normalize, email_split_and_format
 
 _logger = logging.getLogger(__name__)
@@ -18,6 +19,13 @@ class SurveyInvite(models.TransientModel):
     _name = "survey.invite"
     _inherit = ["mixin.mail.composer"]
     _description = "Survey Invitation Wizard"
+    _access_anchors = frozendict(
+        {
+            "survey_restrict_user_or_unset": models.Anchor(
+                "survey_id.restrict_user_ids", kind="owner", shared=True
+            ),
+        }
+    )
 
     @api.model
     def _default_author_id(self) -> Self:

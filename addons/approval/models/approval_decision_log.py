@@ -1,7 +1,7 @@
 from odoo import SUPERUSER_ID, Command, api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 from . import approval_trace as trace
 
@@ -112,6 +112,21 @@ class ApprovalDecisionLog(models.Model):
 
 class ApprovalRequest(models.Model):
     _inherit = "approval.request"
+    _access_anchors = frozendict(
+        {
+            "approver_delegate": models.Anchor(
+                "approver_ids.delegate_id", kind="owner"
+            ),
+            "approver_user": models.Anchor("approver_ids.user_id", kind="owner"),
+            "category_allowed_group_all_user": models.Anchor(
+                "category_id.allowed_group_ids.all_user_ids", kind="owner"
+            ),
+            "category_allowed_user": models.Anchor(
+                "category_id.allowed_user_ids", kind="owner"
+            ),
+            "owner": "request_owner_id",
+        }
+    )
 
     decision_log_ids = fields.One2many(
         comodel_name="approval.decision.log",

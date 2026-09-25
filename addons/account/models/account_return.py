@@ -29,7 +29,11 @@ def check_company_domain_account_return(self, companies):
 
 class AccountReturn(models.Model):
     _name = "account.return"
-    _access_anchors = frozendict({"company": "company_ids"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_ids", shared=False),
+        }
+    )
     _inherit = ["mixin.mail.thread.main.attachment", "mixin.mail.activity"]
     _description = "Accounting Return"
     _order = "is_completed, date_deadline, name, id"

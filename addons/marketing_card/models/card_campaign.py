@@ -3,6 +3,7 @@ from datetime import UTC, date, datetime
 
 from odoo import api, exceptions, fields, models, modules
 from odoo.libs.datetime import timezone
+from odoo.tools import frozendict
 
 from .card_template import TEMPLATE_DIMENSIONS
 
@@ -13,6 +14,11 @@ class CardCampaign(models.Model):
     _inherit = ["mixin.mail.activity", "mixin.mail.render", "mixin.mail.thread"]
     _order = "id DESC"
     _unrestricted_rendering = True
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     def _default_card_template_id(self):
         return self.env["card.template"].search([], limit=1)

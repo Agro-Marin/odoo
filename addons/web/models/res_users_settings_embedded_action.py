@@ -2,11 +2,17 @@ from typing import Any
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 
 class ResUsersSettingsEmbeddedAction(models.Model):
     _name = "res.users.settings.embedded.action"
     _description = "User Settings for Embedded Actions"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_setting_id.user_id",
+        }
+    )
 
     user_setting_id = fields.Many2one(
         comodel_name="res.users.settings",

@@ -9,6 +9,7 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.web import urljoin as url_join
+from odoo.tools import frozendict
 
 SHORT_CODE_PATTERN = re.compile(r"^[\w-]+$")
 
@@ -18,6 +19,11 @@ class AppointmentInvite(models.Model):
     _description = "Appointment Invite"
     _order = "create_date DESC, id DESC"
     _rec_name = "short_code"
+    _access_anchors = frozendict(
+        {
+            "owner": "staff_user_ids",
+        }
+    )
 
     @api.model
     def default_get(self, fields):

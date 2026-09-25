@@ -12,7 +12,11 @@ _logger = logging.getLogger(__name__)
 
 class AutomationRuntimeLine(models.Model):
     _name = "automation.runtime.line"
-    _access_anchors = frozendict({"company": "runtime_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("runtime_id.company_id", shared=True),
+        }
+    )
     _description = "Automation Runtime Action Line"
     _order = "sequence, id"
 

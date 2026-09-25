@@ -2,6 +2,7 @@ from typing import Any, Self
 
 from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -10,6 +11,11 @@ class ResUsersSettings(models.Model):
     _name = "res.users.settings"
     _description = "User Settings"
     _rec_name = "user_id"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     user_id = fields.Many2one(
         comodel_name="res.users",

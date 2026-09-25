@@ -9,6 +9,7 @@
         <field name="kind">permission</field>
         <field name="operation">r</field>
         <field name="domain">[('ml_provider_ids', '!=', False)]</field>
+        <field name="reach">all</field>
     </record>
 
     <record id="access_integration_service_ml_provider_edit" model="ir.access">
@@ -19,6 +20,7 @@
         <field name="kind">permission</field>
         <field name="operation">cud</field>
         <field name="domain">[('ml_provider_ids', '!=', False)]</field>
+        <field name="reach">all</field>
     </record>
 
 </odoo>

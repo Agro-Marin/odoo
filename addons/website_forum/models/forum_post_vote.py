@@ -1,11 +1,17 @@
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
+from odoo.tools import frozendict
 
 
 class ForumPostVote(models.Model):
     _name = "forum.post.vote"
     _description = "Post Vote"
     _order = "create_date desc, id desc"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     post_id = fields.Many2one(
         comodel_name="forum.post",

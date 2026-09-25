@@ -1,13 +1,18 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import float_is_zero
+from odoo.tools import float_is_zero, frozendict
 
 _debug = DebugLog(__name__)
 
 
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("move_id.invoice_user_id", shared=True),
+        }
+    )
 
     sale_line_ids = fields.Many2many(
         comodel_name="sale.order.line",

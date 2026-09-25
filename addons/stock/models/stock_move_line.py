@@ -5,7 +5,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import OrderedSet
+from odoo.tools import OrderedSet, frozendict
 
 from ..const import (
     CONTEXT_BLOCK_COMPLETING,
@@ -68,6 +68,11 @@ class StockMoveLine(models.Model):
     _description = "Product Moves (Stock Move Line)"
     _order = "result_package_id desc, id"
     _rec_name = "product_id"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=True),
+        }
+    )
 
     company_id = fields.Many2one(
         comodel_name="res.company",

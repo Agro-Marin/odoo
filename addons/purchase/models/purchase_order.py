@@ -13,6 +13,7 @@ from odoo.tools import (
     format_amount,
     format_date,
     formatLang,
+    frozendict,
 )
 
 from odoo.addons.purchase import const
@@ -49,6 +50,12 @@ class PurchaseOrder(models.Model):
     _mark_sent_context_key = "mark_rfq_as_sent"
     _display_name_context_key = "purchase_show_partner_name"
     _portal_url_prefix = "purchase"
+    _access_anchors = frozendict(
+        {
+            "partner": "partner_id",
+            "user_or_unset": models.Anchor("user_id", kind="owner", shared=True),
+        }
+    )
 
     def _get_fields_rec_search_base(self):
         return ["name", "partner_ref"]

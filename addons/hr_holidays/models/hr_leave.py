@@ -12,6 +12,7 @@ from odoo.libs.datetime import timezone
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.intervals import Intervals
 from odoo.libs.numbers import float_compare, float_round
+from odoo.tools import frozendict
 from odoo.tools.date_utils import float_to_time
 from odoo.tools.misc import clean_context, format_date
 
@@ -62,6 +63,16 @@ class HrLeave(models.Model):
             requires="read", transition=("state", "*", "cancel"), at_create=False
         ),
     }
+    _access_anchors = frozendict(
+        {
+            "approval_pending_user": models.Anchor(
+                "approval_pending_user_ids", kind="owner"
+            ),
+            "company": models.Anchor("company_id", shared=False),
+            "employee": "employee_id",
+            "owner": "employee_id.leave_manager_id",
+        }
+    )
 
     @api.model
     def default_get(self, fields):

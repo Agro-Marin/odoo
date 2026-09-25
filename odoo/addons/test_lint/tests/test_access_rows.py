@@ -104,14 +104,20 @@ def _reads_companies(node) -> bool:
 
 
 def _company_paths(row) -> set[str]:
-    # the fields a row's domain compares with the principal's companies
+    # the fields a row compares with the principal's companies: its domain's,
+    # and for a company reach the anchor it reads
+    paths = set()
+    if row.reach == "company" and index.known_model(row.model):
+        anchor = index.anchors(row.model).get(row.anchor or "company")
+        if anchor:
+            paths.add(anchor[0])
     if not row.domain:
-        return set()
+        return paths
     try:
         found, _problems = index.conditions(index.parse_domain(row.domain))
     except SyntaxError:
-        return set()
-    return {
+        return paths
+    return paths | {
         condition.path
         for condition in found
         if condition.operator in ("in", "=", "parent_of", "child_of")
@@ -307,6 +313,19 @@ def anchor_findings(models):
     return findings
 
 
+def free_domain_findings(rows):
+    # a row that still spells its reach out as a domain the principal is read
+    # into, where a rung or a named predicate could say it
+    return sorted(
+        f"{row.where()}: {row.model}"
+        for row in rows
+        if row.creates
+        and not row.reach
+        and row.domain
+        and not isinstance(parse_access_domain(row.domain), Domain)
+    )
+
+
 class TestAccessRows(lint_case.LintCase):
     @classmethod
     def setUpClass(cls):
@@ -339,6 +358,16 @@ class TestAccessRows(lint_case.LintCase):
             "declared anchor(s) whose path the models do not follow",
             "An anchor's path follows relational fields to the model its kind "
             "names (owner: res.users, company: res.company...).",
+        )
+
+    def test_the_domains_left_over_only_go_down(self):
+        self.assert_ratchet(
+            free_domain_findings(self.production_rows),
+            "access_domain_free",
+            "ir.access row(s) spelling their reach out as a domain",
+            "Say it as a reach through the model's anchor (reach/anchor), or a "
+            "named predicate; a domain that reads the user is what is left when "
+            "neither can. The floor only goes down.",
         )
 
     def test_every_row_declares_its_kind(self):
@@ -548,6 +577,19 @@ class TestAccessRowGatesSeeTheirFaults(lint_case.LintCase):
         self.assertTrue(anchor_findings(planted("create_uid.partner_id", "owner")))
         self.assertTrue(anchor_findings(planted("create_uid", "no_such_kind")))
         self.assertFalse(anchor_findings(planted("create_uid", "owner")))
+
+    def test_a_domain_left_over(self):
+        self.assertTrue(
+            free_domain_findings([self._row(domain="[('user_id', '=', user.id)]")])
+        )
+        self.assertFalse(
+            free_domain_findings([self._row(domain="[('active', '=', True)]")])
+        )
+        self.assertFalse(
+            free_domain_findings(
+                [self._row(reach="own", domain="[('active', '=', True)]")]
+            )
+        )
 
     def test_a_company_guard_on_another_field(self):
         guard = self._row(

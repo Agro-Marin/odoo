@@ -11,6 +11,7 @@ from odoo.tools import (
     float_is_zero,
     format_amount,
     format_list,
+    frozendict,
     is_html_empty,
 )
 from odoo.tools.mail import html_keep_url
@@ -53,6 +54,12 @@ class SaleOrder(models.Model):
     _mark_sent_context_key = "mark_so_as_sent"
     _display_name_context_key = "sale_show_partner_name"
     _portal_url_prefix = "orders"
+    _access_anchors = frozendict(
+        {
+            "partner": "partner_id",
+            "user_or_unset": models.Anchor("user_id", kind="owner", shared=True),
+        }
+    )
 
     terms_type = fields.Selection(related="company_id.account_config_id.terms_type")
     country_code = fields.Char(

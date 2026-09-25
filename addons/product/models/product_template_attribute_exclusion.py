@@ -4,7 +4,13 @@ from odoo.tools import frozendict
 
 class ProductTemplateAttributeExclusion(models.Model):
     _name = "product.template.attribute.exclusion"
-    _access_anchors = frozendict({"company": "product_tmpl_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor(
+                "product_tmpl_id.company_id", hierarchy="parent_of"
+            ),
+        }
+    )
     _description = "Product Template Attribute Exclusion"
     _order = "product_tmpl_id, id"
 

@@ -1,5 +1,6 @@
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 
@@ -11,6 +12,11 @@ class PosPaymentMethod(models.Model):
     _inherit = ["mixin.pos.load", "mixin.credential.holder"]
     _credential_holder_field = "terminal_credential_id"
     _credential_purpose = "pos:payment_method"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     def _selection_payment_terminals(self):
         return []

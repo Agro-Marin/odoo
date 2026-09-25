@@ -8,7 +8,8 @@
         <field name="group_id" ref="group_hr_holidays_user" />
         <field name="kind">permission</field>
         <field
-            name="domain">[('validation_type', '=', 'both'), ('state', 'in', ['confirm', 'refuse', 'cancel'])]</field>
+            name="domain">['&amp;', ('validation_type', '=', 'both'), ('state', 'in', ['confirm', 'refuse', 'cancel'])]</field>
+        <field name="reach">all</field>
         <field name="verbs">approve</field>
     </record>
 
@@ -19,7 +20,8 @@
         <field name="group_id" ref="base.group_user" />
         <field name="kind">permission</field>
         <field
-            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '=', 'both'), ('state', '=', 'confirm')]</field>
+            name="domain">['&amp;', ('validation_type', '=', 'both'), ('state', '=', 'confirm')]</field>
+        <field name="reach">own</field>
         <field name="verbs">approve</field>
     </record>
 
@@ -30,6 +32,7 @@
         <field name="kind">permission</field>
         <field
             name="domain">[('state', 'in', ['confirm', 'validate1', 'refuse', 'cancel'])]</field>
+        <field name="reach">all</field>
         <field name="verbs">validate</field>
     </record>
 
@@ -40,7 +43,8 @@
         <field name="group_id" ref="base.group_user" />
         <field name="kind">permission</field>
         <field
-            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '=', 'manager'), ('state', 'in', ['confirm', 'refuse'])]</field>
+            name="domain">['&amp;', ('validation_type', '=', 'manager'), ('state', 'in', ['confirm', 'refuse'])]</field>
+        <field name="reach">own</field>
         <field name="verbs">validate</field>
     </record>
 
@@ -51,6 +55,7 @@
         <field name="kind">permission</field>
         <field
             name="domain">[('state', 'in', ['confirm', 'validate1', 'validate', 'cancel'])]</field>
+        <field name="reach">all</field>
         <field name="verbs">refuse</field>
     </record>
 
@@ -61,7 +66,8 @@
         <field name="group_id" ref="base.group_user" />
         <field name="kind">permission</field>
         <field
-            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '!=', 'hr'), ('state', 'in', ['confirm', 'validate'])]</field>
+            name="domain">['&amp;', ('validation_type', '!=', 'hr'), ('state', 'in', ['confirm', 'validate'])]</field>
+        <field name="reach">own</field>
         <field name="verbs">refuse</field>
     </record>
 
@@ -72,7 +78,8 @@
         <field name="group_id" ref="base.group_user" />
         <field name="kind">permission</field>
         <field
-            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '=', 'both'), ('state', '=', 'validate1')]</field>
+            name="domain">['&amp;', ('validation_type', '=', 'both'), ('state', '=', 'validate1')]</field>
+        <field name="reach">own</field>
         <field name="verbs">refuse</field>
     </record>
 
@@ -84,6 +91,7 @@
         <field name="kind">permission</field>
         <field
             name="domain">[('state', 'in', ['validate1', 'validate', 'refuse', 'cancel'])]</field>
+        <field name="reach">all</field>
         <field name="verbs">reset</field>
     </record>
 
@@ -114,7 +122,8 @@
         <field name="group_id" ref="group_hr_holidays_manager" />
         <field name="kind">permission</field>
         <field
-            name="domain">[('validation_type', '=', 'both'), ('state', 'in', ['confirm', 'refuse'])]</field>
+            name="domain">['&amp;', ('validation_type', '=', 'both'), ('state', 'in', ['confirm', 'refuse'])]</field>
+        <field name="reach">all</field>
         <field name="verbs">approve</field>
     </record>
 
@@ -148,6 +157,7 @@
         <field name="kind">permission</field>
         <field
             name="domain">[('state', 'in', ['confirm', 'validate1', 'refuse'])]</field>
+        <field name="reach">all</field>
         <field name="verbs">validate</field>
     </record>
 
@@ -169,7 +179,8 @@
         <field name="group_id" ref="base.group_user" />
         <field name="kind">permission</field>
         <field
-            name="domain">[('validation_type', '=', 'no_validation'), ('state', '=', 'confirm')]</field>
+            name="domain">['&amp;', ('validation_type', '=', 'no_validation'), ('state', '=', 'confirm')]</field>
+        <field name="reach">all</field>
         <field name="verbs">validate</field>
     </record>
 
@@ -191,6 +202,7 @@
         <field name="kind">permission</field>
         <field
             name="domain">[('state', 'in', ['confirm', 'validate1', 'validate'])]</field>
+        <field name="reach">all</field>
         <field name="verbs">refuse</field>
     </record>
 
@@ -235,6 +247,7 @@
         <field name="kind">permission</field>
         <field
             name="domain">[('state', 'in', ['validate1', 'validate', 'refuse'])]</field>
+        <field name="reach">all</field>
         <field name="verbs">reset</field>
     </record>
 

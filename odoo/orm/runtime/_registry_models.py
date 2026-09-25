@@ -7,7 +7,12 @@ from operator import attrgetter
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import OrderedSet
 
-from ..models.anchors import Anchor, anchor_path_error, collect_anchors
+from ..models.anchors import (
+    Anchor,
+    anchor_path_error,
+    collect_anchors,
+    infer_company_variant,
+)
 from ..models.verbs import Verb, collect_verbs
 from ._registry_stubs import _RegistryStubs
 
@@ -100,6 +105,8 @@ class _RegistryModelsMixin(_RegistryStubs):
                         del anchors[key]
                         continue
                     errors.append(f"{name}: anchor {key!r} ({anchor.path}): {error}")
+                    continue
+                anchors[key] = infer_company_variant(model_cls, anchor, self.models)
             if anchors:
                 result[name] = anchors
         if errors:

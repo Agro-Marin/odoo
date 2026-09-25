@@ -3,6 +3,7 @@ from collections import defaultdict
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
+from odoo.tools import frozendict
 
 
 class ProductPricelist(models.Model):
@@ -11,6 +12,11 @@ class ProductPricelist(models.Model):
     _description = "Pricelist"
     _rec_names_search = ["name", "currency_id"]
     _order = "sequence, id, name"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", hierarchy="parent_of"),
+        }
+    )
 
     name = fields.Char(
         string="Pricelist Name",

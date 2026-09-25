@@ -14,7 +14,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.http import request
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import html2plaintext
+from odoo.tools import frozendict, html2plaintext
 from odoo.tools.pdf import PdfReader
 
 _logger = logging.getLogger(__name__)
@@ -41,6 +41,11 @@ class SlideSlide(models.Model):
     _order = "sequence asc, is_category asc, id asc"
     _mail_partner_fields = ()
     _partner_unfollow_enabled = True
+    _access_anchors = frozendict(
+        {
+            "owner": "channel_id.user_id",
+        }
+    )
 
     YOUTUBE_VIDEO_ID_REGEX = r"^(?:(?:https?:)?//)?(?:www\.|m\.)?(?:youtu\.be/|youtube(-nocookie)?\.com/(?:embed/|v/|shorts/|live/|watch\?v=|watch\?.+&v=))((?:\w|-){11})\S*$"
     GOOGLE_DRIVE_DOCUMENT_ID_REGEX = (

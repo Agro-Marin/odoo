@@ -3,7 +3,7 @@ from typing import Any
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.tools import SQL, float_is_zero
+from odoo.tools import SQL, float_is_zero, frozendict
 
 
 class SurveyUser_InputLine(models.Model):
@@ -13,6 +13,14 @@ class SurveyUser_InputLine(models.Model):
     _description = "Survey User Input Line"
     _rec_name = "user_input_id"
     _order = "question_sequence, id"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("survey_id.restrict_user_ids", shared=True),
+            "user_input_create_uid": models.Anchor(
+                "user_input_id.create_uid", kind="owner"
+            ),
+        }
+    )
 
     user_input_id = fields.Many2one(
         comodel_name="survey.user_input",

@@ -3,7 +3,7 @@ from typing import Any, Self
 from odoo import api, fields, models
 from odoo.exceptions import AccessError, ValidationError
 from odoo.fields import Command, Domain
-from odoo.tools import TransactionMemo
+from odoo.tools import TransactionMemo, frozendict
 
 from . import approval_trace as trace
 from .approval_utils import boolean_search_domain, is_approval_manager
@@ -24,6 +24,28 @@ class ApprovalApprover(models.Model):
     _request_user_uniq = models.Constraint(
         "unique(request_id, user_id)",
         "You cannot assign the same approver multiple times on the same request.",
+    )
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+            "delegate": models.Anchor("delegate_id", kind="owner"),
+            "owner": "user_id",
+            "request_approver_delegate": models.Anchor(
+                "request_id.approver_ids.delegate_id", kind="owner"
+            ),
+            "request_approver_user": models.Anchor(
+                "request_id.approver_ids.user_id", kind="owner"
+            ),
+            "request_category_allowed_group_all_user": models.Anchor(
+                "request_id.category_id.allowed_group_ids.all_user_ids", kind="owner"
+            ),
+            "request_category_allowed_user": models.Anchor(
+                "request_id.category_id.allowed_user_ids", kind="owner"
+            ),
+            "request_request_owner": models.Anchor(
+                "request_id.request_owner_id", kind="owner"
+            ),
+        }
     )
 
     request_id = fields.Many2one(

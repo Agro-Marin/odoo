@@ -2,6 +2,7 @@ import math
 
 from odoo import Command, api, fields, models, tools
 from odoo.fields import Domain
+from odoo.tools import frozendict
 
 
 class SlideChannelPartner(models.Model):
@@ -9,6 +10,11 @@ class SlideChannelPartner(models.Model):
     _description = "Channel / Partners (Members)"
     _table = "slide_channel_partner"
     _rec_name = "partner_id"
+    _access_anchors = frozendict(
+        {
+            "owner": "channel_id.user_id",
+        }
+    )
 
     active = fields.Boolean(default=True)
     channel_id = fields.Many2one(

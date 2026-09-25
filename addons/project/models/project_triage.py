@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 
@@ -11,6 +12,11 @@ class ProjectTriage(models.Model):
     _description = "Personal Task Triage Bucket"
     _inherit = ["mixin.project.pm"]
     _order = "sequence, id"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     active = fields.Boolean(
         export_string_translation=False,

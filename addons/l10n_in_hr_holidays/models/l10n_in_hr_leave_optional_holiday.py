@@ -1,12 +1,18 @@
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.tools import frozendict
 
 
 class L10nInHrLeaveOptionalHoliday(models.Model):
     _name = "l10n.in.hr.leave.optional.holiday"
     _description = "Optional Holidays"
     _order = "date desc"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=True),
+        }
+    )
 
     @api.model
     def default_get(self, fields):

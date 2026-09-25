@@ -10,7 +10,12 @@ _debug = DebugLog(__name__)
 
 class HrResumeLine(models.Model):
     _name = "hr.resume.line"
-    _access_anchors = frozendict({"company": "employee_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("employee_id.company_id", shared=True),
+            "employee": "employee_id",
+        }
+    )
     _description = "Resume line of an employee"
     _order = "line_type_id, date_end desc, date_start desc"
 

@@ -21,6 +21,7 @@ from odoo.tools import (
     float_compare,
     float_is_zero,
     format_list,
+    frozendict,
     get_lang,
     html_sanitize,
     topological_sort,
@@ -141,6 +142,12 @@ class ProjectTask(models.Model):
     _systray_view = "list"
     _track_duration_field = "step_id"
     _track_duration_last_update_field = "date_last_status_change"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_ids",
+            "partner": "message_partner_ids",
+        }
+    )
 
     def _get_fields_versioned(self) -> list[str]:
         return [ProjectTask.description.name]

@@ -4,7 +4,13 @@ from odoo.tools import frozendict
 
 class HrAttendanceOvertimeLine(models.Model):
     _name = "hr.attendance.overtime.line"
-    _access_anchors = frozendict({"company": "employee_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("employee_id.company_id", shared=True),
+            "employee": "employee_id",
+            "owner": "employee_id.attendance_manager_id",
+        }
+    )
     _description = "Attendance Overtime Line"
     _rec_name = "employee_id"
     _order = "time_start"

@@ -8,6 +8,7 @@ from markupsafe import Markup
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.models import ValuesType
+from odoo.tools import frozendict
 
 _logger = logging.getLogger(__name__)
 
@@ -18,6 +19,13 @@ class SurveyQuestion(models.Model):
     _description = "Survey Question"
     _rec_name = "title"
     _order = "sequence,id"
+    _access_anchors = frozendict(
+        {
+            "owner_or_unset": models.Anchor(
+                "survey_id.restrict_user_ids", kind="owner", shared=True
+            ),
+        }
+    )
 
     @api.model
     def default_get(self, fields: list[str]) -> dict[str, Any]:

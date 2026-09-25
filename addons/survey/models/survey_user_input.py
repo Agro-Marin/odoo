@@ -14,6 +14,7 @@ from odoo.fields import Domain
 from odoo.libs.guarded_http import RefusedDestination
 from odoo.libs.json import dumps as json_dumps
 from odoo.models import ValuesType
+from odoo.tools import frozendict
 from odoo.tools.safe_eval import safe_eval
 
 _logger = logging.getLogger(__name__)
@@ -37,6 +38,11 @@ class SurveyUser_Input(models.Model):
     _rec_name = "survey_id"
     _order = "create_date desc"
     _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("survey_id.restrict_user_ids", shared=True),
+        }
+    )
 
     survey_id = fields.Many2one(
         comodel_name="survey.survey",

@@ -1,18 +1,18 @@
-id,name,model_id/id,group_id/id,kind,operation,domain
-access_account_tax_group,account.tax.group,model_account_tax_group,base.group_user,permission,r,
-access_account_tax_group_manager,account.tax.group.manager,model_account_tax_group,base.group_system,permission,cud,
-access_account_tax,account.tax,model_account_tax,base.group_user,permission,r,
-access_account_tax_manager,account.tax.manager,model_account_tax,base.group_system,permission,cud,
-access_account_tax_repartition_line,account.tax.repartition.line,model_account_tax_repartition_line,base.group_user,permission,r,
-access_account_tax_repartition_line_manager,account.tax.repartition.line.manager,model_account_tax_repartition_line,base.group_system,permission,cud,
-tax_group_comp_rule,Tax group multi-company,model_account_tax_group,base.group_everyone,guard,crud,"[('company_ids', 'parent_of', company_ids)]"
-tax_comp_rule,Tax multi-company,model_account_tax,base.group_everyone,guard,crud,"[('company_ids', 'parent_of', company_ids)]"
-tax_rep_comp_rule,Tax Repartition multi-company,model_account_tax_repartition_line,base.group_everyone,guard,crud,"[('company_ids', 'parent_of', company_ids)]"
-tax_config_rule_company_group_user,tax.config: the reader's companies,model_tax_config,base.group_user,permission,r,"[('company_id', 'in', company_ids)]"
-tax_config_rule_company_group_portal,tax.config: the reader's companies,model_tax_config,base.group_portal,permission,r,"[('company_id', 'in', company_ids)]"
-tax_config_rule_company_group_public,tax.config: the reader's companies,model_tax_config,base.group_public,permission,r,"[('company_id', 'in', company_ids)]"
-tax_config_rule_erp_manager,tax.config: every company for an access-rights manager,model_tax_config,base.group_erp_manager,permission,r,
-tax_config_rule_erp_manager_group_system,tax.config: every company for an access-rights manager,model_tax_config,base.group_system,permission,cud,
-access_account_fiscal_position,account.fiscal.position all,model_account_fiscal_position,base.group_user,permission,r,
-account_fiscal_position_comp_rule,Account fiscal Mapping company rule,model_account_fiscal_position,base.group_everyone,guard,crud,"[('company_id', 'parent_of', company_ids)]"
-access_account_fiscal_position_system,account.fiscal.position system,model_account_fiscal_position,base.group_system,permission,cud,
+id,name,model_id/id,group_id/id,kind,operation,reach,anchor,domain
+access_account_tax_group,account.tax.group,model_account_tax_group,base.group_user,permission,r,,,
+access_account_tax_group_manager,account.tax.group.manager,model_account_tax_group,base.group_system,permission,cud,,,
+access_account_tax,account.tax,model_account_tax,base.group_user,permission,r,,,
+access_account_tax_manager,account.tax.manager,model_account_tax,base.group_system,permission,cud,,,
+access_account_tax_repartition_line,account.tax.repartition.line,model_account_tax_repartition_line,base.group_user,permission,r,,,
+access_account_tax_repartition_line_manager,account.tax.repartition.line.manager,model_account_tax_repartition_line,base.group_system,permission,cud,,,
+tax_group_comp_rule,Tax group multi-company,model_account_tax_group,base.group_everyone,guard,crud,company,,
+tax_comp_rule,Tax multi-company,model_account_tax,base.group_everyone,guard,crud,company,,
+tax_rep_comp_rule,Tax Repartition multi-company,model_account_tax_repartition_line,base.group_everyone,guard,crud,company,,
+tax_config_rule_company_group_user,tax.config: the reader's companies,model_tax_config,base.group_user,permission,r,company,,
+tax_config_rule_company_group_portal,tax.config: the reader's companies,model_tax_config,base.group_portal,permission,r,company,,
+tax_config_rule_company_group_public,tax.config: the reader's companies,model_tax_config,base.group_public,permission,r,company,,
+tax_config_rule_erp_manager,tax.config: every company for an access-rights manager,model_tax_config,base.group_erp_manager,permission,r,,,
+tax_config_rule_erp_manager_group_system,tax.config: every company for an access-rights manager,model_tax_config,base.group_system,permission,cud,,,
+access_account_fiscal_position,account.fiscal.position all,model_account_fiscal_position,base.group_user,permission,r,,,
+account_fiscal_position_comp_rule,Account fiscal Mapping company rule,model_account_fiscal_position,base.group_everyone,guard,crud,company,,
+access_account_fiscal_position_system,account.fiscal.position system,model_account_fiscal_position,base.group_system,permission,cud,,,

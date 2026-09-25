@@ -16,7 +16,16 @@ _debug = DebugLog(__name__)
 
 class HrLeaveAllocation(models.Model):
     _name = "hr.leave.allocation"
-    _access_anchors = frozendict({"company": "employee_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "approval_pending_user": models.Anchor(
+                "approval_pending_user_ids", kind="owner"
+            ),
+            "company": "employee_id.company_id",
+            "employee": "employee_id",
+            "owner": "employee_id.leave_manager_id",
+        }
+    )
     _description = "Time Off Allocation"
     _order = "create_date desc"
     _inherit = ["mixin.hr.leave.approval", "mixin.mail.thread", "mixin.mail.activity"]

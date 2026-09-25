@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 
 class DeviceDataLog(models.Model):
@@ -7,6 +8,11 @@ class DeviceDataLog(models.Model):
     _description = "Remote Device Data Point"
 
     _fdw_pointer_columns = (("device_device", "log_last_id"),)
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     value_text = fields.Text(help="Text or string data from device")
     value_json = fields.Json(

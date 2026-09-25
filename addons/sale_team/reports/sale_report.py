@@ -1,8 +1,14 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 
 class SaleReport(models.Model):
     _inherit = "sale.report"
+    _access_anchors = frozendict(
+        {
+            "team": models.Anchor("team_id", usage="sale"),
+        }
+    )
 
     team_id = fields.Many2one(
         comodel_name="team.team",

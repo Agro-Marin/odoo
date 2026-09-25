@@ -2,6 +2,7 @@ import logging
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 # from dateutil.relativedelta import relativedelta
 _logger = logging.getLogger(__name__)
@@ -16,6 +17,11 @@ class L10n_ArPartnerTax(models.Model):
     # plural contract is the one that matches it. The singular helper emitted
     # `company_id` against a model that declares no such field.
     _check_company_domain = models.check_companies_domain_parent_of
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_ids", shared=False),
+        }
+    )
 
     partner_id = fields.Many2one(
         comodel_name="res.partner",

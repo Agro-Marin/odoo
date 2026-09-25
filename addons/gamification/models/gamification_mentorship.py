@@ -1,6 +1,7 @@
 from typing import Any
 
 from odoo import api, exceptions, fields, models
+from odoo.tools import frozendict
 
 
 # Creates a structured relationship where experienced users guide
@@ -15,6 +16,12 @@ class GamificationMentorship(models.Model):
     _inherit = ["mixin.mail.thread"]
     _order = "create_date desc"
     _rec_name = "display_name"
+    _access_anchors = frozendict(
+        {
+            "mentor": models.Anchor("mentor_id", kind="owner"),
+            "owner": "mentee_id",
+        }
+    )
 
     mentor_id = fields.Many2one(
         comodel_name="res.users",

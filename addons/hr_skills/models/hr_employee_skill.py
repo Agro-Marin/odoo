@@ -4,7 +4,12 @@ from odoo.tools import frozendict
 
 class HrEmployeeSkill(models.Model):
     _name = "hr.employee.skill"
-    _access_anchors = frozendict({"company": "employee_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("employee_id.company_id", shared=True),
+            "employee": "employee_id",
+        }
+    )
     _inherit = "mixin.hr.individual.skill"
     _description = "Skill level for employee"
 

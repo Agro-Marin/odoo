@@ -7,6 +7,7 @@ from asn1crypto import algos, cms, core, tsp, x509
 
 from odoo import fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 
 class L10n_Eg_EdiThumbDrive(models.Model):
@@ -16,6 +17,11 @@ class L10n_Eg_EdiThumbDrive(models.Model):
     _credential_holder_field = "drive_credential_id"
     _credential_purpose = "l10n_eg_edi:thumb_drive"
     _CREDENTIAL_FIELDS = {"access_token": "access_token"}
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     user_id = fields.Many2one(
         comodel_name="res.users",

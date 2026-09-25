@@ -2,6 +2,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 from odoo.tools.misc import format_duration
 
 
@@ -10,6 +11,11 @@ class AppointmentSlot(models.Model):
     _description = "Appointment: Time Slot"
     _rec_name = "weekday"
     _order = "weekday, start_hour, start_datetime, end_datetime"
+    _access_anchors = frozendict(
+        {
+            "owner": "appointment_type_id.create_uid",
+        }
+    )
 
     appointment_type_id = fields.Many2one(
         comodel_name="appointment.type",

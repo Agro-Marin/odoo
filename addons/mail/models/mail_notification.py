@@ -8,6 +8,7 @@ from odoo.api import ValuesType
 from odoo.exceptions import AccessError
 from odoo.libs.debug_log import DebugLog
 from odoo.models import GC_UNLINK_LIMIT
+from odoo.tools import frozendict
 
 from odoo.addons.mail.tools.discuss import Store, StoreFieldsInput
 from odoo.addons.mail.tools.failure_type import DELIVERY_FAILURE_TYPES
@@ -26,6 +27,12 @@ class MailNotification(models.Model):
     _rec_name = "res_partner_id"
     _log_access = False
     _description = "Message Notifications"
+    _access_anchors = frozendict(
+        {
+            "author": models.Anchor("author_id", kind="partner"),
+            "partner": "res_partner_id",
+        }
+    )
 
     author_id: ResPartner = fields.Many2one(
         comodel_name="res.partner",

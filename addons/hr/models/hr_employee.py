@@ -19,6 +19,7 @@ from odoo.tools import (
     email_normalize,
     format_date,
     format_time,
+    frozendict,
 )
 
 from ..tools import debug_log as dbg
@@ -66,6 +67,11 @@ class HrEmployee(models.Model):
         "rating_ids",
         "website_message_ids",
         "message_has_sms_error",
+    )
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
     )
 
     company_id = fields.Many2one(

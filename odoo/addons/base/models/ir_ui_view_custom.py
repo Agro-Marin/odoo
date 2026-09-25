@@ -2,6 +2,7 @@ from typing import Self
 
 from odoo import api, fields, models
 from odoo.api import ValuesType
+from odoo.tools import frozendict
 
 
 class IrUiViewCustom(models.Model):
@@ -10,6 +11,11 @@ class IrUiViewCustom(models.Model):
     _order = "create_date desc, id desc"
     _rec_name = "user_id"
     _allow_sudo_commands = False
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     ref_id = fields.Many2one(
         comodel_name="ir.ui.view",

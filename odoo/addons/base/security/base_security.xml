@@ -9,6 +9,7 @@
         <field name="kind">permission</field>
         <field name="operation">cud</field>
         <field name="domain">[('user_ids', '!=', False)]</field>
+        <field name="reach">all</field>
     </record>
 
 </odoo>

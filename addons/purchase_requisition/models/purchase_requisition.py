@@ -2,6 +2,7 @@ from collections import defaultdict
 
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import frozendict
 
 
 class PurchaseRequisition(models.Model):
@@ -268,6 +269,11 @@ class PurchaseRequisitionLine(models.Model):
     _inherit = ["mixin.analytic"]
     _description = "Purchase Requisition Line"
     _rec_name = "product_id"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     product_id = fields.Many2one(
         comodel_name="product.product",

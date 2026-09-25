@@ -1,5 +1,6 @@
 from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -7,6 +8,15 @@ _debug = DebugLog(__name__)
 class HrExpenseSplitWizard(models.TransientModel):
     _name = "hr.expense.split.wizard"
     _description = "Expense Split Wizard"
+    _access_anchors = frozendict(
+        {
+            "employee": "expense_id.employee_id",
+            "owner": "expense_id.manager_id",
+            "owner_or_unset": models.Anchor(
+                "expense_id.manager_id", kind="owner", shared=True
+            ),
+        }
+    )
 
     expense_id = fields.Many2one(
         comodel_name="hr.expense",

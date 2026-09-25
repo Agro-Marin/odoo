@@ -9,6 +9,7 @@ import qrcode
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.http import request
+from odoo.tools import frozendict
 
 from odoo.addons.auth_totp.models.totp import ALGORITHM, DIGITS, TIMESTEP
 from odoo.addons.base.models.res_users import check_identity
@@ -19,6 +20,11 @@ compress = functools.partial(re.sub, r"\s", "")
 class Auth_TotpWizard(models.TransientModel):
     _name = "auth_totp.wizard"
     _description = "2-Factor Setup Wizard"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     user_id = fields.Many2one(
         comodel_name="res.users",

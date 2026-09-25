@@ -5,6 +5,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -52,6 +53,12 @@ class MaintenanceOrder(models.Model):
         "done": set(),
         "cancel": {"draft"},
     }
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=True),
+            "owner": "approval_pending_user_ids",
+        }
+    )
 
     company_id = fields.Many2one(
         comodel_name="res.company",

@@ -8,7 +8,13 @@ from .utils import unlink_where_possible
 
 class ProductTemplateAttributeValue(models.Model):
     _name = "product.template.attribute.value"
-    _access_anchors = frozendict({"company": "product_tmpl_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor(
+                "product_tmpl_id.company_id", hierarchy="parent_of"
+            ),
+        }
+    )
     _inherit = ["mixin.color"]
     _description = "Product Template Attribute Value"
     _order = "attribute_line_id, product_attribute_value_id, id"

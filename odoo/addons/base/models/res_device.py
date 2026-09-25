@@ -18,7 +18,7 @@ from odoo.http import (
     root,
 )
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 from .res_users import check_identity
 
@@ -124,6 +124,11 @@ class ResDevice(models.Model):
     _description = "Devices"
     _order = "last_activity desc, id desc"
     _rec_names_search = ["name", "platform", "browser"]
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     user_id = fields.Many2one(
         comodel_name="res.users",
@@ -651,6 +656,11 @@ class ResDeviceLog(models.Model):
     _description = "Device Address"
     _order = "last_activity desc, id desc"
     _rec_name = "ip_address"
+    _access_anchors = frozendict(
+        {
+            "owner": "device_id.user_id",
+        }
+    )
 
     device_id = fields.Many2one(
         comodel_name="res.device",

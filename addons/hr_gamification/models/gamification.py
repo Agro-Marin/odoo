@@ -1,9 +1,15 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 
 class GamificationBadgeUser(models.Model):
     _inherit = "gamification.badge.user"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     employee_id = fields.Many2one(
         comodel_name="hr.employee",

@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 
 class TimesheetsAnalysisReport(models.Model):
@@ -6,6 +7,11 @@ class TimesheetsAnalysisReport(models.Model):
     _inherit = ["mixin.hr.manager.department.report"]
     _description = "Timesheets Analysis Report"
     _auto = False
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     name = fields.Char(
         string="Description",

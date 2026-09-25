@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, pkcs12
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import frozendict
 
 from .certificate_key import STR_TO_HASH, _get_formatted_bytes
 
@@ -42,6 +43,11 @@ class CertificateCertificate(models.Model):
         "content": "content_plain",
         "pkcs12_password": "pkcs12_password_plain",
     }
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=True, hierarchy="parent_of"),
+        }
+    )
 
     company_id = fields.Many2one(
         comodel_name="res.company",

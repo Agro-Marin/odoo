@@ -5,12 +5,18 @@ from markupsafe import Markup
 from odoo import Command, api, fields, models
 from odoo.exceptions import AccessDenied, AccessError, UserError
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
 
 class CrmLead(models.Model):
     _inherit = "crm.lead"
+    _access_anchors = frozendict(
+        {
+            "partner": "partner_assigned_id",
+        }
+    )
 
     partner_latitude = fields.Float(
         string="Geo Latitude",

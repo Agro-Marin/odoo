@@ -14,7 +14,7 @@ from odoo.fields import Domain
 from odoo.libs.netguard import DestinationRefused
 from odoo.libs.web import urljoin as url_join
 from odoo.models import ValuesType
-from odoo.tools import escape_psql, is_html_empty
+from odoo.tools import escape_psql, frozendict, is_html_empty
 
 _logger = logging.getLogger(__name__)
 
@@ -25,6 +25,13 @@ class SurveySurvey(models.Model):
     _order = "create_date DESC"
     _rec_name = "title"
     _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
+    _access_anchors = frozendict(
+        {
+            "owner_or_unset": models.Anchor(
+                "restrict_user_ids", kind="owner", shared=True
+            ),
+        }
+    )
 
     SHORT_TOKEN_LENGTH = 6
 

@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.tools import formatLang
+from odoo.tools import formatLang, frozendict
 
 from ..tools import debug_log as dbg
 
@@ -12,6 +12,11 @@ class PosPayment(models.Model):
     _description = "Point of Sale Payments"
     _order = "id desc"
     _inherit = ["mixin.pos.load"]
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     name = fields.Char(
         string="Label",

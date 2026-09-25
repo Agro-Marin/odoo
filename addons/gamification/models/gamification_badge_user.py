@@ -3,6 +3,7 @@ from typing import Any, Self
 
 from odoo import api, exceptions, fields, models
 from odoo.models import ValuesType
+from odoo.tools import frozendict
 
 _logger = logging.getLogger(__name__)
 
@@ -16,6 +17,11 @@ class GamificationBadgeUser(models.Model):
     _order = "create_date desc"
     _rec_name = "badge_name"
     _mail_partner_fields = ("user_partner_id",)
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     user_id = fields.Many2one(
         comodel_name="res.users",

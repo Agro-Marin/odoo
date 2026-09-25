@@ -29,3 +29,4 @@ from . import res_users
 from . import digest_digest
 from . import ir_ui_menu
 from . import ir_actions_act_window
+from . import access_anchors

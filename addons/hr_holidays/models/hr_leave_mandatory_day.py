@@ -1,4 +1,5 @@
 from odoo import fields, models
+from odoo.tools import frozendict
 
 
 class HrLeaveMandatoryDay(models.Model):
@@ -6,6 +7,11 @@ class HrLeaveMandatoryDay(models.Model):
     _inherit = ["mixin.color"]
     _description = "Mandatory Day"
     _order = "start_date desc, end_date desc"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=True),
+        }
+    )
 
     name = fields.Char(required=True)
     company_id = fields.Many2one(

@@ -1,7 +1,7 @@
 from odoo import api, fields, models
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL, Query
+from odoo.tools import SQL, Query, frozendict
 
 from odoo.addons.web.controllers.utils import clean_action
 
@@ -426,6 +426,12 @@ class AccountReport(models.AbstractModel):
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
     _search_visibility_fields = ()
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+            "partner": "move_id.partner_id",
+        }
+    )
 
     @api.model
     @_debug.perf.timed

@@ -7,7 +7,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import float_compare, float_is_zero, format_date, groupby
+from odoo.tools import float_compare, float_is_zero, format_date, frozendict, groupby
 
 from odoo.addons.trade.tools import SALE
 
@@ -28,6 +28,13 @@ class SaleOrderLine(models.Model):
     _rec_names_search = ["name", "order_id.name"]
 
     _direction = SALE
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+            "owner": models.Anchor("user_id", shared=True),
+            "partner": "partner_id",
+        }
+    )
 
     order_id = fields.Many2one(comodel_name="sale.order")
     partner_id = fields.Many2one(string="Customer")

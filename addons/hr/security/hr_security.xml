@@ -43,6 +43,7 @@
             <field name="kind">permission</field>
             <field name="operation">cud</field>
             <field name="domain">[('employee_ids', '!=', False)]</field>
+            <field name="reach">all</field>
         </record>
     </data>
 

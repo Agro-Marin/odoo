@@ -3,12 +3,18 @@ from urllib.parse import urlencode
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.filesystem import get_extension
+from odoo.tools import frozendict
 
 
 class SlideSlideResource(models.Model):
     _name = "slide.slide.resource"
     _description = "Additional resource for a particular slide"
     _order = "sequence, id"
+    _access_anchors = frozendict(
+        {
+            "owner": "slide_id.channel_id.user_id",
+        }
+    )
 
     slide_id = fields.Many2one(
         comodel_name="slide.slide",

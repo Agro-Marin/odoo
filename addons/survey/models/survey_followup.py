@@ -1,6 +1,7 @@
 import logging
 
 from odoo import fields, models
+from odoo.tools import frozendict
 
 _logger = logging.getLogger(__name__)
 
@@ -9,6 +10,11 @@ class SurveyFollowupRule(models.Model):
     _name = "survey.followup.rule"
     _description = "Survey Follow-up Rule"
     _order = "sequence, id"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("survey_id.restrict_user_ids", shared=True),
+        }
+    )
 
     survey_id = fields.Many2one(
         comodel_name="survey.survey",

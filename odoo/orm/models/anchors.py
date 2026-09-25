@@ -3,6 +3,8 @@ from __future__ import annotations
 import typing
 from dataclasses import dataclass
 
+from ..helpers import check_companies_domain_parent_of, check_company_domain_parent_of
+
 if typing.TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -31,13 +33,17 @@ class Anchor:
     second anchor of a known kind (`"approver": Anchor("approver_ids.user_id",
     kind="owner")`). `shared` lets the rung admit the records where the anchor
     is unset; `hierarchy` reads a company anchor up (`parent_of`) or down
-    (`child_of`) the company tree; `usage` limits a team anchor to the teams
-    of one usage (`sale`, `purchase`...).
+    (`child_of`) the company tree, `""` reading neither; `usage` limits a team
+    anchor to the teams of one usage (`sale`, `purchase`...).
+
+    Left unset, a company anchor's `shared` and `hierarchy` are read from the
+    registry (`infer_company_variant`); declare them only where a model breaks
+    that convention.
     """
 
     path: str
     kind: str | None = None
-    shared: bool = False
+    shared: bool | None = None
     hierarchy: str | None = None
     usage: str | None = None
 
@@ -55,7 +61,7 @@ def collect_anchors(model_cls: type[BaseModel]) -> dict[str, Anchor]:
                 f"{model_cls._name}: anchor {key!r} has no kind; name one of "
                 f"{sorted(ANCHOR_KINDS)} with kind=..."
             )
-        if anchor.hierarchy is not None and (
+        if anchor.hierarchy and (
             anchor.hierarchy not in HIERARCHIES or kind != "company"
         ):
             raise TypeError(
@@ -93,6 +99,52 @@ def collect_anchors(model_cls: type[BaseModel]) -> dict[str, Anchor]:
                     anchors["company"] = Anchor(name, "company")
                     break
     return anchors
+
+
+def infer_company_variant(
+    model_cls: type[BaseModel], anchor: Anchor, models: Mapping[str, type]
+) -> Anchor:
+    # the Odoo convention, read from the registry: a company every hop of the
+    # path requires is strict, an optional one means "shared across companies";
+    # a model whose company check reads the parent companies reaches them too
+    if anchor.kind != "company":
+        return Anchor(
+            anchor.path,
+            anchor.kind,
+            bool(anchor.shared),
+            anchor.hierarchy or "",
+            anchor.usage,
+        )
+    shared = anchor.shared
+    if shared is None:
+        shared = not all(
+            field.required for field in path_fields(model_cls, anchor.path, models)
+        )
+    hierarchy = anchor.hierarchy
+    if hierarchy is None:
+        check = getattr(model_cls, "_check_company_domain", None)
+        parent_of = (check_company_domain_parent_of, check_companies_domain_parent_of)
+        hierarchy = "parent_of" if check in parent_of else ""
+    return Anchor(anchor.path, anchor.kind, shared, hierarchy, anchor.usage)
+
+
+def path_fields(
+    model_cls: type[BaseModel], path: str, models: Mapping[str, type]
+) -> list[typing.Any]:
+    # the fields a path crosses, as far as they resolve
+    if path == "id":
+        return []
+    fields = []
+    current: typing.Any = model_cls
+    for name in path.split("."):
+        field = current._fields.get(name)
+        if field is None:
+            break
+        fields.append(field)
+        if not field.comodel_name or field.comodel_name not in models:
+            break
+        current = models[field.comodel_name]
+    return fields
 
 
 def anchor_path_error(

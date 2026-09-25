@@ -15,7 +15,13 @@ class GamificationGoal(models.Model):
     """Individual goal instance for a user on a specific time period."""
 
     _name = "gamification.goal"
-    _access_anchors = frozendict({"company": "user_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": "user_id.company_id",
+            "owner": "challenge_id.user_ids",
+            "user": models.Anchor("user_id", kind="owner"),
+        }
+    )
     _description = "Gamification Goal"
     _inherit = ["mixin.mail.thread"]
     _rec_name = "definition_id"

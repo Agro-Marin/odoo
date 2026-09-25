@@ -5,6 +5,7 @@ from odoo.db.schema import column_exists
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 from odoo.addons.stock.models.stock_move import PROCUREMENT_PRIORITIES
 
@@ -34,6 +35,11 @@ class StockPicking(models.Model):
         ),
     }
     _date_category_field = "date_planned"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     name = fields.Char(
         string="Reference",

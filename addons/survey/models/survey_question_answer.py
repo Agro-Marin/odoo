@@ -3,6 +3,7 @@ from typing import Any
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 
 class SurveyQuestionAnswer(models.Model):
@@ -11,6 +12,14 @@ class SurveyQuestionAnswer(models.Model):
     _rec_names_search = ["question_id.title", "value"]
     _order = "question_id, sequence, id"
     _description = "Survey Label"
+    _access_anchors = frozendict(
+        {
+            "owner": "matrix_question_id.survey_id.restrict_user_ids",
+            "question_survey_restrict_user": models.Anchor(
+                "question_id.survey_id.restrict_user_ids", kind="owner"
+            ),
+        }
+    )
 
     MAX_ANSWER_NAME_LENGTH = 90
 

@@ -23,7 +23,12 @@ STATUS_COLOR = {
 
 class ProjectUpdate(models.Model):
     _name = "project.update"
-    _access_anchors = frozendict({"company": "project_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": "project_id.company_id",
+            "owner": "user_id",
+        }
+    )
     _description = "Project Update"
     _order = "id desc"
     _inherit = ["mixin.mail.thread.cc", "mixin.mail.activity"]

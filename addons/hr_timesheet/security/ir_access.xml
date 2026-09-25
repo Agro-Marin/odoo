@@ -22,7 +22,8 @@
             <field name="active" eval="False" />
             <field name="operation">r</field>
             <field
-                name="domain">[('project_id', '!=', False), ('project_id.user_has_access', '=', True)]</field>
+                name="domain">['&amp;', ('project_id', '!=', False), ('project_id.user_has_access', '=', True)]</field>
+            <field name="reach">all</field>
         </record>
     </data>
 

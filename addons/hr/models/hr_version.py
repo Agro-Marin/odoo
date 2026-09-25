@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.tools import babel_locale_parse, get_lang
+from odoo.tools import babel_locale_parse, frozendict, get_lang
 
 from ..tools import debug_log as dbg
 
@@ -71,6 +71,11 @@ class HrVersion(models.Model):
     _mail_post_access = "read"
     _order = "date_version"
     _rec_name = "name"
+    _access_anchors = frozendict(
+        {
+            "employee": "employee_id",
+        }
+    )
 
     def _default_address_id(self):
         address = self.env.company.partner_id.address_get(["default"])

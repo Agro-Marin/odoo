@@ -1,7 +1,7 @@
-id,name,model_id/id,group_id/id,kind,operation,domain
-access_account_payment_term_partner_manager,account.payment.term partner manager,model_account_payment_term,base.group_user,permission,r,
-access_account_payment_term_portal,account.payment.term,model_account_payment_term,base.group_portal,permission,r,
-access_account_payment_term_line_partner_manager,account.payment.term.line partner manager,model_account_payment_term_line,base.group_user,permission,r,
-account_payment_term_comp_rule,Account payment term company rule,model_account_payment_term,base.group_everyone,guard,crud,"['|', ('company_id', '=', False), ('company_id', 'parent_of', company_ids)]"
-access_account_payment_term_system,account.payment.term system,model_account_payment_term,base.group_system,permission,cud,
-access_account_payment_term_line_system,account.payment.term.line system,model_account_payment_term_line,base.group_system,permission,cud,
+id,name,model_id/id,group_id/id,kind,operation,reach,anchor,domain
+access_account_payment_term_partner_manager,account.payment.term partner manager,model_account_payment_term,base.group_user,permission,r,,,
+access_account_payment_term_portal,account.payment.term,model_account_payment_term,base.group_portal,permission,r,,,
+access_account_payment_term_line_partner_manager,account.payment.term.line partner manager,model_account_payment_term_line,base.group_user,permission,r,,,
+account_payment_term_comp_rule,Account payment term company rule,model_account_payment_term,base.group_everyone,guard,crud,company,,
+access_account_payment_term_system,account.payment.term system,model_account_payment_term,base.group_system,permission,cud,,,
+access_account_payment_term_line_system,account.payment.term.line system,model_account_payment_term_line,base.group_system,permission,cud,,,

@@ -4,6 +4,7 @@ from typing import Self
 from odoo import Command, api, fields, models
 from odoo.api import ValuesType
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -25,6 +26,11 @@ class PhoneNumber(models.Model):
     _rec_name = "number"
     _rec_names_search = ["number", "sanitized", "label"]
     _name_create_on_import = True
+    _access_anchors = frozendict(
+        {
+            "partner": "partner_ids",
+        }
+    )
 
     number = fields.Char(required=True)
     sanitized = fields.Char(

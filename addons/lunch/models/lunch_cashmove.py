@@ -1,5 +1,5 @@
 from odoo import api, fields, models
-from odoo.tools import float_round
+from odoo.tools import float_round, frozendict
 
 
 class LunchCashmove(models.Model):
@@ -8,6 +8,11 @@ class LunchCashmove(models.Model):
     _name = "lunch.cashmove"
     _description = "Lunch Cashmove"
     _order = "date desc"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     currency_id = fields.Many2one(
         comodel_name="res.currency",

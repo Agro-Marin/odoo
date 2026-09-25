@@ -11,7 +11,7 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.http import request
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.password import CryptContext
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 from .res_users import check_identity
 
@@ -31,6 +31,11 @@ class ResUsersApikeys(models.Model):
     _description = "Users API Keys"
     _auto = False
     _allow_sudo_commands = False
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     name = fields.Char(
         string="Description",

@@ -6,7 +6,7 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import parse_amount
-from odoo.tools import SQL, mute_logger
+from odoo.tools import SQL, frozendict, mute_logger
 
 _debug = DebugLog(__name__)
 
@@ -17,6 +17,11 @@ class AccountReconcileModelLine(models.Model):
     _description = "Rules for the reconciliation model"
     _order = "sequence, id"
     _check_company_auto = True
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False, hierarchy="parent_of"),
+        }
+    )
 
     model_id = fields.Many2one(
         comodel_name="account.reconcile.model",
@@ -156,6 +161,11 @@ class AccountReconcileModel(models.Model):
     _inherit = ["mixin.mail.thread"]
     _order = "sequence, id"
     _check_company_auto = True
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", hierarchy="parent_of"),
+        }
+    )
 
     active = fields.Boolean(
         default=True,

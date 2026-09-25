@@ -2,7 +2,7 @@ from typing import Any
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 from ..tools import debug_log as dbg
 from odoo.addons.resource.models.utils import filter_domain_leaf
@@ -14,6 +14,11 @@ class ProjectCFDReport(models.AbstractModel):
     _auto = False
     _order = "date"
     _search_visibility_fields = ()
+    _access_anchors = frozendict(
+        {
+            "owner": "user_ids",
+        }
+    )
 
     date = fields.Datetime(readonly=True)
     date_assign = fields.Datetime(

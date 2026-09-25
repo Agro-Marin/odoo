@@ -5,7 +5,13 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.fields import Command
-from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, SQL, float_compare, get_lang
+from odoo.tools import (
+    DEFAULT_SERVER_DATETIME_FORMAT,
+    SQL,
+    float_compare,
+    frozendict,
+    get_lang,
+)
 
 from odoo.addons.trade.tools import PURCHASE
 
@@ -24,6 +30,13 @@ class PurchaseOrderLine(models.Model):
     _rec_names_search = ["name", "order_id.name"]
 
     _direction = PURCHASE
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+            "owner": models.Anchor("user_id", shared=True),
+            "partner": "partner_id",
+        }
+    )
 
     def _get_merge_date_field(self):
         return "date_commitment"

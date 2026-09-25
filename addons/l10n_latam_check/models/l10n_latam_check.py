@@ -5,6 +5,7 @@ import stdnum
 
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import frozendict
 
 _logger = logging.getLogger(__name__)
 
@@ -14,6 +15,11 @@ class L10n_LatamCheck(models.Model):
     _description = "Account payment check"
     _check_company_auto = True
     _inherit = ["mixin.mail.thread", "mixin.mail.activity"]
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     payment_id = fields.Many2one(
         comodel_name="account.payment",

@@ -7,6 +7,7 @@ from itertools import starmap
 
 from odoo import api, fields, models
 from odoo.exceptions import LockError, UserError
+from odoo.tools import frozendict
 
 from odoo.addons.l10n_in_ewaybill.tools.ewaybill_api import EWayBillApi, EWayBillError
 
@@ -18,6 +19,11 @@ class L10nInEwaybill(models.Model):
     _description = "e-Waybill"
     _inherit = ["mixin.portal", "mixin.mail.thread", "mixin.mail.activity"]
     _check_company_auto = True
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     # Ewaybill details generated from the API
     name = fields.Char(

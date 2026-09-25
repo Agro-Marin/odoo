@@ -1,9 +1,17 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 
 class SurveySurvey(models.Model):
     _inherit = "survey.survey"
+    _access_anchors = frozendict(
+        {
+            "owner_or_unset": models.Anchor(
+                "restrict_user_ids", kind="owner", shared=True
+            ),
+        }
+    )
 
     slide_channel_ids = fields.One2many(
         comodel_name="slide.channel",

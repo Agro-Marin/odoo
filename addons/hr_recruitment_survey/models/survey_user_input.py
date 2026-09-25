@@ -1,11 +1,23 @@
 from odoo import fields, models
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
 
 class SurveyUser_Input(models.Model):
     _inherit = "survey.user_input"
+    _access_anchors = frozendict(
+        {
+            "applicant_interviewer": models.Anchor(
+                "applicant_id.interviewer_ids", kind="owner"
+            ),
+            "applicant_job_interviewer": models.Anchor(
+                "applicant_id.job_id.interviewer_ids", kind="owner"
+            ),
+            "owner": models.Anchor("survey_id.restrict_user_ids", shared=True),
+        }
+    )
 
     applicant_id = fields.Many2one(
         comodel_name="hr.applicant",

@@ -4,6 +4,7 @@ from markupsafe import Markup, escape
 
 from odoo import api, exceptions, fields, models
 from odoo.models import ValuesType
+from odoo.tools import frozendict
 
 
 class GamificationKudosCategory(models.Model):
@@ -80,6 +81,11 @@ class GamificationKudos(models.Model):
     _order = "create_date desc"
     _rec_name = "summary"
     _mail_partner_fields = ("recipient_partner_id",)
+    _access_anchors = frozendict(
+        {
+            "owner": "sender_id",
+        }
+    )
 
     sender_id = fields.Many2one(
         comodel_name="res.users",

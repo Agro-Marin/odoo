@@ -1,8 +1,14 @@
 from odoo import api, models
+from odoo.tools import frozendict
 
 
 class AppointmentBookingLine(models.Model):
     _inherit = "appointment.booking.line"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("calendar_event_id.user_id", shared=True),
+        }
+    )
 
     @api.model_create_multi
     def create(self, vals_list):

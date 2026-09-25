@@ -31,7 +31,13 @@ def get_google_maps_url(latitude, longitude):
 
 class HrAttendance(models.Model):
     _name = "hr.attendance"
-    _access_anchors = frozendict({"company": "employee_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("employee_id.company_id", shared=True),
+            "employee": "employee_id",
+            "owner": "employee_id.attendance_manager_id",
+        }
+    )
     _description = "Attendance"
     _order = "check_in desc"
     _inherit = ["mixin.mail.thread"]

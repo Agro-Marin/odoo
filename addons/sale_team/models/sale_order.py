@@ -1,11 +1,17 @@
 from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
 
 class SaleOrder(models.Model):
     _inherit = "sale.order"
+    _access_anchors = frozendict(
+        {
+            "team": models.Anchor("team_id", usage="sale"),
+        }
+    )
 
     team_id = fields.Many2one(
         comodel_name="team.team",

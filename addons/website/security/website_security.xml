@@ -50,7 +50,8 @@
         <field name="kind">permission</field>
         <field name="operation">r</field>
         <field
-            name="domain">[('controller_page_ids', '!=', False), '|', ('type', '!=', 'qweb'), ('visibility', 'in', ('public', False))]</field>
+            name="domain">['&amp;', ('controller_page_ids', '!=', False), '|', ('type', '!=', 'qweb'), ('visibility', 'in', ('public', False))]</field>
+        <field name="reach">all</field>
     </record>
 
     <record id="access_ir_ui_view_controller_page_portal" model="ir.access">
@@ -61,7 +62,8 @@
         <field name="kind">permission</field>
         <field name="operation">r</field>
         <field
-            name="domain">[('controller_page_ids', '!=', False), '|', ('type', '!=', 'qweb'), ('visibility', 'in', ('public', 'connected', False))]</field>
+            name="domain">['&amp;', ('controller_page_ids', '!=', False), '|', ('type', '!=', 'qweb'), ('visibility', 'in', ('public', 'connected', False))]</field>
+        <field name="reach">all</field>
     </record>
 
 </odoo>

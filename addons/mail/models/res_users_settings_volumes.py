@@ -1,6 +1,7 @@
 import typing
 
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 if typing.TYPE_CHECKING:
     from .discuss.mail_guest import MailGuest
@@ -11,6 +12,11 @@ if typing.TYPE_CHECKING:
 class ResUsersSettingsVolumes(models.Model):
     _name = "res.users.settings.volumes"
     _description = "User Settings Volumes"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_setting_id.user_id",
+        }
+    )
 
     user_setting_id: ResUsersSettings = fields.Many2one(
         comodel_name="res.users.settings",

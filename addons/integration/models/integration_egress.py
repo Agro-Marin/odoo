@@ -5,6 +5,7 @@ import requests
 
 from odoo import api, fields, models
 from odoo.libs import redact
+from odoo.tools import frozendict
 
 from ..tools.connection_gate import CONNECTION_CONTEXT_KEY
 from ..tools.exchange_queue import queue_exchange_values
@@ -72,6 +73,11 @@ class IntegrationEgressPurpose(models.Model):
 
 class IntegrationExchange(models.Model):
     _inherit = "integration.exchange"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     @api.model
     def _selection_channel_models(self):

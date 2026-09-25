@@ -4,6 +4,7 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 DEFAULT_REVEAL_VIEW_WEEKS_VALID = 5
 _debug = DebugLog(__name__)
@@ -14,6 +15,11 @@ class CrmRevealView(models.Model):
     _description = "CRM Reveal View"
     _rec_name = "reveal_ip"
     _order = "id desc"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("reveal_rule_id.user_id", shared=True),
+        }
+    )
 
     reveal_ip = fields.Char(string="IP Address")
     reveal_rule_id = fields.Many2one(

@@ -3,12 +3,18 @@ from collections import defaultdict
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
+from odoo.tools import frozendict
 
 
 class LunchOrder(models.Model):
     _name = "lunch.order"
     _description = "Lunch Order"
     _order = "id desc"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
     _display_name = "product_id"
 
     name = fields.Char(

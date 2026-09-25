@@ -149,6 +149,7 @@ from . import test_server_action_tools
 from . import test_ir_access_migration
 from . import test_ir_access_shortfalls
 from . import test_ir_access_stored_domains
+from . import test_ir_access_reach
 from . import test_ir_access_flags
 from . import test_mixin_recurrence_rrule
 from . import test_res_users_grant

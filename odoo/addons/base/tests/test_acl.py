@@ -303,9 +303,9 @@ class TestAccessRows(TransactionCaseWithUserDemo):
         row3 = make_access_row(self.env, "res.partner", group_user, name="row3")
         self.assertTrue(partners_demo.search([]), "Demo user should see some partner.")
 
-        self.env.ref(
-            "base.res_company_rule_employee"
-        ).domain = "[('id','in', company_ids)]"
+        self.env.ref("base.res_company_rule_employee").write(
+            {"reach": False, "domain": "[('id','in', company_ids)]"}
+        )
         self.assertTrue(partners_demo.search([]), "Demo user should see some partner.")
 
         # a permission only ever adds records: one that admits nothing takes

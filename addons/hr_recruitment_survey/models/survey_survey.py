@@ -1,11 +1,22 @@
 from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
 
 class SurveySurvey(models.Model):
     _inherit = "survey.survey"
+    _access_anchors = frozendict(
+        {
+            "hr_job_application_interviewer": models.Anchor(
+                "hr_job_ids.application_ids.interviewer_ids", kind="owner"
+            ),
+            "hr_job_interviewer": models.Anchor(
+                "hr_job_ids.interviewer_ids", kind="owner"
+            ),
+        }
+    )
 
     survey_type = fields.Selection(
         selection_add=[("recruitment", "Recruitment")],

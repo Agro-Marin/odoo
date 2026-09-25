@@ -8,6 +8,7 @@ from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.datetime import timezone
 from odoo.models import ValuesType
+from odoo.tools import frozendict
 
 from odoo.addons.base.models.res_partner import _selection_timezones
 
@@ -35,6 +36,14 @@ class ResourceScheduleException(models.Model):
     _description = "Schedule Exception"
     _order = "date_from"
     _check_company_auto = True
+    _access_anchors = frozendict(
+        {
+            "owner": "resource_id.user_id",
+            "owner_or_unset": models.Anchor(
+                "resource_id.user_id", kind="owner", shared=True
+            ),
+        }
+    )
 
     name = fields.Char(string="Reason")
     company_id = fields.Many2one(

@@ -219,7 +219,12 @@ class TestProjectAccessMigration(TestProjectCommon):
         # what base 1.97 leaves of an old database's noupdate rule: a row that
         # keeps the rule's flag, which the data file then does not reach
         rule = self.env.ref("project.project_public_members_rule")
-        rule.domain = "[('message_partner_ids', 'in', [user.partner_id.id])]"
+        rule.write(
+            {
+                "reach": False,
+                "domain": "[('message_partner_ids', 'in', [user.partner_id.id])]",
+            }
+        )
         xmlid = self.env["ir.model.data"].search(
             [("module", "=", "project"), ("name", "=", "project_public_members_rule")]
         )

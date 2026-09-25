@@ -2,6 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 from odoo.addons.sale_pdf_quote_builder import utils
 
@@ -16,6 +17,11 @@ class QuotationDocument(models.Model):
     }
     _order = "document_type desc, sequence, name"
     _check_company_auto = True
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", hierarchy="parent_of"),
+        }
+    )
 
     ir_attachment_id = fields.Many2one(
         comodel_name="ir.attachment",

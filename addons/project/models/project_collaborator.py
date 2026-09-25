@@ -9,7 +9,12 @@ from ..tools import debug_log as dbg
 
 class ProjectCollaborator(models.Model):
     _name = "project.collaborator"
-    _access_anchors = frozendict({"company": "project_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": "project_id.company_id",
+            "partner": "partner_id",
+        }
+    )
     _description = "Collaborators in project shared"
 
     project_id = fields.Many2one(

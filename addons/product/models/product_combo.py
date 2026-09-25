@@ -1,11 +1,17 @@
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.tools import frozendict
 
 
 class ProductCombo(models.Model):
     _name = "product.combo"
     _description = "Product Combo"
     _order = "sequence, id"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", hierarchy="parent_of"),
+        }
+    )
 
     company_id = fields.Many2one(
         comodel_name="res.company",

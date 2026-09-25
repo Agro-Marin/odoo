@@ -7,6 +7,7 @@ from odoo.api import SUPERUSER_ID, ValuesType
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 
 _debug = DebugLog(__name__)
 
@@ -19,6 +20,11 @@ class IrDefault(models.Model):
     _description = "Default Values"
     _rec_name = "field_id"
     _allow_sudo_commands = False
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     field_id = fields.Many2one(
         comodel_name="ir.model.fields",

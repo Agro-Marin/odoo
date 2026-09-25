@@ -4,7 +4,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 from odoo.tools.misc import str2bool
 
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
@@ -1089,6 +1089,12 @@ class AccountBankStatementLine(models.Model):
 
 class AccountMove(models.Model):
     _inherit = "account.move"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+            "partner": "partner_id",
+        }
+    )
 
     statement_line_ids = fields.One2many(
         comodel_name="account.bank.statement.line",

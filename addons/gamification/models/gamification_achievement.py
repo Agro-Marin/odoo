@@ -1,6 +1,7 @@
 import logging
 
 from odoo import api, fields, models
+from odoo.tools import frozendict
 from odoo.tools.safe_eval import safe_eval
 
 _logger = logging.getLogger(__name__)
@@ -214,6 +215,11 @@ class GamificationAchievementUnlock(models.Model):
     _description = "Achievement Unlock"
     _order = "unlock_date desc"
     _rec_name = "achievement_id"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_id",
+        }
+    )
 
     achievement_id = fields.Many2one(
         comodel_name="gamification.achievement",

@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.tools import frozendict
 
 from ..tools import SETTLED_STATES, Verdict
 
@@ -16,6 +17,11 @@ class ExchangeTransmission(models.Model):
     _description = "Exchange Transmission"
     _order = "date_created desc, id desc"
     _rec_name = "display_name"
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=True),
+        }
+    )
 
     # FIELDS
 

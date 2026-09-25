@@ -6,7 +6,7 @@ from odoo import api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import ValidationError
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 from odoo.tools.view_validation import IGNORED_IN_EXPRESSION
 
 _ALLOWED_DOMAIN_NAMES = frozenset(IGNORED_IN_EXPRESSION) | {
@@ -22,6 +22,12 @@ class IrFilters(models.Model):
     _name = "ir.filters"
     _description = "Filters"
     _order = "model_id, name, id desc"
+    _access_anchors = frozendict(
+        {
+            "owner": "user_ids",
+            "owner_or_unset": models.Anchor("user_ids", kind="owner", shared=True),
+        }
+    )
 
     name = fields.Char(
         string="Filter Name",

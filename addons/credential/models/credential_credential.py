@@ -9,7 +9,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from odoo import api, fields, models, tools
 from odoo.exceptions import UserError, ValidationError
 from odoo.libs import redact
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 from .credential_use import check_purpose
 
@@ -26,6 +26,11 @@ class CredentialCredential(models.Model):
     _description = "Credential"
     _order = "company_id, sequence, name"
     _rec_name = "name"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("owner_user_id", shared=True),
+        }
+    )
 
     company_id = fields.Many2one(
         comodel_name="res.company",

@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 
 class SlideSlidePartner(models.Model):
@@ -6,6 +7,11 @@ class SlideSlidePartner(models.Model):
     _description = "Slide / Partner decorated m2m"
     _table = "slide_slide_partner"
     _rec_name = "partner_id"
+    _access_anchors = frozendict(
+        {
+            "owner": "channel_id.user_id",
+        }
+    )
 
     slide_id = fields.Many2one(
         comodel_name="slide.slide",

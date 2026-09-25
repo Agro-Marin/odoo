@@ -8,7 +8,7 @@ from markupsafe import Markup
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
-from odoo.tools import float_compare
+from odoo.tools import float_compare, frozendict
 
 from ..tools import debug_log as dbg
 
@@ -18,6 +18,11 @@ class PosOrderLine(models.Model):
     _description = "Point of Sale Order Lines"
     _rec_name = "product_id"
     _inherit = ["mixin.pos.load"]
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("company_id", shared=False),
+        }
+    )
 
     company_id = fields.Many2one(
         comodel_name="res.company",

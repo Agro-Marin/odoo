@@ -2,7 +2,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import OrderedSet
+from odoo.tools import OrderedSet, frozendict
 
 _debug = DebugLog(__name__)
 
@@ -10,6 +10,11 @@ _debug = DebugLog(__name__)
 class AccountMove(models.Model):
     _name = "account.move"
     _inherit = ["account.move", "mixin.utm"]
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("invoice_user_id", shared=True),
+        }
+    )
 
     campaign_id = fields.Many2one(ondelete="set null")
     medium_id = fields.Many2one(ondelete="set null")

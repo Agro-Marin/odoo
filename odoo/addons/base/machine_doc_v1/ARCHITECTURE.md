@@ -70,12 +70,13 @@ access control, and ORM extensions that those controllers depend on.
 odoo/addons/base/
 ├── __manifest__.py              # Module metadata + asset/data file declarations
 ├── __init__.py                  # Imports models, report, wizard + post_init hook
-├── models/                      # 118 Python model files (core ORM infrastructure)
+├── models/                      # 119 Python model files (core ORM infrastructure)
 │   ├── assetsbundle/            #   Asset compilation package (bundle, JS/CSS/XML pipelines, store)
 │   ├── decimal_precision.py         #   Configurable decimal precision
 │   ├── ir_access.py                 #   ir.access: permissions and guards with domains, the decision of every model
 │   ├── ir_access_obligation.py      #   ir.access.obligation: what a declared verb obliges beyond holding it (abstract; approval extends it)
 │   ├── ir_access_predicate.py       #   ir.access.predicate: a named, validated reach no anchor states
+│   ├── ir_access_reach.py           #   the recognizer: a stored domain proven equal to reach parts
 │   ├── ir_access_log.py             #   ir.access.log: the append-only authorization log
 │   ├── ir_access_exception.py       #   ir.access.exception: one named, dated, logged way past a strict rule
 │   ├── ir_access_sod.py             #   ir.access.sod.rule / .function: two duties one person must not hold
@@ -202,7 +203,7 @@ odoo/addons/base/
 │   ├── reset_view_arch.py           #   Reset view to original arch (soft/hard)
 │   ├── server_action_history.py     #   Server-action run history (diff + restore)
 │   └── wizard_ir_model_menu_create.py #   Create menu item for custom model
-├── tests/                       # 156 Python test files + test assets
+├── tests/                       # 157 Python test files + test assets
 │   ├── common.py                #   Base test classes (demo user, portal user)
 │   └── test_*.py                #   Test modules -- counts in TEST_TAGS.md, derived by factcheck.sh
 ├── views/                       # 40 XML view definition files
@@ -289,9 +290,9 @@ Derived by `factcheck.sh`, which re-measures every row against the tree.
 
 | Category | Count |
 |----------|-------|
-| Python (models) | 118 |
+| Python (models) | 119 |
 | Python (wizards) | 11 |
-| Python (tests) | 156 |
+| Python (tests) | 157 |
 | XML (views) | 40 |
 | Data files | 21 |
 | XML (reports) | 0 |

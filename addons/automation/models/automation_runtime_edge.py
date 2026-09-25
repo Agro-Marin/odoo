@@ -12,7 +12,11 @@ _logger = logging.getLogger(__name__)
 
 class AutomationRuntimeEdge(models.Model):
     _name = "automation.runtime.edge"
-    _access_anchors = frozendict({"company": "runtime_id.company_id"})
+    _access_anchors = frozendict(
+        {
+            "company": models.Anchor("runtime_id.company_id", shared=True),
+        }
+    )
     _description = "Automation Runtime Edge"
     _order = "runtime_id, id"
 

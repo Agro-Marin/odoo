@@ -1,8 +1,14 @@
 from odoo import api, fields, models
+from odoo.tools import frozendict
 
 
 class SurveyUser_Input(models.Model):
     _inherit = "survey.user_input"
+    _access_anchors = frozendict(
+        {
+            "owner": models.Anchor("survey_id.restrict_user_ids", shared=True),
+        }
+    )
 
     slide_id = fields.Many2one(
         comodel_name="slide.slide",

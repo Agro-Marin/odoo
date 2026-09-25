@@ -15,7 +15,7 @@ from odoo.libs.datetime import all_timezones
 from odoo.libs.datetime import timezone as get_timezone
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.text import name_length_band, similarity_ratio
-from odoo.tools import SQL
+from odoo.tools import SQL, frozendict
 
 if typing.TYPE_CHECKING:
     from .res_users import ResUsers
@@ -151,6 +151,11 @@ class ResPartner(models.Model):
         "show_address",
         "show_vat",
         "partner_display_name_hide_company",
+    )
+    _access_anchors = frozendict(
+        {
+            "partner": "id",
+        }
     )
 
     company_id = fields.Many2one(
