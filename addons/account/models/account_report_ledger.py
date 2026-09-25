@@ -12,7 +12,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL, date_utils
+from odoo.tools import SQL, date_utils, groupby
 from odoo.tools.misc import format_date
 
 from odoo.addons.account.tools.display_types import NON_ACCOUNTABLE_DISPLAY_TYPES
@@ -2290,7 +2290,7 @@ class AccountReport(models.Model):
         return super()._get_engines_without_next_groupby() | LEDGER_ENGINES
 
     def _reads_ledger(self):
-        return self[:1].source_model in {False, "account.move.line"}
+        return self[:1]._get_source_model_name() in {None, "account.move.line"}
 
     def _get_source_model(self):
         source_model = super()._get_source_model()
@@ -2896,14 +2896,114 @@ class AccountReport(models.Model):
         )
         return reports
 
-    def _get_domain_unallocated_earnings_lines(self, fiscalyear_start, company_id=None):
-        domain = [
-            ("account_id.include_initial_balance", "=", False),
-            ("date", "<", fiscalyear_start),
-        ]
-        if company_id:
-            domain += [("company_id", "=", company_id)]
-        return domain
+    def _get_fiscalyear_dates_by_company(self, options, date):
+        if not self._reads_ledger():
+            return super()._get_fiscalyear_dates_by_company(options, date)
+        date = fields.Date.to_date(date)
+        return {
+            company.id: company.compute_fiscalyear_dates(date)
+            for company in self.env["res.company"].browse(
+                self.get_report_company_ids(options)
+            )
+        }
+
+    def _get_fiscalyear_start_by_company(self, options):
+        if starts := options.get("fiscalyear_start_by_company"):
+            return {
+                int(company_id): fields.Date.to_date(start)
+                for company_id, start in starts.items()
+            }
+        return {
+            company_id: fiscal_year["date_from"]
+            for company_id, fiscal_year in self._get_fiscalyear_dates_by_company(
+                options, options["date"]["date_from"]
+            ).items()
+        }
+
+    def _get_fiscalyear_pnl_domain(self, fiscalyear_start_by_company):
+        return Domain(
+            "account_id.include_initial_balance", "=", True
+        ) | self._get_fiscalyear_date_domain(fiscalyear_start_by_company, ">=")
+
+    def _get_unallocated_earnings_domain(self, fiscalyear_start_by_company):
+        return Domain(
+            "account_id.include_initial_balance", "=", False
+        ) & self._get_fiscalyear_date_domain(fiscalyear_start_by_company, "<")
+
+    @_debug.perf.timed
+    def _get_custom_engine_unfold_all_batch_data(
+        self,
+        options,
+        lines_to_expand_by_function,
+        engine_formula,
+        get_engine_rows,
+        exclusive_engine=False,
+    ):
+        results = {}
+        for line_to_expand in lines_to_expand_by_function.get(
+            "_report_expand_unfoldable_line_with_groupby", []
+        ):
+            report_line = self.env["report.formula.line"].browse(
+                self._get_res_id_from_line_id(
+                    line_to_expand["id"], "report.formula.line"
+                )
+            )
+            expressions = report_line.expression_ids.filtered(
+                lambda expression: (
+                    expression.engine == "custom"
+                    and expression.formula == engine_formula
+                )
+            )
+            if not expressions or (
+                exclusive_engine and expressions != report_line.expression_ids
+            ):
+                _debug.logic(
+                    "unfold_batch_skipped",
+                    report=self,
+                    report_line=report_line,
+                    reason="mixed_engine_expressions"
+                    if expressions
+                    else "no_engine_expressions",
+                )
+                continue
+            for (
+                column_group_key,
+                column_group_options,
+            ) in self._split_options_per_column_group(options).items():
+                for date_scope, expressions_by_date_scope in groupby(
+                    expressions, lambda expression: expression.date_scope
+                ):
+                    for sub_groupby_key, rows in get_engine_rows(
+                        report_line,
+                        expressions_by_date_scope,
+                        column_group_options,
+                        date_scope,
+                    ):
+                        results.setdefault(sub_groupby_key, {}).setdefault(
+                            column_group_key, {}
+                        ).update(
+                            {
+                                expression: {
+                                    "value": [
+                                        (grouping_key, values[expression.subformula])
+                                        for grouping_key, values in rows
+                                    ],
+                                    "sublines_info": {
+                                        grouping_key
+                                        for grouping_key, values in rows
+                                        if values["has_sublines"]
+                                    },
+                                }
+                                for expression in expressions_by_date_scope
+                            }
+                        )
+        _debug.pipeline(
+            "unfold_batch_generated",
+            report=self,
+            engine=engine_formula,
+            groupby_keys=len(results),
+        )
+        return results
 
     @_debug.perf.timed
     def _get_unallocated_earnings_lines(self, options, date_scope, auditable=False):
@@ -2911,10 +3011,8 @@ class AccountReport(models.Model):
             query = self._get_report_query(
                 query_options,
                 date_scope,
-                domain=self._get_domain_unallocated_earnings_lines(
-                    self.env[self.custom_handler_model_name]._get_fiscalyear_start_date(
-                        query_options
-                    )
+                domain=self._get_unallocated_earnings_domain(
+                    self._get_fiscalyear_start_by_company(query_options)
                 ),
             )
             return self.env.execute_query_dict(
@@ -4006,8 +4104,11 @@ class AccountReportExpression(models.Model):
                 options, column_group_key
             )
 
-        date_from, date_to = self.report_line_id.report_id._get_date_bounds_info(
-            options, self.date_scope
+        report = self.report_line_id.report_id
+        domain = (
+            Domain("target_report_expression_id", "=", self.id)
+            & report._get_date_scope_domain(options, self.date_scope)
+            & Domain("company_id", "in", report.get_report_company_ids(options))
         )
 
         return {
@@ -4015,11 +4116,7 @@ class AccountReportExpression(models.Model):
             "name": self.env._("Carryover lines for: %s", self.report_line_name),
             "res_model": "report.formula.external.value",
             "views": [(False, "list")],
-            "domain": [
-                ("target_report_expression_id", "=", self.id),
-                ("date", ">=", date_from),
-                ("date", "<=", date_to),
-            ],
+            "domain": list(domain),
         }
 
 

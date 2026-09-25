@@ -1,7 +1,9 @@
 from ast import literal_eval
 from collections import defaultdict
 
-from odoo import models
+from dateutil.relativedelta import relativedelta
+
+from odoo import fields, models
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
@@ -183,41 +185,39 @@ class AccountReportActions(models.Model):
         )
         # Audit of external values
         if expression.engine == "external":
-            date_from, date_to = self._get_date_bounds_info(
-                column_group_options, expression.date_scope
+            external_values_domain = (
+                Domain("target_report_expression_id", "=", expression.id)
+                & self._get_date_scope_domain(
+                    column_group_options, expression.date_scope
+                )
+                & Domain(
+                    "company_id",
+                    "in",
+                    self.get_report_company_ids(column_group_options),
+                )
             )
-            external_values_domain = [
-                ("target_report_expression_id", "=", expression.id),
-                ("date", "<=", date_to),
-            ]
-            if date_from:
-                external_values_domain.append(("date", ">=", date_from))
 
             if expression.formula == "most_recent":
                 query = self.env["report.formula.external.value"]._search(
                     external_values_domain, bypass_access=True
                 )
-                rows = self.env.execute_query(
+                where_clause = query.where_clause or SQL("TRUE")
+                external_value_ids = self.env.execute_query(
                     SQL(
-                        """
-                    SELECT ARRAY_AGG(id)
-                    FROM %s
-                    WHERE %s
-                    GROUP BY date
-                    ORDER BY date DESC
-                    LIMIT 1
-                """,
+                        "SELECT id FROM %s WHERE %s AND %s",
                         query.from_clause,
-                        query.where_clause or SQL("TRUE"),
+                        where_clause,
+                        self._get_external_values_latest_per_company(where_clause),
                     )
                 )
-                if rows:
-                    external_values_domain = [("id", "in", rows[0][0])]
+                external_values_domain = Domain(
+                    "id", "in", [row[0] for row in external_value_ids]
+                )
                 _debug.logic(
                     "audit_most_recent_narrowed",
                     report=self,
                     expression=expression,
-                    narrowed=bool(rows),
+                    narrowed=len(external_value_ids),
                 )
 
             return {
@@ -226,7 +226,7 @@ class AccountReportActions(models.Model):
                 "res_model": "report.formula.external.value",
                 "view_mode": "list",
                 "views": [(False, "list")],
-                "domain": external_values_domain,
+                "domain": list(external_values_domain),
             }
 
         # If we're auditing a groupby line, we need to make sure to restrict the result of what we audit to the right group values
@@ -545,22 +545,22 @@ class AccountReportActions(models.Model):
         target_expression = self.env["report.formula.expression"].browse(
             target_expression_id
         )
-        date_from, date_to = self._get_date_bounds_info(
-            target_column_group_options, target_expression.date_scope
+        company = self.env["res.company"].browse(
+            self.get_report_company_ids(target_column_group_options)
+        )
+        date_scope = target_expression.date_scope
+        date_to = self._get_manual_value_date(
+            target_column_group_options, date_scope, company
         )
 
-        external_values_domain = [
-            ("target_report_expression_id", "=", target_expression.id),
-            ("company_id", "=", self.env.company.id),
-        ]
+        external_values_domain = Domain(
+            "target_report_expression_id", "=", target_expression.id
+        ) & Domain("company_id", "=", company.id)
 
         if target_expression.formula == "most_recent":
             value_to_adjust = 0
             existing_value_to_modify = self.env["report.formula.external.value"].search(
-                [
-                    *external_values_domain,
-                    ("date", "=", date_to),
-                ]
+                external_values_domain & Domain("date", "=", date_to)
             )
 
             # There should be at most 1
@@ -572,11 +572,8 @@ class AccountReportActions(models.Model):
                 )
         else:
             existing_external_values = self.env["report.formula.external.value"].search(
-                [
-                    *external_values_domain,
-                    ("date", ">=", date_from),
-                    ("date", "<=", date_to),
-                ],
+                external_values_domain
+                & self._get_date_scope_domain(target_column_group_options, date_scope),
                 order="date ASC",
             )
             existing_value_to_modify = (
@@ -596,7 +593,8 @@ class AccountReportActions(models.Model):
             report=self,
             expression=target_expression,
             formula=target_expression.formula,
-            date_from=date_from,
+            company=company,
+            date_scope=date_scope,
             date_to=date_to,
             existing=existing_value_to_modify,
             value_to_adjust=value_to_adjust,
@@ -643,9 +641,19 @@ class AccountReportActions(models.Model):
                     field_name: value_to_set,
                     "date": date_to,
                     "target_report_expression_id": target_expression.id,
-                    "company_id": self.env.company.id,
+                    "company_id": company.id,
                 }
             )
+
+    def _get_manual_value_date(self, options, date_scope, company):
+        if date_scope == "to_beginning_of_fiscalyear":
+            fiscal_year = self._get_fiscalyear_dates_by_company(
+                options, options["date"]["date_to"]
+            )[company.id]
+            return fields.Date.to_string(
+                fiscal_year["date_from"] - relativedelta(days=1)
+            )
+        return self._get_date_bounds_info(options, date_scope)[1]
 
     @_debug.perf.timed
     def _get_domain_audit_line(self, column_group_options, expression, params):

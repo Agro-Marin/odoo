@@ -365,9 +365,12 @@ class AccountReport(models.Model):
     def get_annotations(self, options, lines):
         return {}
 
+    def _get_source_model_name(self):
+        return self.source_model or self.root_report_id.source_model or None
+
     def _get_source_model(self):
         """The model a `domain` expression searches; None when the report has none."""
-        source_model = self.source_model or self.root_report_id.source_model
+        source_model = self._get_source_model_name()
         return self.env[source_model] if source_model else None
 
     @_debug.perf.timed

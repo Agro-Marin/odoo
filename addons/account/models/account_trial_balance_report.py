@@ -71,8 +71,8 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                 "forced_options"
             ]["date"]["date_from"]
         )
-        previous_fiscal_year = self.env.company.compute_fiscalyear_dates(
-            initial_date_from
+        previous_fiscal_years = self._get_block_fiscal_years(
+            report, options, initial_date_from
         )
         block_id = 0
 
@@ -86,29 +86,31 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             columns,
             initial_date_to,
             block_id,
-            previous_fiscal_year["date_from"],
+            previous_fiscal_years,
         )
 
         last_column = {}
         nb_columns_per_header = len(original_columns) / len(original_headers)
-        fiscal_year = {}
+        fiscal_years = previous_fiscal_years
 
         for col_number_in_block, column in enumerate(original_columns, start=1):
             column_group_values = options["column_groups"][column["column_group_key"]]
-            fiscal_year = self.env.company.compute_fiscalyear_dates(
+            fiscal_years = self._get_block_fiscal_years(
+                report,
+                options,
                 fields.Date.to_date(
                     column_group_values["forced_options"]["date"]["date_from"]
-                )
+                ),
+                previous_fiscal_years,
             )
 
-            # Check for fiscal year change
-            if fiscal_year != previous_fiscal_year:
+            if fiscal_years != previous_fiscal_years:
                 _debug.logic(
                     "fiscal_year_block_split",
                     report=report,
                     block_id=block_id,
                     column_group=column["column_group_key"],
-                    fiscal_year_start=fiscal_year["date_from"],
+                    fiscal_year_start_by_company=fiscal_years,
                 )
                 headers, groups, columns = self._add_end_column(
                     report,
@@ -118,7 +120,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                     columns,
                     last_column,
                     block_id,
-                    previous_fiscal_year,
+                    previous_fiscal_years,
                 )
 
                 block_id += 1
@@ -133,19 +135,16 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                     columns,
                     initial_date_to,
                     block_id,
-                    fiscal_year["date_from"],
+                    fiscal_years,
                 )
-                previous_fiscal_year = fiscal_year
+                previous_fiscal_years = fiscal_years
 
-            # Update column group
             if column["column_group_key"] != last_column.get("column_group_key"):
                 column_group_values["forced_options"].update(
                     {
                         "trial_balance_column_block_id": str(block_id),
                         "trial_balance_column_type": "period",
-                        "trial_balance_block_fiscalyear_start": fields.Date.to_string(
-                            fiscal_year["date_from"]
-                        ),
+                        **self._get_block_fiscalyear_options(fiscal_years),
                     }
                 )
 
@@ -164,7 +163,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             columns,
             last_column,
             block_id,
-            fiscal_year,
+            fiscal_years,
         )
 
         _debug.pipeline(
@@ -187,7 +186,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         columns,
         date_to,
         block_id,
-        fiscal_year_start,
+        fiscal_years,
     ):
         initial_dates = report._get_dates_period(
             date_from=None, date_to=date_to, mode="single"
@@ -198,7 +197,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             self.env._("Initial Balance"),
             initial_dates,
             block_id,
-            fiscal_year_start,
+            fiscal_years,
             "initial_balance",
         )
         headers.append(header)
@@ -216,7 +215,7 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         columns,
         last_column,
         block_id,
-        fiscal_year,
+        fiscal_years,
     ):
         last_group = options["column_groups"][last_column["column_group_key"]]
         end_dates = report._get_dates_period(
@@ -234,14 +233,14 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             self.env._("End Balance"),
             end_dates,
             block_id,
-            fiscal_year["date_from"],
+            fiscal_years,
             "end_balance",
         )
         _debug.pipeline(
             "end_column_added",
             report=report,
             block_id=block_id,
-            fiscal_year_start=fiscal_year["date_from"],
+            fiscal_year_start_by_company=fiscal_years,
             new_columns=len(col),
         )
         headers.append(header)
@@ -257,9 +256,10 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         header_name,
         period_dates,
         block_id,
-        fiscal_year_start,
+        fiscal_years,
         column_type,
     ):
+        block_options = self._get_block_fiscalyear_options(fiscal_years)
         header, group, cols = self._generate_column_group(
             report,
             options,
@@ -269,16 +269,53 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                     "date": period_dates,
                     "trial_balance_column_block_id": str(block_id),
                     "trial_balance_column_type": column_type,
-                    "trial_balance_block_fiscalyear_start": fields.Date.to_string(
-                        fiscal_year_start
-                    ),
+                    "trial_balance_block_fiscalyear_start": block_options[
+                        "trial_balance_block_fiscalyear_start"
+                    ],
                 },
             },
             create_single_column=self._display_single_column_for_initial_and_end_sections(
                 options
             ),
         )
+        # Only the groups carry the per-company starts: the headers stay the
+        # shape the client and the column-header assertions already know.
+        for group_vals in group.values():
+            group_vals["forced_options"]["fiscalyear_start_by_company"] = block_options[
+                "fiscalyear_start_by_company"
+            ]
         return header, group, cols
+
+    def _get_block_fiscal_years(
+        self, report, options, date, previous_fiscal_years=None
+    ):
+        companies = (
+            self.env["res.company"].browse(report.get_report_company_ids(options))
+            | self.env.company
+        )
+        fiscal_years = {}
+        for company in companies:
+            previous = (previous_fiscal_years or {}).get(company.id)
+            if previous and previous[0] <= date <= previous[1]:
+                fiscal_years[company.id] = previous
+                continue
+            fiscal_year = company.compute_fiscalyear_dates(date)
+            fiscal_years[company.id] = (
+                fiscal_year["date_from"],
+                fiscal_year["date_to"],
+            )
+        return fiscal_years
+
+    def _get_block_fiscalyear_options(self, fiscal_years):
+        return {
+            "trial_balance_block_fiscalyear_start": fields.Date.to_string(
+                fiscal_years[self.env.company.id][0]
+            ),
+            "fiscalyear_start_by_company": {
+                str(company_id): fields.Date.to_string(date_from)
+                for company_id, (date_from, _date_to) in fiscal_years.items()
+            },
+        }
 
     @api.model
     def _display_single_column_for_initial_and_end_sections(self, options):
@@ -401,24 +438,24 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
         ):
             return []
 
-        extra_domain = []
-        if fiscalyear_start := options.get("trial_balance_block_fiscalyear_start"):
-            extra_domain = [
-                "|",
-                ("account_id.include_initial_balance", "=", True),
-                ("date", ">=", fiscalyear_start),
-            ]
+        extra_domain = Domain.TRUE
+        fiscalyear_start_by_company = None
+        if "fiscalyear_start_by_company" in options:
+            fiscalyear_start_by_company = report._get_fiscalyear_start_by_company(
+                options
+            )
+            extra_domain = report._get_fiscalyear_pnl_domain(
+                fiscalyear_start_by_company
+            )
 
         if options.get("export_mode") == "print" and options.get("filter_search_bar"):
+            search_domain = Domain("account_id", "ilike", options["filter_search_bar"])
             if options.get("hierarchy"):
-                extra_domain += [
-                    "|",
-                    ("account_id", "ilike", options["filter_search_bar"]),
-                    (
-                        "account_id",
-                        "in",
-                        SQL(
-                            """
+                search_domain |= Domain(
+                    "account_id",
+                    "in",
+                    SQL(
+                        """
                         /*
                         JOIN clause: Check if the account_group include the account_account
                         A group from 10 to 10 include every account with code that begin with 10.
@@ -437,26 +474,21 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                         WHERE ( account_group.name->> %(lang)s  ILIKE %(filter_search_bar)s
                             OR  account_group.code_prefix_start ILIKE %(filter_search_bar)s)
                         )""",
-                            lang=self.env.lang,
-                            company_id=str(self.env.company.root_id.id),
-                            filter_search_bar="%" + options["filter_search_bar"] + "%",
-                        ),
+                        lang=self.env.lang,
+                        company_id=str(self.env.company.root_id.id),
+                        filter_search_bar="%" + options["filter_search_bar"] + "%",
                     ),
-                ]
-            else:
-                extra_domain.append(
-                    ("account_id", "ilike", options["filter_search_bar"])
                 )
+            extra_domain &= search_domain
 
         next_groupbys = next_groupby.split(",") if next_groupby else []
         _debug.logic(
             "trial_balance_extra_domain",
             report=report,
-            fiscalyear_start=fiscalyear_start,
+            fiscalyear_start_by_company=fiscalyear_start_by_company,
             print_search_bar=options.get("export_mode") == "print"
             and bool(options.get("filter_search_bar")),
             hierarchy=bool(options.get("hierarchy")),
-            extra_domain_leaves=len(extra_domain),
         )
         query = report._get_report_query(options, date_scope, domain=extra_domain)
 
@@ -729,129 +761,63 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             line_dict_id, groupby, options, progress, offset, unfold_all_batch_data
         )
 
-    def _get_fiscalyear_start_date(self, options):
-        return options.get("trial_balance_block_fiscalyear_start")
-
     @_debug.perf.timed
     def _custom_unfold_all_batch_data_generator(
         self, report, options, lines_to_expand_by_function
     ):
-        """Generate the custom engine's results for each full-sub-groupby-key that
-        would be created when doing an unfold-all on the report.
-        """
-
-        def get_sub_groupby_key(report_line_id, groupbys, grouping_key):
-            previous_groupbys, current_groupby = groupbys[:-1], groupbys[-1]
-
-            sub_groupby_key = f"[{report_line_id}]"
-            sub_groupby_key += ",".join(
-                f"{field_name}:{value or None}"
-                for (field_name, value) in zip(
-                    previous_groupbys, grouping_key, strict=False
-                )
-            )
-            sub_groupby_key += f"=>{current_groupby}"
-            return sub_groupby_key
-
-        results = {}  # In the form {full_sub_groupby_key: all_column_group_expression_totals for this groupby computation}
-
-        for line_to_expand in lines_to_expand_by_function.get(
-            "_report_expand_unfoldable_line_with_groupby", []
-        ):
-            report_line_id = report._get_res_id_from_line_id(
-                line_to_expand["id"], "report.formula.line"
-            )
-            report_line = self.env["report.formula.line"].browse(report_line_id)
-
-            expressions = report_line.expression_ids.filtered(
-                lambda x: (
-                    x.engine == "custom"
-                    and x.formula == "_report_custom_engine_trial_balance"
-                )
-            )
-            if len(expressions) != len(report_line.expression_ids):
-                _debug.logic(
-                    "unfold_batch_skipped",
-                    report=report,
-                    reason="mixed_engine_expressions",
-                    report_line=report_line_id,
-                )
-                continue
-
-            groupby_str = report_line._get_groupby(options)
-            groupbys = groupby_str.replace(" ", "").split(",")
-            next_groupby = "id"
-
-            # Execute the query once for each groupby level. While we could optimize this further
-            # (execute the query once at the deepest groupby level, and then aggregate the results in Python),
-            # this ensures that the results match exactly what we would get by expanding each line.
-            # But we could change that if there is a performance need.
-            while groupbys:
-                for (
-                    column_group_key,
-                    column_group_options,
-                ) in report._split_options_per_column_group(options).items():
-                    for date_scope, expressions_by_date_scope in groupby(
-                        expressions, lambda e: e.date_scope
-                    ):
-                        # Get the custom engine results for the given groupby level.
-                        engine_lines = self._report_custom_engine_trial_balance(
-                            expressions,
-                            column_group_options,
-                            date_scope,
-                            current_groupby=groupbys,
-                            next_groupby=next_groupby,
-                        )
-
-                        # Transform the groupby key of each line into a list
-                        engine_lines = [
-                            (
-                                grouping_key
-                                if isinstance(grouping_key, tuple)
-                                else (grouping_key,),
-                                line_values,
-                            )
-                            for grouping_key, line_values in engine_lines
-                        ]
-                        for (
-                            parent_line_grouping_key,
-                            engine_lines_grouped_by_parent_line,
-                        ) in groupby(engine_lines, lambda l: tuple(l[0][:-1])):
-                            full_sub_groupby_key = get_sub_groupby_key(
-                                report_line_id, groupbys, parent_line_grouping_key
-                            )
-                            results.setdefault(full_sub_groupby_key, {})
-                            results[full_sub_groupby_key][column_group_key] = {
-                                expression: {
-                                    "value": [
-                                        (
-                                            grouping_key[-1],
-                                            line_values[expression.subformula],
-                                        )
-                                        for grouping_key, line_values in engine_lines_grouped_by_parent_line
-                                    ],
-                                    "sublines_info": {
-                                        grouping_key[-1]
-                                        for grouping_key, line_values in engine_lines_grouped_by_parent_line
-                                        if line_values["has_sublines"]
-                                    },
-                                }
-                                for expression in expressions_by_date_scope
-                            }
-                _debug.pipeline(
-                    "unfold_batch_level_computed",
-                    report=report,
-                    report_line=report_line_id,
-                    groupby_depth=len(groupbys),
-                    groupby_keys=len(results),
-                )
-                next_groupby = groupbys.pop()
-        _debug.pipeline(
-            "unfold_batch_generated",
-            report=report,
-            groupby_keys=len(results),
+        return report._get_custom_engine_unfold_all_batch_data(
+            options,
+            lines_to_expand_by_function,
+            "_report_custom_engine_trial_balance",
+            self._get_unfold_all_engine_rows,
+            exclusive_engine=True,
         )
-        return results
+
+    def _get_unfold_all_engine_rows(
+        self, report_line, expressions, options, date_scope
+    ):
+        groupbys = report_line._get_groupby(options).replace(" ", "").split(",")
+        next_groupby = "id"
+        # One query per groupby level rather than one at the deepest level
+        # aggregated in Python, so each level matches what expanding it returns.
+        while groupbys:
+            engine_lines = [
+                (
+                    grouping_key
+                    if isinstance(grouping_key, tuple)
+                    else (grouping_key,),
+                    line_values,
+                )
+                for grouping_key, line_values in self._report_custom_engine_trial_balance(
+                    expressions,
+                    options,
+                    date_scope,
+                    current_groupby=groupbys,
+                    next_groupby=next_groupby,
+                )
+            ]
+            for parent_grouping_key, rows in groupby(
+                engine_lines, lambda line: tuple(line[0][:-1])
+            ):
+                sub_groupby_key = f"[{report_line.id}]" + ",".join(
+                    f"{field_name}:{value or None}"
+                    for field_name, value in zip(
+                        groupbys[:-1], parent_grouping_key, strict=False
+                    )
+                )
+                yield (
+                    f"{sub_groupby_key}=>{groupbys[-1]}",
+                    [
+                        (grouping_key[-1], line_values)
+                        for grouping_key, line_values in rows
+                    ],
+                )
+            _debug.pipeline(
+                "unfold_batch_level_computed",
+                report_line=report_line,
+                groupby_depth=len(groupbys),
+            )
+            next_groupby = groupbys.pop()
 
     @_debug.perf.timed
     def action_audit_cell(self, options, params):
@@ -900,20 +866,21 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
                 else "default",
             )
         if not account:
+            company_id = report._get_res_id_from_line_id(
+                params["calling_line_dict_id"], "res.company"
+            )
             # list(...): this domain goes back to the client inside an
             # ir.actions.act_window, and a Domain is not JSON serialisable.
             action["domain"] = list(
                 Domain(action["domain"])
-                & Domain(
-                    report._get_domain_unallocated_earnings_lines(
-                        column_group_forced_options[
-                            "trial_balance_block_fiscalyear_start"
-                        ],
-                        report._get_res_id_from_line_id(
-                            params["calling_line_dict_id"], "res.company"
-                        ),
-                    )
+                & report._get_unallocated_earnings_domain(
+                    {
+                        company_id: report._get_fiscalyear_start_by_company(
+                            column_group_forced_options
+                        )[company_id]
+                    }
                 )
+                & Domain("company_id", "=", company_id)
             )
 
         elif column_group_forced_options["trial_balance_column_type"] in (
@@ -923,20 +890,21 @@ class AccountTrialBalanceReportHandler(models.AbstractModel):
             account.internal_group in ("income", "expense")
             or account.account_type == "equity_unaffected"
         ):
+            fiscalyear_start_by_company = report._get_fiscalyear_start_by_company(
+                column_group_forced_options
+            )
             for condition in action["domain"]:
                 match condition:
                     case ["account_id", "=", account_id]:
+                        modified_domain.append(("account_id", "=", account_id))
                         modified_domain.extend(
-                            [
-                                ("account_id", "=", account_id),
-                                (
-                                    "date",
-                                    ">=",
-                                    column_group_forced_options[
-                                        "trial_balance_block_fiscalyear_start"
-                                    ],
-                                ),
-                            ]
+                            report._get_fiscalyear_date_domain(
+                                {
+                                    company_id: fields.Date.to_string(start)
+                                    for company_id, start in fiscalyear_start_by_company.items()
+                                },
+                                ">=",
+                            )
                         )
                     case _:
                         modified_domain.append(condition)

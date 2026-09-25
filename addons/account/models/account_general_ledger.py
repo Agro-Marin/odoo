@@ -7,7 +7,7 @@ from textwrap import shorten
 from odoo import fields, models
 from odoo.exceptions import UserError
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL, float_repr, groupby
+from odoo.tools import SQL, float_repr
 
 _debug = DebugLog(__name__)
 
@@ -32,6 +32,14 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
         super()._custom_options_initializer(
             report, options, previous_options=previous_options
         )
+        for column_group in options["column_groups"].values():
+            group_date = column_group["forced_options"].get("date", options["date"])
+            column_group["forced_options"]["fiscalyear_start_by_company"] = {
+                str(company_id): fields.Date.to_string(fiscal_year["date_from"])
+                for company_id, fiscal_year in report._get_fiscalyear_dates_by_company(
+                    options, group_date["date_from"]
+                ).items()
+            }
         # Remove multi-currency columns if needed
         if self.env.user.has_group("base.group_multi_currency"):
             options["multi_currency"] = True
@@ -264,17 +272,10 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
         self, options, current_groupby, order_by_account=False, offset=0, limit=None
     ):
         report = self.env["report.formula"].browse(options["report_id"])
-        options_date_from = fields.Date.from_string(options["date"]["date_from"])
-        current_fiscalyear_date_from = self.env.company.compute_fiscalyear_dates(
-            options_date_from
-        )["date_from"]
-
-        # We want to exclude move lines from expense and income accounts before the fiscal year for every groupby under account_id
-        additional_domain = [
-            "|",
-            ("account_id.include_initial_balance", "=", True),
-            ("date", ">=", current_fiscalyear_date_from),
-        ]
+        fiscalyear_start_by_company = report._get_fiscalyear_start_by_company(options)
+        additional_domain = report._get_fiscalyear_pnl_domain(
+            fiscalyear_start_by_company
+        )
 
         report_query = report._get_report_query(
             options, "from_beginning", additional_domain
@@ -399,7 +400,7 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
             search_bar_restricted=options.get("export_mode") == "print"
             and bool(options.get("filter_search_bar"))
             and current_groupby not in ("id_with_accumulated_balance", "id"),
-            fiscalyear_date_from=current_fiscalyear_date_from,
+            fiscalyear_start_by_company=fiscalyear_start_by_company,
             offset=offset,
             limit=limit,
         )
@@ -520,10 +521,6 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
                 "accumulated_balance_by_colgroup": accumulated_balance_by_colgroup,
             },
         }
-
-    def _get_fiscalyear_start_date(self, options):
-        options_date_from = fields.Date.to_date(options["date"]["date_from"])
-        return self.env.company.compute_fiscalyear_dates(options_date_from)["date_from"]
 
     def _adjust_total_with_unaffected_earnings(
         self, total_line_columns, unaffected_earning_values
@@ -659,129 +656,36 @@ class AccountGeneralLedgerReportHandler(models.AbstractModel):
     def _custom_unfold_all_batch_data_generator(
         self, report, options, lines_to_expand_by_function
     ):
-        """Generate the custom engine's results for each full-sub-groupby-key that
-        would be created when doing an unfold-all on the report.
-        """
-
-        results = {}  # In the form {full_sub_groupby_key: all_column_group_expression_totals for this groupby computation}
-
-        for line_to_expand in lines_to_expand_by_function.get(
-            "_report_expand_unfoldable_line_with_groupby", []
-        ):
-            report_line_id = report._get_res_id_from_line_id(
-                line_to_expand["id"], "report.formula.line"
-            )
-            report_line = self.env["report.formula.line"].browse(report_line_id)
-
-            expressions = report_line.expression_ids.filtered(
-                lambda x: (
-                    x.engine == "custom"
-                    and x.formula == "_report_custom_engine_general_ledger"
-                )
-            )
-            if not expressions:
-                _debug.logic(
-                    "unfold_batch_skipped",
-                    report=report,
-                    reason="no_gl_custom_expressions",
-                    report_line=report_line_id,
-                )
-                continue
-
-            for (
-                column_group_key,
-                column_group_options,
-            ) in report._split_options_per_column_group(options).items():
-                for date_scope, expressions_by_date_scope in groupby(
-                    expressions, lambda e: e.date_scope
-                ):
-                    # Get the custom engine results for the given groupby level.
-                    engine_account_lines = self._report_custom_engine_general_ledger(
-                        expressions_by_date_scope,
-                        column_group_options,
-                        date_scope,
-                        "account_id",
-                        "id_with_accumulated_balance",
-                    )
-                    account_expression_totals = results.setdefault(
-                        f"[{report_line_id}]=>account_id", {}
-                    ).setdefault(
-                        column_group_key,
-                        {
-                            expression: {"value": [], "sublines_info": set()}
-                            for expression in expressions_by_date_scope
-                        },
-                    )
-                    for account_id, engine_account_result_dict in engine_account_lines:
-                        for expression in expressions_by_date_scope:
-                            account_expression_totals[expression]["value"].append(
-                                (
-                                    account_id,
-                                    engine_account_result_dict[expression.subformula],
-                                )
-                            )
-                            if engine_account_result_dict["has_sublines"]:
-                                account_expression_totals[expression][
-                                    "sublines_info"
-                                ].add(account_id)
-
-                    engine_aml_lines = self._report_custom_engine_general_ledger(
-                        expressions_by_date_scope,
-                        column_group_options,
-                        date_scope,
-                        "id_with_accumulated_balance",
-                        None,
-                    )
-                    aml_data_by_account = {}
-                    for grouping_key, engine_result_dict in engine_aml_lines:
-                        engine_result_dict["grouping_key"] = grouping_key
-                        aml_data_by_account.setdefault(
-                            engine_result_dict["account_id"], []
-                        ).append(engine_result_dict)
-
-                    _debug.pipeline(
-                        "unfold_batch_engine_results",
-                        report=report,
-                        report_line=report_line_id,
-                        column_group=column_group_key,
-                        date_scope=date_scope,
-                        account_rows=len(engine_account_lines),
-                        aml_rows=len(engine_aml_lines),
-                        accounts_with_amls=len(aml_data_by_account),
-                    )
-                    for account_id, engine_result_list in aml_data_by_account.items():
-                        account_aml_expression_totals = results.setdefault(
-                            f"[{report_line_id}]account_id:{account_id}=>id_with_accumulated_balance",
-                            {},
-                        ).setdefault(
-                            column_group_key,
-                            {
-                                expression: {"value": [], "sublines_info": set()}
-                                for expression in expressions_by_date_scope
-                            },
-                        )
-                        for engine_result_dict in engine_result_list:
-                            for expression in expressions_by_date_scope:
-                                account_aml_expression_totals[expression][
-                                    "value"
-                                ].append(
-                                    (
-                                        engine_result_dict["grouping_key"],
-                                        engine_result_dict[expression.subformula],
-                                    )
-                                )
-
-        _debug.pipeline(
-            "unfold_batch_generated",
-            report=report,
-            lines_to_expand=len(
-                lines_to_expand_by_function.get(
-                    "_report_expand_unfoldable_line_with_groupby", []
-                )
-            ),
-            groupby_keys=len(results),
+        return report._get_custom_engine_unfold_all_batch_data(
+            options,
+            lines_to_expand_by_function,
+            "_report_custom_engine_general_ledger",
+            self._get_unfold_all_engine_rows,
         )
-        return results
+
+    def _get_unfold_all_engine_rows(
+        self, report_line, expressions, options, date_scope
+    ):
+        yield (
+            f"[{report_line.id}]=>account_id",
+            self._report_custom_engine_general_ledger(
+                expressions,
+                options,
+                date_scope,
+                "account_id",
+                "id_with_accumulated_balance",
+            ),
+        )
+        aml_rows_by_account = defaultdict(list)
+        for grouping_key, values in self._report_custom_engine_general_ledger(
+            expressions, options, date_scope, "id_with_accumulated_balance", None
+        ):
+            aml_rows_by_account[values["account_id"]].append((grouping_key, values))
+        for account_id, rows in aml_rows_by_account.items():
+            yield (
+                f"[{report_line.id}]account_id:{account_id}=>id_with_accumulated_balance",
+                rows,
+            )
 
     def generate_csv_export(self, options):
         if len(options["column_groups"]) > 1:

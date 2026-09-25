@@ -59,6 +59,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
         readonly=False,
         required=True,
     )
+    adjustment_vals = fields.Json()
     preview_data = fields.Text(compute="_compute_preview_data")
     show_warning_move_id = fields.Many2one(
         comodel_name="account.move",
@@ -77,14 +78,16 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
             rec["reversal_date"] = Date.to_date(
                 report_options["date"]["date_to"]
             ) + relativedelta(days=1)
-        if (
-            not self.env.context.get("revaluation_no_loop")
-            and not self.with_context(revaluation_no_loop=True)._prepare_move_vals()[
-                "line_ids"
-            ]
-        ):
-            _debug.logic("revaluation_defaults_rejected", reason="no_adjustment_needed")
+        adjustment_vals = self._get_adjustment_vals()
+        _debug.logic(
+            "revaluation_defaults_adjustments",
+            adjustments=len(adjustment_vals),
+            from_context="default_adjustment_vals" in self.env.context,
+        )
+        if not adjustment_vals:
             raise UserError(self.env._("No adjustment needed"))
+        if "adjustment_vals" in fields:
+            rec["adjustment_vals"] = adjustment_vals
         return rec
 
     @api.depends(
@@ -117,6 +120,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
             )
 
     @api.depends(
+        "adjustment_vals",
         "expense_provision_account_id",
         "income_provision_account_id",
         "date",
@@ -184,9 +188,18 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
                     record.income_provision_account_id
                 )
 
+    def _get_adjustment_vals(self):
+        if self[:1].adjustment_vals:
+            return self.adjustment_vals
+        if (
+            adjustment_vals := self.env.context.get("default_adjustment_vals")
+        ) is not None:
+            return adjustment_vals
+        return self._get_report_adjustment_vals()
+
     @api.model
     @_debug.perf.timed
-    def _prepare_move_vals(self):
+    def _get_report_adjustment_vals(self):
         def _get_model_id(parsed_line, selected_model):
             for _dummy, parsed_res_model, parsed_res_id in parsed_line:
                 if parsed_res_model == selected_model:
@@ -211,14 +224,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
             "unfold_all": True,
         }
         report_lines = report._get_lines(options)
-        _debug.pipeline(
-            "revaluation_report_lines_loaded",
-            report=report,
-            included_line=included_line_id,
-            report_lines=len(report_lines),
-        )
-        move_lines = []
-
+        adjustment_vals = []
         for report_line in report._get_unfolded_lines(
             report_lines, generic_included_line_id
         ):
@@ -230,57 +236,77 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
             ] == "account.account" and not self.env.company.currency_id.is_zero(
                 balance
             ):
-                account_id = _get_model_id(parsed_line_id, "account.account")
-                currency_id = _get_model_id(parsed_line_id, "res.currency")
-                move_lines.append(
-                    Command.create(
-                        {
-                            "name": self.env._(
-                                "Provision for %(for_cur)s (1 %(comp_cur)s = %(rate)s %(for_cur)s)",
-                                for_cur=self.env["res.currency"]
-                                .browse(currency_id)
-                                .display_name,
-                                comp_cur=self.env.company.currency_id.display_name,
-                                rate=options["currency_rates"][str(currency_id)][
-                                    "rate"
-                                ],
-                            ),
-                            "debit": max(0, balance),
-                            "credit": -balance if balance < 0 else 0,
-                            "amount_currency": 0,
-                            "currency_id": currency_id,
-                            "account_id": account_id,
-                        }
-                    )
+                adjustment_vals.append(
+                    {
+                        "account_id": _get_model_id(parsed_line_id, "account.account"),
+                        "currency_id": _get_model_id(parsed_line_id, "res.currency"),
+                        "balance": balance,
+                    }
                 )
-                if balance < 0:
-                    move_line_name = self.env._(
-                        "Expense Provision for %s",
-                        self.env["res.currency"].browse(currency_id).display_name,
-                    )
-                else:
-                    move_line_name = self.env._(
-                        "Income Provision for %s",
-                        self.env["res.currency"].browse(currency_id).display_name,
-                    )
-                move_lines.append(
-                    Command.create(
-                        {
-                            "name": move_line_name,
-                            "debit": -balance if balance < 0 else 0,
-                            "credit": max(0, balance),
-                            "amount_currency": 0,
-                            "currency_id": currency_id,
-                            "account_id": self.expense_provision_account_id.id
-                            if balance < 0
-                            else self.income_provision_account_id.id,
-                        }
-                    )
+        _debug.pipeline(
+            "revaluation_report_lines_loaded",
+            report=report,
+            included_line=included_line_id,
+            report_lines=len(report_lines),
+            adjustments=len(adjustment_vals),
+        )
+        return adjustment_vals
+
+    @_debug.perf.timed
+    def _prepare_move_vals(self):
+        adjustment_vals = self._get_adjustment_vals()
+        options = self.env.context["multicurrency_revaluation_report_options"]
+        move_lines = []
+        for adjustment in adjustment_vals:
+            balance = adjustment["balance"]
+            account_id = adjustment["account_id"]
+            currency_id = adjustment["currency_id"]
+            move_lines.append(
+                Command.create(
+                    {
+                        "name": self.env._(
+                            "Provision for %(for_cur)s (1 %(comp_cur)s = %(rate)s %(for_cur)s)",
+                            for_cur=self.env["res.currency"]
+                            .browse(currency_id)
+                            .display_name,
+                            comp_cur=self.env.company.currency_id.display_name,
+                            rate=options["currency_rates"][str(currency_id)]["rate"],
+                        ),
+                        "debit": max(0, balance),
+                        "credit": -balance if balance < 0 else 0,
+                        "amount_currency": 0,
+                        "currency_id": currency_id,
+                        "account_id": account_id,
+                    }
                 )
+            )
+            if balance < 0:
+                move_line_name = self.env._(
+                    "Expense Provision for %s",
+                    self.env["res.currency"].browse(currency_id).display_name,
+                )
+            else:
+                move_line_name = self.env._(
+                    "Income Provision for %s",
+                    self.env["res.currency"].browse(currency_id).display_name,
+                )
+            move_lines.append(
+                Command.create(
+                    {
+                        "name": move_line_name,
+                        "debit": -balance if balance < 0 else 0,
+                        "credit": max(0, balance),
+                        "amount_currency": 0,
+                        "currency_id": currency_id,
+                        "account_id": self.expense_provision_account_id.id
+                        if balance < 0
+                        else self.income_provision_account_id.id,
+                    }
+                )
+            )
 
         _debug.pipeline(
             "revaluation_move_lines_built",
-            report=report,
             move_lines=len(move_lines),
             adjusted_accounts=len(move_lines) // 2,
         )
@@ -324,6 +350,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
             form = self.env.ref("account.view_move_form", False)
             ctx = self.env.context.copy()
             ctx.pop("id", "")
+            ctx.pop("default_adjustment_vals", None)
             return {
                 "type": "ir.actions.act_window",
                 "res_model": "account.move",

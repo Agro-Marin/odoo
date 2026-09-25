@@ -465,8 +465,14 @@ class AccountReportActions(models.Model):
     def open_unallocated_items_journal_items(self, options, params):
         _debug.lifecycle("open_unallocated_items_journal_items", records=self)
         _record_model, record_id = self._get_model_info_from_id(params.get("line_id"))
-        fiscal_year = self.env.company.compute_fiscalyear_dates(
+        company = self.env["res.company"].browse(record_id)
+        fiscal_year = company.compute_fiscalyear_dates(
             fields.Date.to_date(options.get("date").get("date_from"))
+        )
+        _debug.logic(
+            "unallocated_items_fiscal_year",
+            company=company,
+            date_from=fiscal_year["date_from"],
         )
         options_for_audit = {
             **options,
@@ -478,8 +484,11 @@ class AccountReportActions(models.Model):
         }
 
         action = self.open_journal_items(options=options_for_audit, params=params)
-        action["domain"] += self._get_domain_unallocated_earnings_lines(
-            action["context"]["date_from"], record_id
+        action["domain"] += list(
+            self._get_unallocated_earnings_domain(
+                {company.id: fiscal_year["date_from"]}
+            )
+            & Domain("company_id", "=", company.id)
         )
         action.get("context", {}).update({"search_default_date_between": 0})
         return action

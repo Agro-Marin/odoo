@@ -1435,20 +1435,14 @@ class AccountReportExpressionEval(models.Model):
                 )
             )
 
-        date_from, date_to = self._get_date_bounds_info(options, date_scope)
-        external_value_domain = [("date", "<=", date_to)]
-        if date_from:
-            external_value_domain.append(("date", ">=", date_from))
+        external_value_domain = self._get_date_scope_domain(
+            options, date_scope
+        ) & Domain("company_id", "in", self.get_report_company_ids(options))
         _debug.logic(
-            "external_date_bounds",
+            "external_date_scope",
             report=self,
             date_scope=date_scope,
-            date_from=date_from,
-            date_to=date_to,
-        )
-
-        external_value_domain.append(
-            ("company_id", "in", self.get_report_company_ids(options))
+            domain=external_value_domain,
         )
 
         where_clause = (
@@ -1461,71 +1455,60 @@ class AccountReportExpressionEval(models.Model):
         string_queries = []
         monetary_queries = []
         for formula, expressions in formulas_dict.items():
-            query_end = SQL()
-            if formula == "most_recent":
-                query_end = SQL(
-                    """
-                    GROUP BY date
-                    ORDER BY date DESC
-                    LIMIT 1
-                    """,
-                )
-            string_query = """
-                SELECT %(expression_id)s, text_value
-                FROM report_formula_external_value
-                WHERE %(where_clause)s AND target_report_expression_id = %(expression_id)s
-                ORDER BY date DESC, id DESC
-                LIMIT 1
-                """
-            monetary_query = """
-                SELECT
-                    %(expression_id)s,
-                    COALESCE(SUM(COALESCE(%(balance_select)s, 0)), 0)
-                FROM report_formula_external_value
-                    %(currency_table_join)s
-                WHERE %(where_clause)s
-                    AND target_report_expression_id = %(expression_id)s
-                %(query_end)s
-            """
-            num_query = """
-                SELECT %(expression_id)s, SUM(COALESCE(value, 0))
-                FROM report_formula_external_value
-                WHERE %(where_clause)s
-                    AND target_report_expression_id = %(expression_id)s
-               %(query_end)s
-            """
-
             for expression in expressions:
+                expression_where = SQL(
+                    "%s AND report_formula_external_value.target_report_expression_id = %s",
+                    where_clause,
+                    expression.id,
+                )
                 if expression.figure_type == "string":
                     string_queries.append(
                         SQL(
-                            string_query,
-                            expression_id=expression.id,
-                            where_clause=where_clause,
+                            """
+                            SELECT %s, text_value
+                            FROM report_formula_external_value
+                            WHERE %s
+                            ORDER BY date DESC, id DESC
+                            LIMIT 1
+                            """,
+                            expression.id,
+                            expression_where,
                         )
                     )
-                elif expression.figure_type == "monetary":
+                    continue
+                if formula == "most_recent":
+                    expression_where = SQL(
+                        "%s AND %s",
+                        expression_where,
+                        self._get_external_values_latest_per_company(expression_where),
+                    )
+                if expression.figure_type == "monetary":
                     monetary_queries.append(
                         SQL(
-                            monetary_query,
-                            expression_id=expression.id,
-                            balance_select=self._currency_table_apply_rate(
+                            """
+                            SELECT %s, COALESCE(SUM(COALESCE(%s, 0)), 0)
+                            FROM report_formula_external_value
+                                %s
+                            WHERE %s
+                            """,
+                            expression.id,
+                            self._currency_table_apply_rate(
                                 SQL("CAST(value AS numeric)")
                             ),
-                            currency_table_join=self._currency_table_external_value_join(
-                                options
-                            ),
-                            where_clause=where_clause,
-                            query_end=query_end,
+                            self._currency_table_external_value_join(options),
+                            expression_where,
                         )
                     )
                 else:
                     num_queries.append(
                         SQL(
-                            num_query,
-                            expression_id=expression.id,
-                            where_clause=where_clause,
-                            query_end=query_end,
+                            """
+                            SELECT %s, SUM(COALESCE(value, 0))
+                            FROM report_formula_external_value
+                            WHERE %s
+                            """,
+                            expression.id,
+                            expression_where,
                         )
                     )
 
@@ -1562,6 +1545,21 @@ class AccountReportExpressionEval(models.Model):
                 }
 
         return rslt
+
+    def _get_external_values_latest_per_company(self, where_clause) -> SQL:
+        # The subquery reads the table unaliased so that where_clause, qualified with the
+        # table name, binds to the subquery's rows rather than to the outer row.
+        return SQL(
+            """
+            (report_formula_external_value.company_id, report_formula_external_value.date) IN (
+                SELECT company_id, MAX(date)
+                FROM report_formula_external_value
+                WHERE %s
+                GROUP BY company_id
+            )
+            """,
+            where_clause,
+        )
 
     @_debug.perf.timed
     def _get_formula_batch_with_engine_custom(

@@ -533,20 +533,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                     SELECT
                         account_move_line.partner_id                            AS groupby,
                         %(column_group_key)s                                    AS column_group_key,
-                        SUM(
-                            CASE WHEN %(date_filter)s
-                            THEN %(debit_select)s
-                            ELSE 0
-                            END
-                        )                                                       AS debit,
-                        SUM(
-                            CASE WHEN %(date_filter)s
-                            THEN %(credit_select)s
-                            ELSE 0
-                            END
-                        )                                                       AS credit,
-                        SUM(%(balance_select)s)                                 AS amount,
-                        SUM(%(balance_select)s)                                 AS balance,
+                        %(sums_select)s,
                         CASE
                             WHEN MIN(CASE WHEN %(date_filter)s THEN account_move_line.currency_id ELSE NULL END)
                                = MAX(CASE WHEN %(date_filter)s THEN account_move_line.currency_id ELSE NULL END)
@@ -574,14 +561,17 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                     column_group_key=column_group_key,
                     date_filter=date_filter,
                     date_from_or_min=date_from or "1900-01-01",
-                    debit_select=report._currency_table_apply_rate(
-                        SQL("account_move_line.debit")
-                    ),
-                    credit_select=report._currency_table_apply_rate(
-                        SQL("account_move_line.credit")
-                    ),
-                    balance_select=report._currency_table_apply_rate(
-                        SQL("account_move_line.balance")
+                    sums_select=self._get_sums_select(
+                        report,
+                        SQL("account_move_line.balance"),
+                        debit=SQL(
+                            "CASE WHEN %s THEN account_move_line.debit ELSE 0 END",
+                            date_filter,
+                        ),
+                        credit=SQL(
+                            "CASE WHEN %s THEN account_move_line.credit ELSE 0 END",
+                            date_filter,
+                        ),
                     ),
                     table_references=query.from_clause,
                     currency_table_join=report._currency_table_aml_join(
@@ -593,6 +583,19 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
             )
 
         return SQL(" UNION ALL ").join(queries)
+
+    def _get_sums_select(self, report, balance, debit=None, credit=None) -> SQL:
+        def get_sum(value):
+            if value is None:
+                return SQL("0")
+            return SQL("SUM(%s)", report._currency_table_apply_rate(value))
+
+        return SQL(
+            "%(debit)s AS debit, %(credit)s AS credit, %(balance)s AS amount, %(balance)s AS balance",
+            debit=get_sum(debit),
+            credit=get_sum(credit),
+            balance=get_sum(balance),
+        )
 
     @_debug.perf.timed
     def _prepare_initial_balance_values(self, partner_ids, options):
@@ -632,18 +635,15 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                 SELECT
                     account_move_line.partner_id,
                     %(column_group_key)s          AS column_group_key,
-                    0                             AS debit,
-                    0                             AS credit,
-                    SUM(%(balance_select)s)       AS amount,
-                    SUM(%(balance_select)s)       AS balance
+                    %(sums_select)s
                 FROM %(table_references)s
                 %(currency_table_join)s
                 WHERE %(search_condition)s
                 GROUP BY account_move_line.partner_id
                 """,
                     column_group_key=column_group_key,
-                    balance_select=report._currency_table_apply_rate(
-                        SQL("account_move_line.balance")
+                    sums_select=self._get_sums_select(
+                        report, SQL("account_move_line.balance")
                     ),
                     table_references=query.from_clause,
                     currency_table_join=report._currency_table_aml_join(
@@ -744,10 +744,7 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                 SELECT
                     %(column_group_key)s        AS column_group_key,
                     aml_with_partner.partner_id AS groupby,
-                    SUM(%(debit_select)s)       AS debit,
-                    SUM(%(credit_select)s)      AS credit,
-                    SUM(%(balance_select)s)     AS amount,
-                    SUM(%(balance_select)s)     AS balance
+                    %(sums_select)s
                 FROM %(table_references)s
                 JOIN account_partial_reconcile partial
                     ON account_move_line.id = partial.debit_move_id OR account_move_line.id = partial.credit_move_id
@@ -761,18 +758,15 @@ class AccountPartnerLedgerReportHandler(models.AbstractModel):
                 GROUP BY aml_with_partner.partner_id
                 """,
                     column_group_key=column_group_key,
-                    debit_select=report._currency_table_apply_rate(
-                        SQL(
+                    sums_select=self._get_sums_select(
+                        report,
+                        SQL("-SIGN(aml_with_partner.balance) * partial.amount"),
+                        debit=SQL(
                             "CASE WHEN aml_with_partner.balance > 0 THEN 0 ELSE partial.amount END"
-                        )
-                    ),
-                    credit_select=report._currency_table_apply_rate(
-                        SQL(
+                        ),
+                        credit=SQL(
                             "CASE WHEN aml_with_partner.balance < 0 THEN 0 ELSE partial.amount END"
-                        )
-                    ),
-                    balance_select=report._currency_table_apply_rate(
-                        SQL("-SIGN(aml_with_partner.balance) * partial.amount")
+                        ),
                     ),
                     table_references=query.from_clause,
                     currency_table_join=report._currency_table_aml_join(

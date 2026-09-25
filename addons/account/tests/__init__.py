@@ -165,4 +165,8 @@ from . import test_marin_hash_v5
 from . import test_marin_unmerge_branches
 from . import test_marin_cash_basis_batch2
 from . import test_marin_merge_batch2
+from . import test_marin_report_batch2
 from . import test_marin_payment_reconcile_fixes
+from . import test_marin_report_fiscalyear_scopes
+from . import test_marin_report_external_fiscalyear
+from . import test_marin_report_manual_value_company

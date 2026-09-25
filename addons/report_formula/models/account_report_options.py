@@ -1,5 +1,6 @@
 import contextlib
 import datetime
+from collections import defaultdict
 
 from dateutil.relativedelta import relativedelta
 
@@ -305,14 +306,63 @@ class AccountReportOptions(models.Model):
         )
 
     def _get_domain_options_date(self, options, date_scope):
-        date_from, date_to = self._get_date_bounds_info(options, date_scope)
+        return self._get_date_scope_domain(
+            options, date_scope, self._get_source_date_field()
+        )
 
-        date_field = self._get_source_date_field()
+    def _get_date_scope_domain(self, options, date_scope, date_field="date"):
+        if date_scope in ("from_fiscalyear", "to_beginning_of_fiscalyear"):
+            date_to = options["date"]["date_to"]
+            fiscalyear_start_by_company = {
+                company_id: fiscal_year["date_from"]
+                for company_id, fiscal_year in self._get_fiscalyear_dates_by_company(
+                    options, date_to
+                ).items()
+            }
+            _debug.logic(
+                "fiscalyear_scope_per_company",
+                report=self,
+                date_scope=date_scope,
+                fiscalyear_start_by_company=fiscalyear_start_by_company,
+            )
+            if date_scope == "to_beginning_of_fiscalyear":
+                return self._get_fiscalyear_date_domain(
+                    fiscalyear_start_by_company, "<", date_field
+                )
+            return Domain(date_field, "<=", date_to) & self._get_fiscalyear_date_domain(
+                fiscalyear_start_by_company, ">=", date_field
+            )
+
+        date_from, date_to = self._get_date_bounds_info(options, date_scope)
         scope_domain = Domain(date_field, "<=", date_to)
         if date_from:
             scope_domain &= Domain(date_field, ">=", date_from)
-
         return scope_domain
+
+    def _get_fiscalyear_dates_by_company(self, options, date):
+        year_bounds = self._get_year_bounds(fields.Date.to_date(date))
+        return dict.fromkeys(self.get_report_company_ids(options), year_bounds)
+
+    def _get_fiscalyear_date_domain(
+        self, fiscalyear_start_by_company, operator, date_field="date"
+    ):
+        company_ids_by_start = defaultdict(list)
+        for company_id, start in fiscalyear_start_by_company.items():
+            company_ids_by_start[start].append(company_id)
+        _debug.logic(
+            "fiscalyear_date_domain",
+            report=self,
+            operator=operator,
+            companies=len(fiscalyear_start_by_company),
+            distinct_starts=len(company_ids_by_start),
+        )
+        if len(company_ids_by_start) == 1:
+            return Domain(date_field, operator, next(iter(company_ids_by_start)))
+        return Domain.OR(
+            Domain("company_id", "in", company_ids)
+            & Domain(date_field, operator, start)
+            for start, company_ids in company_ids_by_start.items()
+        )
 
     @api.model
     def _init_options_order_column(self, options, previous_options):

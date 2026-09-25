@@ -184,6 +184,12 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
         _debug.lifecycle(
             "action_multi_currency_revaluation_open_revaluation_wizard", records=self
         )
+        adjustment_vals = (
+            self.env["account.multicurrency.revaluation.wizard"]
+            .with_context(multicurrency_revaluation_report_options=options)
+            ._get_report_adjustment_vals()
+        )
+        _debug.logic("revaluation_wizard_adjustments", adjustments=len(adjustment_vals))
         form = self.env.ref(
             "account.view_account_multicurrency_revaluation_wizard", False
         )
@@ -199,6 +205,9 @@ class AccountMulticurrencyRevaluationReportHandler(models.AbstractModel):
             "context": {
                 **self.env.context,
                 "multicurrency_revaluation_report_options": options,
+                # The wizard reads the adjustments from here instead of running
+                # the report again on open, on every onchange, on save and on post.
+                "default_adjustment_vals": adjustment_vals,
             },
         }
 
