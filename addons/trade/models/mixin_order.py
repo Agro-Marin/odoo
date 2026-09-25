@@ -26,6 +26,7 @@ class MixinOrder(models.AbstractModel):
     ]
 
     _sequence_code = ""
+    _discount_wizard_model = ""
     _lock_setting_field = ""
     _auto_lock_group = ""
     _mark_sent_context_key = ""
@@ -330,6 +331,17 @@ class MixinOrder(models.AbstractModel):
         return self.env["res.partner.tag"]._get_domain_partner_allowed(
             self._get_order_type(),
         )
+
+    @api.readonly
+    def action_view_discount_wizard(self):
+        self.check_singleton()
+        return {
+            "name": self.env._("Discount"),
+            "type": "ir.actions.act_window",
+            "res_model": self._discount_wizard_model,
+            "view_mode": "form",
+            "target": "new",
+        }
 
     def _get_line_model(self):
         return f"{self._name}.line"

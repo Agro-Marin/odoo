@@ -56,3 +56,4 @@ purchase_bill_line_match_comp_rule,Purchase Bill Line Match multi-company,model_
 access_purchase_advance_payment_inv,access.purchase.advance.payment.inv,model_purchase_advance_payment_inv,group_purchase_user,permission,cru,,,
 purchase_advance_payment_inv_rule,Purchase Advance Payment Bill Rule,model_purchase_advance_payment_inv,base.group_everyone,guard,crud,own,creator,
 access_purchase_advance_payment_inv_invoicing,purchase.advance.payment.inv invoicing,model_purchase_advance_payment_inv,account.group_account_invoice,permission,cru,,,
+access_purchase_order_discount,access_purchase_order_discount,model_purchase_order_discount,group_purchase_user,permission,cru,,,

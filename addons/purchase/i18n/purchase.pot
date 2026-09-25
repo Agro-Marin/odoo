@@ -650,6 +650,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:purchase.field_purchase_order_line__amount_to_invoice_at_date
 #: model_terms:ir.ui.view,arch_db:purchase.report_purchaseorder_document
 #: model_terms:ir.ui.view,arch_db:purchase.view_purchase_order_form
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_amount
 msgid "Amount"
 msgstr ""
 
@@ -683,6 +684,11 @@ msgstr ""
 #. module: purchase
 #: model:ir.model.fields,field_description:purchase.field_purchase_order_line__analytic_precision
 msgid "Analytic Precision"
+msgstr ""
+
+#. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+msgid "Apply"
 msgstr ""
 
 #. module: purchase
@@ -1274,13 +1280,30 @@ msgstr ""
 
 #. module: purchase
 #: model_terms:ir.ui.view,arch_db:purchase.mass_cancel_orders_view_form
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
 msgid "Discard"
+msgstr ""
+
+#. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
+msgid "Discount"
 msgstr ""
 
 #. module: purchase
 #: model:ir.model.fields,field_description:purchase.field_purchase_order_line__discount
 #: model:ir.model.fields,field_description:purchase.field_purchase_order_line_price_history_line__discount
 msgid "Discount (%)"
+msgstr ""
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_config__purchase_discount_product_id
+msgid "Discount Product"
+msgstr ""
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_type
+msgid "Discount Type"
 msgstr ""
 
 #. module: purchase
@@ -1413,6 +1436,11 @@ msgid ""
 msgstr ""
 
 #. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__amount
+msgid "Fixed Amount"
+msgstr ""
+
+#. module: purchase
 #: model_terms:ir.ui.view,arch_db:purchase.portal_my_home_purchase
 msgid "Follow orders you have to fulfill"
 msgstr ""
@@ -1462,6 +1490,11 @@ msgstr ""
 #. module: purchase
 #: model_terms:ir.ui.view,arch_db:purchase.res_config_settings_view_form_purchase
 msgid "Get warnings in orders for products or vendors"
+msgstr ""
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__so_discount
+msgid "Global Discount"
 msgstr ""
 
 #. module: purchase
@@ -2073,6 +2106,11 @@ msgid "Odoo"
 msgstr ""
 
 #. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__sol_discount
+msgid "On All Order Lines"
+msgstr ""
+
+#. module: purchase
 #: model:ir.model.fields.selection,name:purchase.selection__product_template__bill_policy__ordered
 msgid "On ordered quantities"
 msgstr ""
@@ -2251,6 +2289,11 @@ msgstr ""
 #. module: purchase
 #: model_terms:ir.ui.view,arch_db:purchase.purchase_order_portal_content
 msgid "Payment terms"
+msgstr ""
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_percentage
+msgid "Percentage"
 msgstr ""
 
 #. module: purchase

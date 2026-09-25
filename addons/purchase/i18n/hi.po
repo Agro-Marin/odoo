@@ -21,6 +21,52 @@ msgstr ""
 "X-Generator: Weblate 5.12.2\n"
 
 #. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+msgid "Apply"
+msgstr "अप्लाई करें"
+
+#. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+msgid "Discard"
+msgstr "खारिज करें"
+
+#. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
+msgid "Discount"
+msgstr "छूट"
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_config__purchase_discount_product_id
+msgid "Discount Product"
+msgstr ""
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_type
+msgid "Discount Type"
+msgstr ""
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__amount
+msgid "Fixed Amount"
+msgstr "तय कीमत"
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__so_discount
+msgid "Global Discount"
+msgstr "ग्लोबल डिस्काउंट"
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__sol_discount
+msgid "On All Order Lines"
+msgstr "सभी ऑर्डर लाइन पर"
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_percentage
+msgid "Percentage"
+msgstr "प्रतिशत"
+
+#. module: purchase
 #: model:ir.actions.report,print_report_name:purchase.action_report_purchase_order
 msgid ""
 "\n"
@@ -667,6 +713,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:purchase.field_purchase_bill_union__amount
 #: model:ir.model.fields,field_description:purchase.field_purchase_order_line__amount_to_invoice_at_date
 #: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_amount
 msgid "Amount"
 msgstr "रकम"
 

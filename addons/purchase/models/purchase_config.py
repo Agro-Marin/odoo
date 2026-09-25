@@ -11,6 +11,13 @@ class PurchaseConfig(models.Model):
         default=0,
         help="Number of days for RFQ validity. Set to 0 for no default expiration.",
     )
+    purchase_discount_product_id = fields.Many2one(
+        comodel_name="product.product",
+        string="Discount Product",
+        domain=[("type", "=", "service"), ("bill_policy", "=", "ordered")],
+        check_company=True,
+        help="Default product used for discounts on purchase orders",
+    )
     order_lock_po = fields.Selection(
         selection=[
             ("edit", "Allow to edit purchase orders"),

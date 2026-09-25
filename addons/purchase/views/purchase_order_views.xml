@@ -1044,6 +1044,16 @@
                                     </templates>
                                 </kanban>
                             </field>
+                            <div
+                                name="po_button_below_order_lines"
+                                class="float-end d-flex d-print-none gap-1 mb-2">
+                                <button
+                                    name="action_view_discount_wizard"
+                                    type="object"
+                                    string="Discount"
+                                    invisible="locked or state == 'cancel'"
+                                    class="btn btn-secondary" />
+                            </div>
                             <group name="note_group" col="6" class="mt-2 mt-md-0">
                                 <group colspan="4" class="order-1 order-lg-0">
                                     <field

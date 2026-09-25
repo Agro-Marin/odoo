@@ -45,6 +45,7 @@ class PurchaseOrder(models.Model):
 
     _direction = PURCHASE
     _sequence_code = "purchase.order"
+    _discount_wizard_model = "purchase.order.discount"
     _lock_setting_field = "order_lock_po"
     _auto_lock_group = "purchase.group_auto_done_setting"
     _mark_sent_context_key = "mark_rfq_as_sent"

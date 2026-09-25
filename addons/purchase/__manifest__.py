@@ -28,6 +28,7 @@
         "views/analytic_account_views.xml",
         "views/account_move_views.xml",
         "wizards/purchase_make_invoice_advance_views.xml",
+        "wizards/purchase_order_discount_views.xml",
         "views/purchase_order_views.xml",
         "views/purchase_order_line_views.xml",
         "views/srm_tag_views.xml",

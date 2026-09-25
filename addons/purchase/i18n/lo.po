@@ -18,6 +18,11 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 #. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+msgid "Discard"
+msgstr ""
+
+#. module: purchase
 #: model:ir.actions.report,print_report_name:purchase.action_report_purchase_order
 msgid ""
 "\n"

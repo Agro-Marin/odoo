@@ -344,7 +344,12 @@ class MixinOrderLineInvoice(models.AbstractModel):
         )
 
     def _prepare_down_payment_deduction_aml_vals(self):
-        return {"quantity": -1.0}
+        return {
+            "quantity": -1.0,
+            "extra_tax_data": self.env[
+                "account.tax"
+            ]._reverse_quantity_base_line_extra_tax_data(self.extra_tax_data),
+        }
 
     def _prepare_aml_vals(self, **optional_values):
         self.check_singleton()
@@ -373,6 +378,7 @@ class MixinOrderLineInvoice(models.AbstractModel):
             ),
             "tax_ids": [Command.set(self.tax_ids.ids)],
             "is_downpayment": self.is_downpayment,
+            "extra_tax_data": self.extra_tax_data,
         }
         link_field = self._get_invoice_line_link_field()
         if link_field:

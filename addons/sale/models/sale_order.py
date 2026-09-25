@@ -48,6 +48,7 @@ class SaleOrder(models.Model):
 
     _direction = SALE
     _sequence_code = "sale.order"
+    _discount_wizard_model = "sale.order.discount"
     _lock_setting_field = "order_lock_so"
     _auto_lock_group = "sale.group_auto_done_setting"
     _mark_sent_context_key = "mark_so_as_sent"
@@ -1033,17 +1034,6 @@ class SaleOrder(models.Model):
                 ),
             )
 
-    @api.readonly
-    def action_view_discount_wizard(self):
-        self.check_singleton()
-        return {
-            "name": self.env._("Discount"),
-            "type": "ir.actions.act_window",
-            "res_model": "sale.order.discount",
-            "view_mode": "form",
-            "target": "new",
-        }
-
     def _merge_check_selection(self, quotations):
         if len(quotations) < 2:
             _debug.logic(
@@ -1696,13 +1686,6 @@ class SaleOrder(models.Model):
             "date_order": fields.Datetime.now(),
             "date_confirmed": fields.Datetime.now(),
         }
-
-    def _prepare_down_payment_line_values_from_base_line(self, base_line):
-        values = super()._prepare_down_payment_line_values_from_base_line(base_line)
-        values["extra_tax_data"] = self.env[
-            "account.tax"
-        ]._export_base_line_extra_tax_data(base_line)
-        return values
 
     def _recompute_prices(self):
         lines_to_recompute = self._get_order_lines_price_updatable()

@@ -187,7 +187,6 @@ class SaleOrderLine(models.Model):
         column1="order_line_id",
         column2="move_line_id",
     )
-    extra_tax_data = fields.Json()
 
     product_readonly = fields.Boolean(
         string="Product is readonly",
@@ -1290,14 +1289,6 @@ class SaleOrderLine(models.Model):
             final or self.qty_to_invoice > 0 or self.display_type == "line_note"
         )
 
-    def _prepare_down_payment_deduction_aml_vals(self):
-        return {
-            **super()._prepare_down_payment_deduction_aml_vals(),
-            "extra_tax_data": self.env[
-                "account.tax"
-            ]._reverse_quantity_base_line_extra_tax_data(self.extra_tax_data),
-        }
-
     def _prepare_aml_vals(self, **optional_values):
         self.check_singleton()
         if self.product_id.type == "combo":
@@ -1318,17 +1309,10 @@ class SaleOrderLine(models.Model):
                 **optional_values,
             }
         return {
-            "extra_tax_data": self.extra_tax_data,
             "collapse_prices": self.collapse_prices,
             "collapse_composition": self.collapse_composition,
             **super()._prepare_aml_vals(**optional_values),
         }
-
-    def _get_base_line_special_type(self):
-        self.check_singleton()
-        if self._is_global_discount():
-            return "global_discount"
-        return super()._get_base_line_special_type()
 
     def _prepare_procurement_vals(self):
         return {}
@@ -1528,13 +1512,6 @@ class SaleOrderLine(models.Model):
         return (
             self.product_id in self.company_id.sale_config_id.sale_discount_product_id
         )
-
-    def _is_global_discount(self):
-        self.check_singleton()
-        return self.extra_tax_data and self.extra_tax_data.get(
-            "computation_key",
-            "",
-        ).startswith("global_discount,")
 
     def _is_line_in_section(self, line):
         self.check_singleton()

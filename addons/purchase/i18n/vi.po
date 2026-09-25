@@ -26,6 +26,52 @@ msgstr ""
 "X-Generator: Weblate 5.14.3\n"
 
 #. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+msgid "Apply"
+msgstr "Áp dụng"
+
+#. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+msgid "Discard"
+msgstr "Huỷ bỏ"
+
+#. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
+msgid "Discount"
+msgstr "Chiết khấu"
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_config__purchase_discount_product_id
+msgid "Discount Product"
+msgstr "Sản phẩm chiết khấu"
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_type
+msgid "Discount Type"
+msgstr "Loại chiết khấu"
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__amount
+msgid "Fixed Amount"
+msgstr "Số tiền cố định"
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__so_discount
+msgid "Global Discount"
+msgstr "Chiết khấu toàn bộ"
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__sol_discount
+msgid "On All Order Lines"
+msgstr "Trên tất cả dòng đơn bán hàng"
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_percentage
+msgid "Percentage"
+msgstr "Phần trăm"
+
+#. module: purchase
 #: model:ir.actions.report,print_report_name:purchase.action_report_purchase_order
 msgid ""
 "\n"
@@ -812,6 +858,7 @@ msgstr "Aml"
 #: model:ir.model.fields,field_description:purchase.field_purchase_bill_union__amount
 #: model:ir.model.fields,field_description:purchase.field_purchase_order_line__amount_to_invoice_at_date
 #: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_amount
 msgid "Amount"
 msgstr "Số tiền"
 

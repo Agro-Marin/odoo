@@ -513,6 +513,9 @@ class MixinOrderInvoice(models.AbstractModel):
             "price_unit": base_line["price_unit"],
             "tax_ids": [Command.set(base_line["tax_ids"].ids)],
             "analytic_distribution": base_line["analytic_distribution"],
+            "extra_tax_data": self.env["account.tax"]._export_base_line_extra_tax_data(
+                base_line
+            ),
         }
 
     def _create_down_payment_lines_from_base_lines(self, down_payment_base_lines):

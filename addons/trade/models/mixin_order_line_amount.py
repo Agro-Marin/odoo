@@ -15,6 +15,7 @@ class MixinOrderLineAmount(models.AbstractModel):
     _direction: TradeDirection | None = None
 
     currency_id = fields.Many2one(comodel_name="res.currency")
+    extra_tax_data = fields.Json()
 
     product_qty = fields.Float(
         string="Quantity",
@@ -326,8 +327,16 @@ class MixinOrderLineAmount(models.AbstractModel):
     def _is_price_update_blocked(self):
         return False
 
+    def _is_global_discount(self):
+        self.check_singleton()
+        return bool(self.extra_tax_data) and self.extra_tax_data.get(
+            "computation_key", ""
+        ).startswith("global_discount,")
+
     def _get_base_line_special_type(self):
         self.check_singleton()
+        if self._is_global_discount():
+            return "global_discount"
         return "down_payment" if self.is_downpayment else False
 
     def _prepare_base_line_for_taxes_computation(self, **kwargs):

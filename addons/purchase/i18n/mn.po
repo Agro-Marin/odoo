@@ -42,6 +42,52 @@ msgstr ""
 "X-Generator: Weblate 5.12.2\n"
 
 #. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+msgid "Apply"
+msgstr "Хэрэгжүүлэх"
+
+#. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+msgid "Discard"
+msgstr "Үл хэрэгсэх"
+
+#. module: purchase
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_discount_view_form
+#: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
+msgid "Discount"
+msgstr "Хөнгөлөлт"
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_config__purchase_discount_product_id
+msgid "Discount Product"
+msgstr "Барааны хөнгөлөлт"
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_type
+msgid "Discount Type"
+msgstr ""
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__amount
+msgid "Fixed Amount"
+msgstr "Тогтмол дүн"
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__so_discount
+msgid "Global Discount"
+msgstr ""
+
+#. module: purchase
+#: model:ir.model.fields.selection,name:purchase.selection__purchase_order_discount__discount_type__sol_discount
+msgid "On All Order Lines"
+msgstr ""
+
+#. module: purchase
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_percentage
+msgid "Percentage"
+msgstr "Хувь"
+
+#. module: purchase
 #: model:ir.actions.report,print_report_name:purchase.action_report_purchase_order
 msgid ""
 "\n"
@@ -694,6 +740,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:purchase.field_purchase_bill_union__amount
 #: model:ir.model.fields,field_description:purchase.field_purchase_order_line__amount_to_invoice_at_date
 #: model_terms:ir.ui.view,arch_db:purchase.purchase_order_form
+#: model:ir.model.fields,field_description:purchase.field_purchase_order_discount__discount_amount
 msgid "Amount"
 msgstr "Дүн"
 
