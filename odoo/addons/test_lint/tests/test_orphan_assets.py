@@ -21,6 +21,9 @@ URL_FETCHED = frozenset(
         "mail/static/src/service_worker.js",
         "mail/static/src/worklets/audio_processor.js",
         "speech/static/src/worklets/pcm_capture.js",
+        # the Telegram mini app page, rendered by its controller outside the web client
+        "telegram_bot_project_task/static/src/mini_app/task_form.css",
+        "telegram_bot_project_task/static/src/mini_app/task_form.js",
         "web/static/src/module_loader.js",
         "web/static/src/public/database_manager.js",
         "web/static/src/service_worker.js",
