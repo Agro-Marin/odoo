@@ -14,10 +14,6 @@ class PurchaseOrderLine(models.Model):
     _name = "purchase.order.line"
     _inherit = ["purchase.order.line", "mixin.order.line.stock"]
 
-    is_storable = fields.Boolean(
-        related="product_id.is_storable",
-        depends=["product_id"],
-    )
     transfer_state = fields.Selection(
         selection=[
             ("no", "Nothing to receive"),

@@ -3,7 +3,6 @@ import logging
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
-from odoo.fields import Command
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare
 
@@ -419,15 +418,6 @@ class SaleOrder(models.Model):
         self.line_ids._action_launch_stock_rule()
         return super()._action_confirm()
 
-    def action_view_picking(self):
-        return self._get_action_view_picking(self.picking_ids)
-
-    def _add_reference(self, reference):
-        self.check_singleton()
-        self.reference_ids = [
-            Command.link(stock_reference.id) for stock_reference in reference
-        ]
-
     def _prepare_picking_action_context(self, pickings):
         picking = (
             pickings.filtered(lambda p: p.picking_type_id.code == "outgoing")[:1]
@@ -477,15 +467,6 @@ class SaleOrder(models.Model):
             fields.Datetime.context_timestamp(self, self.date_effective)
         )
         return invoice_vals
-
-    def _remove_reference(self, reference):
-        self.check_singleton()
-        self.reference_ids = [
-            Command.unlink(stock_reference.id) for stock_reference in reference
-        ]
-
-    def _is_display_stock_in_catalog(self):
-        return True
 
     def action_delivery_matching(self):
         self.check_singleton()

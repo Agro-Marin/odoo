@@ -284,9 +284,6 @@ class PurchaseOrder(models.Model):
             {"CREATE": 1, "UNLINK": -1}.get(line[0].name, 0) for line in lines_commands
         )
 
-    def action_view_picking(self):
-        return self._get_action_view_picking(self.picking_ids)
-
     def action_add_from_catalog(self):
         action = super().action_add_from_catalog()
         kanban_view_id = self.env.ref(
@@ -382,10 +379,6 @@ class PurchaseOrder(models.Model):
                 self.picking_ids[0].name,
             )
         activity.note += Markup("<p>{}</p>").format(message)
-
-    def _add_reference(self, reference):
-        self.check_singleton()
-        self.reference_ids |= reference
 
     def _create_picking(self):
         # the orders confirmed together get their pickings, moves, confirmation
@@ -647,16 +640,9 @@ class PurchaseOrder(models.Model):
             "name": self.name,
         }
 
-    def _remove_reference(self, reference):
-        self.check_singleton()
-        self.reference_ids -= reference
-
     def _merge_metadata(self, target, sources):
         super()._merge_metadata(target, sources)
         target.reference_ids += sources.reference_ids
-
-    def _is_display_stock_in_catalog(self):
-        return True
 
     def action_receipt_matching(self):
         self.check_singleton()

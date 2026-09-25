@@ -23,10 +23,6 @@ class SaleOrderLine(models.Model):
     def _get_merge_date_field(self):
         return "date_planned"
 
-    is_storable = fields.Boolean(
-        related="product_id.is_storable",
-        depends=["product_id"],
-    )
     transfer_state = fields.Selection(
         selection=[
             ("no", "Nothing to deliver"),

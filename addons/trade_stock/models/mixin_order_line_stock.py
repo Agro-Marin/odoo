@@ -11,6 +11,12 @@ class MixinOrderLineStock(models.AbstractModel):
     _name = "mixin.order.line.stock"
     _description = "Order Line Stock Integration"
 
+    product_id = fields.Many2one(comodel_name="product.product")
+    is_storable = fields.Boolean(
+        related="product_id.is_storable",
+        depends=["product_id"],
+    )
+
     qty_to_transfer = fields.Float(
         digits="Product Unit",
         compute="_compute_qty_to_transfer",

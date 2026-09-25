@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import Command, api, fields, models
 from odoo.libs.debug_log import DebugLog
 
 TRANSFER_STATE = [
@@ -15,7 +15,9 @@ _debug = DebugLog(__name__)
 
 class MixinOrderStock(models.AbstractModel):
     _name = "mixin.order.stock"
-    _inherit = ["mixin.order.state.rollup"]
+    # mixin.product.catalog declares _is_display_stock_in_catalog; inheriting
+    # it places this mixin ahead of it in the order's MRO
+    _inherit = ["mixin.order.state.rollup", "mixin.product.catalog"]
     _description = "Order Stock Integration"
 
     transfer_state = fields.Selection(
@@ -126,3 +128,21 @@ class MixinOrderStock(models.AbstractModel):
 
     def _prepare_picking_action_context(self, pickings):
         return {}
+
+    def action_view_picking(self):
+        return self._get_action_view_picking(self.picking_ids)
+
+    def _is_display_stock_in_catalog(self):
+        return True
+
+    def _add_reference(self, reference):
+        self.check_singleton()
+        self.reference_ids = [
+            Command.link(stock_reference.id) for stock_reference in reference
+        ]
+
+    def _remove_reference(self, reference):
+        self.check_singleton()
+        self.reference_ids = [
+            Command.unlink(stock_reference.id) for stock_reference in reference
+        ]
