@@ -19,6 +19,7 @@ boundary is `test_lint`'s; the rest are held by review.
 ./gates.sh --fast                              # lint and the two tiers
 ./gates.sh --ref <rev>                         # the same, on a worktree of <rev>
 ./gates.sh --rust --js                         # add the cargo and JS toolchains
+./gates.sh --lint-full                         # add test_lint on a fuller install (scratch DB)
 ```
 
 `gates.sh` sequences the commands a developer types; it defines no gate of its
