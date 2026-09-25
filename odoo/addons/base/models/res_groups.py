@@ -368,6 +368,15 @@ class ResGroups(models.Model):
             self.env["res.users.grant"]._follow_membership(
                 after - membership, membership - after
             )
+        if {"user_ids", "implied_ids"} & vals.keys():
+            # res.users holds the invariant on its own side only
+            _debug.logic(
+                "administrator_checked",
+                groups=self.ids,
+                by="write",
+                fields=sorted({"user_ids", "implied_ids"} & vals.keys()),
+            )
+            self.env["res.users"]._check_at_least_one_administrator()
 
         if self.ids:
             self.env["ir.access"]._clear_access_caches()
@@ -446,7 +455,13 @@ class ResGroups(models.Model):
             g.all_implied_ids = g.ids + group_definitions.get_superset_ids(g.ids)
 
     def _search_all_implied_ids(self, operator: str, value: Any) -> list:
-        if operator not in ("in", "not in"):
+        if operator in ("any", "not any") and isinstance(value, Domain):
+            value = self.search(value).ids
+            _debug.logic(
+                "all_implied_ids_search_resolved", operator=operator, groups=len(value)
+            )
+            operator = "in" if operator == "any" else "not in"
+        elif operator not in ("in", "not in"):
             _debug.logic("all_implied_ids_search_unsupported", operator=operator)
             return NotImplemented
         group_definitions = self._get_group_definitions()
@@ -533,6 +548,8 @@ class ResGroups(models.Model):
     def unlink(self) -> bool:
         _debug.lifecycle("unlink", count=len(self))
         res = super().unlink()
+        _debug.logic("administrator_checked", groups=self.ids, by="unlink")
+        self.env["res.users"]._check_at_least_one_administrator()
         self.env["ir.access"]._clear_access_caches()
         self.env.registry.clear_cache("groups")
         return res

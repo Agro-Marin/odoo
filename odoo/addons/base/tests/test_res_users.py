@@ -249,7 +249,7 @@ class TestUsers(UsersCommonCase):
             }
         )
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.env.ref("base.ir_cron_res_users_deletion").method_direct_trigger()
 
         self.assertFalse(portal_user.exists(), "Should have removed the user")
@@ -849,6 +849,7 @@ class TestContextGetPartnerInvalidation(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestLoginCooldown(TransactionCase):
+    registry_test_mode = False
     _REQUEST = "odoo.addons.base.models.res_users.request"
 
     def setUp(self):
@@ -1224,6 +1225,20 @@ class TestAtLeastOneAdministrator(TransactionCase):
             ),
             "the implied-only admin must still be an effective administrator",
         )
+        for last_admin_removal in (
+            lambda: implying_group.write(
+                {"user_ids": [Command.unlink(indirect_admin.id)]}
+            ),
+            lambda: implying_group.write(
+                {"implied_ids": [Command.unlink(group_system.id)]}
+            ),
+            implying_group.unlink,
+        ):
+            with (
+                self.assertRaisesRegex(ValidationError, "at least an administrator"),
+                self.cr.savepoint(),
+            ):
+                last_admin_removal()
 
 
 class TestAccessesCount(UsersCommonCase):

@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from odoo import api, models
 
 
@@ -17,19 +19,15 @@ class ResUsers(models.Model):
         return res
 
     def _enroll_in_group_channels(self):
-        if not self.all_group_ids:
+        channels = self.env["slide.channel"]
+        if not channels._channel_ids_by_enroll_group():
             return
-        channels = (
-            self.env["slide.channel"]
-            .sudo()
-            .search([("enroll_group_ids", "in", self.all_group_ids.ids)])
-        )
+        partners_by_channels = defaultdict(lambda: self.env["res.partner"])
         for user in self:
-            matching = channels.filtered_domain(
-                [("enroll_group_ids", "in", user.all_group_ids.ids)]
-            )
-            if matching:
-                matching._action_add_members(user.partner_id)
+            if enrolling := channels._enrolling_channels(user.all_group_ids):
+                partners_by_channels[enrolling] |= user.partner_id
+        for enrolling, partners in partners_by_channels.items():
+            enrolling._action_add_members(partners)
 
     def prepare_rank_email_links(self):
         res = super().prepare_rank_email_links()

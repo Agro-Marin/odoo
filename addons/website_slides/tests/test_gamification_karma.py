@@ -176,7 +176,12 @@ class TestKarmaGain(common.SlidesCase):
         # Recalibrated from 9 alongside the count above (resurrected test).
         # Same caveat as the 76 above: re-derive against this fixture's size
         # before bumping, don't just paste in a new measurement.
-        with self.assertQueryCount(10):
+        # hr_skills_slides, when installed, reads the leavers' users once, for
+        # every channel and member, to post on their employees' chatter
+        employee_chatter = hasattr(
+            self.env["slide.channel"], "_message_employee_chatter"
+        )
+        with self.assertQueryCount(10 + employee_chatter):
             (self.channel | self.channel_2)._remove_membership(users.partner_id.ids)
 
         for user in users:

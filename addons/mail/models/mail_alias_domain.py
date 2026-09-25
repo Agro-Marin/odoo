@@ -51,6 +51,7 @@ class MailAliasDomain(models.Model):
         compute="_compute_company_ids",
         inverse="_inverse_company_ids",
         search="_search_company_ids",
+        compute_sudo=True,
         help="Companies using this domain as default for sending mails",
     )
     sequence = fields.Integer(default=10)

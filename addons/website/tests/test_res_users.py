@@ -81,7 +81,7 @@ class TestWebsiteResUsers(TransactionCase):
             user_belle.login = "Pou"
 
     def test_same_website_message(self):
-        with self.enter_registry_test_mode(), self.env.registry.cursor() as cr:
+        with self.sync_env_with_side_cursors(), self.env.registry.cursor() as cr:
             env = self.env(context={"lang": "en_US"}, cr=cr)
 
             def create_user_pou():
@@ -170,3 +170,33 @@ class TestWebsiteResUsers(TransactionCase):
                 Command.link(self.env.ref("base.group_user").id),
                 Command.unlink(self.env.ref("base.group_portal").id),
             ]
+
+    def test_user_created_internal_through_an_implied_group_is_refused(self):
+        with self.assertRaises(ValidationError):
+            new_test_user(
+                self.env,
+                login="Pou",
+                website_id=self.website_1.id,
+                groups="base.group_system",
+            )
+
+    def test_user_without_website_may_become_internal(self):
+        user = new_test_user(
+            self.env, login="Pou", website_id=False, groups="base.group_portal"
+        )
+        user.group_ids = [
+            Command.link(self.env.ref("base.group_user").id),
+            Command.unlink(self.env.ref("base.group_portal").id),
+        ]
+        self.assertTrue(user._is_internal())
+
+    def test_internal_user_check_reads_only_the_checked_users(self):
+        user = new_test_user(
+            self.env,
+            login="Pou",
+            website_id=self.website_1.id,
+            groups="base.group_portal",
+        )
+        self.env.invalidate_all()
+        with self.assertQueryCount(2):
+            user._check_disjoint_groups()

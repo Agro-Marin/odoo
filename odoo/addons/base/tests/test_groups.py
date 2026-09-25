@@ -1641,3 +1641,33 @@ class TestAllUserIdsBatchCost(common.TransactionCase):
             groups.with_context(active_test=False).all_user_ids,
             "an env with active_test disabled still sees them",
         )
+
+
+@common.tagged("post_install", "-at_install", "groups")
+class TestAllGroupIdsSearch(common.TransactionCase):
+    def test_a_user_is_found_through_a_group_it_holds_by_implication(self):
+        Groups = self.env["res.groups"]
+        implied = Groups.create({"name": "agis implied probe"})
+        implying = Groups.create(
+            {"name": "agis implying", "implied_ids": [Command.link(implied.id)]}
+        )
+        user = self.env["res.users"].create(
+            {
+                "name": "agis user",
+                "login": "agis_user",
+                "group_ids": [Command.link(implying.id)],
+            }
+        )
+        Users = self.env["res.users"].with_context(active_test=False)
+        for domain in (
+            [("all_group_ids.name", "ilike", "agis implied probe")],
+            [("all_group_ids", "any", [("name", "=", "agis implied probe")])],
+        ):
+            with self.subTest(domain=domain):
+                self.assertEqual(Users.search(domain), user)
+        self.assertNotIn(
+            user,
+            Users.search(
+                [("all_group_ids", "not any", [("name", "=", "agis implied probe")])]
+            ),
+        )

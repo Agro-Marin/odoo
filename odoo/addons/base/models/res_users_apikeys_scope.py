@@ -162,7 +162,10 @@ class ResUsersApikeysScopeLine(models.Model):
         required=True,
         ondelete="cascade",
     )
-    model_name = fields.Char(related="model_id.model")
+    model_name = fields.Char(
+        related="model_id.model",
+        string="Model Name",
+    )
     allow_read = fields.Boolean(default=True)
     allow_create = fields.Boolean()
     allow_write = fields.Boolean()

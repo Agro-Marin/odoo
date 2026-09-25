@@ -542,6 +542,58 @@ class TestAccessFeatures(common.SlidesCase):
             | new_user_3.partner_id,
         )
 
+    def test_group_write_reads_no_channel_when_no_group_enrolls(self):
+        self.env["slide.channel"].with_context(active_test=False).search(
+            []
+        ).enroll_group_ids = False
+        user = self.env["res.users"].create(
+            {"name": "NoEnroll", "login": "NoEnroll", "group_ids": [(5, 0)]}
+        )
+        with self.capturedQueries() as queries:
+            user.write({"group_ids": [(4, self.ref("base.group_user"))]})
+        self.assertFalse([query for query in queries if '"slide_channel"' in query])
+
+    def test_archived_channel_enrolls_no_group_member(self):
+        channel = self.env["slide.channel"].create(
+            {
+                "name": "Archived",
+                "enroll": "invite",
+                "enroll_group_ids": [(4, self.ref("base.group_user"))],
+            }
+        )
+        self.assertIn(
+            channel.id,
+            self.env["slide.channel"]._channel_ids_by_enroll_group()[
+                self.ref("base.group_user")
+            ],
+        )
+        channel.action_archive()
+        user = self.env["res.users"].create(
+            {"name": "Late", "login": "Late", "group_ids": [(5, 0)]}
+        )
+        user.write({"group_ids": [(4, self.ref("base.group_user"))]})
+        self.assertFalse(
+            self.env["slide.channel.partner"]
+            .with_context(active_test=False)
+            .search(
+                [
+                    ("channel_id", "=", channel.id),
+                    ("partner_id", "=", user.partner_id.id),
+                ]
+            )
+        )
+
+        channel.action_unarchive()
+        later = self.env["res.users"].create(
+            {
+                "name": "Later",
+                "login": "Later",
+                "group_ids": [(6, 0, [self.ref("base.group_user")])],
+            }
+        )
+        channel.invalidate_model()
+        self.assertIn(later.partner_id, channel.partner_ids)
+
     @mute_logger("odoo.models", "odoo.addons.base.models.ir_access")
     def test_channel_access_fields_employee(self):
         channel_manager = self.channel.with_user(self.user_manager)

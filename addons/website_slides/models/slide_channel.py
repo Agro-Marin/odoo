@@ -908,6 +908,8 @@ class SlideChannel(models.Model):
             SlideChannel, self.with_context(mail_create_nosubscribe=True)
         ).create(vals_list)
 
+        if any(vals.get("enroll_group_ids") for vals in vals_list):
+            self.env.registry.clear_cache("stable")
         for channel in channels:
             if channel.user_id:
                 channel._action_add_members(channel.user_id.partner_id)
@@ -950,13 +952,16 @@ class SlideChannel(models.Model):
                 ["mail_activity_data_todo"],
                 new_user_id=vals.get("user_id"),
             )
+        if "enroll_group_ids" in vals or "active" in vals:
+            self.env.registry.clear_cache("stable")
         if "enroll_group_ids" in vals:
             self._add_groups_members()
 
         return res
 
     def unlink(self):
-
+        if self.enroll_group_ids:
+            self.env.registry.clear_cache("stable")
         _debug.lifecycle(
             "unlink", channels=self, count=len(self), slides=len(self.slide_ids)
         )
@@ -1204,6 +1209,32 @@ class SlideChannel(models.Model):
                     )
                 )
         return allowed
+
+    @api.model
+    @tools.ormcache(cache="stable")
+    def _channel_ids_by_enroll_group(self):
+        channels = self.sudo().with_context(active_test=True)
+        return tools.frozendict(
+            (group.id, frozenset(channel_ids))
+            for group, channel_ids in channels._read_group(
+                [("enroll_group_ids", "!=", False)],
+                groupby=["enroll_group_ids"],
+                aggregates=["id:array_agg"],
+            )
+        )
+
+    @api.model
+    def _enrolling_channels(self, groups):
+        by_group = self._channel_ids_by_enroll_group()
+        return self.sudo().browse(
+            sorted(
+                {
+                    channel_id
+                    for group_id in groups.ids
+                    for channel_id in by_group.get(group_id, ())
+                }
+            )
+        )
 
     def _add_groups_members(self):
         for channel in self:

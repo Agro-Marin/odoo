@@ -127,6 +127,38 @@ class TestGrantProjection(GrantCase):
         second.action_revoke()
         self.assertNotIn(self.group_partner_manager, self.user.group_ids)
 
+    def test_a_membership_no_grant_covers_counts_beside_the_grants(self):
+        # a membership a migration writes below the ORM after its user holds
+        # grants: has_group reads the same membership group_ids shows
+        self.env.flush_all()
+        self.env.cr.execute(
+            "INSERT INTO res_groups_users_rel (uid, gid) VALUES (%s, %s)",
+            [self.user.id, self.group_partner_manager.id],
+        )
+        self.env.invalidate_all()
+        self.env.registry.clear_cache()
+        self.assertTrue(self.live(self.user, self.group_user))
+        self.assertIn(self.group_partner_manager, self.user.group_ids)
+        self.assertTrue(self.user.has_group("base.group_partner_manager"))
+
+    def test_granting_many_users_writes_their_membership_once(self):
+        users = self.user | self.other
+        Users = type(self.env["res.users"])
+        membership_writes = []
+        original_write = Users.write
+
+        def write(records, vals):
+            if "group_ids" in vals:
+                membership_writes.append(records.ids)
+            return original_write(records, vals)
+
+        with patch.object(Users, "write", write):
+            self.Grant._grant(users, self.group_partner_manager, cause="automation")
+        self.assertEqual(membership_writes, [sorted(users.ids)])
+        self.assertEqual(
+            self.group_partner_manager.user_ids & users, users, "both are projected"
+        )
+
     def test_a_grant_is_ended_not_rewritten_or_deleted(self):
         grant = self.live(self.user, self.group_user)
         for vals in (
@@ -268,6 +300,63 @@ class TestGrantWindow(GrantCase):
         self.assertEqual(grant.state, "active")
         self.assertIn(self.group_partner_manager, self.user.group_ids)
 
+    def test_a_refused_boundary_holds_back_only_its_user(self):
+        now = self.env.cr.now()
+        refused = self.Grant.create(
+            {
+                "user_id": self.user.id,
+                "group_id": self.env.ref("base.group_portal").id,
+                "date_from": now + timedelta(hours=1),
+            }
+        )
+        ending = self.Grant.create(
+            {
+                "user_id": self.other.id,
+                "group_id": self.group_partner_manager.id,
+                "date_to": now + timedelta(hours=1),
+            }
+        )
+        with (
+            self.at(now + timedelta(hours=2)),
+            self.assertLogs("odoo.addons.base.models.res_users_grant", "WARNING"),
+        ):
+            self.Grant._cron_cross_boundaries()
+        self.assertEqual(ending.state, "expired")
+        self.assertNotIn(self.group_partner_manager, self.other.group_ids)
+        self.assertEqual(refused.state, "scheduled", "it stays due")
+        self.assertNotIn(self.env.ref("base.group_portal"), self.user.group_ids)
+
+    def test_the_last_administrator_keeps_an_open_ended_grant(self):
+        admin_groups = self.group_system.all_implied_by_ids
+        open_ended = self.Grant.search(
+            self.Grant._live_domain()
+            & Domain("group_id", "in", admin_groups.ids)
+            & Domain("date_to", "=", False)
+        )
+        self.assertTrue(open_ended)
+        timed = self.Grant.create(
+            {
+                "user_id": self.user.id,
+                "group_id": self.group_system.id,
+                "date_to": self.env.cr.now() + timedelta(days=1),
+            }
+        )
+        with (
+            self.assertRaisesRegex(ValidationError, "no end date"),
+            self.cr.savepoint(),
+        ):
+            open_ended.action_revoke()
+        open_ended_later = self.Grant.create(
+            {"user_id": self.other.id, "group_id": self.group_system.id}
+        )
+        open_ended.action_revoke()
+        with (
+            self.assertRaisesRegex(ValidationError, "no end date"),
+            self.cr.savepoint(),
+        ):
+            open_ended_later.write({"date_to": self.env.cr.now() + timedelta(days=2)})
+        self.assertEqual(timed.state, "active")
+
     def test_a_boundary_triggers_the_cron(self):
         cron = self.env.ref("base.ir_cron_res_users_grant_boundaries")
         moment = self.env.cr.now() + timedelta(days=3)
@@ -328,6 +417,20 @@ class TestGrantDelegation(GrantCase):
         self.assertEqual(grant.granted_by_id, self.admin)
         grant.with_user(self.admin).action_revoke("done")
         self.assertEqual(grant.state, "revoked")
+
+    def test_a_grant_giver_cannot_write_the_record_of_who_gave_it(self):
+        for forged in (
+            {"granted_by_id": self.env.ref("base.user_admin").id},
+            {"cause": "migration"},
+            {"cause_model": "res.partner", "cause_res_id": 1},
+            {"revoked_by_id": self.env.ref("base.user_admin").id},
+            {"revoke_reason": "forged"},
+        ):
+            with self.subTest(forged=forged), self.assertRaises(ValidationError):
+                self.Grant.with_user(self.admin).create(
+                    {"user_id": self.user.id, "group_id": self.delegable.id, **forged}
+                )
+        self.assertFalse(self.live(self.user, self.delegable))
 
     def test_a_non_member_is_refused(self):
         with self.assertRaises(AccessError):

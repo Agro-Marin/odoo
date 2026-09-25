@@ -124,8 +124,11 @@ class ResUsers(models.Model):
     @api.constrains("group_ids")
     def _check_disjoint_groups(self):
         super()._check_disjoint_groups()
-        internal_users = self.env.ref("base.group_user").all_user_ids & self
-        if any(user.website_id for user in internal_users):
+        group_user_id = self._group_id("base.group_user")
+        internal_users = self.filtered(
+            lambda user: user.website_id and group_user_id in user.all_group_ids._ids
+        )
+        if internal_users:
             _debug.logic(
                 "internal_user_refused",
                 reason="partner_bound_to_website",

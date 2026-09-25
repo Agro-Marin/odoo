@@ -327,7 +327,10 @@ class ResUsers(models.Model):
         # the groups of the user's live grants, each with the companies it is
         # limited to, and when that answer next changes. The transaction
         # remembers whose state it computed: a user's create may ask before
-        # all of its grants exist, and those grants then clear what was cached
+        # all of its grants exist, and those grants then clear what was cached.
+        # A membership no scheduled or active grant covers (a create making the
+        # user's grants, a migration writing below the ORM) counts, unscoped:
+        # ending a grant removes its membership, so none comes back that way
         self.env.cr.cache.setdefault(GROUP_STATE_COMPUTED, set()).add(self.id)
         grant_model = self.env["res.users.grant"].sudo()
         valid_until = None
@@ -340,11 +343,14 @@ class ResUsers(models.Model):
             if grant_model._grants_available()
             else grant_model
         )
-        if not grants:
-            # a user whose memberships have no grant yet: while its create is
-            # making them, or before the migration that turns them into grants
-            scopes = dict.fromkeys(self.sudo().with_context({}).group_ids._ids)
-        else:
+        covered = set(grants.group_id._ids)
+        uncovered = [
+            group_id
+            for group_id in self.sudo().with_context({}).group_ids._ids
+            if group_id not in covered
+        ]
+        scopes.update(dict.fromkeys(uncovered))
+        if grants:
             spans: collections.defaultdict[int, list] = collections.defaultdict(list)
             # the companies are read only for a user holding a scoped grant
             grants.filtered("scoped").fetch(["company_ids"])
@@ -407,7 +413,14 @@ class ResUsers(models.Model):
                 )
             ),
         )
-        _debug.perf.count("group_ids_computed", uid=self.id, groups=len(group_ids))
+        _debug.perf.count(
+            "group_ids_computed",
+            uid=self.id,
+            groups=len(group_ids),
+            grants=len(grants),
+            uncovered_memberships=sorted(uncovered),
+            valid_until=valid_until,
+        )
         return GroupState(group_ids, frozendict(held), signature, valid_until)
 
     def _get_effective_group_ids(self) -> tuple[int, ...]:

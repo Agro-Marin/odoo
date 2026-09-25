@@ -522,7 +522,19 @@ class IrAccess(models.Model):
 
     def _inverse_for_operations(self) -> None:
         for access in self:
-            access.operation = self._operation_of(access) or "r"
+            operation = self._operation_of(access)
+            if not operation:
+                _debug.logic(
+                    "operations_refused", access=access.id, reason="none_ticked"
+                )
+                raise ValidationError(
+                    self.env._(
+                        "The access %s must allow at least one operation; "
+                        "archive or delete it instead.",
+                        access.name,
+                    )
+                )
+            access.operation = operation
 
     def _search_for_read(self, operator: str, value: Any) -> Domain:
         return self._search_for_letter("r", operator, value)

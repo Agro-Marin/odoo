@@ -1,5 +1,6 @@
 import contextlib
 import contextvars
+import logging
 import weakref
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
@@ -12,6 +13,7 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.debug_log import DebugLog
 
+_logger = logging.getLogger(__name__)
 _debug = DebugLog(__name__)
 
 # set while a grant writes the membership it projects, so the write-through of
@@ -51,6 +53,13 @@ GRANT_CAUSES = [
 ]
 # causes whose producer is a later phase: a grant cannot claim them yet
 UNPRODUCED_CAUSES = frozenset({"approval_request", "position", "break_glass"})
+# why a grant exists: code acting under a named privilege states it, as the
+# superuser does; anyone else gives a manual grant
+CAUSE_FIELDS = frozenset({"cause", "cause_model", "cause_res_id"})
+# who gave or ended a grant: only the superuser writes these
+AUDIT_FIELDS = CAUSE_FIELDS | frozenset(
+    {"granted_by_id", "revoked_by_id", "revoked_at", "revoke_reason"}
+)
 EDITABLE_FIELDS = frozenset({"company_ids", "date_from", "date_to", "reason"})
 
 
@@ -202,27 +211,60 @@ class ResUsersGrant(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         now = self.env.cr.now()
+        claimed: set[str] = set()
         for vals in vals_list:
-            if vals.get("cause") in UNPRODUCED_CAUSES and not self.env.su:
-                raise ValidationError(
-                    self.env._(
-                        "A grant cannot claim the cause %(cause)s: nothing produces "
-                        "it yet.",
-                        cause=vals["cause"],
+            if not self.env.su:
+                if vals.get("cause") in UNPRODUCED_CAUSES:
+                    _debug.logic(
+                        "create_refused", reason="unproduced_cause", cause=vals["cause"]
                     )
+                    raise ValidationError(
+                        self.env._(
+                            "A grant cannot claim the cause %(cause)s: nothing "
+                            "produces it yet.",
+                            cause=vals["cause"],
+                        )
+                    )
+                settable = CAUSE_FIELDS if self.env.privileges else frozenset()
+                claimed.update(
+                    name
+                    for name in (AUDIT_FIELDS - settable) & vals.keys()
+                    if vals[name]
                 )
             vals["state"] = self._state_at(
                 vals.get("date_from"), vals.get("date_to"), now
             )
             if vals["state"] == "expired":
+                _debug.logic("create_refused", reason="already_expired")
                 raise ValidationError(
                     self.env._("A grant cannot be created already expired.")
                 )
         grants = super().create(vals_list)
         grants._check_scope()
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "created",
+                grants=grants.ids,
+                states=sorted(set(grants.mapped("state"))),
+                su=self.env.su,
+            )
         grants._check_delegation()
+        # refused after the delegation check: who may not give the grant at
+        # all hears that, not what the grant would have claimed
+        if claimed:
+            _debug.logic(
+                "create_refused", reason="audit_fields", fields=sorted(claimed)
+            )
+            raise ValidationError(
+                self.env._(
+                    "A grant records who gave it and why by itself: "
+                    "%(fields)s cannot be set.",
+                    fields=", ".join(sorted(claimed)),
+                )
+            )
         grants._log("grant_created")
         grants._project()
+        grants._check_lasting_administrator()
         grants._schedule_boundaries()
         grants._on_grant_changed("grant_created")
         return grants
@@ -230,6 +272,12 @@ class ResUsersGrant(models.Model):
     def write(self, vals: dict[str, Any]) -> bool:
         if not _LIFECYCLE.get():
             if forbidden := set(vals) - EDITABLE_FIELDS:
+                _debug.logic(
+                    "write_refused",
+                    grants=self.ids,
+                    reason="not_editable",
+                    fields=sorted(forbidden),
+                )
                 raise UserError(
                     self.env._(
                         "A grant's %(fields)s cannot be changed: revoke it and "
@@ -237,7 +285,10 @@ class ResUsersGrant(models.Model):
                         fields=", ".join(sorted(forbidden)),
                     )
                 )
-            if self.filtered(lambda grant: grant.state in ("expired", "revoked")):
+            if ended := self.filtered(
+                lambda grant: grant.state in ("expired", "revoked")
+            ):
+                _debug.logic("write_refused", grants=ended.ids, reason="ended")
                 raise UserError(
                     self.env._("An expired or revoked grant cannot be changed.")
                 )
@@ -255,9 +306,16 @@ class ResUsersGrant(models.Model):
                 for grant in self:
                     state = grant._state_at(grant.date_from, grant.date_to, now)
                     if state != grant.state:
+                        _debug.lifecycle(
+                            "state_moved_by_dates",
+                            grant=grant.id,
+                            before=grant.state,
+                            after=state,
+                        )
                         grant.state = state
             self._log("grant_changed")
             self._project()
+            self._check_lasting_administrator()
             self._schedule_boundaries()
             self._on_grant_changed("grant_changed")
         return result
@@ -265,6 +323,7 @@ class ResUsersGrant(models.Model):
     @api.ondelete(at_uninstall=False)
     def _unlink_except_by_the_superuser(self) -> None:
         if not self.env.su:
+            _debug.logic("unlink_refused", grants=self.ids, reason="not_superuser")
             raise UserError(
                 self.env._(
                     "A grant is part of the record of who could do what: revoke "
@@ -317,6 +376,11 @@ class ResUsersGrant(models.Model):
         # administer too or the grantee already holds
         env = self.env
         if env.su or env.user._has_group("base.group_erp_manager"):
+            _debug.logic(
+                "delegation_bypassed",
+                grants=self.ids,
+                reason="superuser" if env.su else "access_administrator",
+            )
             return
         if env.privileges and self._granted_by_privilege(operation):
             # code that keeps a membership in step with its data acts under a
@@ -339,10 +403,17 @@ class ResUsersGrant(models.Model):
         for grant in self.sudo():
             group = grant.group_id
             if grant.user_id.id == actor.id:
+                _debug.logic("delegation_refused", grant=grant.id, reason="self_grant")
                 raise AccessError(
                     env._("You cannot grant yourself %(group)s.", group=group.full_name)
                 )
             if group.admin_group_id.id not in actor_groups:
+                _debug.logic(
+                    "delegation_refused",
+                    grant=grant.id,
+                    reason="not_admin_group_member",
+                    admin_group=group.admin_group_id.id,
+                )
                 raise AccessError(
                     env._(
                         "Only the members of %(admin)s may grant %(group)s.",
@@ -352,6 +423,9 @@ class ResUsersGrant(models.Model):
                 )
             reach = set(grant.company_ids._ids) or set(grant.user_id._get_company_ids())
             if not reach <= actor_companies:
+                _debug.logic(
+                    "delegation_refused", grant=grant.id, reason="foreign_companies"
+                )
                 raise AccessError(
                     env._(
                         "A grant of %(group)s to %(user)s would reach companies "
@@ -368,6 +442,12 @@ class ResUsersGrant(models.Model):
                 and implied.admin_group_id.id not in actor_groups
             ]
             if beyond:
+                _debug.logic(
+                    "delegation_refused",
+                    grant=grant.id,
+                    reason="implied_beyond_reach",
+                    implied=beyond,
+                )
                 raise AccessError(
                     env._(
                         "%(group)s implies %(implied)s, which you may not grant.",
@@ -383,8 +463,62 @@ class ResUsersGrant(models.Model):
         domain = self.env["ir.access"]._privilege_domain(self._name, operation)
         return grants.filtered_domain(domain) == grants
 
+    def _check_lasting_administrator(self) -> None:
+        # the clock ends a timed grant where no constraint can refuse it: an
+        # administrator must remain once every timed grant has ended, through
+        # an open-ended grant or a membership no grant covers
+        # an invariant of the whole database: it reads everything
+        grants = self.sudo()
+        env = grants.env
+        system = env.ref("base.group_system", raise_if_not_found=False)
+        if not (env.registry.loaded_modules and system):
+            _debug.logic("lasting_administrator_skipped", reason="registry_loading")
+            return
+        admin_groups = system.all_implied_by_ids
+        if not grants.group_id & admin_groups:
+            return
+        admins = env["res.users"].search(
+            [("all_group_ids", "in", system.ids), ("active", "=", True)]
+        )
+        if not admins:
+            # no administrator at all: res.users refuses that by itself
+            _debug.logic("lasting_administrator_skipped", reason="no_administrator")
+            return
+        covering = grants.search_fetch(
+            Domain("user_id", "in", admins.ids)
+            & Domain("group_id", "in", admin_groups.ids)
+            & Domain("state", "in", ("scheduled", "active")),
+            ["user_id", "group_id", "state", "date_to"],
+        )
+        if any(grant.state == "active" and not grant.date_to for grant in covering):
+            return
+        covered = covering._pairs()
+        if any(
+            (admin.id, group.id) not in covered
+            for admin in admins
+            for group in admin.group_ids & admin_groups
+        ):
+            _debug.logic("lasting_administrator_kept", reason="uncovered_membership")
+            return
+        _debug.logic(
+            "lasting_administrator_refused",
+            grants=self.ids,
+            admins=admins.ids,
+            timed=covering.ids,
+        )
+        raise ValidationError(
+            env._(
+                "Some active user must hold %(group)s with no end date: the "
+                "last administrator's access would otherwise end by itself.",
+                group=system.full_name,
+            )
+        )
+
     def action_revoke(self, reason: str | None = None) -> bool:
         live = self.filtered(lambda grant: grant.state in ("scheduled", "active"))
+        _debug.lifecycle(
+            "revoke", grants=live.ids, skipped=(self - live).ids, reason=reason
+        )
         if not live:
             return True
         live._check_delegation("write")
@@ -399,6 +533,7 @@ class ResUsersGrant(models.Model):
             )
         live._log("grant_revoked", reason=reason)
         live._project()
+        live._check_lasting_administrator()
         live._on_grant_changed("grant_revoked")
         return True
 
@@ -437,6 +572,14 @@ class ResUsersGrant(models.Model):
             for group in groups
             if (user.id, group.id) not in live
         ]
+        _debug.logic(
+            "grant",
+            cause=cause,
+            users=users.ids,
+            groups=groups.ids,
+            new=len(vals_list),
+            already_live=len(live),
+        )
         return self.create(vals_list) if vals_list else self.browse()
 
     @api.model
@@ -518,6 +661,15 @@ class ResUsersGrant(models.Model):
         removed: Iterable[tuple[int, int]],
     ) -> None:
         cause = self._membership_cause()
+        added, removed = set(added), set(removed)
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "membership_followed",
+                cause=cause,
+                added=sorted(added),
+                removed=sorted(removed),
+                fresh_users=sorted(_FRESH_USERS.get()),
+            )
         by_group: defaultdict[int, list[int]] = defaultdict(list)
         for user_id, group_id in added:
             by_group[group_id].append(user_id)
@@ -526,7 +678,6 @@ class ResUsersGrant(models.Model):
         groups = self.env["res.groups"].sudo()
         for group_id, user_ids in by_group.items():
             grants._grant(users.browse(user_ids), groups.browse(group_id), cause=cause)
-        removed = set(removed)
         if removed:
             candidates = grants.search(
                 grants._live_domain()
@@ -538,9 +689,10 @@ class ResUsersGrant(models.Model):
             ).action_revoke()
 
     def _on_grant_changed(self, event: str) -> None:
-        # called once per batch after a grant is created, changed, revoked or
-        # expired, with the log event's name; modules that judge a grant (a
-        # separation-of-duties rule) extend it
+        # called once per batch after a grant is created, changed, revoked,
+        # started or expired, with the name of its ir.access.log event, or
+        # grant_started for a start, which is not logged; modules that judge
+        # a grant (a separation-of-duties rule) extend it
         return
 
     def _log(self, event: str, reason: str | None = None) -> None:
@@ -574,6 +726,12 @@ class ResUsersGrant(models.Model):
             cron = self.env.ref(
                 "base.ir_cron_res_users_grant_boundaries", raise_if_not_found=False
             )
+            _debug.lifecycle(
+                "boundaries_scheduled",
+                grants=self.ids,
+                moments=moments,
+                cron=bool(cron),
+            )
             if cron:
                 cron.sudo()._trigger(moments)
 
@@ -592,17 +750,36 @@ class ResUsersGrant(models.Model):
             & Domain("date_to", "<=", now)
         )
         _debug.lifecycle("grant_boundaries", starting=len(starting), ending=len(ending))
-        if not (starting or ending):
-            return
-        with _marked(_LIFECYCLE):
-            starting.write({"state": "active"})
-            ending.write({"state": "expired"})
-        ending._log("grant_expired")
-        (starting | ending)._project()
-        if starting:
-            starting._on_grant_changed("grant_started")
-        if ending:
-            ending._on_grant_changed("grant_expired")
+        # one user at a time: a boundary a constraint refuses (a scheduled
+        # group disjoint from one the user keeps) stays due and is retried,
+        # instead of holding back every other user's
+        for user, user_grants in (starting | ending).grouped("user_id").items():
+            user_starting, user_ending = user_grants & starting, user_grants & ending
+            try:
+                with self.env.cr.savepoint():
+                    with _marked(_LIFECYCLE):
+                        user_starting.write({"state": "active"})
+                        user_ending.write({"state": "expired"})
+                    user_ending._log("grant_expired")
+                    user_grants._project()
+                    if user_starting:
+                        user_starting._on_grant_changed("grant_started")
+                    if user_ending:
+                        user_ending._on_grant_changed("grant_expired")
+            except UserError as error:
+                _debug.logic(
+                    "boundary_refused",
+                    user=user.id,
+                    starting=user_starting.ids,
+                    ending=user_ending.ids,
+                    error=type(error).__name__,
+                )
+                _logger.warning(
+                    "The grants %s of user %s stay due, their boundary is refused: %s",
+                    user_grants.ids,
+                    user.id,
+                    error,
+                )
 
     def _pairs(self) -> set[tuple[int, int]]:
         return {(grant.user_id.id, grant.group_id.id) for grant in self.sudo()}
@@ -618,35 +795,55 @@ class ResUsersGrant(models.Model):
         pairs = self._pairs() if pairs is None else pairs
         if not pairs:
             return
-        user_ids = {user_id for user_id, _ in pairs}
+        mine: defaultdict[int, set[int]] = defaultdict(set)
+        for user_id, group_id in pairs:
+            mine[user_id].add(group_id)
         rows = self.sudo()._read_group(
-            Domain("user_id", "in", list(user_ids))
+            Domain("user_id", "in", list(mine))
             & Domain("group_id", "in", list({group_id for _, group_id in pairs}))
             & Domain("state", "=", "active"),
             ["user_id", "group_id"],
         )
         active = {(user.id, group.id) for user, group in rows}
         users = self.env["res.users"].sudo().with_context(active_test=False)
-        changed = False
-        with _marked(_PROJECTING):
-            for user in users.browse(sorted(user_ids)):
-                held = set(user.group_ids.ids)
-                mine = {group_id for user_id, group_id in pairs if user_id == user.id}
-                commands = [
+        # one write per distinct change: each runs the membership constraints
+        # and clears every access cache, whatever number of users it names
+        by_commands: defaultdict[tuple, list[int]] = defaultdict(list)
+        for user in users.browse(sorted(mine)):
+            held = set(user.group_ids.ids)
+            commands = tuple(
+                [
                     Command.link(group_id)
-                    for group_id in sorted(mine - held)
+                    for group_id in sorted(mine[user.id] - held)
                     if (user.id, group_id) in active
-                ] + [
+                ]
+                + [
                     Command.unlink(group_id)
-                    for group_id in sorted(mine & held)
+                    for group_id in sorted(mine[user.id] & held)
                     if (user.id, group_id) not in active
                 ]
-                if commands:
-                    changed = True
-                    user.write({"group_ids": commands})
+            )
+            if commands:
+                by_commands[commands].append(user.id)
+        _debug.perf.count(
+            "projected",
+            users=len(mine),
+            writes=len(by_commands),
+            changed_users=sum(len(ids) for ids in by_commands.values()),
+        )
+        with _marked(_PROJECTING):
+            for commands, ids in by_commands.items():
+                if _debug.lifecycle.enabled:
+                    _debug.lifecycle(
+                        "projection_written",
+                        users=ids,
+                        link=[cmd[1] for cmd in commands if cmd[0] == Command.LINK],
+                        unlink=[cmd[1] for cmd in commands if cmd[0] == Command.UNLINK],
+                    )
+                users.browse(ids).write({"group_ids": list(commands)})
         # a group_ids write clears the caches itself; a user this transaction
         # is creating has nothing cached yet
-        if changed or not user_ids - _FRESH_USERS.get():
+        if by_commands or not mine.keys() - _FRESH_USERS.get():
             return
         self._clear_membership_caches()
 

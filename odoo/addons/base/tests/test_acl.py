@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from lxml import etree
 
 from odoo import Command
-from odoo.exceptions import AccessError
+from odoo.exceptions import AccessError, ValidationError
 from odoo.tools.convert import convert_csv_import, xml_import
 from odoo.tools.misc import mute_logger
 
@@ -544,6 +544,16 @@ class TestIrAccess(TransactionCaseWithUserDemo):
             self.env["ir.access"]._group_names_with_access("res.partner", "foo")
         with self.assertRaises(ValueError):
             self.env["ir.access"]._get_groups_with_access("res.partner", "foo")
+
+    def test_unticking_every_operation_is_refused(self):
+        row = make_access_row(self.env, "res.partner.tag", operation="r")
+        with self.assertRaisesRegex(ValidationError, "at least one operation"):
+            row.write({"for_read": False})
+        self.assertEqual(row.operation, "r")
+        row.write({"for_write": True, "for_read": False})
+        self.assertEqual(
+            (row.operation, row.for_read, row.for_write), ("u", False, True)
+        )
 
     def test_the_access_lines_and_rules_are_gone(self):
         self.assertNotIn("ir.model.access", self.env)
