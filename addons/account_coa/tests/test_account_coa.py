@@ -185,9 +185,45 @@ class TestAccountRoot(TransactionCase):
 
 @tagged("post_install", "-at_install")
 class TestAccountCodeMapping(TransactionCase):
-    def test_direct_access_is_blocked(self):
-        with self.assertRaises(UserError):
-            self.env["account.code.mapping"].search([])
+    def test_internal_user_searches_any_domain(self):
+        first, second = self.env["account.account"].create(
+            [
+                {"code": "Z71001", "name": "Map A", "account_type": "asset_current"},
+                {"code": "Z81001", "name": "Map B", "account_type": "income"},
+            ]
+        )
+        company = self.env.company
+        Mapping = self.env["account.code.mapping"].with_user(_internal_user(self.env))
+
+        mappings = Mapping.search([("company_id", "=", company.id)])
+        self.assertTrue({first.id, second.id} <= set(mappings.account_id.ids))
+        self.assertEqual(Mapping.search_count([]), len(Mapping.search([])))
+        self.assertEqual(
+            Mapping.search(
+                [("company_id", "=", company.id), ("code", "=", "Z81001")]
+            ).account_id,
+            second,
+        )
+        self.assertEqual(
+            Mapping.search(
+                [
+                    ("company_id", "=", company.id),
+                    ("account_id.code", "=like", "Z7%"),
+                ]
+            ).account_id,
+            first,
+        )
+        self.assertEqual(
+            Mapping.search(
+                [
+                    ("company_id", "=", company.id),
+                    "|",
+                    ("account_id", "in", first.ids),
+                    ("code", "=", "Z81001"),
+                ]
+            ).account_id,
+            first | second,
+        )
 
     def test_offset_roundtrip(self):
         acc = self.env["account.account"].create(

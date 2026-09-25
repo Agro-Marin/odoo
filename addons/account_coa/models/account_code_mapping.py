@@ -1,5 +1,4 @@
 from odoo import api, fields, models
-from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.tools import Query
 
@@ -17,6 +16,20 @@ def _pack_mapping_id(account_id, company_id):
     return account_id * COMPANY_OFFSET + company_id
 
 
+def _pinned_ids(domain):
+    conjuncts = (
+        domain.children if getattr(domain, "OPERATOR", None) == "&" else (domain,)
+    )
+    for condition in conjuncts:
+        if (
+            getattr(condition, "field_expr", None) == "id"
+            and condition.operator == "in"
+            and not isinstance(condition.value, Query)
+        ):
+            return condition.value
+    return None
+
+
 class AccountCodeMapping(models.Model):
     """Per-company code override for an account, keyed by a packed virtual id."""
 
@@ -29,7 +42,7 @@ class AccountCodeMapping(models.Model):
     account_id = fields.Many2one(
         comodel_name="account.account",
         compute="_compute_account_id",
-        search=True,
+        search="_search_account_id",
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
@@ -60,38 +73,42 @@ class AccountCodeMapping(models.Model):
         return mappings
 
     def _search(self, domain, offset=0, limit=None, order=None, **kw) -> Query:
-        account_ids = []
+        domain = Domain(domain).optimize_full(self)
+        if (scope := _pinned_ids(domain)) is not None:
+            company_ids = set(self._mapped_company_ids())
+            mapping_ids = [
+                id_ for id_ in scope if id_ and id_ % COMPANY_OFFSET in company_ids
+            ]
+        else:
+            mapping_ids = self._mapping_ids(self.env["account.account"].search([]).ids)
+        mappings = self.browse(mapping_ids).filtered_domain(domain)
+        return mappings[offset:][:limit]._as_query()
 
-        def get_accounts(condition):
-            if (
-                not account_ids
-                and condition.field_expr == "account_id"
-                and condition.operator == "in"
-            ):
-                account_ids.extend(condition.value)
-                return Domain(bool(condition.value))
-            return condition
+    def _search_account_id(self, operator, value):
+        if operator == "in":
+            account_ids = [id_ for id_ in value if id_]
+        elif operator in ("any", "any!"):
+            accounts = self.env["account.account"].sudo(operator == "any!")
+            if isinstance(value, Query):
+                value = Domain("id", "in", value)
+            account_ids = accounts.search(value).ids
+        else:
+            return NotImplemented
+        return Domain("id", "in", self._mapping_ids(account_ids))
 
-        remaining_domain = Domain(domain).map_conditions(get_accounts)
-        if not account_ids:
-            raise UserError(
-                self.env._(
-                    "Account Code Mapping cannot be accessed directly. "
-                    "It is designed to be used only through the Chart of Accounts."
-                )
-            )
+    def _mapping_ids(self, account_ids):
+        company_ids = self._mapped_company_ids()
+        return [
+            _pack_mapping_id(account_id, company_id)
+            for account_id in account_ids
+            for company_id in company_ids
+        ]
+
+    def _mapped_company_ids(self):
         return (
-            self.browse(
-                [
-                    _pack_mapping_id(account_id, company.id)
-                    for account_id in account_ids
-                    for company in self.env.user.with_context(
-                        active_test=True
-                    ).company_ids.sorted(lambda c: (c.sequence, c.name))
-                ]
-            )
-            .filtered_domain(remaining_domain)
-            ._as_query()
+            self.env.user.with_context(active_test=True)
+            .company_ids.sorted(lambda c: (c.sequence, c.name))
+            .ids
         )
 
     def _compute_account_id(self):
