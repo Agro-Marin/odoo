@@ -4596,6 +4596,12 @@ msgid ""
 "* on the server, ``button_validate`` refuses any move whose quantity exceeds\n"
 "  its demand, so an inflated line cannot leave the warehouse even when\n"
 "  corrected outside the app.\n"
+"\n"
+"A quantity above the demand that is genuinely wanted, such as a supplier\n"
+"sending more than was ordered, is accepted by recording an approver on the\n"
+"transfer (group *Over-demand approver*) and a reason; that transfer then\n"
+"behaves as stock Odoo does. The stock check is not lifted: a line never\n"
+"claims more of a lot than the source location holds.\n"
 msgstr ""
 
 #. module: base
@@ -4659,80 +4665,6 @@ msgstr ""
 "    - VAT tax structure\n"
 "    - Withholding tax structure\n"
 "    - Regional State listings\n"
-
-#. module: base
-#: model:ir.module.module,description:base.module_base_order
-msgid ""
-"\n"
-"Base Order Management\n"
-"=====================\n"
-"\n"
-"Provides abstract mixins that consolidate common patterns shared between\n"
-"sale.order and purchase.order. The mixins are AbstractModel classes — no\n"
-"tables, no views, no menus.\n"
-"\n"
-"Mixins:\n"
-"-------\n"
-"* **mixin.order** — state machine, validation registry, workflow actions,\n"
-"  mail/portal/catalog integration, duplicate detection\n"
-"* **mixin.order.amount** — tax computation and credit warning (order-level)\n"
-"* **mixin.order.line.amount** — pricing and tax computation (line-level)\n"
-"* **mixin.order.line.fields** — common structural fields, CRUD guards,\n"
-"  transfer tracking\n"
-"* **mixin.order.state.rollup** — gathers line states for an order-level rollup\n"
-"* **mixin.order.invoice** — invoice tracking (order-level)\n"
-"* **mixin.order.line.invoice** — invoice tracking (line-level)\n"
-"* **mixin.order.merge** — quotation/RFQ merge system\n"
-"* **mixin.order.report** — shared analytical-report layer over mixin.sql.report\n"
-"* **mixin.order.mass.cancel** — cancel several orders from a list selection\n"
-"\n"
-"It also carries the shared ``ir.actions.report`` extension that embeds an\n"
-"order's EDI XML into its rendered PDF. Concrete modules only declare which of\n"
-"their reports participate, via ``_get_order_edi_report_map``.\n"
-"\n"
-"Two non-order models carry order-shaped helpers that both concrete modules\n"
-"call, rather than each writing its own copy:\n"
-"\n"
-"* **res.partner** — order counts, the application-statistics tile, and the\n"
-"  order-activity figures (``recent_orders_count``, ``days_since_last_order``)\n"
-"  measured against the company's order cycle\n"
-"* **product.product** — the catalog \"already on this order\" flag (compute and\n"
-"  search), and the order-line side of a unit-of-measure change\n"
-"\n"
-"Field names match actual sale/purchase conventions (product_qty, qty_invoiced,\n"
-"amount_taxexc_invoiced, etc.) for drop-in adoption.\n"
-msgstr ""
-
-#. module: base
-#: model:ir.module.module,description:base.module_base_order_stock
-msgid ""
-"\n"
-"Base Order Stock Integration\n"
-"=============================\n"
-"\n"
-"Bridge module connecting ``base_order`` with ``stock``.  Provides abstract\n"
-"mixins for delivery/receipt tracking shared between sale_stock and\n"
-"purchase_stock.\n"
-"\n"
-"Mixins:\n"
-"-------\n"
-"* **mixin.order.stock** — transfer status, effective date, incoterms\n"
-"* **mixin.order.line.stock** — transfer status, qty_to_transfer, move helpers\n"
-"* **mixin.order.line.stock.match** — SQL-view reconciliation between order\n"
-"  lines and stock moves, backing the delivery/receipt matching grid\n"
-"\n"
-"Also extends ``stock.picking`` (``delay_pass``, effective-transfer-date\n"
-"helpers), ``account.move`` (incoterm-location override), ``stock.move.line``\n"
-"(``_get_counterparty_usages``, the location usage each bridge contributes) and\n"
-"``res.users`` (``property_warehouse_id``).\n"
-"\n"
-"``transfer_state`` is computed per line from the quantities and rolled up to\n"
-"the order through ``mixin.order.state.rollup``, the same engine ``base_order``\n"
-"uses for ``invoice_state``.  Both levels are IDENTICAL between sale_stock and\n"
-"purchase_stock, which override the wording only; ``_compute_date_effective``\n"
-"is the one piece that genuinely differs (customer location filter for sale,\n"
-"non-supplier for purchase).\n"
-msgstr ""
 
 #. module: base
 #: model:ir.module.module,description:base.module_mixin_report_sql
@@ -14006,7 +13938,7 @@ msgid ""
 "journal accounts, tax tags, exigibility, and CABA handling.\n"
 "\n"
 "Modules that need tax computation without the full accounting stack (e.g.\n"
-"``base_order``, ``sale``, ``purchase``) can depend on ``tax`` directly.\n"
+"``trade``, ``sale``, ``purchase``) can depend on ``tax`` directly.\n"
 "\n"
 "Models:\n"
 "-------\n"
@@ -14068,25 +14000,6 @@ msgid ""
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,description:base.module_test_base_order_stock
-msgid ""
-"\n"
-"Test - Base Order Stock\n"
-"=======================\n"
-"\n"
-"``base_order_stock.test.order.line`` is the model ``mixin.order.line.stock``\n"
-"is exercised against: the mixin computes ``qty_to_transfer`` and\n"
-"``transfer_state`` from ``state``, ``display_type``, ``product_qty`` and\n"
-"``qty_transferred``, and needs a concrete model that supplies those four.\n"
-"\n"
-"It lives here rather than in ``base_order_stock`` so that no customer database\n"
-"carries its table, and so that the tests do not have to add it to the registry\n"
-"by hand at ``setUpClass`` -- a dance that mutated ``registry.models``,\n"
-"``_base_classes__`` and ``_inherit_children`` and had to unwind all three on\n"
-"cleanup, because a model added that way has no ``ir_model`` row.\n"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,description:base.module_test_report_formula
 msgid ""
 "\n"
@@ -14129,6 +14042,25 @@ msgid ""
 "window only reaches its column list on the *second* tick. None of that can be\n"
 "reached without real models, so the models live here and this module is\n"
 "installed by the test lane and by nobody else.\n"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,description:base.module_test_trade_stock
+msgid ""
+"\n"
+"Test - Trade Stock\n"
+"==================\n"
+"\n"
+"``test_trade_stock.order.line`` is the model ``mixin.order.line.stock``\n"
+"is exercised against: the mixin computes ``qty_to_transfer`` and\n"
+"``transfer_state`` from ``state``, ``display_type``, ``product_qty`` and\n"
+"``qty_transferred``, and needs a concrete model that supplies those four.\n"
+"\n"
+"It lives here rather than in ``trade_stock`` so that no customer database\n"
+"carries its table, and so that the tests do not have to add it to the registry\n"
+"by hand at ``setUpClass`` -- a dance that mutated ``registry.models``,\n"
+"``_base_classes__`` and ``_inherit_children`` and had to unwind all three on\n"
+"cleanup, because a model added that way has no ``ir_model`` row.\n"
 msgstr ""
 
 #. module: base
@@ -17799,6 +17731,80 @@ msgstr ""
 "que sai) amplamente utilizada, por exemplo, em indústrias de alimentos.\n"
 
 #. module: base
+#: model:ir.module.module,description:base.module_trade
+msgid ""
+"\n"
+"Trade\n"
+"=====\n"
+"\n"
+"Provides abstract mixins that consolidate common patterns shared between\n"
+"sale.order and purchase.order. The mixins are AbstractModel classes — no\n"
+"tables, no views, no menus.\n"
+"\n"
+"Mixins:\n"
+"-------\n"
+"* **mixin.order** — state machine, validation registry, workflow actions,\n"
+"  mail/portal/catalog integration, duplicate detection\n"
+"* **mixin.order.amount** — tax computation and credit warning (order-level)\n"
+"* **mixin.order.line.amount** — pricing and tax computation (line-level)\n"
+"* **mixin.order.line.fields** — common structural fields, CRUD guards,\n"
+"  transfer tracking\n"
+"* **mixin.order.state.rollup** — gathers line states for an order-level rollup\n"
+"* **mixin.order.invoice** — invoice tracking (order-level)\n"
+"* **mixin.order.line.invoice** — invoice tracking (line-level)\n"
+"* **mixin.order.merge** — quotation/RFQ merge system\n"
+"* **mixin.order.report** — shared analytical-report layer over mixin.sql.report\n"
+"* **mixin.order.mass.cancel** — cancel several orders from a list selection\n"
+"\n"
+"It also carries the shared ``ir.actions.report`` extension that embeds an\n"
+"order's EDI XML into its rendered PDF. Concrete modules only declare which of\n"
+"their reports participate, via ``_get_order_edi_report_map``.\n"
+"\n"
+"Two non-order models carry order-shaped helpers that both concrete modules\n"
+"call, rather than each writing its own copy:\n"
+"\n"
+"* **res.partner** — order counts, the application-statistics tile, and the\n"
+"  order-activity figures (``recent_orders_count``, ``days_since_last_order``)\n"
+"  measured against the company's order cycle\n"
+"* **product.product** — the catalog \"already on this order\" flag (compute and\n"
+"  search), and the order-line side of a unit-of-measure change\n"
+"\n"
+"Field names match actual sale/purchase conventions (product_qty, qty_invoiced,\n"
+"amount_taxexc_invoiced, etc.) for drop-in adoption.\n"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,description:base.module_trade_stock
+msgid ""
+"\n"
+"Trade Stock\n"
+"===========\n"
+"\n"
+"Bridge module connecting ``trade`` with ``stock``.  Provides abstract\n"
+"mixins for delivery/receipt tracking shared between sale_stock and\n"
+"purchase_stock.\n"
+"\n"
+"Mixins:\n"
+"-------\n"
+"* **mixin.order.stock** — transfer status, effective date, incoterms\n"
+"* **mixin.order.line.stock** — transfer status, qty_to_transfer, move helpers\n"
+"* **mixin.order.line.stock.match** — SQL-view reconciliation between order\n"
+"  lines and stock moves, backing the delivery/receipt matching grid\n"
+"\n"
+"Also extends ``stock.picking`` (``delay_pass``, effective-transfer-date\n"
+"helpers), ``account.move`` (incoterm-location override), ``stock.move.line``\n"
+"(``_get_counterparty_usages``, the location usage each bridge contributes) and\n"
+"``res.users`` (``property_warehouse_id``).\n"
+"\n"
+"``transfer_state`` is computed per line from the quantities and rolled up to\n"
+"the order through ``mixin.order.state.rollup``, the same engine ``trade``\n"
+"uses for ``invoice_state``.  Both levels are IDENTICAL between sale_stock and\n"
+"purchase_stock, which override the wording only; ``_compute_date_effective``\n"
+"is the one piece that genuinely differs (customer location filter for sale,\n"
+"non-supplier for purchase).\n"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,description:base.module_transifex
 msgid ""
 "\n"
@@ -19830,6 +19836,56 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/models/ir_access.py:0
+msgid "%(access)s names an anchor or a predicate but no reach."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access.py:0
+msgid ""
+"%(access)s reaches %(reach)s records through the anchor %(anchor)s, which "
+"%(model)s does not declare (_access_anchors)."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access.py:0
+msgid ""
+"%(access)s: a named predicate is the reach Named predicate, and that reach "
+"needs one."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access.py:0
+msgid ""
+"%(access)s: beside a reach, the domain can only be a fixed filter; it reads "
+"the user or the companies, which is what the reach says."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access.py:0
+msgid "%(access)s: the predicate %(predicate)s is for %(model)s."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access.py:0
+msgid ""
+"%(access)s: the reach %(reach)s cannot read the anchor %(anchor)s, a "
+"%(kind)s."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access.py:0
+msgid "%(access)s: the reach %(reach)s reads no anchor."
+msgstr ""
+
+#. module: base
+#. odoo-python
 #: code:addons/base/models/ir_ui_view_arch.py:0
 msgid "%(action_name)s is not a valid action on %(model_name)s"
 msgstr "%(action_name)s não é uma ação válida em %(model_name)s"
@@ -20116,6 +20172,12 @@ msgstr ""
 #: code:addons/base/models/res_currency.py:0
 msgid "%(rate_currency_name)s per %(company_currency_name)s"
 msgstr "%(rate_currency_name)s por %(company_currency_name)s"
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access.py:0
+msgid "%(reach)s, read through %(path)s"
+msgstr ""
 
 #. module: base
 #. odoo-python
@@ -24459,6 +24521,13 @@ msgstr ""
 "perfeitas para os anfitriões."
 
 #. module: base
+#: model:ir.model.fields,help:base.field_ir_access_predicate__template
+msgid ""
+"A domain reading P (the principal: P.user, P.partner, P.commercial_partner, "
+"P.companies, P.employees, P.teams, P.units) and args (the row's arguments)."
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,summary:base.module_test_report_formula
 msgid ""
 "A formula report over a model that is not the ledger, run without account"
@@ -24723,6 +24792,16 @@ msgstr ""
 msgid ""
 "A powerful suite of AI tools and agents integrated directly into your Odoo "
 "environment."
+msgstr ""
+
+#. module: base
+#: model:ir.model.constraint,message:base.constraint_ir_access_predicate_template_or_method
+msgid "A predicate is a template or a method, not both."
+msgstr ""
+
+#. module: base
+#: model:ir.model.constraint,message:base.constraint_ir_access_predicate_name_unique
+msgid "A predicate's name is unique."
 msgstr ""
 
 #. module: base
@@ -25239,6 +25318,11 @@ msgstr "Menu de acesso"
 #. module: base
 #: model:ir.model,name:base.model_ir_access_obligation
 msgid "Access Obligation"
+msgstr ""
+
+#. module: base
+#: model:ir.model,name:base.model_ir_access_predicate
+msgid "Access Predicate"
 msgstr ""
 
 #. module: base
@@ -26853,6 +26937,7 @@ msgid "Algeria - Accounting Reports"
 msgstr "Argélia - Relatórios financeiros"
 
 #. module: base
+#: model:ir.model.fields.selection,name:base.selection__ir_access__reach__all
 #: model_terms:ir.ui.view,arch_db:base.ir_cron_view_search
 msgid "All"
 msgstr "Tudo"
@@ -28180,6 +28265,11 @@ msgstr "Contabilidade analítica em Fabricação"
 #: model:ir.module.module,summary:base.module_mrp_workorder_hr_account
 msgid "Analytic cost of employee work in manufacturing"
 msgstr "Custo analítico do trabalho dos funcionários na fabricação"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_ir_access__anchor
+msgid "Anchor"
+msgstr ""
 
 #. module: base
 #: model:ir.model,name:base.model_mixin_recurrence_anchored
@@ -30267,21 +30357,6 @@ msgstr "O idioma base 'en_US' não pode ser excluído."
 #: model:ir.model.fields.selection,name:base.selection__ir_model__state__base
 msgid "Base Object"
 msgstr "Objeto de base"
-
-#. module: base
-#: model:ir.module.module,shortdesc:base.module_base_order
-msgid "Base Order Management"
-msgstr ""
-
-#. module: base
-#: model:ir.module.module,shortdesc:base.module_base_order_stock
-msgid "Base Order Stock Integration"
-msgstr ""
-
-#. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_order
-msgid "Base Order Test"
-msgstr ""
 
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_mixin_report_sql
@@ -32743,6 +32818,11 @@ msgid "Commercial Entity"
 msgstr "Entidade comercial"
 
 #. module: base
+#: model:ir.model.fields.selection,name:base.selection__ir_access__reach__partner
+msgid "Commercial partner"
+msgstr ""
+
+#. module: base
 #: model:ir.module.category,name:base.module_category_sales_commission
 msgid "Commission"
 msgstr "Comissão"
@@ -32793,6 +32873,7 @@ msgstr "Empresas"
 #: model:ir.model.fields,field_description:base.field_res_partner_bank_account__company_id
 #: model:ir.model.fields,field_description:base.field_res_partner_identifier__company_id
 #: model:ir.model.fields,field_description:base.field_res_users__company_id
+#: model:ir.model.fields.selection,name:base.selection__ir_access__reach__company
 #: model_terms:ir.ui.view,arch_db:base.ir_default_search_view
 #: model_terms:ir.ui.view,arch_db:base.view_attachment_search
 #: model_terms:ir.ui.view,arch_db:base.view_company_form
@@ -33002,7 +33083,7 @@ msgid "Concrete consumer of mixin.date.range.search, for its tests"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_order_stock
+#: model:ir.module.module,summary:base.module_test_trade_stock
 msgid "Concrete consumer of mixin.order.line.stock, for its tests"
 msgstr ""
 
@@ -33017,8 +33098,8 @@ msgid "Concrete records the html_editor field converters run against"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_test_base_order
-msgid "Concrete test models exercising base_order mixins"
+#: model:ir.module.module,summary:base.module_test_trade
+msgid "Concrete test models exercising trade mixins"
 msgstr ""
 
 #. module: base
@@ -33832,6 +33913,7 @@ msgstr "Visualizações criadas"
 #: model:ir.model.fields,field_description:base.field_ir_access__create_uid
 #: model:ir.model.fields,field_description:base.field_ir_access_exception__create_uid
 #: model:ir.model.fields,field_description:base.field_ir_access_log__create_uid
+#: model:ir.model.fields,field_description:base.field_ir_access_predicate__create_uid
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_conflict__create_uid
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function__create_uid
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function_verb__create_uid
@@ -33935,6 +34017,7 @@ msgstr "Criado por"
 #: model:ir.model.fields,field_description:base.field_ir_access__create_date
 #: model:ir.model.fields,field_description:base.field_ir_access_exception__create_date
 #: model:ir.model.fields,field_description:base.field_ir_access_log__create_date
+#: model:ir.model.fields,field_description:base.field_ir_access_predicate__create_date
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_conflict__create_date
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function__create_date
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function_verb__create_date
@@ -35047,6 +35130,7 @@ msgid "Depends On"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_ir_access_predicate__description
 #: model:ir.model.fields,field_description:base.field_ir_attachment__description
 #: model:ir.model.fields,field_description:base.field_ir_module_category__description
 #: model:ir.model.fields,field_description:base.field_ir_module_module__description
@@ -35286,6 +35370,7 @@ msgstr "Grupos disjuntos"
 #: model:ir.model.fields,field_description:base.field_ir_access_exception__display_name
 #: model:ir.model.fields,field_description:base.field_ir_access_log__display_name
 #: model:ir.model.fields,field_description:base.field_ir_access_obligation__display_name
+#: model:ir.model.fields,field_description:base.field_ir_access_predicate__display_name
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_conflict__display_name
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function__display_name
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function_verb__display_name
@@ -38982,11 +39067,6 @@ msgid "Foundation mixin for OAuth2-authenticated mail servers"
 msgstr ""
 
 #. module: base
-#: model:ir.module.module,summary:base.module_base_order
-msgid "Foundation mixins for sale and purchase order types"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,summary:base.module_credential
 msgid ""
 "Foundation module for secure credential management across all external "
@@ -40550,6 +40630,15 @@ msgid "How a company's printed documents look"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,help:base.field_ir_access__reach
+msgid ""
+"How far the row reaches, read through an anchor the model declares: the "
+"principal's own records, their team's, their unit's, their companies', their"
+" commercial partner's, all of them, or what a named predicate selects. "
+"Empty: the domain says it alone."
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,help:base.field_ir_access_log__count
 msgid "How many grants one row stands for (a migration writes one row)."
 msgstr ""
@@ -40559,6 +40648,11 @@ msgstr ""
 msgid ""
 "How many relations a field path (a domain, an order, a read specification) "
 "may cross; a longer one is refused rather than checked in part."
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,help:base.field_ir_access_predicate__name
+msgid "How rows name it, module-qualified: approval.approver_of."
 msgstr ""
 
 #. module: base
@@ -40726,6 +40820,7 @@ msgstr "IBAN de contas bancárias"
 #: model:ir.model.fields,field_description:base.field_ir_access_exception__id
 #: model:ir.model.fields,field_description:base.field_ir_access_log__id
 #: model:ir.model.fields,field_description:base.field_ir_access_obligation__id
+#: model:ir.model.fields,field_description:base.field_ir_access_predicate__id
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_conflict__id
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function__id
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function_verb__id
@@ -41779,6 +41874,14 @@ msgid "Instant Messaging Bus allow you to send messages to users, in live."
 msgstr ""
 "O barramento de mensagens instantâneas permite enviar mensagens aos "
 "usuários, ao vivo."
+
+#. module: base
+#: model:ir.model.fields,help:base.field_ir_access_predicate__method
+msgid ""
+"Instead of a template, a method of the model taking the principal's binds "
+"and the row's arguments and answering a domain; its name starts with "
+"_access_predicate_."
+msgstr ""
 
 #. module: base
 #. odoo-python
@@ -43340,6 +43443,7 @@ msgstr "Última atualização"
 #: model:ir.model.fields,field_description:base.field_ir_access__write_uid
 #: model:ir.model.fields,field_description:base.field_ir_access_exception__write_uid
 #: model:ir.model.fields,field_description:base.field_ir_access_log__write_uid
+#: model:ir.model.fields,field_description:base.field_ir_access_predicate__write_uid
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_conflict__write_uid
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function__write_uid
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function_verb__write_uid
@@ -43442,6 +43546,7 @@ msgstr "Última atualização por"
 #: model:ir.model.fields,field_description:base.field_ir_access__write_date
 #: model:ir.model.fields,field_description:base.field_ir_access_exception__write_date
 #: model:ir.model.fields,field_description:base.field_ir_access_log__write_date
+#: model:ir.model.fields,field_description:base.field_ir_access_predicate__write_date
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_conflict__write_date
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function__write_date
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function_verb__write_date
@@ -45496,6 +45601,11 @@ msgid "Message"
 msgstr "Mensagem"
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_ir_access_predicate__method
+msgid "Method"
+msgstr ""
+
+#. module: base
 #. odoo-python
 #: code:addons/base/models/ir_job.py:0
 msgid ""
@@ -46144,6 +46254,7 @@ msgstr ""
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_access__model_id
 #: model:ir.model.fields,field_description:base.field_ir_access_log__model_name
+#: model:ir.model.fields,field_description:base.field_ir_access_predicate__model_id
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function_verb__model_id
 #: model:ir.model.fields,field_description:base.field_ir_actions_report__model_id
 #: model:ir.model.fields,field_description:base.field_ir_actions_server__model_id
@@ -46736,6 +46847,7 @@ msgstr "Nakfa"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_base_partner_merge_automatic_wizard__group_by_name
 #: model:ir.model.fields,field_description:base.field_ir_access__name
+#: model:ir.model.fields,field_description:base.field_ir_access_predicate__name
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_function__name
 #: model:ir.model.fields,field_description:base.field_ir_access_sod_rule__name
 #: model:ir.model.fields,field_description:base.field_ir_actions_todo__name
@@ -46823,6 +46935,11 @@ msgstr ""
 #. module: base
 #: model:ir.module.module,summary:base.module_date_range
 msgid "Named periods of time, reusable as a filter on any date field"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields.selection,name:base.selection__ir_access__reach__predicate
+msgid "Named predicate"
 msgstr ""
 
 #. module: base
@@ -47265,6 +47382,11 @@ msgstr "Notas"
 #: model:ir.module.module,shortdesc:base.module_theme_notes
 msgid "Notes & Play Theme"
 msgstr "Tema Notas e Jogos"
+
+#. module: base
+#: model:ir.model.fields.selection,name:base.selection__ir_access__reach__none
+msgid "Nothing"
+msgstr ""
 
 #. module: base
 #: model:ir.module.module,summary:base.module_website_sale_stock_wishlist
@@ -50242,6 +50364,11 @@ msgid "Overwrite Existing Terms"
 msgstr "Substituir termos existentes"
 
 #. module: base
+#: model:ir.model.fields.selection,name:base.selection__ir_access__reach__own
+msgid "Own"
+msgstr ""
+
+#. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_attachment_search
 msgid "Owner"
 msgstr "Proprietário"
@@ -52147,6 +52274,49 @@ msgid "Power User"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_ir_access__predicate_id
+msgid "Predicate"
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access_predicate.py:0
+msgid "Predicate %(name)s names %(method)s, which its model does not define."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access_predicate.py:0
+msgid "Predicate %(name)s reads %(names)s; a template reads only P and args."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access_predicate.py:0
+msgid ""
+"Predicate %(name)s reads P.%(binds)s; the principal offers %(offered)s."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access_predicate.py:0
+msgid ""
+"Predicate %(name)s tests the user's groups (%(tests)s); membership is what "
+"an access row's group states."
+msgstr ""
+
+#. module: base
+#. odoo-python
+#: code:addons/base/models/ir_access_predicate.py:0
+msgid "Predicate %(name)s: %(error)s"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_ir_access__predicate_args
+msgid "Predicate Args"
+msgstr ""
+
+#. module: base
 #: model_terms:ir.ui.view,arch_db:base.view_users_form
 #: model_terms:ir.ui.view,arch_db:base.view_users_form_simple_modif
 msgid "Preferences"
@@ -53387,6 +53557,11 @@ msgstr "String da taxa de câmbio"
 #: model_terms:ir.ui.view,arch_db:base.view_currency_form
 msgid "Rates"
 msgstr "Taxas"
+
+#. module: base
+#: model:ir.model.fields,field_description:base.field_ir_access__reach
+msgid "Reach"
+msgstr ""
 
 #. module: base
 #: model:ir.model.fields,field_description:base.field_ir_access__for_read
@@ -57179,7 +57354,7 @@ msgid "Stock enterprise"
 msgstr "Estoque – Enterprise"
 
 #. module: base
-#: model:ir.module.module,summary:base.module_base_order_stock
+#: model:ir.module.module,summary:base.module_trade_stock
 msgid "Stock/delivery tracking mixins for order types"
 msgstr ""
 
@@ -57863,6 +58038,11 @@ msgid "Tchad - Accounting Reports"
 msgstr "Tchad - Accounting Reports"
 
 #. module: base
+#: model:ir.model.fields.selection,name:base.selection__ir_access__reach__team
+msgid "Team"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,shortdesc:base.module_team
 msgid "Teams"
 msgstr ""
@@ -58000,6 +58180,11 @@ msgid "Telegram bot core: webhook, chats, commands and message log"
 msgstr ""
 
 #. module: base
+#: model:ir.model.fields,field_description:base.field_ir_access_predicate__template
+msgid "Template"
+msgstr ""
+
+#. module: base
 #: model:ir.model.fields,field_description:base.field_ir_actions_report__report_name
 msgid "Template Name"
 msgstr "Nome do modelo"
@@ -58049,11 +58234,6 @@ msgid "Test - Base Automation"
 msgstr "Teste - Automação da base"
 
 #. module: base
-#: model:ir.module.module,shortdesc:base.module_test_base_order_stock
-msgid "Test - Base Order Stock"
-msgstr ""
-
-#. module: base
 #: model:ir.module.module,shortdesc:base.module_test_date_range
 msgid "Test - Date Range"
 msgstr ""
@@ -58092,6 +58272,16 @@ msgstr ""
 #: model:ir.module.module,shortdesc:base.module_test_sale_purchase_edi_ubl
 msgid "Test - Sale & Purchase Order EDI"
 msgstr "Teste - EDI de pedidos de compra e venda"
+
+#. module: base
+#: model:ir.module.module,shortdesc:base.module_test_trade
+msgid "Test - Trade"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,shortdesc:base.module_test_trade_stock
+msgid "Test - Trade Stock"
+msgstr ""
 
 #. module: base
 #: model:ir.module.module,shortdesc:base.module_test_html_field_history
@@ -58544,6 +58734,11 @@ msgid "The api key duration cannot be a negative value."
 msgstr "A duração da chave da API não pode ser um valor negativo."
 
 #. module: base
+#: model:ir.model.fields,help:base.field_ir_access__predicate_args
+msgid "The arguments the named predicate takes, as its schema states."
+msgstr ""
+
+#. module: base
 #. odoo-python
 #: code:addons/base/models/ir_attachment.py:0
 msgid "The attachment collides with an existing file."
@@ -58978,6 +59173,17 @@ msgstr ""
 
 #. module: base
 #. odoo-python
+#: code:addons/base/models/ir_access_predicate.py:0
+msgid "The method of predicate %(name)s must start with _access_predicate_."
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,help:base.field_ir_access_predicate__model_id
+msgid "The model it is written for; empty for a predicate any model can use."
+msgstr ""
+
+#. module: base
+#. odoo-python
 #: code:addons/base/models/ir_model.py:0
 msgid ""
 "The model name can only contain lowercase characters, digits, underscores "
@@ -58996,6 +59202,13 @@ msgstr "O nome do modelo deve começar com 'x_'."
 #: model:ir.model.fields,help:base.field_ir_model_fields__model_id
 msgid "The model this field belongs to"
 msgstr "O modelo ao qual esse campo pertence"
+
+#. module: base
+#: model:ir.model.fields,help:base.field_ir_access__anchor
+msgid ""
+"The model's anchor the reach reads, when not the reach's own: creator, "
+"employee or a second anchor the model names."
+msgstr ""
 
 #. module: base
 #: model:ir.model.fields,help:base.field_res_users_apikeys_scope__line_ids
@@ -59051,6 +59264,11 @@ msgstr "O nome do módulo deve ser exclusivo."
 #: model_terms:ir.ui.view,arch_db:base.view_server_action_form
 msgid "The name of the record to create"
 msgstr "O nome do registro a ser criado"
+
+#. module: base
+#: model:ir.model.fields,help:base.field_ir_access__predicate_id
+msgid "The named predicate a row with the reach Named predicate applies."
+msgstr ""
 
 #. module: base
 #. odoo-python
@@ -59137,7 +59355,9 @@ msgstr "A operação não pode ser concluída: %s"
 
 #. module: base
 #: model:ir.model.fields,help:base.field_ir_access__domain
-msgid "The operations are allowed only on the records in this domain."
+msgid ""
+"The operations are allowed only on the records in this domain. With a reach,"
+" it can only be a fixed filter that reads no user."
 msgstr ""
 
 #. module: base
@@ -59150,6 +59370,11 @@ msgstr ""
 "O domínio opcional para restringir valores possíveis para atributos de "
 "relacionamento, especificados como uma expressão em Python definindo uma "
 "lista de trios. Por exemplo: [('color','=','red')]"
+
+#. module: base
+#: model:ir.module.module,summary:base.module_trade
+msgid "The order kernel sale and purchase share: one trade, two directions"
+msgstr ""
 
 #. module: base
 #. odoo-python
@@ -60734,6 +60959,16 @@ msgid "Track, prioritize, and solve customer tickets"
 msgstr "Rastreie, priorize e resolva chamados de clientes"
 
 #. module: base
+#: model:ir.module.module,shortdesc:base.module_trade
+msgid "Trade"
+msgstr ""
+
+#. module: base
+#: model:ir.module.module,shortdesc:base.module_trade_stock
+msgid "Trade Stock"
+msgstr ""
+
+#. module: base
 #: model:ir.module.module,summary:base.module_event
 msgid "Trainings, Conferences, Meetings, Exhibitions, Registrations"
 msgstr "Treinamentos, conferências, reuniões, exposições, inscrições"
@@ -61421,6 +61656,16 @@ msgstr "Desinstalar…"
 #. module: base
 #: model:ir.model.fields,field_description:base.field_res_partner_identifier_type__unique_across_contacts
 msgid "Unique Across Contacts"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields.selection,name:base.selection__ir_access__reach__unit
+msgid "Unit"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields.selection,name:base.selection__ir_access__reach__unit_tree
+msgid "Unit and sub-units"
 msgstr ""
 
 #. module: base
@@ -63045,6 +63290,12 @@ msgstr ""
 #. odoo-python
 #: code:addons/base/models/ir_access.py:0
 msgid "What binds you:"
+msgstr ""
+
+#. module: base
+#: model:ir.model.fields,help:base.field_ir_access_predicate__description
+msgid ""
+"What it says in an explanation of access: you are deciding its approval."
 msgstr ""
 
 #. module: base
