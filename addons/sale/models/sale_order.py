@@ -30,7 +30,7 @@ class SaleOrder(models.Model):
         "mixin.order.amount",
         "mixin.order.invoice",
         "mixin.order.merge",
-        "mixin.account.document.import",
+        "mixin.order.document.import",
         "mixin.utm",
     ]
     _description = "Sale Order"

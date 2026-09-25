@@ -22,3 +22,16 @@ class AccountMove(models.Model):
             "order_lines_added_to_move", move=self, order_lines=order_lines
         )
         self.invoice_line_ids += new_line_ids
+
+    def _compute_incoterm_location(self):
+        super()._compute_incoterm_location()
+        for move in self:
+            location = next(
+                (loc for loc in move._get_order_incoterm_locations() if loc),
+                False,
+            )
+            if location:
+                move.incoterm_location = location
+
+    def _get_order_incoterm_locations(self):
+        return []

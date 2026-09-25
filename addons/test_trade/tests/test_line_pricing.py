@@ -16,16 +16,6 @@ class TestLinePricing(TestTradeOrderCase):
         vals.update(kw)
         return self.env["test_trade.order.line"].create(vals)
 
-    def test_price_unit_gross_no_tax_no_discount(self):
-        line = self._line(discount=0.0, tax_ids=False)
-
-        self.assertAlmostEqual(line._get_price_unit_gross(), 100.0, places=2)
-
-    def test_price_unit_gross_applies_discount(self):
-        line = self._line(discount=10.0, tax_ids=False)
-
-        self.assertAlmostEqual(line._get_price_unit_gross(), 90.0, places=2)
-
     def test_should_update_when_price_matches_old_auto(self):
         line = self._line(price_unit=100.0)
 

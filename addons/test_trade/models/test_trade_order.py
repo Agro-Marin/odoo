@@ -8,7 +8,6 @@ class TestTradeOrder(models.Model):
     _inherit = [
         "mixin.order",
         "mixin.order.amount",
-        "mixin.order.invoice",
         "mixin.order.merge",
     ]
     _description = "Base Order Test"
@@ -29,7 +28,7 @@ class TestTradeOrder(models.Model):
     # Direction is shared; identity is its own -- that split is the whole
     # reason these are separate declarations.
     _direction = SALE
-    _lock_setting_field = "order_lock_so"
+    _lock_setting_field = "test_trade_order_lock"
 
     _sequence_code = "test_trade.order"
     _mark_sent_context_key = "mark_test_trade_order_as_sent"

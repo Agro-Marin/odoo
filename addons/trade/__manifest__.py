@@ -1,6 +1,6 @@
 {
     "name": "Trade",
-    "version": "19.0.3.6.7",
+    "version": "19.0.3.7.0",
     "category": "Hidden",
     "summary": "The order kernel sale and purchase share: one trade, two directions",
     "description": """
@@ -15,13 +15,11 @@ Mixins:
 -------
 * **mixin.order** — state machine, validation registry, workflow actions,
   mail/portal/catalog integration, duplicate detection
-* **mixin.order.amount** — tax computation and credit warning (order-level)
+* **mixin.order.amount** — tax computation (order-level)
 * **mixin.order.line.amount** — pricing and tax computation (line-level)
 * **mixin.order.line.fields** — common structural fields, CRUD guards,
   transfer tracking
 * **mixin.order.state.rollup** — gathers line states for an order-level rollup
-* **mixin.order.invoice** — invoice tracking (order-level)
-* **mixin.order.line.invoice** — invoice tracking (line-level)
 * **mixin.order.merge** — quotation/RFQ merge system
 * **mixin.order.report** — shared analytical-report layer over mixin.sql.report
 * **mixin.order.mass.cancel** — cancel several orders from a list selection
@@ -39,8 +37,8 @@ call, rather than each writing its own copy:
 * **product.product** — the catalog "already on this order" flag (compute and
   search), and the order-line side of a unit-of-measure change
 
-Field names match actual sale/purchase conventions (product_qty, qty_invoiced,
-amount_taxexc_invoiced, etc.) for drop-in adoption.
+Invoicing is not here: ``trade_account`` adds it, so an order kernel installs
+without a ledger.
     """,
     "author": "Odoo Community",
     "website": "https://www.odoo.com",
@@ -48,8 +46,10 @@ amount_taxexc_invoiced, etc.) for drop-in adoption.
     "depends": [
         "mail",
         "portal",
-        "account",
         "product",
+        "analytic",
+        "tax",
+        "payment_term",
         "mixin_report_sql",
     ],
     "data": [

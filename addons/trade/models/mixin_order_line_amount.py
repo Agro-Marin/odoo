@@ -181,27 +181,6 @@ class MixinOrderLineAmount(models.AbstractModel):
             f"cannot be written; set product_qty instead.",
         )
 
-    def _get_price_unit_gross(self):
-        self.check_singleton()
-        price_unit = self.price_unit
-        if self.discount:
-            price_unit *= 1 - self.discount / 100
-        if self.tax_ids:
-            qty = self.product_qty or 1
-            price_unit = self.tax_ids.compute_all(
-                price_unit,
-                currency=self.order_id.currency_id,
-                quantity=qty,
-                rounding_method="round_globally",
-            )["total_void"]
-            price_unit /= qty
-        if self.product_uom_id.id != self.product_id.uom_id.id:
-            price_unit = self.product_uom_id._get_price_in_unit(
-                price_unit, self.product_id.uom_id
-            )
-        return price_unit
-
-    @api.depends("product_id", "product_uom_id", "product_qty", "display_type")
     def _compute_price_and_discount(self):
         force_recompute = self.env.context.get("force_price_recomputation")
         origin_shadows = {

@@ -220,17 +220,6 @@ class MixinOrder(models.AbstractModel):
         # The fiscal position may belong to a company the reading user cannot access.
         compute_sudo=True,
     )
-    journal_id = fields.Many2one(
-        comodel_name="account.journal",
-        compute="_compute_journal_id",
-        precompute=True,
-        store=True,
-        readonly=False,
-        check_company=True,
-        help="If set, the order will invoice in this journal; otherwise the "
-        "journal with the lowest sequence is used.",
-    )
-
     locked = fields.Boolean(tracking=True)
     acknowledged = fields.Boolean(
         copy=False,
@@ -494,9 +483,6 @@ class MixinOrder(models.AbstractModel):
             else:
                 order.date_validity = False
 
-    def _compute_journal_id(self):
-        self.journal_id = False
-
     @api.depends_context("lang")
     @api.depends("state")
     def _compute_type_name(self):
@@ -620,15 +606,6 @@ class MixinOrder(models.AbstractModel):
 
     def _prepare_confirmation_values(self):
         return {"state": "done"}
-
-    def _action_cancel(self):
-        draft_invoices = self.invoice_ids.filtered(
-            lambda invoice: invoice.state == "draft",
-        )
-        if draft_invoices:
-            _debug.lifecycle("draft_invoices_cancelled", invoices=draft_invoices)
-            draft_invoices.action_cancel()
-        return super()._action_cancel()
 
     def _get_lock_setting_field(self):
         return self._lock_setting_field
@@ -1178,13 +1155,3 @@ class MixinOrder(models.AbstractModel):
     def _get_edi_filename(self, builder):
         self.check_singleton()
         return builder._export_invoice_filename(self)
-
-    def create_document_from_attachment(self, attachment_ids):
-        attachments = self.env["ir.attachment"].browse(attachment_ids)
-        if not attachments:
-            raise UserError(self.env._("No attachment was provided."))
-
-        orders = self.with_context(
-            default_partner_id=self.env.user.partner_id.id,
-        )._create_records_from_attachments(attachments)
-        return orders._get_records_action(name=self.env._("Generated Orders"))

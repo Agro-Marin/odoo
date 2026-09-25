@@ -8,7 +8,7 @@
     "website": "https://www.odoo.com/app/purchase",
     "license": "LGPL-3",
     "depends": [
-        "trade",
+        "trade_account",
         "mixin_report_sql",
         "account",
     ],

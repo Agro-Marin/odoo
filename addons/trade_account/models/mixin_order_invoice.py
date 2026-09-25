@@ -20,8 +20,12 @@ _debug = DebugLog(__name__)
 
 class MixinOrderInvoice(models.AbstractModel):
     _name = "mixin.order.invoice"
-    _inherit = ["mixin.order.state.rollup"]
+    # mixin.lifecycle ends the _action_cancel chain; inheriting it places it
+    # after this mixin, so cancelling an order reaches its draft invoices
+    _inherit = ["mixin.order.state.rollup", "mixin.lifecycle"]
     _description = "Order Invoice Integration"
+
+    currency_id = fields.Many2one(comodel_name="res.currency")
 
     invoice_ids = fields.Many2many(
         comodel_name="account.move",
@@ -42,6 +46,36 @@ class MixinOrderInvoice(models.AbstractModel):
         copy=False,
         help="Report this order as fully invoiced regardless of its lines.",
     )
+
+    journal_id = fields.Many2one(
+        comodel_name="account.journal",
+        compute="_compute_journal_id",
+        precompute=True,
+        store=True,
+        readonly=False,
+        check_company=True,
+        help="If set, the order will invoice in this journal; otherwise the "
+        "journal with the lowest sequence is used.",
+    )
+
+    amount_taxexc_invoiced = fields.Monetary(
+        string="Already Invoiced (Tax Excl.)",
+        compute="_compute_amounts_invoice",
+    )
+    amount_taxinc_invoiced = fields.Monetary(
+        string="Already Invoiced (Tax Incl.)",
+        compute="_compute_amounts_invoice",
+    )
+    amount_taxexc_to_invoice = fields.Monetary(
+        string="Un-invoiced Balance (Tax Excl.)",
+        compute="_compute_amounts_invoice",
+    )
+    amount_taxinc_to_invoice = fields.Monetary(
+        string="Un-invoiced Balance (Tax Incl.)",
+        compute="_compute_amounts_invoice",
+    )
+
+    partner_credit_warning = fields.Text(compute="_compute_partner_credit_warning")
 
     def _get_invoice_move_types(self):
         return direction_of(self).move_types
@@ -470,3 +504,57 @@ class MixinOrderInvoice(models.AbstractModel):
 
     def _get_nothing_to_invoice_error_message(self):
         return self.env._("There is nothing to invoice for this order.")
+
+    def _compute_journal_id(self):
+        self.journal_id = False
+
+    def _action_cancel(self):
+        draft_invoices = self.invoice_ids.filtered(
+            lambda invoice: invoice.state == "draft",
+        )
+        if draft_invoices:
+            _debug.lifecycle("draft_invoices_cancelled", invoices=draft_invoices)
+            draft_invoices.action_cancel()
+        return super()._action_cancel()
+
+    @api.depends(
+        "line_ids.amount_taxexc_invoiced",
+        "line_ids.amount_taxexc_to_invoice",
+        "line_ids.amount_taxinc_invoiced",
+        "line_ids.amount_taxinc_to_invoice",
+    )
+    def _compute_amounts_invoice(self):
+        for order in self:
+            taxexc_invoiced = 0.0
+            taxexc_to_invoice = 0.0
+            taxinc_invoiced = 0.0
+            taxinc_to_invoice = 0.0
+
+            for line in order.line_ids:
+                taxexc_invoiced += line.amount_taxexc_invoiced
+                taxexc_to_invoice += line.amount_taxexc_to_invoice
+                taxinc_invoiced += line.amount_taxinc_invoiced
+                taxinc_to_invoice += line.amount_taxinc_to_invoice
+
+            order.amount_taxexc_invoiced = taxexc_invoiced
+            order.amount_taxexc_to_invoice = taxexc_to_invoice
+            order.amount_taxinc_invoiced = taxinc_invoiced
+            order.amount_taxinc_to_invoice = taxinc_to_invoice
+
+    @api.depends("company_id", "partner_id", "amount_total")
+    def _compute_partner_credit_warning(self):
+        for order in self:
+            order = order.with_company(order.company_id)
+            order.partner_credit_warning = ""
+            show_warning = (
+                order.state == "draft"
+                and order.company_id.account_config_id.account_use_credit_limit
+            )
+            _debug.logic("credit_warning_checked", order=order, show=bool(show_warning))
+            if show_warning:
+                order.partner_credit_warning = self.env[
+                    "account.move"
+                ]._prepare_credit_warning_message(
+                    order.sudo(),
+                    current_amount=(order.amount_total / (order.currency_rate or 1.0)),
+                )

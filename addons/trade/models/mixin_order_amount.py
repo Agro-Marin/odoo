@@ -33,25 +33,6 @@ class MixinOrderAmount(models.AbstractModel):
         exportable=False,
     )
 
-    amount_taxexc_invoiced = fields.Monetary(
-        string="Already Invoiced (Tax Excl.)",
-        compute="_compute_amounts_invoice",
-    )
-    amount_taxinc_invoiced = fields.Monetary(
-        string="Already Invoiced (Tax Incl.)",
-        compute="_compute_amounts_invoice",
-    )
-    amount_taxexc_to_invoice = fields.Monetary(
-        string="Un-invoiced Balance (Tax Excl.)",
-        compute="_compute_amounts_invoice",
-    )
-    amount_taxinc_to_invoice = fields.Monetary(
-        string="Un-invoiced Balance (Tax Incl.)",
-        compute="_compute_amounts_invoice",
-    )
-
-    partner_credit_warning = fields.Text(compute="_compute_partner_credit_warning")
-
     def _prepare_tax_totals_data(self):
         self.check_singleton()
         AccountTax = self.env["account.tax"]
@@ -99,45 +80,3 @@ class MixinOrderAmount(models.AbstractModel):
                 tax=order.amount_tax,
                 total=order.amount_total,
             )
-
-    @api.depends(
-        "line_ids.amount_taxexc_invoiced",
-        "line_ids.amount_taxexc_to_invoice",
-        "line_ids.amount_taxinc_invoiced",
-        "line_ids.amount_taxinc_to_invoice",
-    )
-    def _compute_amounts_invoice(self):
-        for order in self:
-            taxexc_invoiced = 0.0
-            taxexc_to_invoice = 0.0
-            taxinc_invoiced = 0.0
-            taxinc_to_invoice = 0.0
-
-            for line in order.line_ids:
-                taxexc_invoiced += line.amount_taxexc_invoiced
-                taxexc_to_invoice += line.amount_taxexc_to_invoice
-                taxinc_invoiced += line.amount_taxinc_invoiced
-                taxinc_to_invoice += line.amount_taxinc_to_invoice
-
-            order.amount_taxexc_invoiced = taxexc_invoiced
-            order.amount_taxexc_to_invoice = taxexc_to_invoice
-            order.amount_taxinc_invoiced = taxinc_invoiced
-            order.amount_taxinc_to_invoice = taxinc_to_invoice
-
-    @api.depends("company_id", "partner_id", "amount_total")
-    def _compute_partner_credit_warning(self):
-        for order in self:
-            order = order.with_company(order.company_id)
-            order.partner_credit_warning = ""
-            show_warning = (
-                order.state == "draft"
-                and order.company_id.account_config_id.account_use_credit_limit
-            )
-            _debug.logic("credit_warning_checked", order=order, show=bool(show_warning))
-            if show_warning:
-                order.partner_credit_warning = self.env[
-                    "account.move"
-                ]._prepare_credit_warning_message(
-                    order.sudo(),
-                    current_amount=(order.amount_total / (order.currency_rate or 1.0)),
-                )

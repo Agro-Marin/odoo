@@ -1,0 +1,3 @@
+id,name,model_id/id,group_id/id,kind,operation,domain
+access_test_trade_order_line_match,test_trade.order.line.match,model_test_trade_order_line_match,base.group_user,permission,crud,
+access_test_trade_order_document_match,test_trade.order.document.match,model_test_trade_order_document_match,base.group_user,permission,crud,

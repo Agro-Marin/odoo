@@ -19,12 +19,12 @@ Mixins:
   lines and stock moves, backing the delivery/receipt matching grid
 
 Also extends ``stock.picking`` (``delay_pass``, effective-transfer-date
-helpers), ``account.move`` (incoterm-location override), ``stock.move.line``
+helpers), ``stock.move.line``
 (``_get_counterparty_usages``, the location usage each bridge contributes) and
 ``res.users`` (``property_warehouse_id``).
 
 ``transfer_state`` is computed per line from the quantities and rolled up to
-the order through ``mixin.order.state.rollup``, the same engine ``trade``
+the order through ``mixin.order.state.rollup``, the same engine ``trade_account``
 uses for ``invoice_state``.  Both levels are IDENTICAL between sale_stock and
 purchase_stock, which override the wording only; ``_compute_date_effective``
 is the one piece that genuinely differs (customer location filter for sale,
@@ -36,5 +36,6 @@ non-supplier for purchase).
     "depends": [
         "trade",
         "stock",
+        "incoterm",
     ],
 }

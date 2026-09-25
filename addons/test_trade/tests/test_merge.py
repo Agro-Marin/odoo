@@ -65,9 +65,15 @@ class TestMerge(TestTradeOrderCase):
         )
 
     def test_merge_does_not_consolidate_lines_with_different_tax(self):
+        country = self.env.ref("base.us")
+        tax_group = self.env["account.tax.group"].create(
+            {"name": "Test Taxes", "country_id": country.id}
+        )
         tax = self.env["account.tax"].create(
             {
                 "name": "Test Tax 15%",
+                "tax_group_id": tax_group.id,
+                "country_id": country.id,
                 "amount": 15.0,
                 "amount_type": "percent",
                 "type_tax_use": "sale",

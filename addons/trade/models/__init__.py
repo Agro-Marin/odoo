@@ -4,12 +4,6 @@ from . import mixin_order_state_rollup
 from . import mixin_order_line_fields
 from . import mixin_order_line_amount
 from . import mixin_order_line_price_history
-from . import mixin_order_invoice
-from . import mixin_order_line_invoice
-from . import mixin_order_line_match
-from . import mixin_order_document_match
-from . import account_move
-from . import account_move_line
 from . import trade_config
 from . import res_company
 from . import res_partner

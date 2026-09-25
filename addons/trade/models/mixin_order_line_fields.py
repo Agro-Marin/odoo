@@ -614,32 +614,6 @@ class MixinOrderLineFields(models.AbstractModel):
                 transferred_qties[line] = 0.0
         return transferred_qties
 
-    def _is_invoiced_on_transferred(self):
-        return False
-
-    def _assert_transferred_uom_convertible(self):
-        for line in self.filtered(lambda l: l._is_invoiced_on_transferred()):
-            try:
-                line.with_context(uom_reconcile_strict=True)._prepare_qty_transferred()
-            except UserError as error:
-                _debug.logic(
-                    "transferred_uom_not_convertible",
-                    line=line,
-                    uom=line.product_uom_id,
-                )
-                raise UserError(
-                    self.env._(
-                        "Cannot invoice “%(line)s”: its transferred "
-                        "(delivered/received) quantity relies on a unit of "
-                        "measure conversion that is not possible, so the line "
-                        "cannot be sized for invoicing. Align the units of "
-                        "measure on the order line and its transfers, then try "
-                        "again.\n\n%(detail)s",
-                        line=line.display_name,
-                        detail=error.args[0] if error.args else "",
-                    )
-                ) from error
-
     @api.model
     def _date_in_the_past(self):
         if "accrual_entry_date" not in self.env.context:

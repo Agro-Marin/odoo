@@ -17,9 +17,15 @@ class TestLineAmounts(TestTradeOrderCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        country = cls.env.ref("base.us")
+        tax_group = cls.env["account.tax.group"].create(
+            {"name": "BO Taxes", "country_id": country.id}
+        )
         cls.tax_15 = cls.env["account.tax"].create(
             {
                 "name": "BO Tax 15",
+                "tax_group_id": tax_group.id,
+                "country_id": country.id,
                 "amount": 15.0,
                 "amount_type": "percent",
                 "type_tax_use": "sale",

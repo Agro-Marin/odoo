@@ -149,7 +149,7 @@ The suites run this way: `base` (less the excluded `TestReportsRendering` and
 `stock`, `rpc`, `crm`, `data_recycle`, `mixin_report_sql` with
 `test_mixin_report_sql`, `test_read_group`, `test_access_rights`,
 `hr_work_entry` with `hr_work_entry_holidays`, `hr_holidays`, the three
-`extract` branches, `test_trade`, `approval` with `test_approval`,
+`extract` branches, `test_trade` with `test_trade_account`, `approval` with `test_approval`,
 `gateway_ml`, `project_hr`, `exchange`, `date_range`, `account_coa`,
 `test_performance_compare`, `mail`, `test_mail`, `mail_group` and `mail_speech`.
 `rpc`, `mail`, `test_mail`, `mail_group` and `mail_speech` run **with** the HTTP

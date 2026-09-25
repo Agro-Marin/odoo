@@ -26,7 +26,7 @@ class PurchaseOrder(models.Model):
         "mixin.order.amount",
         "mixin.order.invoice",
         "mixin.order.merge",
-        "mixin.account.document.import",
+        "mixin.order.document.import",
     ]
     _description = "Purchase Order"
     _check_company_auto = True

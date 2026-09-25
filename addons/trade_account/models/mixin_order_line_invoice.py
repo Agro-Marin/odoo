@@ -279,3 +279,50 @@ class MixinOrderLineInvoice(models.AbstractModel):
 
     def _get_invoice_line_link_field(self):
         return
+
+    def _get_price_unit_gross(self):
+        self.check_singleton()
+        price_unit = self.price_unit
+        if self.discount:
+            price_unit *= 1 - self.discount / 100
+        if self.tax_ids:
+            qty = self.product_qty or 1
+            price_unit = self.tax_ids.compute_all(
+                price_unit,
+                currency=self.order_id.currency_id,
+                quantity=qty,
+                rounding_method="round_globally",
+            )["total_void"]
+            price_unit /= qty
+        if self.product_uom_id.id != self.product_id.uom_id.id:
+            price_unit = self.product_uom_id._get_price_in_unit(
+                price_unit, self.product_id.uom_id
+            )
+        return price_unit
+
+    @api.depends("product_id", "product_uom_id", "product_qty", "display_type")
+    def _is_invoiced_on_transferred(self):
+        return False
+
+    def _assert_transferred_uom_convertible(self):
+        for line in self.filtered(lambda l: l._is_invoiced_on_transferred()):
+            try:
+                line.with_context(uom_reconcile_strict=True)._prepare_qty_transferred()
+            except UserError as error:
+                _debug.logic(
+                    "transferred_uom_not_convertible",
+                    line=line,
+                    uom=line.product_uom_id,
+                )
+                raise UserError(
+                    self.env._(
+                        "Cannot invoice “%(line)s”: its transferred "
+                        "(delivered/received) quantity relies on a unit of "
+                        "measure conversion that is not possible, so the line "
+                        "cannot be sized for invoicing. Align the units of "
+                        "measure on the order line and its transfers, then try "
+                        "again.\n\n%(detail)s",
+                        line=line.display_name,
+                        detail=error.args[0] if error.args else "",
+                    )
+                ) from error

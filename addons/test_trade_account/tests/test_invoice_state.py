@@ -1,6 +1,6 @@
 from odoo.tests import tagged
 
-from .common import TestTradeOrderCase
+from odoo.addons.test_trade.tests.common import TestTradeOrderCase
 
 
 @tagged("post_install", "-at_install")

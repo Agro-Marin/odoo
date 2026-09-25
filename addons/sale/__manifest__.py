@@ -34,7 +34,7 @@ that reach sales orders only through another application.
     "website": "https://www.odoo.com/app/sales",
     "license": "LGPL-3",
     "depends": [
-        "trade",
+        "trade_account",
         "mixin_report_sql",
         "document",
         "document_product",
