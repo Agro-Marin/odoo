@@ -8,7 +8,7 @@
   "grant_membership_write": 3,
   "has_group_agromarin": 56,
   "has_group_enterprise": 299,
-  "has_group_odoo": 535,
+  "has_group_odoo": 534,
   "lint_company_field_outside_config": 1,
   "lint_credential_storage": 0,
   "lint_docstring": 32,

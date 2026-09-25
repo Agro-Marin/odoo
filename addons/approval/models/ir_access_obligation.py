@@ -42,3 +42,8 @@ class IrAccessObligation(models.AbstractModel):
         if own:
             own._hold_document_at_checkpoint(records, verb)
         return super()._at_checkpoint(records, verb)
+
+    def _after_move(self, records, verb):
+        if self.env["approval.binding"]._move_decides(records._name, verb):
+            records._approval_move_decided(verb)
+        return super()._after_move(records, verb)

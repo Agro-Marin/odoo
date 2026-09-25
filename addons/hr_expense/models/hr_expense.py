@@ -38,6 +38,29 @@ class HrExpense(models.Model):
     _description = "Expense"
     _order = "date desc, id desc"
     _check_company_auto = True
+    # who may make each move of the review is its verb's rows
+    # (security/ir_access.xml); a create or import that lands in a review state
+    # is not the move (decision S1)
+    _access_verbs = {
+        "reset": models.Verb(
+            requires="read", transition=("review_state", "*", False), at_create=False
+        ),
+        "submit": models.Verb(
+            requires="read",
+            transition=("review_state", "*", "submitted"),
+            at_create=False,
+        ),
+        "approve": models.Verb(
+            requires="read",
+            transition=("review_state", "*", "approved"),
+            at_create=False,
+        ),
+        "refuse": models.Verb(
+            requires="read",
+            transition=("review_state", "*", "refused"),
+            at_create=False,
+        ),
+    }
 
     name = fields.Char(
         string="Description",
@@ -1274,6 +1297,13 @@ class HrExpense(models.Model):
         elif kind == "refused":
             self._check_can_refuse()
 
+    def _get_approval_outcome_value(self, kind):
+        return {
+            "approved": "approved",
+            "refused": "refused",
+            "cancelled": "refused",
+        }.get(kind)
+
     def _apply_approval_sync_outcome(self, kind):
         self.check_singleton()
         _debug.pipeline("approval_sync_outcome", expense=self, kind=kind)
@@ -1509,7 +1539,12 @@ class HrExpense(models.Model):
         )
         (self - expenses_autovalidated).review_state = "submitted"
         if expenses_autovalidated:
-            expenses_autovalidated._do_approve(check=False)
+            # nobody approves an expense that has no approver: submitting it is
+            # its approval, whoever submits
+            with self.env.transaction.admitting(
+                self._name, "approve", expenses_autovalidated.ids
+            ):
+                expenses_autovalidated._do_approve(check=False)
         self.sudo().update_activities_and_mails()
 
     def _can_be_autovalidated(self):

@@ -47,3 +47,4 @@ from . import test_deployed_employee_time_zone
 from . import test_search_filters
 from . import test_leave_generate_multi_wizard
 from . import test_leave_approver_grant
+from . import test_leave_verbs

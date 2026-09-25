@@ -719,14 +719,20 @@ the leave's `action_refuse` alone, each post-processing after `super()`. A docum
 callbacks would run that post-processing twice, once for the button and once for the callback. Such a document
 inherits `mixin.approval.state.sync` instead, and the direction reverses:
 
-- the document keeps its own state field and its buttons. A state change brings the request in line: the acting user's
-  decision when they hold a decidable row, otherwise a grant (`_approve_without_decision`), a revocation (`_revoke`)
-  or a forced terminal state;
+- the document keeps its own state field and its buttons. Every value of that field is the target of a verb the
+  adopter declares (`_access_verbs`, `at_create=False`), granted by its `ir.access` rows, and each verb carries a
+  shipped `approval.binding` in mode `act_decides`: the kernel's transition funnel checks the verb before the write
+  and, once the move has landed, tells the obligation (`ir.access.obligation._after_move`), which brings the request
+  in line (`_approval_move_decided`): the acting user's decision when they hold a decidable row, otherwise a grant
+  (`_approve_without_decision`), a revocation (`_revoke`) or a forced terminal state. A create or import that lands
+  in a state is not a move (decision S1): `create` raises the request itself;
 - a decision taken on the request itself, in the approvals app or through an activity, reaches the document through
-  `_check_approval_sync_policy`, the document's own authority run as the acting user, and then through the document's
-  overridable methods. The engine's pools may be wider than the document's policy (a group step), and the policy
-  decides;
-- an `approval_state_sync` context of request ids keeps either side from reacting to the change the other just made;
+  `_check_approval_sync_policy`, the document's own policy run as the acting user, then the verb of the move through
+  its rows alone (`_check_approval_decider_holds`: an approver decides through the request, so the operation the verb
+  requires is not asked), and the move is admitted for the verb while the document's overridable methods make it.
+  The engine's pools may be wider than the document's policy (a group step), and the policy and the rows decide;
+- a transaction admission (`approval.state_sync`) of request ids keeps either side from reacting to the change the
+  other just made;
 - the request refuses being withdrawn, reset, cancelled or sent back for a change from the approvals app
   (`_check_moved_from_source_document`), since those moves belong to the document.
 

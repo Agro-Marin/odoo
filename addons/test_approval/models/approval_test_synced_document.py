@@ -23,6 +23,19 @@ class ApprovalTestSyncedDocument(models.Model):
     _name = "approval.test.synced.document"
     _description = "Test Document Whose State Drives Its Approval"
     _inherit = ["mixin.mail.thread", "mixin.approval.state.sync"]
+    _access_verbs = {
+        name: models.Verb(
+            requires="read", transition=("state", "*", state), at_create=False
+        )
+        for name, state in (
+            ("reset", "draft"),
+            ("submit", "submitted"),
+            ("approve_first", "first"),
+            ("approve", "approved"),
+            ("refuse", "refused"),
+            ("cancel", "cancelled"),
+        )
+    }
 
     name = fields.Char(required=True)
     state = fields.Selection(

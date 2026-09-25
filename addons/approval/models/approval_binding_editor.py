@@ -70,7 +70,7 @@ class ApprovalBinding(models.Model):
                 ("method", "=", method or False),
                 ("action_id", "=", action),
                 ("subject_domain", "=", False),
-                ("mode", "!=", "advise"),
+                ("mode", "not in", ("advise", "act_decides")),
             ],
             limit=1,
         )

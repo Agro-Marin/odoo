@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="obligation_leave_reset" model="approval.binding">
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="verb">reset</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_leave_approve" model="approval.binding">
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="verb">approve</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_leave_validate" model="approval.binding">
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="verb">validate</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_leave_refuse" model="approval.binding">
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="verb">refuse</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_leave_cancel" model="approval.binding">
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="verb">cancel</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_allocation_reset" model="approval.binding">
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="verb">reset</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_allocation_approve" model="approval.binding">
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="verb">approve</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_allocation_validate" model="approval.binding">
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="verb">validate</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_allocation_refuse" model="approval.binding">
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="verb">refuse</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+</odoo>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="access_hr_expense_decide_company" model="ir.access">
+        <field
+            name="name">hr.expense: an expense is approved or refused in the companies in use</field>
+        <field name="model_id" ref="model_hr_expense" />
+        <field name="group_id" ref="base.group_everyone" />
+        <field name="kind">guard</field>
+        <field name="domain">[('company_id', 'in', company_ids)]</field>
+        <field name="verbs">approve,refuse</field>
+    </record>
+
+    <record id="access_hr_expense_decide_administrator" model="ir.access">
+        <field
+            name="name">hr.expense: an expense administrator approves and refuses</field>
+        <field name="model_id" ref="model_hr_expense" />
+        <field name="group_id" ref="group_hr_expense_manager" />
+        <field name="kind">permission</field>
+        <field name="verbs">approve,refuse</field>
+    </record>
+
+    <record id="access_hr_expense_decide_approver" model="ir.access">
+        <field
+            name="name">hr.expense: an expense approver approves and refuses another's expense</field>
+        <field name="model_id" ref="model_hr_expense" />
+        <field name="group_id" ref="group_hr_expense_user" />
+        <field name="kind">permission</field>
+        <field name="domain">[('employee_id.user_id', '!=', user.id)]</field>
+        <field name="verbs">approve,refuse</field>
+    </record>
+
+    <record id="access_hr_expense_decide_team_approver" model="ir.access">
+        <field
+            name="name">hr.expense: a team approver approves and refuses the expenses they manage</field>
+        <field name="model_id" ref="model_hr_expense" />
+        <field name="group_id" ref="group_hr_expense_team_approver" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('employee_id.user_id', '!=', user.id), '|', '|', ('employee_id.expense_manager_id', '=', user.id), ('employee_id.department_id.manager_id.user_id', '=', user.id), ('manager_id', '=', user.id)]</field>
+        <field name="verbs">approve,refuse</field>
+    </record>
+
+    <record id="access_hr_expense_decide_expense_manager" model="ir.access">
+        <field
+            name="name">hr.expense: the employee's expense approver approves and refuses their expenses</field>
+        <field name="model_id" ref="model_hr_expense" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('employee_id.user_id', '!=', user.id), ('employee_id.expense_manager_id', '=', user.id)]</field>
+        <field name="verbs">approve,refuse</field>
+    </record>
+
+    <record id="access_hr_expense_decide_team_below" model="ir.access">
+        <field
+            name="name">hr.expense: a team approver approves and refuses the expenses of the people below them</field>
+        <field name="model_id" ref="model_hr_expense" />
+        <field name="group_id" ref="group_hr_expense_team_approver" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('employee_id.user_id', '!=', user.id), ('employee_id', 'child_of', user.employee_ids.ids), ('employee_id', 'not in', user.employee_ids.ids)]</field>
+        <field name="verbs">approve,refuse</field>
+    </record>
+
+    <record id="access_hr_expense_submit_reset" model="ir.access">
+        <field
+            name="name">hr.expense: submit and reset where it is read; who may reset is asked by the expense</field>
+        <field name="model_id" ref="model_hr_expense" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field name="verbs">submit,reset</field>
+    </record>
+
+</odoo>

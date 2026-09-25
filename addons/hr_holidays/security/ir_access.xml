@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="access_hr_leave_approve_officer" model="ir.access">
+        <field
+            name="name">hr.leave: a time-off officer approves the first step of a two-step leave</field>
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="group_id" ref="group_hr_holidays_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('validation_type', '=', 'both'), ('state', 'in', ['confirm', 'refuse', 'cancel'])]</field>
+        <field name="verbs">approve</field>
+    </record>
+
+    <record id="access_hr_leave_approve_manager" model="ir.access">
+        <field
+            name="name">hr.leave: the employee's time-off approver approves the first step of a two-step leave</field>
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '=', 'both'), ('state', '=', 'confirm')]</field>
+        <field name="verbs">approve</field>
+    </record>
+
+    <record id="access_hr_leave_validate_officer" model="ir.access">
+        <field name="name">hr.leave: a time-off officer validates</field>
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="group_id" ref="group_hr_holidays_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('state', 'in', ['confirm', 'validate1', 'refuse', 'cancel'])]</field>
+        <field name="verbs">validate</field>
+    </record>
+
+    <record id="access_hr_leave_validate_manager" model="ir.access">
+        <field
+            name="name">hr.leave: the employee's time-off approver validates what only they approve</field>
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '=', 'manager'), ('state', 'in', ['confirm', 'refuse'])]</field>
+        <field name="verbs">validate</field>
+    </record>
+
+    <record id="access_hr_leave_refuse_officer" model="ir.access">
+        <field name="name">hr.leave: a time-off officer refuses</field>
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="group_id" ref="group_hr_holidays_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('state', 'in', ['confirm', 'validate1', 'validate', 'cancel'])]</field>
+        <field name="verbs">refuse</field>
+    </record>
+
+    <record id="access_hr_leave_refuse_manager" model="ir.access">
+        <field
+            name="name">hr.leave: the employee's time-off approver refuses what they approve</field>
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '!=', 'hr'), ('state', 'in', ['confirm', 'validate'])]</field>
+        <field name="verbs">refuse</field>
+    </record>
+
+    <record id="access_hr_leave_refuse_manager_first_step" model="ir.access">
+        <field
+            name="name">hr.leave: the employee's time-off approver refuses a two-step leave they approved</field>
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '=', 'both'), ('state', '=', 'validate1')]</field>
+        <field name="verbs">refuse</field>
+    </record>
+
+    <record id="access_hr_leave_reset_officer" model="ir.access">
+        <field
+            name="name">hr.leave: a time-off officer sends a leave back to approval</field>
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="group_id" ref="group_hr_holidays_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('state', 'in', ['validate1', 'validate', 'refuse', 'cancel'])]</field>
+        <field name="verbs">reset</field>
+    </record>
+
+    <record id="access_hr_leave_cancel" model="ir.access">
+        <field
+            name="name">hr.leave: cancel where it is read; whether the leave has begun is asked by the leave</field>
+        <field name="model_id" ref="model_hr_leave" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field name="verbs">cancel</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_approve_officer" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: a time-off officer approves the first step of another's two-step allocation</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="group_hr_holidays_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('validation_type', '=', 'both'), ('state', 'in', ['confirm', 'refuse']), ('employee_id', '!=', user.with_company(company_id).employee_id.id)]</field>
+        <field name="verbs">approve</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_approve_administrator" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: a time-off administrator approves the first step of a two-step allocation</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="group_hr_holidays_manager" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('validation_type', '=', 'both'), ('state', 'in', ['confirm', 'refuse'])]</field>
+        <field name="verbs">approve</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_approve_manager" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: the employee's time-off approver approves the first step of a two-step allocation</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '=', 'both'), ('state', '=', 'confirm'), ('employee_id', '!=', user.with_company(company_id).employee_id.id)]</field>
+        <field name="verbs">approve</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_validate_officer" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: a time-off officer validates another's allocation</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="group_hr_holidays_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('state', 'in', ['confirm', 'validate1', 'refuse']), '|', ('employee_id', '!=', user.with_company(company_id).employee_id.id), ('validation_type', '=', 'no_validation')]</field>
+        <field name="verbs">validate</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_validate_administrator" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: a time-off administrator validates</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="group_hr_holidays_manager" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('state', 'in', ['confirm', 'validate1', 'refuse'])]</field>
+        <field name="verbs">validate</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_validate_manager" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: the employee's time-off approver validates what only they approve</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '=', 'manager'), ('state', 'in', ['confirm', 'refuse']), ('employee_id', '!=', user.with_company(company_id).employee_id.id)]</field>
+        <field name="verbs">validate</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_validate_unvalidated" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: an allocation that needs no validation is validated where it is read</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('validation_type', '=', 'no_validation'), ('state', '=', 'confirm')]</field>
+        <field name="verbs">validate</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_refuse_officer" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: a time-off officer refuses another's allocation</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="group_hr_holidays_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('state', 'in', ['confirm', 'validate1', 'validate']), '|', ('employee_id', '!=', user.with_company(company_id).employee_id.id), ('validation_type', '=', 'no_validation')]</field>
+        <field name="verbs">refuse</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_refuse_administrator" model="ir.access">
+        <field name="name">hr.leave.allocation: a time-off administrator refuses</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="group_hr_holidays_manager" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('state', 'in', ['confirm', 'validate1', 'validate'])]</field>
+        <field name="verbs">refuse</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_refuse_manager" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: the employee's time-off approver refuses what they approve</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '!=', 'hr'), ('state', 'in', ['confirm', 'validate']), '|', ('employee_id', '!=', user.with_company(company_id).employee_id.id), ('validation_type', '=', 'no_validation')]</field>
+        <field name="verbs">refuse</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_refuse_manager_first_step" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: the employee's time-off approver refuses a two-step allocation they approved</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="base.group_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('employee_id.leave_manager_id', '=', user.id), ('validation_type', '=', 'both'), ('state', '=', 'validate1'), ('employee_id', '!=', user.with_company(company_id).employee_id.id)]</field>
+        <field name="verbs">refuse</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_reset_officer" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: a time-off officer sends another's allocation back to approval</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="group_hr_holidays_user" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('state', 'in', ['validate1', 'validate', 'refuse']), '|', ('employee_id', '!=', user.with_company(company_id).employee_id.id), ('validation_type', '=', 'no_validation')]</field>
+        <field name="verbs">reset</field>
+    </record>
+
+    <record id="access_hr_leave_allocation_reset_administrator" model="ir.access">
+        <field
+            name="name">hr.leave.allocation: a time-off administrator sends an allocation back to approval</field>
+        <field name="model_id" ref="model_hr_leave_allocation" />
+        <field name="group_id" ref="group_hr_holidays_manager" />
+        <field name="kind">permission</field>
+        <field
+            name="domain">[('state', 'in', ['validate1', 'validate', 'refuse'])]</field>
+        <field name="verbs">reset</field>
+    </record>
+
+</odoo>

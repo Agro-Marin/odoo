@@ -1,5 +1,6 @@
 from odoo import SUPERUSER_ID
-from odoo.exceptions import UserError
+from odoo.api import MODULE_UNINSTALL_FLAG
+from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import tagged
 
 from odoo.addons.approval.tests.common import ApprovalCommon
@@ -338,3 +339,59 @@ class TestApprovalStateSync(ApprovalCommon):
         self._as(document, self.owner_user).unlink()
 
         self.assertEqual(request.state, "cancelled")
+
+    # -- every move is a verb whose obligation is that the move decides ------
+
+    def test_the_decider_holds_the_verb_of_the_move(self):
+        document = self._document(state="submitted")
+        row = self.env.ref("test_approval.access_approval_test_synced_document_moves")
+        row.active = False
+        with self.assertRaises(AccessError):
+            document.approval_request_id.with_user(self.approver_1).action_approve()
+        self.assertEqual(document.state, "submitted")
+        self.assertEqual(document.approval_request_id.state, "pending")
+
+        row.active = True
+        document.approval_request_id.with_user(self.approver_1).action_approve()
+        self.assertEqual(document.state, "approved")
+
+    def test_without_its_obligation_a_move_decides_nothing(self):
+        document = self._document(state="submitted")
+        obligation = self.env.ref("test_approval.obligation_synced_approve")
+        obligation.with_context({MODULE_UNINSTALL_FLAG: True}).active = False
+
+        self._as(document, self.approver_1).write({"state": "approved"})
+
+        self.assertEqual(document.approval_request_id.state, "pending")
+
+    def test_every_state_of_a_synced_document_is_a_move_that_decides(self):
+        Binding = self.env["approval.binding"]
+        synced = self.env.registry["mixin.approval.state.sync"]
+        for name in self.env.registry.model_verbs:
+            model = self.env[name]
+            if not isinstance(model, synced):
+                continue
+            for value in model._get_approval_sync_kinds():
+                with self.subTest(model=name, state=value):
+                    verb = model._get_approval_sync_verb(value)
+                    self.assertTrue(verb, "every state is some verb's move")
+                    self.assertTrue(Binding._move_decides(name, verb))
+
+    def test_a_move_that_decides_cannot_be_switched_off(self):
+        obligation = self.env.ref("test_approval.obligation_synced_approve")
+        for vals in ({"active": False}, {"mode": "advise"}, {"verb": "refuse"}):
+            with self.subTest(vals=vals), self.assertRaises(UserError):
+                obligation.write(vals)
+        with self.assertRaises(UserError):
+            obligation.unlink()
+        obligation.write({"sudo_policy": "enforce"})
+
+    def test_a_move_decides_only_a_document_whose_state_is_its_approval(self):
+        with self.assertRaises(ValidationError):
+            self.env["approval.binding"].create(
+                {
+                    "model_id": self.env["ir.model"]._get_id("approval.test.document"),
+                    "verb": "record_operation",
+                    "mode": "act_decides",
+                }
+            )

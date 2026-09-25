@@ -253,7 +253,12 @@ class HrLeaveGenerateMultiWizard(models.TransientModel):
             one_day_leaves = conflicting_leaves.filtered(
                 lambda leave: leave.request_date_from == leave.request_date_to
             )
-            one_day_leaves.action_refuse()
+            # the batch takes the period over: the leaves it replaces are refused
+            # by the batch, not by what its author may refuse one by one
+            with self.env.transaction.admitting(
+                "hr.leave", "refuse", one_day_leaves.ids
+            ):
+                one_day_leaves.action_refuse()
             (conflicting_leaves - one_day_leaves)._split_leaves(
                 self.date_from, self.date_to + timedelta(days=1)
             )

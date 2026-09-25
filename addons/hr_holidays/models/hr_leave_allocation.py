@@ -21,6 +21,22 @@ class HrLeaveAllocation(models.Model):
     _order = "create_date desc"
     _inherit = ["mixin.hr.leave.approval", "mixin.mail.thread", "mixin.mail.activity"]
     _mail_post_access = "read"
+    # who may make each move is its verb's rows (security/ir_access.xml); a
+    # create or import that lands in a state is not the move (decision S1)
+    _access_verbs = {
+        "reset": models.Verb(
+            requires="read", transition=("state", "*", "confirm"), at_create=False
+        ),
+        "approve": models.Verb(
+            requires="read", transition=("state", "*", "validate1"), at_create=False
+        ),
+        "validate": models.Verb(
+            requires="read", transition=("state", "*", "validate"), at_create=False
+        ),
+        "refuse": models.Verb(
+            requires="read", transition=("state", "*", "refuse"), at_create=False
+        ),
+    }
 
     def _default_holiday_status_id(self):
         if self.env.user.has_group("hr_holidays.group_hr_holidays_user"):
@@ -1056,40 +1072,14 @@ class HrLeaveAllocation(models.Model):
         return res
 
     def _get_next_states_by_state(self):
+        # every move of an allocation is a verb (security/ir_access.xml)
         self.check_singleton()
-        state_result = {
+        return {
             "confirm": set(),
             "validate1": set(),
             "validate": set(),
             "refuse": set(),
         }
-        validation_type = self.validation_type
-
-        is_officer = self.env.user.has_group("hr_holidays.group_hr_holidays_user")
-        is_time_off_manager = self.employee_id.leave_manager_id == self.env.user
-
-        if is_officer:
-            if validation_type == "both":
-                state_result["confirm"].add("validate1")
-                state_result["refuse"].add("validate1")
-            state_result["validate1"].update({"confirm", "validate", "refuse"})
-            state_result["confirm"].update({"validate", "refuse"})
-            state_result["validate"].update({"confirm", "refuse"})
-            state_result["refuse"].update({"confirm", "validate"})
-        elif is_time_off_manager:
-            if validation_type != "hr":
-                state_result["confirm"].add("refuse")
-                state_result["validate"].add("refuse")
-            if validation_type == "both":
-                state_result["confirm"].add("validate1")
-                state_result["validate1"].add("refuse")
-            elif validation_type == "manager":
-                state_result["confirm"].add("validate")
-                state_result["refuse"].add("validate")
-
-        if validation_type == "no_validation":
-            state_result["confirm"].add("validate")
-        return state_result
 
     @api.depends(
         "employee_id", "holiday_status_id", "type_request_unit", "number_of_days"

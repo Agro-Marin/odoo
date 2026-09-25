@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="obligation_expense_reset" model="approval.binding">
+        <field name="model_id" ref="model_hr_expense" />
+        <field name="verb">reset</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_expense_submit" model="approval.binding">
+        <field name="model_id" ref="model_hr_expense" />
+        <field name="verb">submit</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_expense_approve" model="approval.binding">
+        <field name="model_id" ref="model_hr_expense" />
+        <field name="verb">approve</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_expense_refuse" model="approval.binding">
+        <field name="model_id" ref="model_hr_expense" />
+        <field name="verb">refuse</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+</odoo>

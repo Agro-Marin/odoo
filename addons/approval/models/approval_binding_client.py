@@ -16,7 +16,7 @@ class ApprovalBinding(models.Model):
         return frozenset(
             self.sudo()
             .with_context(active_test=True)
-            .search([("mode", "!=", "advise")])
+            .search([("mode", "not in", ("advise", "act_decides"))])
             .mapped("model_name")
         )
 
@@ -163,7 +163,7 @@ class ApprovalBinding(models.Model):
     ) -> dict[str, Any]:
         records = self._get_records_for_button(model, res_id)
         bindings = self._get_button_bindings(model, method, action_id).filtered(
-            lambda binding: binding.mode != "advise"
+            lambda binding: binding.mode not in ("advise", "act_decides")
         )
         if records:
             bindings = bindings.filtered(lambda binding: binding._get_selected(records))
@@ -229,7 +229,10 @@ class ApprovalBinding(models.Model):
     @api.model
     def _get_button_binding_for(self, records, method, action_id):
         bindings = self._get_button_bindings(records._name, method, action_id).filtered(
-            lambda binding: binding.mode != "advise" and binding._get_selected(records)
+            lambda binding: (
+                binding.mode not in ("advise", "act_decides")
+                and binding._get_selected(records)
+            )
         )
         if not records or not bindings:
             trace.REFUSAL.event(

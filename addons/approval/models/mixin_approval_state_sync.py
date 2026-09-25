@@ -1,7 +1,8 @@
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from typing import Any
 
 from odoo import SUPERUSER_ID, api, models
+from odoo.fields import Domain
 
 from . import approval_trace as trace
 from .approval_utils import ApprovalStepUnstaffed
@@ -69,21 +70,11 @@ class MixinApprovalStateSync(models.AbstractModel):
         records._create_approval_requests()
         return records
 
-    def write(self, vals):
-        field = self._get_approval_sync_state_field()
-        if field not in vals:
-            return super().write(vals)
-        previous = {record.id: record[field] for record in self.sudo()}
-        result = super().write(vals)
+    def _approval_move_decided(self, verb: str) -> None:
+        """The records a write moved into `verb`'s state: the move is the request's
+        decision, or raises the request a document in that state holds."""
         synced = self.env.transaction.admitted_ids("approval.request", SYNC_ADMISSION)
-        moved = self.browse(
-            [
-                record.id
-                for record in self.sudo()
-                if record[field] != previous[record.id]
-            ]
-        )
-        with_request = moved.filtered(
+        with_request = self.filtered(
             lambda record: (
                 record.sudo().approval_request_id
                 and record.sudo().approval_request_id.id not in synced
@@ -92,16 +83,40 @@ class MixinApprovalStateSync(models.AbstractModel):
         trace.SYNC.event(
             "document_moved",
             record=self,
-            field=field,
-            moved=moved.ids,
+            field=self._get_approval_sync_state_field(),
+            verb=verb,
+            moved=self.ids,
             with_request=with_request.ids,
             already_synced=list(synced),
         )
         with_request._sync_approval_request()
         (
-            moved.filtered(lambda record: not record.sudo().approval_request_id)
+            self.filtered(lambda record: not record.sudo().approval_request_id)
         )._create_approval_requests()
-        return result
+
+    def _get_approval_sync_model(self) -> str:
+        """The model whose verbs are the document's moves."""
+        return self._name
+
+    def _get_approval_sync_verb(self, value: Any) -> str | None:
+        """The verb whose move lands the state field on `value`."""
+        field = self._get_approval_sync_state_field()
+        transitions = self.env.registry.verb_transitions.get(
+            self._get_approval_sync_model(), {}
+        )
+        for name, verb in transitions.get(field, ()):
+            if verb.transition[2] == value:
+                return name
+        return None
+
+    def _get_approval_outcome_value(self, kind: str) -> Any:
+        """The state an outcome of the request lands the document in, if any."""
+        values = [
+            value
+            for value, value_kind in self._get_approval_sync_kinds().items()
+            if value_kind == kind
+        ]
+        return values[0] if len(values) == 1 else None
 
     def unlink(self):
         for record in self.sudo().filtered(
@@ -432,12 +447,23 @@ class MixinApprovalStateSync(models.AbstractModel):
         )
 
     def _apply_approval_outcome(self, kind: str, decided: bool = True) -> None:
+        """Move the document where the request's outcome says, as the decider.
+
+        The decider is asked the adopter's own policy, then the verb of that move
+        through the verb's rows, as a checkpoint would. The rows alone and not the
+        operation the verb requires: an approver decides through the request and
+        reads the document only while deciding it. The move is then admitted for
+        the verb, so the funnel does not ask it again.
+        """
         self.check_singleton()
+        value = self._get_approval_outcome_value(kind)
+        verb = self._get_approval_sync_verb(value) if value is not None else None
         trace.SYNC.note(
             "apply_outcome",
             record=self,
             kind=kind,
             decided=decided,
+            verb=verb,
             request=self.approval_request_id.id,
         )
         checks_policy = decided and self.env.uid != SUPERUSER_ID
@@ -449,9 +475,33 @@ class MixinApprovalStateSync(models.AbstractModel):
             uid=self.env.uid,
         )
         if checks_policy:
-            self.sudo(False)._check_approval_sync_policy(kind)
-        with self._approval_sync_admitted(self.approval_request_id):
+            decider = self.sudo(False)
+            decider._check_approval_sync_policy(kind)
+            if verb:
+                decider._check_approval_decider_holds(verb)
+        with (
+            self.env.transaction.admitting(
+                self._get_approval_sync_model(), verb, self.ids
+            )
+            if verb
+            else nullcontext(),
+            self._approval_sync_admitted(self.approval_request_id),
+        ):
             self._apply_approval_sync_outcome(kind)
+
+    def _check_approval_decider_holds(self, verb: str) -> None:
+        self.check_singleton()
+        permissions, guards = self.env["ir.access"]._bound_access_rows(
+            self._get_approval_sync_model(), verb
+        )
+        holds = bool(permissions) and bool(
+            self.sudo()
+            .with_context(active_test=False)
+            .filtered_domain(Domain.OR(permissions) & Domain.AND(guards))
+        )
+        trace.SYNC.event("decider_holds", record=self, verb=verb, holds=holds)
+        if not holds:
+            raise self.env["ir.access"]._make_record_access_error(self, verb)
 
     def _on_approval_progress(self) -> None:
         if (

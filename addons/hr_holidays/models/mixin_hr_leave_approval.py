@@ -41,20 +41,45 @@ class MixinHrLeaveApproval(models.AbstractModel):
             self.can_approve = self.can_validate = self.can_refuse = True
             return
         self.check_access("read")
+        granted = self._get_approval_granted_ids(("validate1", "validate", "refuse"))
         for record in self:
             next_states = record._get_next_states_by_state()
             record.can_approve = record._is_approval_update_allowed(
-                "validate1", next_states
+                "validate1", next_states, granted
             )
             record.can_validate = record._is_approval_update_allowed(
-                "validate", next_states
+                "validate", next_states, granted
             )
             record.can_refuse = record._is_approval_update_allowed(
-                "refuse", next_states
+                "refuse", next_states, granted
             )
 
     def _get_next_states_by_state(self):
+        """The moves no verb grants, by state: what a state's verb grants is its
+        ir.access rows' (`_get_approval_granted_ids`)."""
         raise NotImplementedError
+
+    def _get_approval_granted_ids(self, states):
+        """For each state a verb moves into, the records the user may move there."""
+        granted = {}
+        for state in states:
+            if not self._is_approval_verb_granted(state):
+                continue
+            # the verb's domain rather than has_access, so a record not saved yet
+            # is judged on its values as a saved one is
+            domain = self._access_domain(self._get_approval_sync_verb(state))
+            granted[state] = set(
+                self.sudo().with_context(active_test=False).filtered_domain(domain)._ids
+            )
+        return granted
+
+    def _is_approval_verb_granted(self, state):
+        return self._get_approval_sync_verb(state) in self._get_approval_granted_verbs()
+
+    def _get_approval_granted_verbs(self):
+        """The verbs whose rows state who may make the move, rather than the
+        moves `_get_next_states_by_state` lists."""
+        return ("reset", "approve", "validate", "refuse")
 
     def _state_labels(self):
         """The Status selection as ``{value: translated label}``."""
@@ -69,20 +94,26 @@ class MixinHrLeaveApproval(models.AbstractModel):
     def _approval_update_needs_write_access(self, state):
         return True
 
-    def _get_approval_update_error(self, state, next_states):
+    def _get_approval_update_error(self, state, next_states, granted=None):
         self.check_singleton()
         if self.state == state:
             return self.env._("You can't do the same action twice.")
         if error := self._get_approval_precheck_error(state):
             return error
-        if state not in next_states.get(self.state, ()):
+        if self._is_approval_verb_granted(state):
+            if granted is None:
+                granted = self._get_approval_granted_ids((state,))
+            allowed = self.id in granted[state]
+        else:
+            allowed = state in next_states.get(self.state, ())
+        if not allowed:
             return self._get_approval_transition_error(
                 state, self.employee_id.leave_manager_id == self.env.user
             )
         return ""
 
-    def _is_approval_update_allowed(self, state, next_states):
-        if self._get_approval_update_error(state, next_states):
+    def _is_approval_update_allowed(self, state, next_states, granted=None):
+        if self._get_approval_update_error(state, next_states, granted):
             return False
         if not self._approval_update_needs_write_access(state):
             return True

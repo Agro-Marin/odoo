@@ -25,4 +25,46 @@
         <field name="origin">module</field>
     </record>
 
+    <record id="obligation_synced_reset" model="approval.binding">
+        <field name="model_id" ref="model_approval_test_synced_document" />
+        <field name="verb">reset</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_synced_submit" model="approval.binding">
+        <field name="model_id" ref="model_approval_test_synced_document" />
+        <field name="verb">submit</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_synced_approve_first" model="approval.binding">
+        <field name="model_id" ref="model_approval_test_synced_document" />
+        <field name="verb">approve_first</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_synced_approve" model="approval.binding">
+        <field name="model_id" ref="model_approval_test_synced_document" />
+        <field name="verb">approve</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_synced_refuse" model="approval.binding">
+        <field name="model_id" ref="model_approval_test_synced_document" />
+        <field name="verb">refuse</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
+    <record id="obligation_synced_cancel" model="approval.binding">
+        <field name="model_id" ref="model_approval_test_synced_document" />
+        <field name="verb">cancel</field>
+        <field name="mode">act_decides</field>
+        <field name="origin">module</field>
+    </record>
+
 </odoo>

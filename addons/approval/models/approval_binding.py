@@ -4,6 +4,7 @@ import inspect
 import logging
 
 from odoo import SUPERUSER_ID, api, fields, models
+from odoo.api import MODULE_UNINSTALL_FLAG
 from odoo.exceptions import UserError, ValidationError
 from odoo.tools import ormcache
 
@@ -105,6 +106,7 @@ class ApprovalBinding(models.Model):
             ("advise", "Observe"),
             ("block", "Block"),
             ("request", "Request"),
+            ("act_decides", "The Move Decides"),
         ],
         default="advise",
         required=True,
@@ -121,7 +123,11 @@ class ApprovalBinding(models.Model):
         • Request: the call raises an approval instead of running. With Run On
           Approval, the operation then runs once the request is approved --
           exactly once, and as the person who called it; without it, approval
-          only clears the gate for the next call.""",
+          only clears the gate for the next call.
+        • The Move Decides: a document whose state is its approval (time off,
+          an allocation, an expense) ships it on each verb of its state: the
+          person who moves the state has decided the request, which follows.
+          Nothing is refused or asked by it; it is not an operator's switch.""",
     )
     sudo_policy = fields.Selection(
         selection=[
@@ -281,6 +287,8 @@ class ApprovalBinding(models.Model):
                         name=binding.name,
                     ),
                 )
+            if binding.mode == "act_decides":
+                binding._check_move_decides(model)
             if binding.verb:
                 binding._check_verb_declared(model)
             elif binding.method:
@@ -302,7 +310,7 @@ class ApprovalBinding(models.Model):
             if binding.subject_domain:
                 binding._check_domain_against_model(model)
             if (
-                binding.mode != "advise"
+                binding.mode not in ("advise", "act_decides")
                 and not binding.category_id
                 and not binding._is_document_obligation()
             ):
@@ -409,6 +417,35 @@ class ApprovalBinding(models.Model):
                         action=self.action_id.name,
                     ),
                 )
+
+    def _check_move_decides(self, model) -> None:
+        """A move decides only on a document whose state is its approval, and only
+        through a verb that is that state's move."""
+        self.check_singleton()
+        verb = self.env.registry.model_verbs.get(model._name, {}).get(self.verb or "")
+        synced = isinstance(model, self.env.registry["mixin.approval.state.sync"])
+        if not (
+            synced
+            and verb is not None
+            and verb.transition is not None
+            and verb.transition[0] == model._get_approval_sync_state_field()
+            and not self.category_id
+            and not self.subject_domain
+        ):
+            trace.REFUSAL.event(
+                "move_decides_elsewhere",
+                binding=self.id,
+                model=model._name,
+                verb=self.verb or None,
+            )
+            raise ValidationError(
+                self.env._(
+                    "%(name)s: a move decides only a document whose state is its "
+                    "approval, through a verb that moves that state, with no "
+                    "category or condition of its own.",
+                    name=self.name,
+                ),
+            )
 
     def _check_verb_declared(self, model) -> None:
         self.check_singleton()
@@ -1053,6 +1090,7 @@ class ApprovalBinding(models.Model):
         return bindings
 
     def write(self, vals):
+        self._check_move_decides_kept(vals)
         if {"model_id", "method", "verb", "action_id"} & vals.keys():
             self._check_target_unchanged_once_requested(vals)
         result = super().write(vals)
@@ -1090,7 +1128,32 @@ class ApprovalBinding(models.Model):
                     ),
                 )
 
+    def _check_move_decides_kept(self, vals=None) -> None:
+        """A shipped move-decides obligation is the document's own approval flow:
+        switching it off would leave requests nobody's move ever decides."""
+        if self.env.context.get(MODULE_UNINSTALL_FLAG):
+            return
+        frozen = ("mode", "active", "verb", "model_id")
+        for binding in self.filtered(lambda binding: binding.mode == "act_decides"):
+            if vals is not None and not any(
+                field in vals
+                and vals[field]
+                != binding._fields[field].convert_to_write(binding[field], binding)
+                for field in frozen
+            ):
+                continue
+            trace.REFUSAL.event("move_decides_switched_off", binding=binding.id)
+            raise UserError(
+                self.env._(
+                    "%(binding)s is how %(model)s's state decides its approval "
+                    "request; it cannot be switched off, retargeted or deleted.",
+                    binding=binding.name,
+                    model=binding.model_id.name,
+                ),
+            )
+
     def unlink(self):
+        self._check_move_decides_kept()
         result = super().unlink()
         self.env.registry.clear_cache()
         return result
@@ -1465,7 +1528,9 @@ class ApprovalBinding(models.Model):
         A shipped obligation is the code gate it replaces, which the kill switch
         never reached; the configured bindings keep answering to it.
         """
-        bindings = self._bindings_for_verb(model_name, verb)
+        bindings = self._bindings_for_verb(model_name, verb).filtered(
+            lambda binding: binding.mode != "act_decides"
+        )
         if not bindings:
             return bindings, bindings
         own = bindings.filtered(lambda binding: binding._is_document_obligation())
@@ -1473,6 +1538,14 @@ class ApprovalBinding(models.Model):
         if configured and not self._enabled():
             configured = configured.browse()
         return own[:1], configured
+
+    @api.model
+    def _move_decides(self, model_name: str, verb: str) -> bool:
+        """Whether moving a document into `verb`'s state is the request's decision."""
+        return any(
+            binding.mode == "act_decides"
+            for binding in self._bindings_for_verb(model_name, verb)
+        )
 
     def _hold_document_at_door(self, records, verb: str, run):
         """A document asks its own approval at the verb's door, as its code gate did."""
