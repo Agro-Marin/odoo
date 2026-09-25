@@ -11,13 +11,13 @@ from odoo.addons.base.tests.common import HttpCaseWithUserDemo, HttpCaseWithUser
 
 
 class TestAuthSignupFlow(HttpCaseWithUserPortal, HttpCaseWithUserDemo):
-    def setUp(self):
-        super().setUp()
-        res_config = self.env["res.config.settings"]
-        self.default_values = res_config.default_get(list(res_config.fields_get()))
-
     def _activate_free_signup(self):
-        self.default_values.update({"auth_signup_uninvited": "b2c"})
+        self.env["ir.config_parameter"].sudo().set_param(
+            "auth_signup.invitation_scope", "b2c"
+        )
+        # once website is loaded its per-website field wins over the parameter
+        if "website" in self.env:
+            self.env["website"].sudo().search([]).auth_signup_uninvited = "b2c"
 
     def _get_free_signup_url(self):
         return "/web/signup"
@@ -67,7 +67,13 @@ class TestAuthSignupFlow(HttpCaseWithUserPortal, HttpCaseWithUserDemo):
             # Call the controller
             url_free_signup = self._get_free_signup_url()
             response = self.url_open(url_free_signup, data=payload)
-            self.assertIn("/web/login_successful?account_created=True", response.url)
+            # a new account is a portal user, whom portal sends to /my
+            landing = (
+                "/my"
+                if "mixin.portal" in self.env
+                else "/web/login_successful?account_created=True"
+            )
+            self.assertIn(landing, response.url)
             # Check if an email is sent to the new user
             new_user = self.env["res.users"].search([("name", "=", name)])
             self.assertTrue(new_user)
