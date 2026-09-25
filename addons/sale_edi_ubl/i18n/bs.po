@@ -19,12 +19,6 @@ msgstr ""
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2;\n"
 
 #. module: sale_edi_ubl
-#. odoo-python
-#: code:addons/sale_edi_ubl/models/sale_edi_xml_ubl_bis3.py:0
-msgid "Could not retrieve the product named: %(name)s"
-msgstr ""
-
-#. module: sale_edi_ubl
 #: model:ir.model.fields,field_description:sale_edi_ubl.field_product_product__display_name
 #: model:ir.model.fields,field_description:sale_edi_ubl.field_sale_edi_xml_ubl_bis3__display_name
 #: model:ir.model.fields,field_description:sale_edi_ubl.field_sale_order__display_name
@@ -51,10 +45,4 @@ msgstr ""
 #. module: sale_edi_ubl
 #: model:ir.model,name:sale_edi_ubl.model_sale_order
 msgid "Sales Order"
-msgstr ""
-
-#. module: sale_edi_ubl
-#. odoo-python
-#: code:addons/sale_edi_ubl/models/sale_order.py:0
-msgid "Some information could not be imported:"
 msgstr ""

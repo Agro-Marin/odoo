@@ -23,12 +23,6 @@ msgstr ""
 "X-Generator: Weblate 5.12.2\n"
 
 #. module: purchase_edi_ubl_bis3
-#. odoo-python
-#: code:addons/purchase_edi_ubl_bis3/models/purchase_edi_xml_ubl_bis3.py:0
-msgid "Could not retrieve the product named: %(name)s"
-msgstr "Adı verilen ürün alınamadı: %(name)s"
-
-#. module: purchase_edi_ubl_bis3
 #: model:ir.model.fields,field_description:purchase_edi_ubl_bis3.field_purchase_edi_xml_ubl_bis3__display_name
 #: model:ir.model.fields,field_description:purchase_edi_ubl_bis3.field_purchase_order__display_name
 msgid "Display Name"
@@ -49,12 +43,6 @@ msgstr "Satınalma Siparişi"
 #: model:ir.model,name:purchase_edi_ubl_bis3.model_purchase_edi_xml_ubl_bis3
 msgid "Purchase UBL BIS Ordering 3.5"
 msgstr "UBL BIS Ordering 3.5 Satın Alın"
-
-#. module: purchase_edi_ubl_bis3
-#. odoo-python
-#: code:addons/purchase_edi_ubl_bis3/models/purchase_order.py:0
-msgid "Some information could not be imported:"
-msgstr "Bazı bilgiler içe aktarılamadı:"
 
 #~ msgid "Discount"
 #~ msgstr "İndirim"

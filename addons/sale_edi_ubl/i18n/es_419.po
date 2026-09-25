@@ -22,12 +22,6 @@ msgstr ""
 "X-Generator: Weblate 5.12.2\n"
 
 #. module: sale_edi_ubl
-#. odoo-python
-#: code:addons/sale_edi_ubl/models/sale_edi_xml_ubl_bis3.py:0
-msgid "Could not retrieve the product named: %(name)s"
-msgstr "No pudimos recuperar el producto llamado %(name)s"
-
-#. module: sale_edi_ubl
 #: model:ir.model.fields,field_description:sale_edi_ubl.field_product_product__display_name
 #: model:ir.model.fields,field_description:sale_edi_ubl.field_sale_edi_xml_ubl_bis3__display_name
 #: model:ir.model.fields,field_description:sale_edi_ubl.field_sale_order__display_name
@@ -55,12 +49,6 @@ msgstr "Órdenes de venta BIS 3.5"
 #: model:ir.model,name:sale_edi_ubl.model_sale_order
 msgid "Sales Order"
 msgstr "Orden de venta"
-
-#. module: sale_edi_ubl
-#. odoo-python
-#: code:addons/sale_edi_ubl/models/sale_order.py:0
-msgid "Some information could not be imported:"
-msgstr "No pudimos importar parte de la información:"
 
 #~ msgid "Discount"
 #~ msgstr "Descuento"

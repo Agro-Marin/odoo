@@ -14,6 +14,6 @@ File with embedded xml data will allow seller to retrieve Order data from Files.
     "license": "LGPL-3",
     "depends": [
         "sale",
-        "account_edi_ubl_cii",
+        "trade_edi_ubl",
     ],
 }

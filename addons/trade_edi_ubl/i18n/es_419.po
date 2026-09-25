@@ -1,0 +1,34 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * trade_edi_ubl
+#
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Patricia Gutiérrez (pagc)" <pagc@odoo.com>, 2025.
+# "Fernanda Alvarez (mfar)" <mfar@odoo.com>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 18.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-25 18:36+0000\n"
+"PO-Revision-Date: 2025-10-30 17:20+0000\n"
+"Last-Translator: \"Fernanda Alvarez (mfar)\" <mfar@odoo.com>\n"
+"Language-Team: Spanish (Latin America) <https://translate.odoo.com/projects/"
+"odoo-19/sale_edi_ubl/es_419/>\n"
+"Language: es_419\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: trade_edi_ubl
+#. odoo-python
+#: code:addons/trade_edi_ubl/models/trade_edi_xml_ubl_bis3.py:0
+msgid "Could not retrieve the product named: %(name)s"
+msgstr "No pudimos recuperar el producto llamado %(name)s"
+
+#. module: trade_edi_ubl
+#. odoo-python
+#: code:addons/trade_edi_ubl/models/mixin_order.py:0
+msgid "Some information could not be imported:"
+msgstr "No pudimos importar parte de la información:"

@@ -25,13 +25,6 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 #. module: sale_edi_ubl
-#. odoo-python
-#: code:addons/sale_edi_ubl/models/sale_edi_xml_ubl_bis3.py:0
-#, fuzzy
-msgid "Could not retrieve the product named: %(name)s"
-msgstr "%(name)s nomli mahsulotni olish imkonsiz"
-
-#. module: sale_edi_ubl
 #: model:ir.model.fields,field_description:sale_edi_ubl.field_product_product__display_name
 #: model:ir.model.fields,field_description:sale_edi_ubl.field_sale_edi_xml_ubl_bis3__display_name
 #: model:ir.model.fields,field_description:sale_edi_ubl.field_sale_order__display_name
@@ -64,10 +57,3 @@ msgstr "Sotish BIS buyurtmasi 3.5"
 #, fuzzy
 msgid "Sales Order"
 msgstr "Sotish buyurtmasi"
-
-#. module: sale_edi_ubl
-#. odoo-python
-#: code:addons/sale_edi_ubl/models/sale_order.py:0
-#, fuzzy
-msgid "Some information could not be imported:"
-msgstr "Ba'zi ma'lumotlarni import qilib bo‘lmadi:"

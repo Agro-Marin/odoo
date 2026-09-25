@@ -11,7 +11,7 @@ receiver to retrieve the PDF with only the xml file.
     "license": "LGPL-3",
     "depends": [
         "purchase",
-        "account_edi_ubl_cii",
+        "trade_edi_ubl",
     ],
     "auto_install": True,
 }
