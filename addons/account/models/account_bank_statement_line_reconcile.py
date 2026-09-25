@@ -128,19 +128,6 @@ class AccountBankStatementLine(models.Model):
             },
         )
 
-    _PARTNER_MATCH_RANKS = {
-        "bank_account": (
-            "account_matching_partner_with_company",
-            "account_matching_partner_without_company",
-        ),
-        "partner_name": (
-            "full_name_matching_partner_with_company",
-            "full_name_matching_partner_without_company",
-            "partial_name_matching_partner_with_company",
-            "partial_name_matching_partner_without_company",
-        ),
-    }
-
     def create_document_from_attachment(self, attachment_ids):
         statement_line = self.browse(self.env.context.get("statement_line_id"))
 
@@ -166,14 +153,6 @@ class AccountBankStatementLine(models.Model):
             invoices.action_activate_currency()
 
         return invoices._get_records_action()
-
-    @_debug.perf.timed
-    def action_unreconcile_entry(self):
-        _debug.lifecycle("action_unreconcile_entry", records=self)
-        self.check_singleton()
-
-        _liquidity_lines, _suspense_lines, other_lines = self._seek_for_lines()
-        other_lines.remove_move_reconcile()
 
     @api.model_create_multi
     @_debug.perf.timed
@@ -208,10 +187,6 @@ class AccountBankStatementLine(models.Model):
                     index : index + AUTO_STATEMENT_PROCESSING_BATCH_SIZE
                 ]._try_auto_reconcile_statement_lines()
         return statement_lines
-
-    @api.deprecated("Use _format_statement_line_data instead")
-    def _format_transaction_details(self):
-        return self._format_statement_line_data()
 
     @_debug.perf.timed
     def _format_statement_line_data(self):
@@ -280,18 +255,28 @@ class AccountBankStatementLine(models.Model):
             line.debit = -line.amount if line.amount < 0.0 else 0.0
             line.credit = max(0.0, line.amount)
 
+    @api.model
+    def _normalize_debit_credit_vals(self, vals):
+        if "debit" not in vals and "credit" not in vals:
+            return vals
+        vals = dict(vals)
+        debit = vals.pop("debit", 0.0) or 0.0
+        credit = vals.pop("credit", 0.0) or 0.0
+        _debug.logic(
+            "debit_credit_vals_normalized",
+            debit=debit,
+            credit=credit,
+            amount_given="amount" in vals,
+        )
+        vals.setdefault("amount", credit - debit)
+        return vals
+
     @api.onchange("debit")
     def _inverse_debit(self):
         for line in self:
-            if line.debit:
-                line.credit = 0
-            if line.debit != line._origin.debit:
-                line.amount = line.credit - line.debit
+            line.amount = -line.debit or line.credit
 
     @api.onchange("credit")
     def _inverse_credit(self):
         for line in self:
-            if line.credit:
-                line.debit = 0
-            if line.credit != line._origin.credit:
-                line.amount = line.credit - line.debit
+            line.amount = line.credit or -line.debit

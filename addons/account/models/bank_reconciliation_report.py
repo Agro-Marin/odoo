@@ -523,9 +523,6 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
             select_from_groupby=SQL("%s AS grouping_key", groupby_field_sql),
             table_references=query.from_clause,
             search_condition=query.where_clause,
-            is_receipt=SQL("st_line.amount > 0")
-            if internal_type == "receipts"
-            else SQL("st_line.amount < 0"),
             is_unreconciled=SQL("AND st_line.is_reconciled IS NOT TRUE")
             if unreconciled
             else SQL(""),
@@ -927,7 +924,7 @@ class AccountBankReconciliationReportHandler(models.AbstractModel):
 
         if last_statement:
             lines_before_date_to = last_statement.line_ids.filtered(
-                lambda line: line.date <= report_date
+                lambda line: line.date <= report_date and line.state == "posted"
             )
             balance_end = last_statement.balance_start + sum(
                 lines_before_date_to.mapped("amount")

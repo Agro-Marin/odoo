@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 
 from odoo import SUPERUSER_ID, api, fields, models
 from odoo.libs.debug_log import DebugLog
@@ -180,11 +181,7 @@ class AccountReconcileModel(models.Model):
         self, residual_amount_currency, residual_balance, partner, st_line
     ):
         self.check_singleton()
-        currency = (
-            st_line.foreign_currency_id
-            or st_line.journal_id.currency_id
-            or st_line.company_currency_id
-        )
+        currency = st_line._get_transaction_currency()
         vals_list = []
         for line in self.line_ids:
             vals = line._apply_in_bank_widget(
@@ -278,7 +275,9 @@ class AccountReconcileModel(models.Model):
         }
 
     @_debug.perf.timed
-    def _apply_reconcile_models(self, statement_lines):
+    def _apply_reconcile_models(
+        self, statement_lines, winners=None, auto_reconcile_models=None
+    ):
         if not self or not statement_lines:
             return
         prof = _OrmProfile(_logger)
@@ -288,6 +287,8 @@ class AccountReconcileModel(models.Model):
             [
                 "journal_id",
                 "amount",
+                "amount_currency",
+                "foreign_currency_id",
                 "amount_residual",
                 "transaction_details",
                 "payment_ref",
@@ -338,7 +339,12 @@ class AccountReconcileModel(models.Model):
                       AND SIGN(st_line.amount) > 0
                       AND SIGN(st_line.amount_residual) > 0
                       AND ABS(st_line.amount_residual)
-                          < %(fee_share)s * st_line.amount / (1 + %(fee_share)s)
+                          < %(fee_share)s
+                            * CASE WHEN st_line.foreign_currency_id IS NULL
+                                   THEN st_line.amount
+                                   ELSE st_line.amount_currency
+                              END
+                            / (1 + %(fee_share)s)
                  ) AS model_fees ON TRUE
            WHERE st_line.id = ANY(%(statement_lines)s)
         """,
@@ -367,10 +373,40 @@ class AccountReconcileModel(models.Model):
             )
 
         processed_st_line_ids = set()
+        manual_lines_per_model = defaultdict(list)
+        acting_user = self.env.user
         for st_line_id, reco_model_id, reco_model_trigger in query_result:
             if st_line_id in processed_st_line_ids or reco_model_id is None:
                 continue
+            processed_st_line_ids.add(st_line_id)
+            if winners is not None and reco_model_id not in winners.ids:
+                _debug.logic(
+                    "reco_model_outranked",
+                    automatch=st_line_id,
+                    reco_model_id=reco_model_id,
+                    winners=winners,
+                )
+                continue
 
+            _debug.logic(
+                "reco_model",
+                automatch=st_line_id,
+                reco_model_id=reco_model_id,
+                trigger=reco_model_trigger,
+            )
+            may_auto_reconcile = (
+                auto_reconcile_models is None
+                or reco_model_id in auto_reconcile_models.ids
+            )
+            if reco_model_trigger == "manual" or not may_auto_reconcile:
+                _debug.logic(
+                    "reco_model_proposed",
+                    automatch=st_line_id,
+                    reco_model_id=reco_model_id,
+                    held_back_from_auto_reconcile=reco_model_trigger != "manual",
+                )
+                manual_lines_per_model[reco_model_id].append(st_line_id)
+                continue
             st_line = (
                 self.env["account.bank.statement.line"]
                 .browse(st_line_id)
@@ -381,23 +417,17 @@ class AccountReconcileModel(models.Model):
                 .browse(reco_model_id)
                 .with_prefetch(self.ids)
             )
-
-            _debug.logic(
-                "reco_model",
-                automatch=st_line_id,
-                reco_model_id=reco_model_id,
-                trigger=reco_model_trigger,
+            reco_model.with_user(SUPERUSER_ID)._trigger_reconciliation_model(
+                st_line.with_user(SUPERUSER_ID), activity_user=acting_user
             )
-            if reco_model_trigger == "manual":
-                st_line._action_manual_reco_model(reco_model_id)
-            else:
-                reco_model.with_user(SUPERUSER_ID)._trigger_reconciliation_model(
-                    st_line.with_user(SUPERUSER_ID)
-                )
-            processed_st_line_ids.add(st_line_id)
+
+        for reco_model_id, st_line_ids in manual_lines_per_model.items():
+            self.env["account.bank.statement.line"].browse(
+                st_line_ids
+            )._action_manual_reco_model(reco_model_id)
 
     @_debug.perf.timed
-    def _trigger_reconciliation_model(self, statement_line):
+    def _trigger_reconciliation_model(self, statement_line, activity_user=None):
         self.check_singleton()
         liquidity_line, suspense_line, other_lines = statement_line._seek_for_lines()
 
@@ -439,7 +469,7 @@ class AccountReconcileModel(models.Model):
         if self.next_activity_type_id:
             statement_line.move_id.activity_schedule(
                 activity_type_id=self.next_activity_type_id.id,
-                user_id=self.env.user.id,
+                user_id=(activity_user or self.env.user).id,
             )
 
     def trigger_reconciliation_model(self, statement_line_id):
@@ -465,30 +495,41 @@ class AccountReconcileModel(models.Model):
 
     def _clear_statement_line_proposals(self, statement_lines):
         if not statement_lines:
-            return
-        move_lines = self.env["account.move.line"].search(
-            [
-                ("reconcile_model_id", "in", self.ids),
-                ("move_id.statement_line_id", "in", statement_lines.ids),
-            ]
+            return statement_lines
+        suspense_lines = (
+            self.env["account.move.line"]
+            .search(
+                [
+                    ("reconcile_model_id", "in", self.ids),
+                    ("move_id.statement_line_id", "in", statement_lines.ids),
+                ]
+            )
+            .filtered(
+                lambda line: (
+                    line.account_id == line.move_id.journal_id.suspense_account_id
+                )
+            )
         )
-        move_lines.filtered(
-            lambda line: line.account_id == line.move_id.journal_id.suspense_account_id
-        ).reconcile_model_id = False
+        suspense_lines.reconcile_model_id = False
+        return suspense_lines.move_id.statement_line_id
 
     def _refresh_statement_line_proposals(self):
         statement_lines = self._get_unreconciled_statement_lines()
         if not statement_lines:
             return
+        freed_lines = self._clear_statement_line_proposals(statement_lines)
+        company_models = self.search(self._check_company_domain(self.company_id))
         _debug.pipeline(
             "_refresh_statement_line_proposals_over_line",
             models=self,
+            company_models=company_models,
             statement_lines_count=len(statement_lines),
+            freed_lines_count=len(freed_lines),
         )
-        self._clear_statement_line_proposals(statement_lines)
-        active_models = self.filtered("active")
-        if active_models:
-            active_models._apply_reconcile_models(statement_lines)
+        company_models._apply_reconcile_models(freed_lines, auto_reconcile_models=self)
+        company_models._apply_reconcile_models(
+            statement_lines - freed_lines, winners=self.filtered("active")
+        )
 
     @_debug.perf.timed
     def write(self, vals):

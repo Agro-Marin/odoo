@@ -50,11 +50,7 @@ class AccountReconcileModelLine(models.Model):
     ):
         self.check_singleton()
 
-        currency = (
-            st_line.foreign_currency_id
-            or st_line.journal_id.currency_id
-            or st_line.company_currency_id
-        )
+        currency = st_line._get_transaction_currency()
         if self.amount_type == "percentage":
             amount_currency = currency.round(
                 residual_amount_currency * (self.amount / 100.0)
@@ -65,7 +61,9 @@ class AccountReconcileModelLine(models.Model):
         elif self.amount_type == "fixed":
             sign = 1 if residual_amount_currency > 0.0 else -1
             amount_currency = currency.round(self.amount * sign)
-            balance = st_line.company_currency_id.round(self.amount * sign)
+            balance = st_line._prepare_counterpart_amounts_using_st_line_rate(
+                currency, None, amount_currency
+            )["balance"]
         else:
             raise UserError(
                 self.env._(
@@ -96,11 +94,7 @@ class AccountReconcileModelLine(models.Model):
         self, residual_amount_currency, residual_balance, partner, st_line
     ):
         self.check_singleton()
-        currency = (
-            st_line.foreign_currency_id
-            or st_line.journal_id.currency_id
-            or st_line.company_currency_id
-        )
+        currency = st_line._get_transaction_currency()
 
         aml_values = {"currency_id": currency.id}
 
@@ -113,7 +107,7 @@ class AccountReconcileModelLine(models.Model):
                 company_amount,
                 company_currency,
             ) = st_line._get_accounting_amounts_and_currencies()
-            aml_values["amount_currency"] = currency.round(
+            aml_values["amount_currency"] = journal_currency.round(
                 -journal_amount * self.amount / 100.0
             )
             aml_values["balance"] = company_currency.round(
@@ -121,11 +115,16 @@ class AccountReconcileModelLine(models.Model):
             )
             aml_values["currency_id"] = journal_currency.id
         elif self.amount_type == "regex":
-            aml_values["amount_currency"] = self._get_amount_currency_by_regex(
-                st_line, residual_amount_currency, self.amount_string
+            amount_currency = currency.round(
+                self._get_amount_currency_by_regex(
+                    st_line, residual_amount_currency, self.amount_string
+                )
             )
-            aml_values["balance"] = self._get_amount_currency_by_regex(
-                st_line, residual_balance, self.amount_string
+            aml_values["amount_currency"] = amount_currency
+            aml_values["balance"] = (
+                st_line._prepare_counterpart_amounts_using_st_line_rate(
+                    currency, None, amount_currency
+                )["balance"]
             )
 
         if "amount_currency" not in aml_values or "balance" not in aml_values:

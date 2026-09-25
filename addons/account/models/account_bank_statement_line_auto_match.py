@@ -1,6 +1,6 @@
 import logging
 
-from odoo import api, fields, models, modules, service
+from odoo import fields, models, modules, service
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
@@ -59,6 +59,8 @@ class AccountBankStatementLine(models.Model):
                         company_id
                     )
                 )
+            if self:
+                domain &= Domain("id", "in", self.ids)
             st_lines = self.search(domain, limit=limit, order="id")
             _logger.info(
                 "_cron_try_auto_reconcile_statement_lines found %s statement lines",
@@ -189,30 +191,49 @@ class AccountBankStatementLine(models.Model):
                 given_up += 1
         return given_up
 
-    @api.model
     def _get_unmatched_amounts(self):
-        # what the statement line still has to match, in the company
-        # currency and in the line's currency, after the earlier steps
         self.check_singleton()
         _liquidity_lines, suspense_lines, _other_lines = self._seek_for_lines()
+        (
+            transaction_amount,
+            transaction_currency,
+            journal_amount,
+            journal_currency,
+            company_amount,
+            company_currency,
+        ) = self._get_accounting_amounts_and_currencies()
         if not self.checked:
-            return self.amount, self.amount_currency or self.amount
+            return company_amount, journal_amount, transaction_amount
         if suspense_lines.account_id.reconcile:
-            return (
-                -sum(suspense_lines.mapped("amount_residual")),
-                -sum(suspense_lines.mapped("amount_residual_currency")),
+            company_unmatched = -sum(suspense_lines.mapped("amount_residual"))
+            transaction_unmatched = -sum(
+                suspense_lines.mapped("amount_residual_currency")
             )
-        return (
-            -sum(suspense_lines.mapped("balance")),
-            -sum(suspense_lines.mapped("amount_currency")),
-        )
+        else:
+            company_unmatched = -sum(suspense_lines.mapped("balance"))
+            transaction_unmatched = -sum(suspense_lines.mapped("amount_currency"))
+        if journal_currency == company_currency:
+            journal_unmatched = company_unmatched
+        elif journal_currency == transaction_currency:
+            journal_unmatched = transaction_unmatched
+        else:
+            journal_unmatched = journal_currency.round(
+                company_unmatched * journal_amount / company_amount
+                if company_amount
+                else 0.0
+            )
+        return company_unmatched, journal_unmatched, transaction_unmatched
 
     def _settles_residual(
-        self, amount, residual, discounted, discount_date, date, tolerance
+        self, currency, amount, residual, discounted, discount_date, date, tolerance
     ):
-        if residual == amount:
+        if currency.compare_amounts(residual, amount) == 0:
             return True
-        if discount_date and discounted == amount and date <= discount_date:
+        if (
+            discount_date
+            and currency.compare_amounts(discounted, amount) == 0
+            and date <= discount_date
+        ):
             return True
         return abs(amount - residual) <= tolerance * abs(residual)
 
@@ -220,31 +241,37 @@ class AccountBankStatementLine(models.Model):
     def _invoice_matching_post_process(self, st_line, amls):
         candidate_amls = self.env["account.move.line"]
         tolerance = self._get_payment_tolerance()
-        unmatched, unmatched_currency = st_line._get_unmatched_amounts()
+        company_unmatched, journal_unmatched, transaction_unmatched = (
+            st_line._get_unmatched_amounts()
+        )
         for aml in amls:
             readings = (
                 (
                     aml.company_currency_id == st_line.currency_id,
+                    aml.company_currency_id,
                     aml.amount_residual,
                     aml.discount_balance,
-                    unmatched,
+                    company_unmatched,
                 ),
                 (
                     aml.currency_id == st_line.currency_id,
+                    aml.currency_id,
                     aml.amount_residual_currency,
                     aml.discount_amount_currency,
-                    unmatched,
+                    journal_unmatched,
                 ),
                 (
                     aml.currency_id == st_line.foreign_currency_id,
+                    aml.currency_id,
                     aml.amount_residual_currency,
                     aml.discount_amount_currency,
-                    unmatched_currency,
+                    transaction_unmatched,
                 ),
             )
             if any(
                 applies
                 and self._settles_residual(
+                    currency,
                     amount,
                     residual,
                     discounted,
@@ -252,7 +279,7 @@ class AccountBankStatementLine(models.Model):
                     st_line.date,
                     tolerance,
                 )
-                for applies, residual, discounted, amount in readings
+                for applies, currency, residual, discounted, amount in readings
             ):
                 candidate_amls += aml
 
@@ -292,7 +319,6 @@ class AccountBankStatementLine(models.Model):
                    AND aml.company_id = st_line.company_id
                    AND SIGN(st_line.amount) = SIGN(aml.balance)
                        %s
-                  JOIN account_move move ON aml.move_id = move.id
                  WHERE st_line.partner_id IS NOT NULL
                    AND aml.move_id != ALL(%s)
                    AND aml.reconciled = false
@@ -311,8 +337,11 @@ class AccountBankStatementLine(models.Model):
 
         for st_line_id, all_aml_ids, total_residual in self.env.cr.fetchall():
             st_line = self.browse(st_line_id).with_prefetch(self._prefetch_ids)
-            unmatched, _unmatched_currency = st_line._get_unmatched_amounts()
-            exact = st_line.currency_id.compare_amounts(total_residual, unmatched) == 0
+            unmatched = st_line._get_unmatched_amounts()[0]
+            exact = (
+                st_line.company_currency_id.compare_amounts(total_residual, unmatched)
+                == 0
+            )
             _debug.logic(
                 "matching",
                 automatch=st_line_id,
@@ -339,7 +368,7 @@ class AccountBankStatementLine(models.Model):
                         st_line.id,
                         candidate_amls.ids,
                     )
-            if st_line.currency_id.is_zero(st_line.amount_residual):
+            if st_line._get_transaction_currency().is_zero(st_line.amount_residual):
                 processed_st_line_ids.add(st_line.id)
         return processed_st_line_ids
 

@@ -12,22 +12,33 @@ class AccountBankStatementLine(models.Model):
         self, open_balance, open_amount_currency, is_same_currency
     ):
         self.check_singleton()
-        currency = (
-            self.foreign_currency_id
-            or self.currency_id
-            or self.journal_id.currency_id
-            or self.company_id.currency_id
+        transaction_currency = self._get_transaction_currency()
+        has_own_rate = bool(
+            self.amount and (self.amount_currency or not self.foreign_currency_id)
+        )
+        if is_same_currency:
+            amount_currency = -open_amount_currency
+        elif has_own_rate:
+            amount_currency = self._prepare_counterpart_amounts_using_st_line_rate(
+                self.company_currency_id, -open_balance, -open_balance
+            )["amount_currency"]
+        else:
+            amount_currency = self.company_currency_id._convert(
+                -open_balance, transaction_currency, self.company_id, self.date
+            )
+        _debug.logic(
+            "counterpart_amount_currency",
+            stline=self,
+            same_currency=is_same_currency,
+            own_rate=has_own_rate,
+            amount_currency=amount_currency,
         )
         return {
             "name": self.payment_ref,
             "account_id": self.journal_id.suspense_account_id.id,
             "balance": -open_balance,
-            "currency_id": currency.id,
-            "amount_currency": -open_amount_currency
-            if is_same_currency
-            else currency.round(
-                -open_balance * currency.with_company(self.company_id).rate
-            ),
+            "currency_id": transaction_currency.id,
+            "amount_currency": amount_currency,
         }
 
     @_debug.perf.timed
@@ -377,11 +388,6 @@ class AccountBankStatementLine(models.Model):
 
         move_line_to_edit = self.env["account.move.line"].browse(move_line_id)
 
-        if record_data.get("account_id"):
-            move_line_to_edit.analytic_line_ids.with_context(
-                skip_analytic_sync=True
-            ).unlink()
-
         if (
             _debug.logic.enabled
             and move_line_to_edit.tax_line_id
@@ -398,6 +404,11 @@ class AccountBankStatementLine(models.Model):
             record_data.get(key) for key in ["tax_ids", "partner_id", "account_id"]
         ):
             return
+
+        if record_data.get("account_id"):
+            move_line_to_edit.analytic_line_ids.with_context(
+                skip_analytic_sync=True
+            ).unlink()
 
         exchange_line = self.env["account.move.line"]
         if (

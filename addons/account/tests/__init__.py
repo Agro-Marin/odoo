@@ -82,6 +82,7 @@ from . import test_marin_payment_audit
 from . import test_marin_payment_receipt_report
 from . import test_marin_taxes_country_constraint
 from . import test_marin_wizard_audit
+from . import test_marin_bank_rec_fixes
 from . import test_marin_journal_account_fixes
 from . import test_marin_payment_fixes
 from . import test_marin_reconcile_wizard_fixes

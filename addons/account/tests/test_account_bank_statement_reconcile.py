@@ -3393,7 +3393,7 @@ class TestAccountBankStatement(TestBankRecWidgetCommon):
                 },
                 {
                     "account_id": st_line.journal_id.suspense_account_id.id,
-                    "amount_currency": 95.0,
+                    "amount_currency": 101.0,
                     "currency_id": other_currency.id,
                     "balance": 10.0,
                     "reconciled": False,

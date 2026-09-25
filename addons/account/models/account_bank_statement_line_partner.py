@@ -10,6 +10,19 @@ _debug = DebugLog(__name__)
 class AccountBankStatementLine(models.Model):
     _inherit = "account.bank.statement.line"
 
+    _PARTNER_MATCH_RANKS = {
+        "bank_account": (
+            "account_matching_partner_with_company",
+            "account_matching_partner_without_company",
+        ),
+        "partner_name": (
+            "full_name_matching_partner_with_company",
+            "full_name_matching_partner_without_company",
+            "partial_name_matching_partner_with_company",
+            "partial_name_matching_partner_without_company",
+        ),
+    }
+
     @api.model
     def _first_unambiguous_partner(self, row, ranks):
         for bucket in ranks:

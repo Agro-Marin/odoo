@@ -1,4 +1,7 @@
 from odoo import fields, models
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
 
 
 class AccountBankAutoReconcileWizard(models.TransientModel):
@@ -43,22 +46,42 @@ class AccountBankAutoReconcileWizard(models.TransientModel):
                 ("state", "!=", "cancel"),
             ]
         )
-        # Deliberately not `_try_auto_reconcile_statement_lines` directly: that
-        # one works on the whole recordset and one raising line aborts the lot.
-        # `retire=False` because stamping `cron_last_check` is the CRON's
-        # bookkeeping -- see the helper's docstring.
-        st_lines._auto_reconcile_isolating_failures(
-            company_id=self.company_id.id, retire=False
+        try:
+            with self.env.cr.savepoint():
+                st_lines._try_auto_reconcile_statement_lines(
+                    company_id=self.company_id.id
+                )
+            given_up = 0
+        except Exception:
+            given_up = st_lines._auto_reconcile_isolating_failures(
+                company_id=self.company_id.id, retire=False
+            )
+        _debug.logic(
+            "auto_reconcile_wizard_ran",
+            journal=self.journal_id,
+            st_lines=st_lines,
+            given_up=given_up,
         )
+        if given_up:
+            notification_type = "warning"
+            message = self.env._(
+                "Automatic reconciliation finished on %(count)s transactions; "
+                "%(failed)s of them could not be processed.",
+                count=len(st_lines),
+                failed=given_up,
+            )
+        else:
+            notification_type = "success"
+            message = self.env._(
+                "Automatic reconciliation finished on %(count)s transactions.",
+                count=len(st_lines),
+            )
         return {
             "type": "ir.actions.client",
             "tag": "display_notification",
             "params": {
-                "type": "success",
-                "message": self.env._(
-                    "Automatic reconciliation finished on %(count)s transactions.",
-                    count=len(st_lines),
-                ),
+                "type": notification_type,
+                "message": message,
                 "next": {"type": "ir.actions.act_window_close"},
             },
         }

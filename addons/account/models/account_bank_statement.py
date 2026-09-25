@@ -141,11 +141,12 @@ class AccountBankStatement(models.Model):
         return self.line_ids.filtered("internal_index").sorted("internal_index")
 
     @_debug.perf.timed
-    def _get_balance_start(self, stmt):
-        journal_id = stmt.journal_id.id or stmt.line_ids.journal_id.id
+    def _get_balance_start(self):
+        self.check_singleton()
+        journal_id = self.journal_id.id or self.line_ids.journal_id.id
         previous_line_with_statement = self.env["account.bank.statement.line"].search(
             [
-                ("internal_index", "<", stmt.first_line_index),
+                ("internal_index", "<", self.first_line_index),
                 ("journal_id", "=", journal_id),
                 ("state", "=", "posted"),
                 ("statement_id", "!=", False),
@@ -155,7 +156,7 @@ class AccountBankStatement(models.Model):
         balance_start = previous_line_with_statement.statement_id.balance_end_real
 
         lines_in_between_domain = [
-            ("internal_index", "<", stmt.first_line_index),
+            ("internal_index", "<", self.first_line_index),
             ("journal_id", "=", journal_id),
             ("state", "=", "posted"),
         ]
@@ -165,7 +166,7 @@ class AccountBankStatement(models.Model):
             )
             previous_st_lines = previous_line_with_statement.statement_id.line_ids
             lines_in_common = previous_st_lines.filtered(
-                lambda line: line.id in stmt.line_ids._origin.ids
+                lambda line: line.id in self.line_ids._origin.ids
             )
             balance_start -= sum(lines_in_common.mapped("amount"))
 
@@ -174,7 +175,7 @@ class AccountBankStatement(models.Model):
         )
         _debug.pipeline(
             "balance_start_computed",
-            statement=stmt,
+            statement=self,
             journal=journal_id,
             previous_line=previous_line_with_statement,
             balance_start=balance_start,
@@ -185,7 +186,7 @@ class AccountBankStatement(models.Model):
     @api.depends("create_date")
     def _compute_balance_start(self):
         for stmt in self.sorted(lambda x: x.first_line_index or "0"):
-            stmt.balance_start = self._get_balance_start(stmt)
+            stmt.balance_start = stmt._get_balance_start()
 
     @api.depends("balance_start", "line_ids.amount", "line_ids.state")
     def _compute_balance_end(self):
@@ -226,9 +227,8 @@ class AccountBankStatement(models.Model):
         if len(self) == 1:
             self.is_valid = self._is_statement_valid()
         else:
-            invalids = self.filtered(
-                lambda s: s.id in self._get_invalid_statement_ids()
-            )
+            invalid_ids = set(self._get_invalid_statement_ids())
+            invalids = self.filtered(lambda s: s.id in invalid_ids)
             invalids.is_valid = False
             (self - invalids).is_valid = True
 

@@ -474,7 +474,10 @@ class AccountBankStatementLine(models.Model):
                 count=len(vals_list),
                 fields=sorted({key for vals in vals_list for key in vals}),
             )
-        prepared = [self._prepare_create_vals(vals) for vals in vals_list]
+        prepared = [
+            self._prepare_create_vals(self._normalize_debit_credit_vals(vals))
+            for vals in vals_list
+        ]
         st_lines = super(
             AccountBankStatementLine, self.with_context(is_statement_line=True)
         ).create([line_vals for line_vals, _account_id in prepared])
@@ -520,6 +523,7 @@ class AccountBankStatementLine(models.Model):
     @_debug.perf.timed
     def write(self, vals):
         _debug.lifecycle("write", records=self, fields=sorted(vals))
+        vals = self._normalize_debit_credit_vals(vals)
         res = super(
             AccountBankStatementLine, self.with_context(skip_readonly_check=True)
         ).write(vals)
@@ -709,6 +713,10 @@ class AccountBankStatementLine(models.Model):
             ("payment_id", "=", False),
             ("statement_line_id", "!=", self.id),
         ]
+
+    def _get_transaction_currency(self):
+        self.check_singleton()
+        return self.foreign_currency_id or self.currency_id
 
     def _get_accounting_amounts_and_currencies(self):
         self.check_singleton()

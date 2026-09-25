@@ -1,9 +1,12 @@
 import re
 
+import psycopg
+
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import parse_amount
+from odoo.tools import SQL, mute_logger
 
 _debug = DebugLog(__name__)
 
@@ -278,8 +281,15 @@ class AccountReconcileModel(models.Model):
                 )
             if record.match_label == "match_regex":
                 try:
-                    re.compile(record.match_label_param)
-                except re.error as err:
+                    re.compile(record.match_label_param, re.IGNORECASE)
+                    with (
+                        mute_logger("odoo.db.cursor"),
+                        self.env.cr.savepoint(flush=False),
+                    ):
+                        self.env.cr.execute(
+                            SQL("SELECT '' ~* %s", record.match_label_param)
+                        )
+                except (re.error, psycopg.errors.InvalidRegularExpression) as err:
                     _debug.logic(
                         "reco_model_rejected",
                         reco_model=record,

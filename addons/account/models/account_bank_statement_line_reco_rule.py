@@ -286,26 +286,3 @@ class AccountBankStatementLine(models.Model):
                 ],
             }
         )
-
-    def _is_company_amount_exceeded(
-        self, company_currency, cumulated_balance, company_amount
-    ):
-        return (
-            company_currency.compare_amounts(
-                abs(cumulated_balance), abs(company_amount)
-            )
-            > 0
-        )
-
-    def _will_company_amount_exceed(
-        self, company_currency, cumulated_balance, next_balance, company_amount
-    ):
-        return (
-            self._is_company_amount_exceeded(
-                company_currency, cumulated_balance, company_amount
-            )
-            and company_currency.compare_amounts(
-                abs(cumulated_balance + next_balance), abs(company_amount)
-            )
-            > 0
-        )
