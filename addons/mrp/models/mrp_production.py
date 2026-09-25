@@ -375,11 +375,21 @@ class MrpProduction(models.Model):
         compute="_compute_move_byproduct_ids",
         inverse="_inverse_move_byproduct_ids",
     )
+    # Stored so that a by-product's share written on the move itself, not
+    # through the order, is checked too: the recompute runs at flush, on the
+    # final shares. A constraint on `stock.move.cost_share` would instead see
+    # every intermediate state of a rebalancing edit (70/30 -> 30/70 writes
+    # one move first) and refuse it.
+    byproduct_cost_share = fields.Float(
+        string="By-products Cost Share (%)",
+        digits=0,
+        compute="_compute_byproduct_cost_share",
+        store=True,
+    )
     finished_move_line_ids = fields.One2many(
         comodel_name="stock.move.line",
         string="Finished Product",
         compute="_compute_finished_move_line_ids",
-        inverse="_inverse_finished_move_line_ids",
     )
     workorder_ids = fields.One2many(
         comodel_name="mrp.workorder",
@@ -606,45 +616,17 @@ class MrpProduction(models.Model):
 
     @api.depends("company_id", "bom_id")
     def _compute_picking_type_id(self):
-        picking_types = self.env["stock.picking.type"].search_read(
-            [
-                ("code", "=", "mrp_operation"),
-                ("warehouse_id.company_id", "in", self.company_id.ids),
-            ],
-            ["company_id"],
-            load=False,
-        )
-        picking_type_by_company = {}
-        for picking_type in picking_types:
-            picking_type_by_company.setdefault(
-                picking_type["company_id"], picking_type["id"]
-            )
-        default_picking_type_id = self.env.context.get("default_picking_type_id")
-        default_picking_type = default_picking_type_id and self.env[
-            "stock.picking.type"
-        ].browse(default_picking_type_id)
-        if not default_picking_type:
-            default_warehouse_id = self.env.context.get("force_warehouse_id")
-            default_picking_type = (
-                default_warehouse_id
-                and self.env["stock.warehouse"]
-                .browse(default_warehouse_id)
-                .manu_type_id
-            )
+        default_by_company = self._get_default_picking_type_by_company(self.company_id)
         companies_with_warehouse = None
         for mo in self:
-            if (
-                default_picking_type
-                and default_picking_type.company_id == mo.company_id
-            ):
-                mo.picking_type_id = default_picking_type
+            current = mo.picking_type_id.filtered(
+                lambda picking_type, mo=mo: picking_type.company_id == mo.company_id
+            )
+            picking_type = self._resolve_picking_type(mo.company_id, mo.bom_id, current)
+            if picking_type:
+                mo.picking_type_id = picking_type
                 continue
-            if mo.bom_id and mo.bom_id.picking_type_id:
-                mo.picking_type_id = mo.bom_id.picking_type_id
-                continue
-            if mo.picking_type_id and mo.picking_type_id.company_id == mo.company_id:
-                continue
-            mo.picking_type_id = picking_type_by_company.get(mo.company_id.id, False)
+            mo.picking_type_id = default_by_company.get(mo.company_id.id, False)
             if companies_with_warehouse is None:
                 companies_with_warehouse = {
                     company.id
@@ -655,12 +637,47 @@ class MrpProduction(models.Model):
             if mo.company_id.id not in companies_with_warehouse:
                 self.env["stock.warehouse"]._raise_missing_warehouse()
 
+    @api.model
+    def _resolve_picking_type(self, company, bom, fallback):
+        preferred = self._get_context_picking_type()
+        if preferred and preferred.company_id == company:
+            return preferred
+        return bom.picking_type_id or fallback
+
+    @api.model
+    def _get_context_picking_type(self):
+        PickingType = self.env["stock.picking.type"]
+        if picking_type_id := self.env.context.get("default_picking_type_id"):
+            picking_type = PickingType.browse(picking_type_id)
+        elif warehouse_id := self.env.context.get("force_warehouse_id"):
+            picking_type = self.env["stock.warehouse"].browse(warehouse_id).manu_type_id
+        else:
+            return PickingType
+        return picking_type.filtered(lambda t: t.code == "mrp_operation")
+
+    @api.model
+    def _get_default_picking_type_by_company(self, companies):
+        picking_types = self.env["stock.picking.type"].search_read(
+            [
+                ("code", "=", "mrp_operation"),
+                ("warehouse_id.company_id", "in", companies.ids),
+            ],
+            ["company_id"],
+            load=False,
+        )
+        picking_type_by_company = {}
+        for picking_type in picking_types:
+            picking_type_by_company.setdefault(
+                picking_type["company_id"], picking_type["id"]
+            )
+        return picking_type_by_company
+
     @api.depends("bom_id", "product_id")
     def _compute_product_uom_id(self):
         for production in self:
             if production.state != "draft":
                 continue
-            if production.bom_id and production._origin.bom_id != production.bom_id:
+            if production._is_bom_newly_set():
                 production.product_uom_id = production.bom_id.product_uom_id
             elif production.product_id:
                 production.product_uom_id = production.product_id.uom_id
@@ -817,11 +834,7 @@ class MrpProduction(models.Model):
     )
     def _compute_allowed_uom_ids(self):
         for production in self:
-            production.allowed_uom_ids = (
-                production.product_id.uom_id
-                | production.product_id.uom_ids
-                | production.product_id.bom_ids.product_uom_id
-            )
+            production.allowed_uom_ids = production.product_id._get_production_uoms()
 
     @api.depends("product_id", "never_product_template_attribute_value_ids")
     def _compute_bom_id(self):
@@ -833,19 +846,8 @@ class MrpProduction(models.Model):
             mo_by_company_id[mo.company_id.id] |= mo
 
         for company_id, productions in mo_by_company_id.items():
-            picking_type_id = self.env.context.get("default_picking_type_id")
-            picking_type = picking_type_id and self.env["stock.picking.type"].browse(
-                picking_type_id
-            )
-            boms_by_product = (
-                self.env["mrp.bom"]
-                .with_context(active_test=True)
-                ._get_bom_by_product(
-                    productions.product_id,
-                    picking_type=picking_type,
-                    company_id=company_id,
-                    bom_type="normal",
-                )
+            boms_by_product = self._get_boms_by_product(
+                productions.product_id, company_id
             )
             for production in productions:
                 if (
@@ -868,15 +870,34 @@ class MrpProduction(models.Model):
                         production._fields["picking_type_id"], production
                     )
 
+    @api.model
+    def _get_boms_by_product(self, products, company_id):
+        picking_type_id = self.env.context.get("default_picking_type_id")
+        return (
+            self.env["mrp.bom"]
+            .with_context(active_test=True)
+            ._get_bom_by_product(
+                products,
+                picking_type=picking_type_id
+                and self.env["stock.picking.type"].browse(picking_type_id),
+                company_id=company_id,
+                bom_type="normal",
+            )
+        )
+
     @api.depends("bom_id")
     def _compute_product_qty(self):
         for production in self:
             if production.state != "draft":
                 continue
-            if production.bom_id and production._origin.bom_id != production.bom_id:
+            if production._is_bom_newly_set():
                 production.product_qty = production.bom_id.product_qty
             elif not production.bom_id:
                 production.product_qty = 1.0
+
+    def _is_bom_newly_set(self):
+        self.check_singleton()
+        return bool(self.bom_id) and self._origin.bom_id != self.bom_id
 
     @api.depends(
         "product_id",
@@ -917,8 +938,7 @@ class MrpProduction(models.Model):
                 ),
                 default=False,
             )
-            if deadline:
-                production.date_deadline = deadline
+            production.date_deadline = deadline or production.date_deadline
 
     @api.depends("workorder_ids.duration_expected")
     def _compute_duration_expected(self):
@@ -932,7 +952,7 @@ class MrpProduction(models.Model):
         for production in self:
             production.duration = sum(production.workorder_ids.mapped("duration"))
 
-    @api.depends("workorder_ids.date_start", "workorder_ids.date_end", "date_start")
+    @api.depends("workorder_ids.date_start", "workorder_ids.date_end")
     def _compute_is_planned(self):
         for production in self:
             if production.workorder_ids:
@@ -1044,9 +1064,6 @@ class MrpProduction(models.Model):
         for production in self:
             production.show_final_lots = production.product_id.tracking != "none"
 
-    def _inverse_finished_move_line_ids(self):
-        pass
-
     @api.depends("move_finished_ids.move_line_ids")
     def _compute_finished_move_line_ids(self):
         for production in self:
@@ -1143,6 +1160,7 @@ class MrpProduction(models.Model):
         batch = self.with_context(
             bom_cost_share_cache=self.env["mrp.bom"]._get_explosion_scratch()
         )
+        deferred_workorder_vals = []
         for production in batch:
             if production.state != "draft":
                 continue
@@ -1150,14 +1168,21 @@ class MrpProduction(models.Model):
                 Command.link(wo.id)
                 for wo in production.workorder_ids.filtered(lambda wo: wo.ids)
             ]
-            relevant_boms = [
-                exploded_boms[0]
-                for exploded_boms in production.bom_id._explode(
+            exploded_boms = []
+            if (
+                production.bom_id
+                and production.product_id
+                and production.product_qty > 0
+            ):
+                exploded_boms, _dummy = production.bom_id._explode(
                     production.product_id,
-                    1.0,
+                    production.bom_id._get_explode_factor(
+                        production.product_qty, production.product_uom_id
+                    ),
                     picking_type=production.bom_id.picking_type_id,
-                )[0]
-            ]
+                    never_attribute_values=production.never_product_template_attribute_value_ids,
+                )
+            relevant_boms = [bom for bom, _bom_data in exploded_boms]
             deleted_workorders_ids = [
                 wo.id
                 for wo in production.workorder_ids
@@ -1180,21 +1205,8 @@ class MrpProduction(models.Model):
                 )
             ):
                 production.workorder_ids = [Command.clear()]
-            if (
-                production.bom_id
-                and production.product_id
-                and production.product_qty > 0
-            ):
+            if exploded_boms:
                 workorders_values = []
-                exploded_boms, _dummy = production.bom_id._explode(
-                    production.product_id,
-                    production.bom_id._get_explode_factor(
-                        production.product_qty, production.product_uom_id
-                    ),
-                    picking_type=production.bom_id.picking_type_id,
-                    never_attribute_values=production.never_product_template_attribute_value_ids,
-                )
-
                 for bom, bom_data in exploded_boms:
                     if not (
                         bom.operation_ids
@@ -1247,6 +1259,8 @@ class MrpProduction(models.Model):
                                 workorder_values,
                             )
                         ]
+                    elif isinstance(production.id, int):
+                        deferred_workorder_vals.append(workorder_values)
                     else:
                         workorders_list += [Command.create(workorder_values)]
                 production.workorder_ids = workorders_list
@@ -1257,6 +1271,7 @@ class MrpProduction(models.Model):
                         lambda wo: wo.operation_id
                     ).mapped("id")
                 ]
+        self._create_deferred_records("mrp.workorder", deferred_workorder_vals)
 
     @api.depends(
         "state",
@@ -1307,8 +1322,8 @@ class MrpProduction(models.Model):
     )
     def _compute_reservation_visibility(self):
         for order in self:
-            already_reserved = order.state not in ("done", "cancel") and order.mapped(
-                "move_raw_ids.move_line_ids"
+            already_reserved = order.state not in ("done", "cancel") and bool(
+                order.move_raw_ids.move_line_ids
             )
             any_quantity_done = any(order.move_raw_ids.mapped("picked"))
 
@@ -1333,14 +1348,10 @@ class MrpProduction(models.Model):
     )
     def _compute_qty_produced(self):
         for production in self:
-            done_moves = production.move_finished_ids.filtered_domain(
-                [
-                    ("state", "!=", "cancel"),
-                    ("product_id", "=", production.product_id.id),
-                ]
-            )
             production.qty_produced = sum(
-                done_moves.filtered(lambda m: m.picked).mapped("quantity")
+                production._get_main_finished_moves()
+                .filtered(lambda m: m.state != "cancel" and m.picked)
+                .mapped("quantity")
             )
 
     @api.depends("scrap_ids")
@@ -1355,14 +1366,20 @@ class MrpProduction(models.Model):
     @api.depends("move_finished_ids")
     def _compute_move_byproduct_ids(self):
         for order in self:
-            order.move_byproduct_ids = order.move_finished_ids.filtered_domain(
-                [("product_id", "!=", order.product_id.id)]
+            order.move_byproduct_ids = (
+                order.move_finished_ids - order._get_main_finished_moves()
             )
 
     def _get_main_finished_moves(self):
-        self.check_singleton()
-        return self.move_finished_ids.filtered_domain(
-            [("product_id", "=", self.product_id.id)]
+        return self.env["stock.move"].union(
+            *(
+                production.move_finished_ids.filtered(
+                    lambda move, product=production.product_id: (
+                        move.product_id == product
+                    )
+                )
+                for production in self
+            )
         )
 
     def _inverse_move_byproduct_ids(self):
@@ -1370,6 +1387,10 @@ class MrpProduction(models.Model):
             order.move_finished_ids = (
                 order._get_main_finished_moves() | order.move_byproduct_ids
             )
+
+    @api.onchange("move_byproduct_ids")
+    def _onchange_move_byproduct_ids(self):
+        self._inverse_move_byproduct_ids()
 
     @api.depends("state")
     @api.depends_context("uid")
@@ -1467,20 +1488,29 @@ class MrpProduction(models.Model):
 
     @api.depends(
         "bom_id.produce_delay",
-        "company_id",
         "date_start",
         "is_planned",
-        "product_id",
         "workorder_ids.duration_expected",
     )
     def _compute_date_end(self):
-        for production in self:
-            if (
-                not production.date_start
-                or production.is_planned
-                or production.state == "done"
-            ):
-                continue
+        dated = self.filtered(
+            lambda production: (
+                production.date_start
+                and not production.is_planned
+                and production.state != "done"
+            )
+        )
+        if len(dated) > 1:
+            dated = dated.with_context(
+                workcenter_slot_intervals=dated.workorder_ids.workcenter_id._prefetch_slot_intervals(
+                    [
+                        production.date_start
+                        + relativedelta(days=production.bom_id.produce_delay)
+                        for production in dated
+                    ]
+                )
+            )
+        for production in dated:
             days_delay = production.bom_id.produce_delay
             date_end = production.date_start + relativedelta(days=days_delay)
             if production._is_date_end_postponement_required(date_end):
@@ -1570,11 +1600,6 @@ class MrpProduction(models.Model):
                             )
                         ]
                     elif isinstance(production.id, int):
-                        # The vals already carry `raw_material_production_id`,
-                        # so the move can be created with every other
-                        # production's in one call instead of being flushed by
-                        # this record's own assignment. See
-                        # `_create_deferred_moves`.
                         deferred_move_vals.append(move_raw_values)
                     else:
                         list_move_raw += [Command.create(move_raw_values)]
@@ -1586,15 +1611,17 @@ class MrpProduction(models.Model):
                         lambda m: m.bom_line_id
                     )
                 ]
-        self._create_deferred_moves(deferred_move_vals)
+        self._create_deferred_records("stock.move", deferred_move_vals)
 
-    def _create_deferred_moves(self, move_vals):
-        """Create in one call the moves an x2many assignment would flush singly.
+    @api.model
+    def _create_deferred_records(self, model_name, vals_list):
+        """Create in one call the children an x2many assignment would flush singly.
 
-        `Command.create` inside `production.move_raw_ids = [...]` is written out
-        by that assignment: the ORM folds each record's commands on its own and
-        calls `stock.move.create()` once per record. Collecting the vals and
-        creating them here costs one call for the whole batch, and the rows are
+        `Command.create` inside `production.move_raw_ids = [...]` (or
+        `move_finished_ids`, `workorder_ids`) is written out by that assignment:
+        the ORM folds each record's commands on its own and calls the child
+        model's `create()` once per record. Collecting the vals and creating
+        them here costs one call for the whole batch, and the rows are
         identical -- they already carry the inverse, which is what the command
         would have set. Measured on 25 orders of three components: 50 calls to
         `stock.move.create()` became 2.
@@ -1603,8 +1630,8 @@ class MrpProduction(models.Model):
         A `NewId` parent -- a Form, an onchange -- keeps the command, because
         the inverse cannot be written before the parent exists.
         """
-        if move_vals:
-            self.env["stock.move"].create(move_vals)
+        if vals_list:
+            self.env[model_name].create(vals_list)
 
     @api.depends(
         "product_id",
@@ -1617,8 +1644,8 @@ class MrpProduction(models.Model):
         "never_product_template_attribute_value_ids",
     )
     def _compute_move_finished_ids(self):
-        production_with_move_finished_ids_to_unlink_ids = OrderedSet()
         ignored_mo_ids = self.env.context.get("ignore_mo_ids", [])
+        deferred_move_vals = []
         for production in self:
             if production.id in ignored_mo_ids:
                 continue
@@ -1639,31 +1666,13 @@ class MrpProduction(models.Model):
                         )
                     ]
                 continue
-            production_with_move_finished_ids_to_unlink_ids.add(production.id)
-
-        production_with_move_finished_ids_to_unlink = self.browse(
-            production_with_move_finished_ids_to_unlink_ids
-        )
-
-        production_with_move_finished_ids_to_unlink.move_finished_ids = [
-            Command.delete(m)
-            for m in production_with_move_finished_ids_to_unlink.move_finished_ids.ids
-        ]
-        production_with_move_finished_ids_to_unlink.move_finished_ids = [
-            Command.clear()
-        ]
-
-        deferred_move_vals = []
-        for production in production_with_move_finished_ids_to_unlink:
             if production.product_id:
                 production._create_update_move_finished(deferred_move_vals)
             else:
                 production.move_finished_ids = [
-                    Command.delete(move.id)
-                    for move in production.move_finished_ids
-                    if move.bom_line_id
+                    Command.delete(move.id) for move in production.move_finished_ids
                 ]
-        self._create_deferred_moves(deferred_move_vals)
+        self._create_deferred_records("stock.move", deferred_move_vals)
 
     @api.depends("bom_id", "product_id", "move_raw_ids.product_id", "workorder_ids")
     def _compute_show_generate_bom(self):
@@ -1791,21 +1800,28 @@ class MrpProduction(models.Model):
                 }
         return None
 
-    @api.constrains("move_finished_ids")
+    @api.depends(
+        "product_id",
+        "move_finished_ids.product_id",
+        "move_finished_ids.state",
+        "move_finished_ids.cost_share",
+    )
+    def _compute_byproduct_cost_share(self):
+        for production in self:
+            production.byproduct_cost_share = sum(
+                production.move_byproduct_ids.filtered(
+                    lambda m: m.state != "cancel"
+                ).mapped("cost_share")
+            )
+
+    @api.constrains("move_finished_ids", "byproduct_cost_share")
     def _check_byproducts(self):
         for order in self:
             if any(move.cost_share < 0 for move in order.move_byproduct_ids):
                 raise ValidationError(
                     self.env._("By-products cost shares must be positive.")
                 )
-            if (
-                sum(
-                    order.move_byproduct_ids.filtered(
-                        lambda m: m.state != "cancel"
-                    ).mapped("cost_share")
-                )
-                > 100
-            ):
+            if order.byproduct_cost_share > 100:
                 raise ValidationError(
                     self.env._(
                         "The total cost share for a manufacturing order's by-products cannot exceed 100."
@@ -1816,7 +1832,7 @@ class MrpProduction(models.Model):
     def _check_lot_producing_ids(self):
         for record in self:
             if record.product_tracking == "lot" and len(record.lot_producing_ids) > 1:
-                raise UserError(self.env._("You cannot set more than 1 lot"))
+                raise ValidationError(self.env._("You cannot set more than 1 lot"))
 
     @api.constrains("production_group_id", "company_id")
     def _check_production_group_company(self):
@@ -1992,6 +2008,14 @@ class MrpProduction(models.Model):
             self.move_raw_ids.write({"date": date_start, "date_deadline": date_start})
         if vals.get("date_end"):
             self.move_finished_ids.write({"date": self[:1].date_end})
+        if vals.get("date_deadline"):
+            deadline = fields.Datetime.to_datetime(vals["date_deadline"])
+            self.move_finished_ids.filtered(
+                lambda move: (
+                    move.state not in ("done", "cancel")
+                    and move.date_deadline != deadline
+                )
+            ).write({"date_deadline": deadline})
         if any(
             field in ("move_raw_ids", "move_finished_ids", "workorder_ids")
             for field in vals
@@ -2036,24 +2060,20 @@ class MrpProduction(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        default_picking_type_by_company = {}
+        vals_needing_name = [
+            vals
+            for vals in vals_list
+            if not vals.get("name", False) or vals["name"] == self.env._("New")
+        ]
+        self._prefill_picking_type(vals_needing_name)
         vals_needing_group = []
         for vals in vals_list:
             if vals.get("move_byproduct_ids") and vals.get("move_finished_ids"):
                 self._merge_byproduct_commands(vals, vals.get("product_id"))
             if not vals.get("name", False) or vals["name"] == self.env._("New"):
-                picking_type_id = vals.get("picking_type_id")
-                if not picking_type_id:
-                    company_id = vals.get("company_id", self.env.company.id)
-                    if company_id not in default_picking_type_by_company:
-                        default_picking_type_by_company[company_id] = (
-                            self._get_default_picking_type_id(company_id)
-                        )
-                    picking_type_id = default_picking_type_by_company[company_id]
-                    vals["picking_type_id"] = picking_type_id
                 vals["name"] = (
                     self.env["stock.picking.type"]
-                    .browse(picking_type_id)
+                    .browse(vals["picking_type_id"])
                     .sequence_id.next_by_id()
                 )
             if not vals.get("production_group_id"):
@@ -2147,7 +2167,7 @@ class MrpProduction(models.Model):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
         for production, vals in zip(self, vals_list, strict=True):
-            if not default or "move_finished_ids" not in default:
+            if "move_finished_ids" not in default:
                 move_finished_ids = production.move_finished_ids
                 if production.state != "cancel":
                     move_finished_ids = production.move_finished_ids.filtered(
@@ -2157,7 +2177,7 @@ class MrpProduction(models.Model):
                     Command.create(move_vals)
                     for move_vals in move_finished_ids.copy_data()
                 ]
-            if not default or "move_raw_ids" not in default:
+            if "move_raw_ids" not in default:
                 vals["move_raw_ids"] = [
                     Command.create(move_vals)
                     for move_vals in production.move_raw_ids.filtered(
@@ -2272,18 +2292,42 @@ class MrpProduction(models.Model):
         return (bom_lines_values, byproduct_values, operations_values)
 
     @api.model
-    def _get_default_picking_type_id(self, company_id):
-        return (
-            self.env["stock.picking.type"]
-            .search(
-                [
-                    ("code", "=", "mrp_operation"),
-                    ("warehouse_id.company_id", "=", company_id),
-                ],
-                limit=1,
-            )
-            .id
+    def _prefill_picking_type(self, vals_list):
+        vals_list = [vals for vals in vals_list if not vals.get("picking_type_id")]
+        if not vals_list:
+            return
+        Company = self.env["res.company"]
+        Bom = self.env["mrp.bom"]
+        company_by_vals = [
+            Company.browse(vals.get("company_id", self.env.company.id))
+            for vals in vals_list
+        ]
+        products_by_company = defaultdict(lambda: self.env["product.product"])
+        for vals, company in zip(vals_list, company_by_vals, strict=True):
+            if not vals.get("bom_id") and vals.get("product_id"):
+                products_by_company[company] |= self.env["product.product"].browse(
+                    vals["product_id"]
+                )
+        boms_by_company = {
+            company: self._get_boms_by_product(products, company.id)
+            for company, products in products_by_company.items()
+        }
+        default_by_company = self._get_default_picking_type_by_company(
+            Company.union(*company_by_vals)
         )
+        PickingType = self.env["stock.picking.type"]
+        for vals, company in zip(vals_list, company_by_vals, strict=True):
+            if vals.get("bom_id"):
+                bom = Bom.browse(vals["bom_id"])
+            elif vals.get("product_id"):
+                bom = boms_by_company[company][
+                    self.env["product.product"].browse(vals["product_id"])
+                ]
+            else:
+                bom = Bom
+            vals["picking_type_id"] = self._resolve_picking_type(
+                company, bom, PickingType.browse(default_by_company.get(company.id))
+            ).id
 
     def _prepare_move_finished_vals(
         self,
@@ -2400,34 +2444,36 @@ class MrpProduction(models.Model):
 
     def _create_update_move_finished(self, deferred_move_vals=None):
         list_move_finished = []
-        moves_finished_values = self._prepare_moves_finished_vals()
-        moves_byproduct_dict = {
-            move.byproduct_id.id: move
-            for move in self.move_finished_ids.filtered(lambda m: m.byproduct_id)
-        }
-        move_finished = self._get_main_finished_moves()
-        for move_finished_values in moves_finished_values:
-            if move_finished_values.get("byproduct_id") in moves_byproduct_dict:
-                list_move_finished += [
-                    Command.update(
-                        moves_byproduct_dict[move_finished_values["byproduct_id"]].id,
-                        move_finished_values,
-                    )
-                ]
-            elif (
-                move_finished_values.get("product_id") == self.product_id.id
-                and move_finished
-            ):
-                list_move_finished += [
-                    Command.update(move_finished.id, move_finished_values)
-                ]
+        main_moves = self._get_main_finished_moves()
+        byproducts = self.move_byproduct_ids
+        bom_byproducts = byproducts.filtered("byproduct_id")
+        # Without a move of the order's product the product itself changed, and
+        # nothing tells the previous main move from a by-product added by hand:
+        # both are rebuilt, as the order's own BoM says.
+        kept = (byproducts - bom_byproducts) if main_moves else byproducts.browse()
+        byproduct_moves = {}
+        for move in bom_byproducts:
+            byproduct_moves.setdefault(move.byproduct_id.id, move)
+        pending_main_moves = list(main_moves)
+        kept_ids = set(kept._ids)
+        for move_finished_values in self._prepare_moves_finished_vals():
+            byproduct_id = move_finished_values["byproduct_id"]
+            if byproduct_id:
+                move = byproduct_moves.pop(byproduct_id, None)
+            else:
+                move = pending_main_moves.pop(0) if pending_main_moves else None
+            if move:
+                kept_ids.add(move.id)
+                list_move_finished += [Command.update(move.id, move_finished_values)]
             elif deferred_move_vals is not None and isinstance(self.id, int):
-                # See `_create_deferred_moves`: the vals already carry
-                # `production_id`, so the row can be created with the rest of
-                # the batch instead of being flushed by this assignment.
                 deferred_move_vals.append(move_finished_values)
             else:
                 list_move_finished += [Command.create(move_finished_values)]
+        list_move_finished += [
+            Command.delete(move.id)
+            for move in self.move_finished_ids
+            if move.id not in kept_ids
+        ]
         self.move_finished_ids = list_move_finished
 
     def _prepare_moves_raw_vals(self):
@@ -2529,12 +2575,13 @@ class MrpProduction(models.Model):
     def _set_moves_quantity_from_qty_producing(self):
         self.check_singleton()
         updated_moves = []
-        for move in self.move_raw_ids | self.move_finished_ids.filtered(
-            lambda m: (
-                m.product_id != self.product_id or m.product_id.tracking == "serial"
-            )
-        ):
-            is_byproduct = move in self.move_byproduct_ids
+        byproducts = self.move_byproduct_ids
+        byproduct_ids = set(byproducts._ids)
+        serial_main = self._get_main_finished_moves().filtered(
+            lambda m: m.product_id.tracking == "serial"
+        )
+        for move in self.move_raw_ids | byproducts | serial_main:
+            is_byproduct = move.id in byproduct_ids
             if move.picked and (is_byproduct or move.manual_consumption):
                 continue
 
@@ -2600,6 +2647,8 @@ class MrpProduction(models.Model):
         self.check_singleton()
         update_info = []
         moves_to_reference = self.env["stock.move"]
+        rescaled = self.env["stock.move"]
+        old_qties = {}
         old_demand = self._get_bom_demand_by_line(self.product_qty)
         new_demand = self._get_bom_demand_by_line(self.product_qty * factor)
         for move in self.move_raw_ids.filtered(
@@ -2621,10 +2670,21 @@ class MrpProduction(models.Model):
                         new_demand[bom_line], move.product_uom_id
                     )
             if new_qty > 0:
-                move.write({"product_uom_qty": new_qty})
+                move.with_context(no_procurement=True).write(
+                    {"product_uom_qty": new_qty}
+                )
+                rescaled |= move
+                old_qties[move.id] = old_qty
                 update_info.append((move, old_qty, new_qty))
             if move.reference_ids != self.reference_ids:
                 moves_to_reference |= move
+        if not self.env.context.get("no_procurement"):
+            rescaled.filtered(
+                lambda m: (
+                    m.raw_material_production_id.state
+                    in ("confirmed", "progress", "to_close")
+                )
+            )._run_procurement(old_qties)
         # The references are the production's own, so every move that needs them
         # needs the same ones: one relational write, not one per move.
         if moves_to_reference:
@@ -3327,11 +3387,8 @@ class MrpProduction(models.Model):
             ],
         )
         for order in self:
-            finish_moves = order.move_finished_ids.filtered_domain(
-                [
-                    ("product_id", "=", order.product_id.id),
-                    ("state", "not in", ("done", "cancel")),
-                ]
+            finish_moves = order._get_main_finished_moves().filtered(
+                lambda m: m.state not in ("done", "cancel")
             )
             extra_vals = order._prepare_finished_extra_vals()
             for move in finish_moves:
@@ -4025,8 +4082,7 @@ class MrpProduction(models.Model):
         return True
 
     def action_unreserve(self):
-        main_finished = self.move_finished_ids - self.move_byproduct_ids
-        (main_finished | self.move_raw_ids).filtered(
+        (self._get_main_finished_moves() | self.move_raw_ids).filtered(
             lambda x: x.state not in ("done", "cancel")
         )._unreserve()
 
@@ -4570,8 +4626,8 @@ class MrpProduction(models.Model):
         byproduct_lines = self.env["stock.move.line"].union(
             *(
                 move_line
-                for move in self.move_finished_ids
-                if move.has_tracking == "serial" and move.product_id != self.product_id
+                for move in self.move_byproduct_ids
+                if move.has_tracking == "serial"
                 for move_line in move.move_line_ids
                 if not move_line.product_uom_id.is_zero(move_line.quantity)
             )

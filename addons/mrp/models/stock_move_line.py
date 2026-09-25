@@ -59,9 +59,7 @@ class StockMoveLine(models.Model):
             if line.move_id.raw_material_production_id and line.state == "done":
                 mo = line.move_id.raw_material_production_id
                 finished_lots = mo.lot_producing_ids
-                finished_lots |= mo.move_finished_ids.filtered_domain(
-                    [("product_id", "!=", mo.product_id.id)]
-                ).move_line_ids.lot_id
+                finished_lots |= mo.move_byproduct_ids.move_line_ids.lot_id
                 _debug.logic(
                     "consume_line_traced",
                     line=line.id,

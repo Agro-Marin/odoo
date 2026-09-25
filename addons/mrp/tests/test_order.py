@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from freezegun import freeze_time
 
 from odoo import Command, fields
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 from odoo.tests import Form, users
 from odoo.tests.common import HttpCase, tagged
 from odoo.tools.misc import format_date
@@ -6922,3 +6922,118 @@ class TestTourMrpOrder(HttpCase):
             ]
         )
         self.assertEqual(component_transfer.product_uom_qty, 2)
+
+
+@tagged("post_install", "-at_install")
+class TestProductionCreateRules(TestMrpCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.alt_type = cls.warehouse_1.manu_type_id.copy(
+            {"name": "Alt manufacturing", "sequence_code": "ALTMO"}
+        )
+        cls.component = cls.env["product.product"].create(
+            {"name": "Rule component", "is_storable": True}
+        )
+        cls.finished = cls.env["product.product"].create(
+            {"name": "Rule finished", "is_storable": True}
+        )
+        cls.bom = cls.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": cls.finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "picking_type_id": cls.alt_type.id,
+                "bom_line_ids": [
+                    Command.create({"product_id": cls.component.id, "product_qty": 2})
+                ],
+            }
+        )
+
+    def assert_operation_type(self, production, picking_type):
+        self.assertEqual(production.picking_type_id, picking_type)
+        self.assertTrue(
+            production.name.startswith(picking_type.sequence_id.prefix),
+            "%s must be drawn from %s" % (production.name, picking_type.name),
+        )
+        self.assertEqual(production.move_raw_ids.picking_type_id, picking_type)
+
+    def test_create_takes_the_operation_type_of_the_bom(self):
+        by_product = self.env["mrp.production"].create({"product_id": self.finished.id})
+        by_bom = self.env["mrp.production"].create(
+            {"product_id": self.finished.id, "bom_id": self.bom.id}
+        )
+        form = Form(self.env["mrp.production"])
+        form.product_id = self.finished
+        by_form = form.save()
+
+        self.assertEqual(by_product.bom_id, self.bom)
+        for production in by_product | by_bom | by_form:
+            self.assert_operation_type(production, self.alt_type)
+
+    def test_create_takes_the_operation_type_of_the_context(self):
+        other_type = self.alt_type.copy(
+            {"name": "Context manufacturing", "sequence_code": "CTXMO"}
+        )
+        Production = self.env["mrp.production"].with_context(
+            default_picking_type_id=other_type.id
+        )
+        production = Production.create(
+            {"product_id": self.finished.id, "bom_id": self.bom.id}
+        )
+        form = Form(Production)
+        form.product_id = self.finished
+        form.bom_id = self.bom
+
+        self.assert_operation_type(production, other_type)
+        self.assert_operation_type(form.save(), other_type)
+
+    def test_create_without_bom_takes_the_company_operation_type(self):
+        plain = self.env["product.product"].create(
+            {"name": "Rule plain", "is_storable": True}
+        )
+        production = self.env["mrp.production"].create({"product_id": plain.id})
+        self.assertEqual(
+            production.picking_type_id,
+            self.env["stock.picking.type"].search(
+                [
+                    ("code", "=", "mrp_operation"),
+                    ("warehouse_id.company_id", "=", self.env.company.id),
+                ],
+                limit=1,
+            ),
+        )
+
+    def test_a_non_manufacturing_context_type_is_not_taken(self):
+        receipts = self.warehouse_1.in_type_id
+        production = (
+            self.env["mrp.production"]
+            .with_context(default_picking_type_id=receipts.id)
+            .create({"product_id": self.finished.id, "bom_id": self.bom.id})
+        )
+        self.assert_operation_type(production, self.alt_type)
+
+    def test_two_lots_on_a_lot_tracked_order_is_a_validation_error(self):
+        self.finished.tracking = "lot"
+        production = self.env["mrp.production"].create({"product_id": self.finished.id})
+        lots = self.env["stock.lot"].create(
+            [
+                {"name": "rule lot %s" % index, "product_id": self.finished.id}
+                for index in range(2)
+            ]
+        )
+        with self.assertRaises(ValidationError):
+            production.lot_producing_ids = lots
+
+    def test_a_new_deadline_reaches_the_finished_moves(self):
+        confirmed = self.env["mrp.production"].create(
+            {"product_id": self.finished.id, "bom_id": self.bom.id}
+        )
+        confirmed.action_confirm()
+        draft = self.env["mrp.production"].create(
+            {"product_id": self.finished.id, "bom_id": self.bom.id}
+        )
+        deadline = datetime(2031, 12, 24, 12, 0)
+        (confirmed | draft).write({"date_deadline": deadline})
+        for production in confirmed | draft:
+            self.assertEqual(production.move_finished_ids.date_deadline, deadline)
+            self.assertEqual(production.date_deadline, deadline)

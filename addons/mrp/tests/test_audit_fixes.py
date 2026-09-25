@@ -64,9 +64,9 @@ class TestMrpAuditFixes(TestMrpCommon):
         byproduct = self.env["product.product"].create(
             {"name": "Audit Byproduct", "is_storable": True}
         )
-        picking_type = self.env["mrp.production"]._get_default_picking_type_id(
-            self.env.company.id
-        )
+        picking_type = self.env["mrp.production"]._get_default_picking_type_by_company(
+            self.env.company
+        )[self.env.company.id]
 
         mo = self.env["mrp.production"].create(
             {
@@ -1030,7 +1030,7 @@ class TestMrpAuditFixes(TestMrpCommon):
         agromarin or design-themes, and none in any stored expression) cost two
         queries per order created, and no test said so.
 
-        The threshold also guards the batching in `_create_deferred_moves`: a
+        The threshold also guards the batching in `_create_deferred_records`: a
         `Command.create` inside the x2many assignment is flushed by that
         assignment, so a compute that assigns per record calls
         `stock.move.create()` per record. Deferring the vals took the marginal

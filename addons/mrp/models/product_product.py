@@ -42,6 +42,9 @@ class ProductProduct(models.Model):
     def _get_mrp_variants(self):
         return self
 
+    def _get_production_uoms(self):
+        return self.uom_id | self.uom_ids | self.bom_ids.product_uom_id
+
     @api.depends("product_tmpl_id")
     def _compute_bom_count(self):
         bom_ids_by_product = collections.defaultdict(set)

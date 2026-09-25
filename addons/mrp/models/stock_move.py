@@ -141,17 +141,24 @@ class StockMove(models.Model):
         self.check_singleton()
         return self.raw_material_production_id or self.production_id
 
+    def _is_main_finished_move(self):
+        self.check_singleton()
+        return (
+            bool(self.production_id)
+            and self.product_id == self.production_id.product_id
+        )
+
     @api.depends("product_id.bom_ids", "product_id.bom_ids.product_uom_id")
     def _compute_allowed_uom_ids(self):
         super()._compute_allowed_uom_ids()
         for move in self:
-            move.allowed_uom_ids |= move.product_id.bom_ids.product_uom_id
+            move.allowed_uom_ids |= move.product_id._get_production_uoms()
 
     @api.depends("production_id")
     def _compute_packaging_uom_id(self):
         super()._compute_packaging_uom_id()
         for move in self:
-            if move.production_id and move.product_id == move.production_id.product_id:
+            if move._is_main_finished_move():
                 move.packaging_uom_id = move.production_id.product_uom_id
 
     @api.depends("product_id", "bom_line_id", "bom_line_id.operation_id")
@@ -899,7 +906,7 @@ class StockMove(models.Model):
         vals = super()._prepare_move_line_vals(quantity, reserved_quant)
         if (
             self.production_id.product_tracking == "lot"
-            and self.product_id == self.production_id.product_id
+            and self._is_main_finished_move()
             and self.production_id.lot_producing_ids
         ):
             vals["lot_id"] = self.production_id.lot_producing_ids.ids[0]

@@ -1,6 +1,9 @@
+from datetime import timedelta
+
+from odoo import fields
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
-from odoo.tests import Form, common
+from odoo.tests import Form, common, tagged
 
 
 class TestMrpByProduct(common.TransactionCase):
@@ -742,4 +745,224 @@ class TestMrpByProduct(common.TransactionCase):
             [
                 {"quantity": 10.0, "state": "done"},
             ],
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestByproductMoves(common.TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env.user.group_ids += cls.env.ref("mrp.group_mrp_byproducts")
+        cls.unit = cls.env.ref("uom.product_uom_unit")
+        cls.component, cls.finished, cls.byproduct, cls.other_byproduct, cls.extra = (
+            cls.env["product.product"].create(
+                [
+                    {"name": name, "is_storable": True}
+                    for name in (
+                        "Moves component",
+                        "Moves finished",
+                        "Moves by-product",
+                        "Moves other by-product",
+                        "Moves hand-added by-product",
+                    )
+                ]
+            )
+        )
+        cls.bom = cls.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": cls.finished.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "bom_line_ids": [
+                    Command.create({"product_id": cls.component.id, "product_qty": 2})
+                ],
+                "byproduct_ids": [
+                    Command.create(
+                        {
+                            "product_id": cls.byproduct.id,
+                            "product_qty": 1,
+                            "cost_share": 70,
+                        }
+                    ),
+                    Command.create(
+                        {
+                            "product_id": cls.other_byproduct.id,
+                            "product_qty": 1,
+                            "cost_share": 30,
+                        }
+                    ),
+                ],
+            }
+        )
+
+    def make_production(self, **values):
+        return self.env["mrp.production"].create(
+            {"product_id": self.finished.id, "bom_id": self.bom.id, **values}
+        )
+
+    def byproduct_move(self, production, product):
+        return production.move_byproduct_ids.filtered(
+            lambda move: move.product_id == product
+        )
+
+    def test_cost_share_written_on_the_move_is_capped(self):
+        production = self.make_production()
+        production.action_confirm()
+        with self.assertRaises(ValidationError):
+            self.byproduct_move(production, self.byproduct).cost_share = 150
+            self.env.flush_all()
+
+    def test_negative_cost_share_written_on_the_move_is_refused(self):
+        production = self.make_production()
+        with self.assertRaises(ValidationError):
+            self.byproduct_move(production, self.byproduct).cost_share = -5
+            self.env.flush_all()
+
+    def test_cost_shares_can_be_swapped_in_one_edit(self):
+        production = self.make_production()
+        first = self.byproduct_move(production, self.byproduct)
+        second = self.byproduct_move(production, self.other_byproduct)
+        production.write(
+            {
+                "move_byproduct_ids": [
+                    Command.update(second.id, {"cost_share": 70}),
+                    Command.update(first.id, {"cost_share": 30}),
+                ]
+            }
+        )
+        self.env.flush_all()
+        self.assertEqual(production.byproduct_cost_share, 100)
+        self.assertEqual((first.cost_share, second.cost_share), (30, 70))
+
+    def finished_state(self, production):
+        return sorted(
+            (move.product_id.name, move.product_uom_qty, bool(move.byproduct_id))
+            for move in production.move_finished_ids
+        )
+
+    def test_a_draft_order_keeps_its_hand_added_byproduct(self):
+        production = self.make_production()
+        production.write(
+            {
+                "move_byproduct_ids": [
+                    Command.create({"product_id": self.extra.id, "product_uom_qty": 3})
+                ]
+            }
+        )
+        ids_before = set(production.move_finished_ids.ids)
+
+        production.write({"product_qty": 2})
+        production.write({"date_start": fields.Datetime.now() + timedelta(days=3)})
+
+        self.assertEqual(
+            self.finished_state(production),
+            [
+                ("Moves by-product", 2.0, True),
+                ("Moves finished", 2.0, False),
+                ("Moves hand-added by-product", 3.0, False),
+                ("Moves other by-product", 2.0, True),
+            ],
+        )
+        self.assertEqual(set(production.move_finished_ids.ids), ids_before)
+        self.assertEqual(production.byproduct_cost_share, 100)
+
+    def test_a_form_keeps_the_byproduct_added_before_a_quantity_change(self):
+        form = Form(self.env["mrp.production"])
+        form.product_id = self.finished
+        with form.move_byproduct_ids.new() as line:
+            line.product_id = self.extra
+            line.product_uom_qty = 7
+        form.product_qty = 4
+        self.assertEqual(len(form.move_byproduct_ids), 3)
+        production = form.save()
+        self.assertEqual(
+            self.finished_state(production),
+            [
+                ("Moves by-product", 4.0, True),
+                ("Moves finished", 4.0, False),
+                ("Moves hand-added by-product", 7.0, False),
+                ("Moves other by-product", 4.0, True),
+            ],
+        )
+
+        ids_before = set(production.move_finished_ids.ids)
+        form = Form(production)
+        form.product_qty = 5
+        production = form.save()
+        self.assertEqual(
+            self.finished_state(production),
+            [
+                ("Moves by-product", 5.0, True),
+                ("Moves finished", 5.0, False),
+                ("Moves hand-added by-product", 7.0, False),
+                ("Moves other by-product", 5.0, True),
+            ],
+        )
+        self.assertEqual(set(production.move_finished_ids.ids), ids_before)
+
+    def test_a_new_product_rebuilds_the_finished_moves(self):
+        other = self.env["product.product"].create(
+            {"name": "Moves other finished", "is_storable": True}
+        )
+        production = self.make_production()
+        production.write(
+            {
+                "move_byproduct_ids": [
+                    Command.create({"product_id": self.extra.id, "product_uom_qty": 3})
+                ]
+            }
+        )
+        production.write({"product_id": other.id})
+        self.assertEqual(
+            self.finished_state(production), [("Moves other finished", 1.0, False)]
+        )
+
+        form = Form(self.make_production())
+        form.product_id = other
+        self.assertEqual(
+            self.finished_state(form.save()), [("Moves other finished", 1.0, False)]
+        )
+
+    def test_a_bom_without_byproducts_drops_only_the_bom_byproducts(self):
+        plain_bom = self.bom.copy({"byproduct_ids": False})
+        self.assertFalse(plain_bom.byproduct_ids)
+        production = self.make_production()
+        production.write(
+            {
+                "move_byproduct_ids": [
+                    Command.create({"product_id": self.extra.id, "product_uom_qty": 3})
+                ]
+            }
+        )
+        main = production._get_main_finished_moves()
+        production.write({"bom_id": plain_bom.id})
+        self.assertEqual(
+            self.finished_state(production),
+            [
+                ("Moves finished", 1.0, False),
+                ("Moves hand-added by-product", 3.0, False),
+            ],
+        )
+        self.assertEqual(production._get_main_finished_moves(), main)
+
+    def test_main_and_byproduct_moves_are_split_on_the_product(self):
+        productions = self.make_production() | self.make_production()
+        productions[0].write(
+            {
+                "move_byproduct_ids": [
+                    Command.create({"product_id": self.extra.id, "product_uom_qty": 3})
+                ]
+            }
+        )
+        main = productions._get_main_finished_moves()
+        self.assertEqual(main.product_id, self.finished)
+        self.assertEqual(len(main), 2)
+        self.assertEqual(
+            main | productions.move_byproduct_ids, productions.move_finished_ids
+        )
+        self.assertTrue(all(move._is_main_finished_move() for move in main))
+        self.assertFalse(
+            any(
+                move._is_main_finished_move() for move in productions.move_byproduct_ids
+            )
         )

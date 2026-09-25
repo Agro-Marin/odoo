@@ -17,6 +17,13 @@ from odoo.tools.misc import get_lang
 _debug = DebugLog(__name__)
 
 
+class SlotIntervals(dict):
+    __slots__ = ()
+    __hash__ = object.__hash__
+    __eq__ = object.__eq__
+    __ne__ = object.__ne__
+
+
 class MrpWorkcenter(models.Model):
     _name = "mrp.workcenter"
     _description = "Work Center"
@@ -645,9 +652,54 @@ class MrpWorkcenter(models.Model):
             ),
         )
 
+    def _prefetch_slot_intervals(self, date_starts):
+        prefetched = SlotIntervals()
+        if not self or not date_starts:
+            return prefetched
+        _iterations, step = self._get_planning_horizon()
+        range_start = localized(min(date_starts))
+        # A second window: an order's next work order on the same work center
+        # starts where the previous one ended, past the latest start.
+        range_stop = localized(max(date_starts)) + 2 * step
+        workcenters = self.filtered("resource_calendar_id")
+        occupied = self.env["resource.reservation"]._reservation_intervals_batch(
+            range_start, range_stop, workcenters.resource_id
+        )
+        for calendar, calendar_workcenters in workcenters.grouped(
+            "resource_calendar_id"
+        ).items():
+            available = calendar._work_intervals_batch(
+                range_start, range_stop, resources=calendar_workcenters.resource_id
+            )
+            for workcenter in calendar_workcenters:
+                resource_id = workcenter.resource_id.id
+                prefetched[workcenter.id] = (
+                    range_start,
+                    range_stop,
+                    available.get(resource_id, Intervals()),
+                    occupied.get(resource_id, Intervals()),
+                )
+        return prefetched
+
     def _get_intervals_available_and_occupied(
         self, date_start, date_stop, reservations_to_ignore
     ):
+        prefetched = self.env.context.get("workcenter_slot_intervals")
+        window = prefetched and prefetched.get(self.id)
+        if (
+            window
+            and not reservations_to_ignore
+            and window[0] <= date_start
+            and date_stop <= window[1]
+        ):
+            _range_start, _range_stop, available, occupied = window
+            return (
+                available
+                & Intervals(
+                    [(date_start, date_stop, self.env["resource.calendar.attendance"])]
+                ),
+                occupied,
+            )
         resource = self.resource_id
         available = self.resource_calendar_id._work_intervals_batch(
             date_start,

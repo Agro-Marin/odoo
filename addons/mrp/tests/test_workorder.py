@@ -1,3 +1,4 @@
+import gc
 from datetime import datetime, timedelta
 
 from odoo import Command, fields
@@ -326,3 +327,275 @@ class TestWorkorderAudit(TransactionCase):
             "the planner refuses the slot but the popover reports nothing",
         )
         self.assertIn("already booked", b.json_popover)
+
+    def _configurable_bom(self):
+        template = self.env["product.template"].create(
+            {"name": "WO configurable", "is_storable": True}
+        )
+        attributes = self.env["product.attribute"].create(
+            [
+                {
+                    "name": "WO size",
+                    "create_variant": "always",
+                    "value_ids": [
+                        Command.create({"name": "WO small"}),
+                        Command.create({"name": "WO large"}),
+                    ],
+                },
+                {
+                    "name": "WO finish",
+                    "create_variant": "no_variant",
+                    "value_ids": [
+                        Command.create({"name": "WO matte"}),
+                        Command.create({"name": "WO gloss"}),
+                    ],
+                },
+            ]
+        )
+        size_values, finish_values = (
+            self.env["product.template.attribute.line"]
+            .create(
+                [
+                    {
+                        "product_tmpl_id": template.id,
+                        "attribute_id": attribute.id,
+                        "value_ids": [Command.set(attribute.value_ids.ids)],
+                    }
+                    for attribute in attributes
+                ]
+            )
+            .mapped("product_template_value_ids")
+            .grouped("attribute_id")
+            .values()
+        )
+        component, kit, finish_kit, kit_part = self.env["product.product"].create(
+            [
+                {"name": "WO part", "is_storable": True},
+                {"name": "WO kit"},
+                {"name": "WO finish kit"},
+                {"name": "WO kit part", "is_storable": True},
+            ]
+        )
+        for product, operation in ((kit, "Kit op"), (finish_kit, "Finish op")):
+            self.env["mrp.bom"].create(
+                {
+                    "product_tmpl_id": product.product_tmpl_id.id,
+                    "type": "phantom",
+                    "bom_line_ids": [
+                        Command.create({"product_id": kit_part.id, "product_qty": 1})
+                    ],
+                    "operation_ids": [
+                        Command.create(
+                            {
+                                "name": operation,
+                                "workcenter_id": self.wc2.id,
+                                "time_cycle_manual": 7,
+                            }
+                        )
+                    ],
+                }
+            )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": template.id,
+                "product_qty": 1,
+                "allow_operation_dependencies": True,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 2}),
+                    Command.create({"product_id": kit.id, "product_qty": 1}),
+                    Command.create(
+                        {
+                            "product_id": finish_kit.id,
+                            "product_qty": 1,
+                            "bom_product_template_attribute_value_ids": [
+                                Command.set(finish_values[0].ids)
+                            ],
+                        }
+                    ),
+                ],
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": name,
+                            "workcenter_id": workcenter.id,
+                            "time_cycle_manual": minutes,
+                            "sequence": sequence,
+                            "bom_product_template_attribute_value_ids": [
+                                Command.set(values.ids)
+                            ],
+                        }
+                    )
+                    for name, workcenter, minutes, sequence, values in (
+                        ("Cut", self.wc, 10, 5, size_values[:0]),
+                        ("Paint", self.wc2, 20, 10, size_values[0]),
+                        ("Pack", self.wc, 5, 15, size_values[:0]),
+                    )
+                ],
+            }
+        )
+        cut, _paint, pack = bom.operation_ids.sorted("sequence")
+        pack.blocked_by_operation_ids = cut
+        return template, bom, finish_values
+
+    def _workorder_fingerprint(self, productions):
+        return [
+            (
+                production.product_id.display_name,
+                production.product_qty,
+                production.never_product_template_attribute_value_ids.ids,
+                production.state,
+                production.date_end,
+                sorted(
+                    (
+                        workorder.name,
+                        workorder.workcenter_id.name,
+                        workorder.sequence,
+                        workorder.duration_expected,
+                        workorder.state,
+                        tuple(
+                            sorted(workorder.blocked_by_workorder_ids.mapped("name"))
+                        ),
+                        tuple(sorted(workorder.move_raw_ids.product_id.mapped("name"))),
+                    )
+                    for workorder in production.workorder_ids
+                ),
+            )
+            for production in productions
+        ]
+
+    def test_orders_created_together_get_the_work_orders_of_orders_created_alone(self):
+        template, bom, finish_values = self._configurable_bom()
+        date_start = fields.Datetime.now().replace(microsecond=0) + timedelta(days=5)
+        vals_list = [
+            {
+                "product_id": variant.id,
+                "bom_id": bom.id,
+                "product_qty": quantity,
+                "date_start": date_start,
+                "never_product_template_attribute_value_ids": [Command.set(finish.ids)],
+            }
+            for variant in template.product_variant_ids
+            for finish in finish_values
+            for quantity in (1, 3)
+        ]
+        Production = self.env["mrp.production"]
+        together = Production.create([dict(vals) for vals in vals_list])
+        alone = Production.union(*(Production.create(dict(vals)) for vals in vals_list))
+        self.assertEqual(
+            {
+                name
+                for production in together
+                for name in production.workorder_ids.mapped("name")
+            },
+            {"Cut", "Paint", "Pack", "Kit op", "Finish op"},
+        )
+        self.assertEqual(
+            self._workorder_fingerprint(together), self._workorder_fingerprint(alone)
+        )
+        (together | alone).action_confirm()
+        self.assertEqual(
+            self._workorder_fingerprint(together), self._workorder_fingerprint(alone)
+        )
+
+    def test_a_quantity_change_keeps_the_work_orders_of_a_no_variant_kit(self):
+        template, bom, finish_values = self._configurable_bom()
+        production = self.env["mrp.production"].create(
+            {
+                "product_id": template.product_variant_ids[0].id,
+                "bom_id": bom.id,
+                "never_product_template_attribute_value_ids": [
+                    Command.set(finish_values[0].ids)
+                ],
+            }
+        )
+        workorders = production.workorder_ids
+        self.assertIn("Finish op", workorders.mapped("name"))
+        production.write({"product_qty": 2})
+        self.assertEqual(production.workorder_ids, workorders)
+        self.assertEqual(production.workorder_ids.exists(), workorders)
+
+    def test_creating_orders_with_operations_costs_a_bounded_query_count_per_order(
+        self,
+    ):
+        components = self.env["product.product"].create(
+            [
+                {"name": "WO slope comp %s" % index, "is_storable": True}
+                for index in range(3)
+            ]
+        )
+        product = self.env["product.product"].create(
+            {"name": "WO slope", "is_storable": True}
+        )
+        self.assertTrue(self.wc.resource_calendar_id)
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": product.product_tmpl_id.id,
+                "product_qty": 1,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 2})
+                    for component in components
+                ],
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": "Slope op",
+                            "workcenter_id": self.wc.id,
+                            "time_cycle_manual": 10,
+                        }
+                    )
+                ],
+            }
+        )
+        date_start = fields.Datetime.now().replace(microsecond=0) + timedelta(days=5)
+
+        def cost(count):
+            self.env.flush_all()
+            self.env.invalidate_all()
+            self.env.registry.clear_all_caches()
+            gc.collect()
+            before = self.env.cr.sql_statement_count
+            self.env["mrp.production"].create(
+                [
+                    {
+                        "product_id": product.id,
+                        "bom_id": bom.id,
+                        "product_qty": 1 + index,
+                        "date_start": date_start,
+                    }
+                    for index in range(count)
+                ]
+            )
+            self.env.flush_all()
+            return self.env.cr.sql_statement_count - before
+
+        few, many = cost(3), cost(12)
+        self.assertLess((many - few) / 9, 1, (few, many))
+
+    def test_orders_created_together_end_when_orders_created_alone_do(self):
+        _template, bom, finish_values = self._configurable_bom()
+        occupying = self._mo(n_ops=2, qty=30, tag="Occupying")
+        occupying.date_start = fields.Datetime.now().replace(microsecond=0) + timedelta(
+            days=2
+        )
+        occupying.button_plan()
+        self.assertTrue(occupying.workorder_ids.reservation_id)
+        start = occupying.date_start - timedelta(hours=3)
+        vals_list = [
+            {
+                "product_id": _template.product_variant_ids[index % 2].id,
+                "bom_id": bom.id,
+                "product_qty": 1 + index,
+                "date_start": start + timedelta(hours=7 * index),
+                "never_product_template_attribute_value_ids": [
+                    Command.set(finish_values[index % 2].ids)
+                ],
+            }
+            for index in range(8)
+        ]
+        Production = self.env["mrp.production"]
+        together = Production.create([dict(vals) for vals in vals_list])
+        alone = Production.union(*(Production.create(dict(vals)) for vals in vals_list))
+        self.assertEqual(together.mapped("date_end"), alone.mapped("date_end"))
+        self.assertEqual(
+            len(set(together.mapped("date_end"))), 8, together.mapped("date_end")
+        )

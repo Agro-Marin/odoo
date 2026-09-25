@@ -534,3 +534,116 @@ class TestUnbuildAndWizards(TestMrpCommon):
                 wizard.action_split()
             self.assertEqual(mo.product_qty, 10)
             self.assertFalse(mo.production_group_id.production_ids - mo)
+
+    def _quantity_change_order(self, components):
+        warehouse = self.env.ref("stock.warehouse0")
+        product = self.env["product.product"].create(
+            {"name": "Rescaled", "is_storable": True}
+        )
+        self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": product.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": qty})
+                    for component, qty in components
+                ],
+            }
+        )
+        mo = self.env["mrp.production"].create(
+            {
+                "product_id": product.id,
+                "product_qty": 1.0,
+                "picking_type_id": warehouse.manu_type_id.id,
+            }
+        )
+        mo.action_confirm()
+        return mo
+
+    def test_quantity_change_reserves_and_procures_every_component(self):
+        warehouse = self.env.ref("stock.warehouse0")
+        warehouse.manufacture_to_resupply = True
+        stocked, made, consumable = self.env["product.product"].create(
+            [
+                {"name": "Rescaled stocked", "is_storable": True},
+                {
+                    "name": "Rescaled made to order",
+                    "is_storable": True,
+                    "route_ids": [
+                        Command.set(
+                            [
+                                warehouse.manufacture_pull_id.route_id.id,
+                                warehouse.mto_pull_id.route_id.id,
+                            ]
+                        )
+                    ],
+                },
+                {"name": "Rescaled consumable"},
+            ]
+        )
+        self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": made.product_tmpl_id.id,
+                "product_qty": 1.0,
+                "bom_line_ids": [
+                    Command.create({"product_id": consumable.id, "product_qty": 1})
+                ],
+            }
+        )
+        warehouse.mto_pull_id.route_id.active = True
+        self.env["stock.quant"]._update_available_quantity(
+            stocked, warehouse.lot_stock_id, 5
+        )
+        mo = self._quantity_change_order([(stocked, 2), (made, 1), (consumable, 1)])
+        children = mo._get_children()
+        self.assertEqual(sum(children.mapped("product_qty")), 1)
+
+        self.env["change.production.qty"].create(
+            {"mo_id": mo.id, "product_qty": 3}
+        ).change_prod_qty()
+
+        moves = {move.product_id: move for move in mo.move_raw_ids}
+        self.assertEqual(
+            [
+                (moves[p].product_uom_qty, moves[p].quantity, moves[p].state)
+                for p in (stocked, made, consumable)
+            ],
+            [
+                (6.0, 5.0, "partially_available"),
+                (3.0, 0.0, "waiting"),
+                (3.0, 3.0, "assigned"),
+            ],
+        )
+        self.assertEqual(mo.reservation_state, "confirmed")
+        children = mo._get_children()
+        self.assertEqual(children.product_id, made)
+        self.assertEqual(sum(children.mapped("product_qty")), 3)
+
+    def test_quantity_change_statements_per_component_are_bounded(self):
+        warehouse = self.env.ref("stock.warehouse0")
+        counts = []
+        for size in (3, 12):
+            components = self.env["product.product"].create(
+                [
+                    {"name": "Rescaled %s/%s" % (index, size), "is_storable": True}
+                    for index in range(size)
+                ]
+            )
+            for component in components:
+                self.env["stock.quant"]._update_available_quantity(
+                    component, warehouse.lot_stock_id, 4
+                )
+            mo = self._quantity_change_order([(c, 2) for c in components])
+            wizard = self.env["change.production.qty"].create(
+                {"mo_id": mo.id, "product_qty": 3}
+            )
+            self.env.flush_all()
+            self.env.invalidate_all()
+            self.env.registry.clear_all_caches()
+            gc.collect()
+            before = self.env.cr.sql_statement_count
+            wizard.change_prod_qty()
+            self.env.flush_all()
+            counts.append(self.env.cr.sql_statement_count - before)
+            self.assertEqual(set(mo.move_raw_ids.mapped("quantity")), {4.0})
+        self.assertLess((counts[1] - counts[0]) / 9, 2, counts)
