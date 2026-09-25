@@ -1261,6 +1261,9 @@ class ShareRoute(http.Controller):
                 "owner_id": False,
             },
         )
+        traceback_sudo.action_update_access_rights(
+            partners={request.env.user.partner_id: ("view", False)}
+        )
 
         return request.prepare_json_response([traceback_sudo.access_url])
 

@@ -1703,6 +1703,32 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
         self.assertEqual(documents[2].raw, b"TEST traceback")
         self.assertEqual(documents[2].folder_id, documents[0])
 
+    def test_a_traceback_is_its_uploaders_to_find_and_nobody_elses(self):
+        uploader = mail_new_test_user(
+            self.env, login="tb_uploader", groups="base.group_user"
+        )
+        colleague = mail_new_test_user(
+            self.env, login="tb_colleague", groups="base.group_user"
+        )
+        self.authenticate("tb_uploader", "tb_uploader")
+        res = self.url_open(
+            "/documents/upload_traceback",
+            data={"csrf_token": http.Request.csrf_token(self)},
+            files={"ufile": ("tb_report.txt", BytesIO(b"trace"), "text/plain")},
+        )
+        res.raise_for_status()
+        Document = self.env["document.document"]
+        report = Document.search([("name", "=", "tb_report.txt")])
+        self.assertEqual(len(report), 1)
+        self.assertEqual(report.with_user(uploader).user_permission, "view")
+        self.assertEqual(
+            Document.with_user(uploader).search([("name", "=", "tb_report.txt")]),
+            report,
+        )
+        self.assertFalse(
+            Document.with_user(colleague).search([("name", "=", "tb_report.txt")])
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestCaseSecurityRoutes(HttpCaseWithUserDemo):

@@ -6,6 +6,7 @@ from odoo.tests import tagged
 
 from .test_document_common import TransactionCaseDocuments
 from odoo.addons.base.models.access_link import LinkRefused
+from odoo.addons.mail.tests.common import mail_new_test_user
 
 
 @tagged("post_install", "-at_install")
@@ -117,4 +118,54 @@ class TestDocumentTokenMigration(TransactionCaseDocuments):
         self._script("post").migrate(self.env.cr, "1.20")
         self.assertFalse(
             self.env["access.link"].search_count([("legacy_source", "!=", False)])
+        )
+
+    def test_a_traceback_stays_its_authors_and_no_other_visitors(self):
+        author, visitor = (
+            mail_new_test_user(self.env, login=login, groups="base.group_user")
+            for login in ("tb_author", "tb_visitor")
+        )
+        Document = self.env["document.document"]
+        support = Document._get_traceback_folder_sudo()
+        report, elsewhere = Document.sudo().create(
+            [
+                {"name": "report.txt", "raw": b"x", "folder_id": support.id},
+                {"name": "notes.txt", "raw": b"y", "folder_id": self.folder_a.id},
+            ]
+        )
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE document_document SET create_uid = %s WHERE id = ANY(%s)",
+            [author.id, [report.id, elsewhere.id]],
+        )
+        Access = self.env["document.access"]
+        visits = Access.create(
+            [
+                {
+                    "document_id": document.id,
+                    "partner_id": partner.id,
+                    "role": False,
+                    "last_access_date": fields.Datetime.now(),
+                }
+                for document in (report, elsewhere)
+                for partner in (author.partner_id, visitor.partner_id)
+            ]
+        )
+        self.env.flush_all()
+
+        self._script("post").migrate(self.env.cr, "1.20")
+
+        visits.invalidate_recordset(["role"])
+        roles = {
+            (visit.document_id.name, visit.partner_id.name): visit.role
+            for visit in visits
+        }
+        self.assertEqual(
+            roles,
+            {
+                ("report.txt", author.name): "view",
+                ("report.txt", visitor.name): False,
+                ("notes.txt", author.name): False,
+                ("notes.txt", visitor.name): False,
+            },
         )

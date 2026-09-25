@@ -9,7 +9,10 @@ LEGACY_SOURCE = "document.document.document_token"
 
 
 def migrate(cr, version):
-    if not version or not column_exists(cr, "document_document", "document_token"):
+    if not version:
+        return
+    _traceback_authors_become_members(cr)
+    if not column_exists(cr, "document_document", "document_token"):
         return
     # every document whose link is on keeps its URL until a year after the
     # upgrade (decision C1): the token it was shared
@@ -59,4 +62,26 @@ def migrate(cr, version):
         len(carried),
         carried[0][1] if carried else "-",
         too_short,
+    )
+
+
+def _traceback_authors_become_members(cr):
+    # a visit no longer grants: the error reports their authors reached only
+    # through the visit of their own link stay theirs as a view membership;
+    # anyone else who visited one keeps the link, not the report
+    cr.execute(
+        """
+        UPDATE document_access a
+           SET role = 'view'
+          FROM document_document d
+          JOIN res_users u ON u.id = d.create_uid
+          JOIN ir_config_parameter p ON p.key = 'document.support_folder'
+         WHERE a.document_id = d.id
+           AND a.role IS NULL
+           AND a.partner_id = u.partner_id
+           AND d.folder_id::text = p.value
+        """
+    )
+    _logger.info(
+        "document: %s error report(s) kept by their author as a member", cr.rowcount
     )
