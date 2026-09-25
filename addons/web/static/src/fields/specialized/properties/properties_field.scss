@@ -102,7 +102,8 @@
     user-select: none;
     height: 20px;
     &:not(.folded) {
-        box-shadow: 0 $border-width 0 o-token(--o-form-separator-color, $o-form-separator-color);
+        box-shadow: 0 $border-width 0
+            o-token(--o-form-separator-color, $o-form-separator-color);
     }
 }
 

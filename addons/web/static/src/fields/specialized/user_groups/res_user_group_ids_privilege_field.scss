@@ -5,7 +5,6 @@
 }
 
 .o_field_res_user_group_ids_privilege {
-
     .o_is_disjoint:not(.o_is_implied) .o-checkbox > input {
         background-color: o-token(--danger, $danger);
         border-color: o-token(--danger, $danger);
