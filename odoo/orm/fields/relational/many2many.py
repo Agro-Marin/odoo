@@ -12,7 +12,7 @@ from odoo.tools import SQL, OrderedSet, Query, unique
 from odoo.tools.misc import PENDING, SENTINEL, Sentinel
 
 from ..._recordset import is_search_overridden
-from ...primitives import NewId
+from ...primitives import Command, NewId
 from ...validation import check_pg_name
 from .. import _field_ddl as _ddl
 from ..base import Field
@@ -433,6 +433,42 @@ class Many2many(_RelationalMulti):
                     pass
         return set(y_to_xs)
 
+    def _with_owner_link(self, records: BaseModel, vals_list: list[dict]) -> list[dict]:
+        # a record created through this field is linked to its owners from the
+        # start, as a one2many line gets its inverse: its create then knows
+        # who holds it (a phone number reads its contact's country)
+        field: Field = self
+        owners = records
+        # a related field (an inherited one included) creates here and hands
+        # the ids to its target: the owners are the target's records
+        while field.related:
+            *path, fname = field.related.split(".")
+            for part in path:
+                owners = typing.cast("BaseModel", owners.mapped(part))
+            field = owners._fields[fname]
+        owner_ids = [id_ for id_ in owners._ids if isinstance(id_, int)]
+        if not owner_ids or len(owner_ids) != len(owners._ids):
+            return vals_list
+        inverse_names = [
+            invf.name
+            for invf in records.pool.field_inverses[field]
+            if invf.is_many2many
+        ]
+        if not inverse_names:
+            return vals_list
+        _debug.logic(
+            "field.many2many.owner_linked",
+            model=self.model_name,
+            field=self.name,
+            owners=len(owner_ids),
+            created=len(vals_list),
+        )
+        links = [Command.link(id_) for id_ in owner_ids]
+        return [
+            {**vals, **{name: links for name in inverse_names if name not in vals}}
+            for vals in vals_list
+        ]
+
     def _write_real_apply_commands(
         self,
         records_commands_list: typing.Any,
@@ -461,7 +497,7 @@ class Many2many(_RelationalMulti):
             created_ids: tuple = ()
             if delta.created:
                 created_ids = comodel.create(
-                    [vals for _ref, vals in delta.created]
+                    self._with_owner_link(recs, [vals for _ref, vals in delta.created])
                 )._ids
             for x in recs._ids:
                 new_relation[x] = delta.get_final_ids(new_relation[x], created_ids)

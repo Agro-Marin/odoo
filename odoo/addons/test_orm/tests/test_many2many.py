@@ -22,6 +22,36 @@ class Many2manyCase(TransactionCase):
         )
         self.redbeard = self.env["test_orm.pirate"].create({"name": "Red Beard"})
 
+    def test_a_record_created_through_the_field_knows_its_owner_at_create(self):
+        Ship = type(self.env["test_orm.ship"])
+        seen = []
+        create = Ship.create
+
+        def spy(model, vals_list):
+            seen.extend(vals_list if isinstance(vals_list, list) else [vals_list])
+            return create(model, vals_list)
+
+        with patch.object(Ship, "create", spy):
+            self.redbeard.ship_ids = [Command.create({"name": "Revenge"})]
+        self.assertEqual(seen[0]["pirate_ids"], [Command.link(self.redbeard.id)])
+        self.assertEqual(self.redbeard.ship_ids.pirate_ids, self.redbeard)
+
+    def test_an_owner_being_created_links_what_it_creates(self):
+        Ship = type(self.env["test_orm.ship"])
+        seen = []
+        create = Ship.create
+
+        def spy(model, vals_list):
+            seen.extend(vals_list if isinstance(vals_list, list) else [vals_list])
+            return create(model, vals_list)
+
+        with patch.object(Ship, "create", spy):
+            anne = self.env["test_orm.pirate"].create(
+                {"name": "Anne", "ship_ids": [Command.create({"name": "Queen"})]}
+            )
+        self.assertEqual(seen[0]["pirate_ids"], [Command.link(anne.id)])
+        self.assertEqual(anne.ship_ids.pirate_ids, anne)
+
     def test_set_removes_archived_links(self):
         Category = self.env["res.partner.tag"]
         a, b, c = Category.create([{"name": "A"}, {"name": "B"}, {"name": "C"}])
