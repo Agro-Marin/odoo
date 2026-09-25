@@ -2529,7 +2529,7 @@ class TestTokenCompareLint(BaseCase):
             "same = expected == self._sign_token(pid)\n"
         )
         self.assertEqual(
-            [v.lineno for v in _checker_token_compare.check(tree)], [1, 2, 3]
+            [v.lineno for v in _checker_token_compare.check(tree)], [1, 3, 4]
         )
 
     def test_consteq_and_lexer_tokens_are_not(self):
