@@ -21,6 +21,7 @@ class TestOrderpointProcurement(TransactionCase):
         )
         cls.stock_location = cls.warehouse.lot_stock_id
         cls.customers = cls.env.ref("stock.stock_location_customers")
+        cls.suppliers = cls.env.ref("stock.stock_location_suppliers")
 
     def _product(self, name, **values):
         return self.env["product.product"].create(
@@ -50,6 +51,32 @@ class TestOrderpointProcurement(TransactionCase):
         )
         move._action_confirm()
         return move
+
+    def _supply_route(self, warehouse=None, **values):
+        # the reception route cannot stand in: purchase_stock and mrp strip its
+        # vendor pull, leaving a one-step reception route without active rules
+        warehouse = warehouse or self.warehouse
+        route = self.env["stock.route"].create(
+            {
+                "name": f"Audit Supply {warehouse.code}",
+                "product_selectable": True,
+                "product_categ_selectable": True,
+                **values,
+            },
+        )
+        self.env["stock.rule"].create(
+            {
+                "name": f"Audit Vendors -> {warehouse.code}",
+                "route_id": route.id,
+                "action": "pull",
+                "procure_method": "make_to_stock",
+                "location_src_id": self.suppliers.id,
+                "location_dest_id": warehouse.lot_stock_id.id,
+                "picking_type_id": warehouse.in_type_id.id,
+                "warehouse_id": warehouse.id,
+            },
+        )
+        return route
 
     def _unsuppliable_location(self, name):
         root = self.env["stock.location"].create(
@@ -202,8 +229,16 @@ class TestOrderpointProcurement(TransactionCase):
         self.assertEqual(prepare(9), prepare(3))
 
     def test_a_failing_orderpoint_does_not_abort_the_batch(self):
+        route = self._supply_route()
         products = self.env["product.product"].create(
-            [{"name": f"Batch {index}", "is_storable": True} for index in range(5)],
+            [
+                {
+                    "name": f"Batch {index}",
+                    "is_storable": True,
+                    "route_ids": [Command.set(route.ids)],
+                }
+                for index in range(5)
+            ],
         )
         orderpoints = self.Orderpoint.create(
             [
@@ -242,8 +277,9 @@ class TestOrderpointProcurement(TransactionCase):
             orderpoints._run_procurement_batch({}, raise_user_error=True)
 
     def test_an_unattributed_failure_is_isolated(self):
-        good = self._product("Unattributed Good")
-        bad = self._product("Unattributed Bad")
+        routes = [Command.set(self._supply_route().ids)]
+        good = self._product("Unattributed Good", route_ids=routes)
+        bad = self._product("Unattributed Bad", route_ids=routes)
         orderpoints = self._orderpoint(good) + self._orderpoint(
             bad,
             location_id=self._unsuppliable_location("Unattributed Nowhere").id,
@@ -284,13 +320,18 @@ class TestOrderpointProcurement(TransactionCase):
 
     def test_a_procurement_without_warehouse_is_resolved(self):
         product = self._product("No Warehouse")
+        route = self._supply_route()
         Rule = self.env["stock.rule"]
+        resolved = Rule._get_rule(
+            product, self.stock_location, {"warehouse_id": False, "route_ids": route}
+        )
+        self.assertEqual(resolved, route.rule_ids)
         self.assertEqual(
-            Rule._get_rule(product, self.stock_location, {"warehouse_id": False}),
+            resolved,
             Rule._get_rule(
                 product,
                 self.stock_location,
-                {"warehouse_id": self.env["stock.warehouse"]},
+                {"warehouse_id": self.env["stock.warehouse"], "route_ids": route},
             ),
         )
         procurement = Rule.Procurement(
@@ -301,7 +342,7 @@ class TestOrderpointProcurement(TransactionCase):
             "Audit",
             "Audit",
             self.env.company,
-            {"warehouse_id": False, "route_ids": self.warehouse.reception_route_id},
+            {"warehouse_id": False, "route_ids": route},
         )
         Rule.run([procurement])
         self.assertTrue(
@@ -309,7 +350,7 @@ class TestOrderpointProcurement(TransactionCase):
         )
 
     def test_the_default_route_reads_parent_categories(self):
-        route = self.warehouse.reception_route_id
+        route = self._supply_route()
         parent = self.env["product.category"].create(
             {"name": "Audit Parent", "route_ids": [Command.set(route.ids)]},
         )
@@ -348,6 +389,16 @@ class TestOrderpointProcurement(TransactionCase):
 
     def test_the_replenish_wizard_routes_follow_its_warehouse(self):
         other = self.env["stock.warehouse"].create({"name": "Audit Wiz", "code": "AWZ"})
+        here, there = (
+            self._supply_route(
+                warehouse,
+                product_selectable=False,
+                product_categ_selectable=False,
+                warehouse_selectable=True,
+                warehouse_ids=[Command.link(warehouse.id)],
+            )
+            for warehouse in (self.warehouse, other)
+        )
         product = self._product("Wizard Route")
         Route = type(self.env["stock.route"])
         with patch.object(
@@ -363,12 +414,11 @@ class TestOrderpointProcurement(TransactionCase):
                     "warehouse_id": self.warehouse.id,
                 },
             )
-            self.assertIn(
-                self.warehouse.reception_route_id, wizard.allowed_route_ids._origin
-            )
-            self.assertNotIn(other.reception_route_id, wizard.allowed_route_ids._origin)
+            self.assertIn(here, wizard.allowed_route_ids._origin)
+            self.assertNotIn(there, wizard.allowed_route_ids._origin)
             wizard.warehouse_id = other
-            self.assertIn(other.reception_route_id, wizard.allowed_route_ids._origin)
+            self.assertIn(there, wizard.allowed_route_ids._origin)
+            self.assertNotIn(here, wizard.allowed_route_ids._origin)
 
     def test_a_resupply_leg_is_renamed_with_its_source(self):
         supplier = self.env["stock.warehouse"].create(

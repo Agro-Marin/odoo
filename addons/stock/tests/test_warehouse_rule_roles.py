@@ -96,9 +96,13 @@ class TestWarehouseRuleRoles(WarehouseRuleRoleCase):
         for route_field in warehouse._prepare_route_vals():
             route = warehouse[route_field]
             with self.subTest(route=route_field):
-                self.assertTrue(route.rule_ids)
                 self.assertEqual(
-                    set(route.rule_ids.mapped("warehouse_role")), {route_field}
+                    {rule_shape(rule) for rule in route.rule_ids},
+                    self.expected_shapes(warehouse, route_field),
+                )
+                self.assertEqual(
+                    set(route.rule_ids.mapped("warehouse_role")) - {route_field},
+                    set(),
                 )
         for rule_field in warehouse._get_global_rule_fields():
             if warehouse[rule_field]:
