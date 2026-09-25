@@ -370,16 +370,24 @@
     }
 }
 
+@mixin o-statusbar-dark-colors {
+    $-design: map-get($o-dark-btns-bs-override, "secondary");
+    --o-statusbar-background-active: #{map-get($-design, active-background)};
+    --o-statusbar-border-active: #{map-get($-design, active-border)};
+    --o-statusbar-background-hover: #{map-get($-design, hover-background)};
+}
+
+// One rule per selector group the light bundle declares, so each dark answer
+// sits under the exact selector the dark bundle serves.
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
-        .o_field_statusbar,
+        .o_field_statusbar > .o_statusbar_status {
+            @include o-statusbar-dark-colors;
+        }
         .o_field_statusbar_duration,
         .o_field_rotting_statusbar_duration {
             > .o_statusbar_status {
-                $-design: map-get($o-dark-btns-bs-override, "secondary");
-                --o-statusbar-background-active: #{map-get($-design, active-background)};
-                --o-statusbar-border-active: #{map-get($-design, active-border)};
-                --o-statusbar-background-hover: #{map-get($-design, hover-background)};
+                @include o-statusbar-dark-colors;
             }
         }
     }
