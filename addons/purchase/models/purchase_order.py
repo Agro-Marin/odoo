@@ -581,12 +581,6 @@ class PurchaseOrder(models.Model):
     def _create_downpayments(self, line_vals):
         return self._create_down_payment_lines(line_vals)
 
-    def _prepare_down_payment_line_values_from_base_line(self, base_line):
-        return {
-            **super()._prepare_down_payment_line_values_from_base_line(base_line),
-            "name": self.env._("Down Payment"),
-        }
-
     def _get_invoice_grouping_keys(self):
         return ["company_id", "partner_id", "currency_id"]
 

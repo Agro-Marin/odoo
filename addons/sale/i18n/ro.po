@@ -2647,40 +2647,14 @@ msgid "Domain"
 msgstr "Domeniu"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
 #: model:ir.model.fields,field_description:sale.field_sale_advance_payment_inv__amount
 msgid "Down Payment"
 msgstr "Avans"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-msgid "Down Payment (Cancelled)"
-msgstr "Plată în avans (Anulată)"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-msgid "Down Payment (ref: %(reference)s on %(date)s)"
-msgstr "Plată în avans (ref: %(reference)s din %(date)s)"
-
-#. module: sale
 #: model:ir.model.fields,field_description:sale.field_sale_advance_payment_inv__fixed_amount
 msgid "Down Payment Amount (Fixed)"
 msgstr "Suma avansului (fix)"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-msgid "Down Payment: %(date)s (Draft)"
-msgstr "Plată în avans: %(date)s (Ciornă)"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-msgid "Down Payments"
-msgstr "Avansuri"
 
 #. module: sale
 #: model_terms:ir.ui.view,arch_db:sale.sale_order_portal_template

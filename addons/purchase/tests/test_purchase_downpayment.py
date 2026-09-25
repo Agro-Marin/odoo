@@ -289,3 +289,52 @@ class TestPurchaseDownpaymentWizard(TestPurchaseToInvoiceCommon):
             self._wizard(
                 po, advance_payment_method="percentage", amount=120
             ).create_invoices()
+
+    def _down_payment(self, po, percentage=20):
+        self._wizard(
+            po, advance_payment_method="percentage", amount=percentage
+        ).create_invoices()
+        dp_line = po.line_ids.filtered(
+            lambda line: line.is_downpayment and not line.display_type
+        )
+        return po.invoice_ids, dp_line
+
+    def test_deleting_a_draft_down_payment_bill_removes_its_order_line(self):
+        po = self._order()
+        dp_bill, dp_line = self._down_payment(po)
+
+        dp_bill.unlink()
+
+        self.assertFalse(dp_line.exists())
+        self.assertFalse(
+            po.line_ids.filtered(
+                lambda line: not line.display_type and line.is_downpayment
+            )
+        )
+
+    def test_the_final_bill_deducts_the_amount_the_down_payment_bill_was_posted_at(
+        self,
+    ):
+        po = self._order()
+        dp_bill, dp_line = self._down_payment(po)
+        dp_bill.invoice_line_ids.price_unit = 150.0
+        dp_bill.invoice_date = fields.Date.today()
+        dp_bill.action_post()
+
+        self.assertEqual(dp_line.price_unit, 150.0)
+        final_bill = po.create_invoice()
+        self.assertAlmostEqual(final_bill.amount_untaxed, po.amount_untaxed - 150.0)
+
+    def test_the_down_payment_line_is_named_after_its_bill(self):
+        po = self._order()
+        dp_bill, dp_line = self._down_payment(po)
+        self.assertIn("(Draft)", dp_line.name)
+
+        dp_bill.ref = "VND/0042"
+        dp_bill.invoice_date = fields.Date.from_string("2019-01-02")
+        dp_bill.action_post()
+        self.assertEqual(dp_line.name, "Down Payment (ref: VND/0042 on 01/02/2019)")
+
+        dp_bill.action_draft()
+        dp_bill.action_cancel()
+        self.assertEqual(dp_line.name, "Down Payment (Cancelled)")

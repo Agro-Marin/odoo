@@ -48,17 +48,6 @@ class AccountMove(models.Model):
         help="0: SO not required or partially linked. 1: All lines linked",
     )
 
-    def unlink(self):
-        own_lines = self.line_ids
-        downpayment_lines = own_lines.sale_line_ids.filtered(
-            lambda line: line.is_downpayment and line.invoice_line_ids <= own_lines,
-        )
-        res = super().unlink()
-        if downpayment_lines:
-            _debug.lifecycle("downpayment_lines_unlinked", lines=downpayment_lines)
-            downpayment_lines.unlink()
-        return res
-
     @api.depends("move_type", "partner_id")
     def _compute_invoice_user_id(self):
         super()._compute_invoice_user_id()
@@ -118,22 +107,6 @@ class AccountMove(models.Model):
                 "out_invoice", "sale_warn_msg", "sale_line_warn_msg"
             )
 
-    def action_cancel(self):
-        res = super().action_cancel()
-        self.line_ids.filtered("is_downpayment").sale_line_ids.filtered(
-            lambda line: not line.display_type,
-        )._compute_name()
-        return res
-
-    def action_draft(self):
-        res = super().action_draft()
-
-        self.line_ids.filtered("is_downpayment").sale_line_ids.filtered(
-            lambda line: not line.display_type,
-        )._compute_name()
-
-        return res
-
     def _action_invoice_ready_to_be_sent(self):
         res = super()._action_invoice_ready_to_be_sent()
 
@@ -144,28 +117,6 @@ class AccountMove(models.Model):
         if send_invoice_cron:
             _debug.lifecycle("invoice_send_cron_triggered", moves=self)
             send_invoice_cron._trigger()
-
-        return res
-
-    def action_post(self):
-        res = super().action_post()
-
-        dp_lines = self.line_ids.sale_line_ids.filtered(
-            lambda line: line.is_downpayment and not line.display_type,
-        )
-        dp_lines._compute_name()
-        downpayment_lines = dp_lines.filtered(lambda line: not line.order_id.locked)
-        other_so_lines = downpayment_lines.order_id.line_ids - downpayment_lines
-        real_invoices = set(other_so_lines.invoice_line_ids.move_id)
-        _debug.pipeline(
-            "downpayment_lines_repriced",
-            moves=self,
-            lines=downpayment_lines,
-            real_invoices=len(real_invoices),
-        )
-        for so_dpl in downpayment_lines:
-            so_dpl.price_unit = so_dpl._get_downpayment_price_unit(real_invoices)
-            so_dpl.tax_ids = so_dpl.invoice_line_ids.tax_ids
 
         return res
 
@@ -267,12 +218,3 @@ class AccountMove(models.Model):
                 amount=order_amount_company,
             )
         return exclude_amount
-
-    def _is_downpayment(self):
-        self.check_singleton()
-        return (
-            self.line_ids.sale_line_ids
-            and all(
-                sale_line.is_downpayment for sale_line in self.line_ids.sale_line_ids
-            )
-        ) or False

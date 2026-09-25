@@ -12,6 +12,61 @@ _debug = DebugLog(__name__)
 class AccountMove(models.Model):
     _inherit = "account.move"
 
+    def _get_linked_order_lines(self):
+        return [
+            self.line_ids.mapped(field_name)
+            for field_name in self.env[
+                "account.move.line"
+            ]._get_fields_order_line_link()
+        ]
+
+    def _get_linked_downpayment_lines(self):
+        return [
+            lines.filtered(lambda line: line.is_downpayment and not line.display_type)
+            for lines in self._get_linked_order_lines()
+        ]
+
+    def unlink(self):
+        own_lines = self.line_ids
+        downpayment_lines = [
+            lines.filtered(
+                lambda line: line.is_downpayment and line.invoice_line_ids <= own_lines,
+            )
+            for lines in self._get_linked_order_lines()
+        ]
+        res = super().unlink()
+        for lines in downpayment_lines:
+            if lines:
+                _debug.lifecycle("downpayment_lines_unlinked", lines=lines)
+                lines.unlink()
+        return res
+
+    def action_cancel(self):
+        res = super().action_cancel()
+        for lines in self._get_linked_downpayment_lines():
+            lines._update_downpayment_names()
+        return res
+
+    def action_draft(self):
+        res = super().action_draft()
+        for lines in self._get_linked_downpayment_lines():
+            lines._update_downpayment_names()
+        return res
+
+    def action_post(self):
+        res = super().action_post()
+        for lines in self._get_linked_downpayment_lines():
+            lines._update_downpayment_names()
+            lines._update_downpayment_prices()
+        return res
+
+    def _is_downpayment(self):
+        self.check_singleton()
+        linked = [lines for lines in self._get_linked_order_lines() if lines]
+        return bool(linked) and all(
+            line.is_downpayment for lines in linked for line in lines
+        )
+
     def _add_order_lines(self, order_lines):
         if not order_lines:
             return

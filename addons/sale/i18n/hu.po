@@ -2176,40 +2176,14 @@ msgid "Domain"
 msgstr "Tartomány"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
 #: model:ir.model.fields,field_description:sale.field_sale_advance_payment_inv__amount
 msgid "Down Payment"
 msgstr "Előleg"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-msgid "Down Payment (Cancelled)"
-msgstr "Előleg (visszavont)"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-msgid "Down Payment (ref: %(reference)s on %(date)s)"
-msgstr "Előleg  (hivatkozás: %(reference)s dátum: %(date)s)"
-
-#. module: sale
 #: model:ir.model.fields,field_description:sale.field_sale_advance_payment_inv__fixed_amount
 msgid "Down Payment Amount (Fixed)"
 msgstr "Előleg összege (fix)"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-msgid "Down Payment: %(date)s (Draft)"
-msgstr "Előleg: %(date)s (Draft)"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-msgid "Down Payments"
-msgstr "Előlegek"
 
 #. module: sale
 #: model_terms:ir.ui.view,arch_db:sale.sale_order_portal_template

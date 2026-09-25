@@ -5,6 +5,7 @@ from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_compare, float_is_zero
+from odoo.tools import format_date
 
 from .mixin_order_invoice import INVOICE_STATE
 from odoo.addons.trade.tools import TradeDirection, direction_of
@@ -256,6 +257,91 @@ class MixinOrderLineInvoice(models.AbstractModel):
             return True
         precision = self.env["decimal.precision"].get_precision("Product Unit")
         return not float_is_zero(self.qty_to_invoice, precision_digits=precision)
+
+    def _filtered_unlink_forbidden(self):
+        return (
+            super()
+            ._filtered_unlink_forbidden()
+            .filtered(lambda line: line.invoice_line_ids or not line.is_downpayment)
+        )
+
+    def _get_downpayment_state(self):
+        self.check_singleton()
+        if self.display_type:
+            return ""
+        invoice_lines = self._get_invoice_lines()
+        _debug.perf.count(
+            "downpayment_state", line=self, invoice_lines=len(invoice_lines)
+        )
+        if all(line.parent_state == "draft" for line in invoice_lines):
+            return "draft"
+        if all(line.parent_state == "cancel" for line in invoice_lines):
+            return "cancel"
+        return ""
+
+    def _get_downpayment_reference(self, invoice):
+        return invoice.payment_reference
+
+    def _get_downpayment_description(self):
+        self.check_singleton()
+        if self.display_type:
+            return self.env._("Down Payments")
+
+        dp_state = self._get_downpayment_state()
+        _debug.logic("downpayment_description", line=self, state=dp_state or "invoiced")
+        name = self.env._("Down Payment")
+        if dp_state == "draft":
+            name = self.env._(
+                "Down Payment: %(date)s (Draft)",
+                date=format_date(self.env, self.create_date.date()),
+            )
+        elif dp_state == "cancel":
+            name = self.env._("Down Payment (Cancelled)")
+        else:
+            invoice_type = self._get_invoice_move_types()[0]
+            invoice = (
+                self._get_invoice_lines()
+                .filtered(lambda aml: aml.quantity >= 0)
+                .move_id.filtered(lambda move: move.move_type == invoice_type)
+            )
+            reference = len(invoice) == 1 and self._get_downpayment_reference(invoice)
+            if reference and invoice.invoice_date:
+                name = self.env._(
+                    "Down Payment (ref: %(reference)s on %(date)s)",
+                    reference=reference,
+                    date=format_date(self.env, invoice.invoice_date),
+                )
+        return name
+
+    def _update_downpayment_names(self):
+        for line in self:
+            if not line.is_downpayment or line.display_type:
+                continue
+            lang = line.order_id._get_lang()
+            if lang != self.env.lang:
+                line = line.with_context(lang=lang)
+            line.name = line._get_downpayment_description()
+
+    def _update_downpayment_prices(self):
+        lines = self.filtered(lambda line: not line.order_id.locked)
+        other_lines = lines.order_id.line_ids - lines
+        real_invoices = set(other_lines.invoice_line_ids.move_id)
+        _debug.pipeline(
+            "downpayment_lines_repriced",
+            lines=lines,
+            real_invoices=len(real_invoices),
+        )
+        for line in lines:
+            line.price_unit = line._get_downpayment_price_unit(real_invoices)
+            line.tax_ids = line.invoice_line_ids.tax_ids
+
+    def _get_downpayment_price_unit(self, invoices):
+        invoice_type = self._get_invoice_move_types()[0]
+        return sum(
+            l.price_unit if l.move_id.move_type == invoice_type else -l.price_unit
+            for l in self.invoice_line_ids
+            if l.move_id.state == "posted" and l.move_id not in invoices
+        )
 
     def _prepare_down_payment_deduction_aml_vals(self):
         return {"quantity": -1.0}

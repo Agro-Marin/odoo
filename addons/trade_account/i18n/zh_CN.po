@@ -38,12 +38,32 @@ msgstr "%s 已创建"
 #. module: trade_account
 #. odoo-python
 #: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
 msgid "Down Payment"
 msgstr "预付款"
 
 #. module: trade_account
 #. odoo-python
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
+msgid "Down Payment (Cancelled)"
+msgstr "首期付款（已取消）"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
+msgid "Down Payment (ref: %(reference)s on %(date)s)"
+msgstr "首期付款（参看：%(reference)s，日期%(date)s）"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
+msgid "Down Payment: %(date)s (Draft)"
+msgstr "首付：%(date)s（草稿）"
+
+#. module: trade_account
+#. odoo-python
 #: code:addons/trade_account/models/mixin_order_invoice.py:0
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
 msgid "Down Payments"
 msgstr "预付款"
 

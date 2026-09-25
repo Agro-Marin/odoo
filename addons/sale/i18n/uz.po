@@ -2577,46 +2577,16 @@ msgid "Domain"
 msgstr "Domen"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
 #: model:ir.model.fields,field_description:sale.field_sale_advance_payment_inv__amount
 #, fuzzy
 msgid "Down Payment"
 msgstr "Boshlang‘ich to‘lov"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-#, fuzzy
-msgid "Down Payment (Cancelled)"
-msgstr "Boshlang‘ich to‘lov (bekor qilingan)"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-#, fuzzy
-msgid "Down Payment (ref: %(reference)s on %(date)s)"
-msgstr "Boshlang‘ich to‘lov (havola: %(reference)s, sana: %(date)s)"
-
-#. module: sale
 #: model:ir.model.fields,field_description:sale.field_sale_advance_payment_inv__fixed_amount
 #, fuzzy
 msgid "Down Payment Amount (Fixed)"
 msgstr "Boshlang‘ich to‘lov miqdori (belgilangan)"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-#, fuzzy
-msgid "Down Payment: %(date)s (Draft)"
-msgstr "Boshlang‘ich to‘lov: %(date)s (Qoralama)"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/models/sale_order_line.py:0
-#, fuzzy
-msgid "Down Payments"
-msgstr "Boshlang‘ich to‘lovlar"
 
 #. module: sale
 #: model_terms:ir.ui.view,arch_db:sale.sale_order_portal_template

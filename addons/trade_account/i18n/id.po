@@ -35,12 +35,32 @@ msgstr "%s telah dibuat"
 #. module: trade_account
 #. odoo-python
 #: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
 msgid "Down Payment"
 msgstr "Down Payment"
 
 #. module: trade_account
 #. odoo-python
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
+msgid "Down Payment (Cancelled)"
+msgstr "Down Payment (Dibatalkan)"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
+msgid "Down Payment (ref: %(reference)s on %(date)s)"
+msgstr "Down Payment (ref: %(reference)s pada %(date)s)"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
+msgid "Down Payment: %(date)s (Draft)"
+msgstr "Down Payment: %(date)s (Draft)"
+
+#. module: trade_account
+#. odoo-python
 #: code:addons/trade_account/models/mixin_order_invoice.py:0
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
 msgid "Down Payments"
 msgstr "Down Payment"
 

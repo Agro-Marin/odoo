@@ -30,12 +30,32 @@ msgstr "Se creó %s"
 #. module: trade_account
 #. odoo-python
 #: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
 msgid "Down Payment"
 msgstr "Anticipo"
 
 #. module: trade_account
 #. odoo-python
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
+msgid "Down Payment (Cancelled)"
+msgstr "Anticipo (cancelado)"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
+msgid "Down Payment (ref: %(reference)s on %(date)s)"
+msgstr "Anticipo (ref: %(reference)s el %(date)s)"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
+msgid "Down Payment: %(date)s (Draft)"
+msgstr "Anticipo: %(date)s (borrador)"
+
+#. module: trade_account
+#. odoo-python
 #: code:addons/trade_account/models/mixin_order_invoice.py:0
+#: code:addons/trade_account/models/mixin_order_line_invoice.py:0
 msgid "Down Payments"
 msgstr "Anticipos"
 

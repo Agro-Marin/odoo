@@ -19,9 +19,9 @@ from odoo.addons.trade.tools import PURCHASE
 class PurchaseOrderLine(models.Model):
     _name = "purchase.order.line"
     _inherit = [
+        "mixin.order.line.invoice",
         "mixin.order.line.fields",
         "mixin.order.line.amount",
-        "mixin.order.line.invoice",
         "mixin.analytic",
     ]
     _description = "Purchase Order Line"
@@ -244,7 +244,11 @@ class PurchaseOrderLine(models.Model):
 
     @api.depends("partner_id", "product_id", "selected_seller_id")
     def _compute_name(self):
-        for line in self:
+        downpayments = self.filtered(
+            lambda line: line.is_downpayment and not line.display_type
+        )
+        downpayments._update_downpayment_names()
+        for line in self - downpayments:
             if not line.product_id:
                 continue
             line._update_product_description()
@@ -526,6 +530,9 @@ class PurchaseOrderLine(models.Model):
 
     def _is_invoiced_on_transferred(self):
         return self.product_id.bill_policy == "transferred"
+
+    def _get_downpayment_reference(self, invoice):
+        return invoice.ref
 
     def _is_invoiceable(self, final=False):
         return not self.is_downpayment or super()._is_invoiceable(final)

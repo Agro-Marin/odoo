@@ -301,6 +301,35 @@ class TestSaleToInvoice(TestSaleCommon):
             "The down payment unit price should not change on SO",
         )
 
+    def test_deleting_a_draft_down_payment_invoice_removes_its_order_lines(self):
+        sale_order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.company_data["product_order_no"].id,
+                            "product_qty": 5,
+                        }
+                    ),
+                ],
+            }
+        )
+        sale_order.action_confirm()
+        self.env["sale.advance.payment.inv"].with_context(
+            active_model="sale.order", active_ids=sale_order.ids
+        ).create(
+            {"advance_payment_method": "percentage", "amount": 50}
+        ).create_invoices()
+        down_payment_lines = sale_order.line_ids.filtered(
+            lambda line: line.is_downpayment and not line.display_type
+        )
+        self.assertTrue(down_payment_lines)
+
+        sale_order.invoice_ids.unlink()
+
+        self.assertFalse(down_payment_lines.exists())
+
     def test_downpayment_line_name(self):
         sale_order = (
             self.env["sale.order"]

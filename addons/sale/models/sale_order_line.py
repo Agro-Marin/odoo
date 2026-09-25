@@ -7,7 +7,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import float_compare, float_is_zero, format_date, frozendict, groupby
+from odoo.tools import float_compare, float_is_zero, frozendict, groupby
 
 from odoo.addons.trade.tools import SALE
 
@@ -17,9 +17,9 @@ _debug = DebugLog(__name__)
 class SaleOrderLine(models.Model):
     _name = "sale.order.line"
     _inherit = [
+        "mixin.order.line.invoice",
         "mixin.order.line.fields",
         "mixin.order.line.amount",
-        "mixin.order.line.invoice",
         "mixin.analytic",
     ]
     _description = "Sales Order Line"
@@ -943,61 +943,6 @@ class SaleOrderLine(models.Model):
         else:
             order_date = fields.Datetime.now()
         return order_date + timedelta(days=self.customer_lead or 0.0)
-
-    def _get_downpayment_description(self):
-        self.check_singleton()
-
-        if self.display_type:
-            return self.env._("Down Payments")
-
-        dp_state = self._get_downpayment_state()
-        _debug.logic("downpayment_description", line=self, state=dp_state or "invoiced")
-        name = self.env._("Down Payment")
-        if dp_state == "draft":
-            name = self.env._(
-                "Down Payment: %(date)s (Draft)",
-                date=format_date(self.env, self.create_date.date()),
-            )
-        elif dp_state == "cancel":
-            name = self.env._("Down Payment (Cancelled)")
-        else:
-            invoice = (
-                self._get_invoice_lines()
-                .filtered(lambda aml: aml.quantity >= 0)
-                .move_id.filtered(lambda move: move.move_type == "out_invoice")
-            )
-            if len(invoice) == 1 and invoice.payment_reference and invoice.invoice_date:
-                name = self.env._(
-                    "Down Payment (ref: %(reference)s on %(date)s)",
-                    reference=invoice.payment_reference,
-                    date=format_date(self.env, invoice.invoice_date),
-                )
-
-        return name
-
-    def _get_downpayment_price_unit(self, invoices):
-        return sum(
-            l.price_unit if l.move_id.move_type == "out_invoice" else -l.price_unit
-            for l in self.invoice_line_ids
-            if l.move_id.state == "posted" and l.move_id not in invoices
-        )
-
-    def _get_downpayment_state(self):
-        self.check_singleton()
-
-        if self.display_type:
-            return ""
-
-        invoice_lines = self._get_invoice_lines()
-        _debug.perf.count(
-            "downpayment_state", line=self, invoice_lines=len(invoice_lines)
-        )
-        if all(line.parent_state == "draft" for line in invoice_lines):
-            return "draft"
-        if all(line.parent_state == "cancel" for line in invoice_lines):
-            return "cancel"
-
-        return ""
 
     def _get_grouped_section_summary(self, display_taxes=True):
         self.check_singleton()
