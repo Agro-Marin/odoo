@@ -1469,7 +1469,15 @@ class AccountMove(models.Model):
             return NotImplemented
         return [("inalterable_hash", "!=", False)]
 
-    @api.depends("line_ids.account_id.account_type")
+    # The account type and tax exigibility it reads are left out on purpose: they
+    # are configuration, and a trigger on them would flip posted entries and
+    # rewrite their tax report after the fact.
+    @api.depends(
+        "move_type",
+        "line_ids.account_id",
+        "line_ids.tax_ids",
+        "line_ids.tax_line_id",
+    )
     def _compute_always_tax_exigible(self):
         for record in self.with_context(prefetch_fields=False):
             record.always_tax_exigible = (
@@ -4921,13 +4929,13 @@ class AccountMove(models.Model):
             "total_residual_currency": 0.0,
         }
 
-        currencies = set()
+        term_currencies = set()
         has_term_lines = False
         for line in self.line_ids:
             if line.account_type in RECEIVABLE_PAYABLE_TYPES:
                 sign = 1 if line.balance > 0.0 else -1
 
-                currencies.add(line.currency_id)
+                term_currencies.add(line.currency_id)
                 has_term_lines = True
                 values["total_balance"] += sign * line.balance
                 values["total_residual"] += sign * line.amount_residual
@@ -4937,31 +4945,34 @@ class AccountMove(models.Model):
                 )
             elif line.tax_line_id.tax_exigibility == "on_payment":
                 values["to_process_lines"].append(("tax", line))
-                currencies.add(line.currency_id)
             elif "on_payment" in line.tax_ids.flatten_taxes_hierarchy().mapped(
                 "tax_exigibility"
             ):
                 values["to_process_lines"].append(("base", line))
-                currencies.add(line.currency_id)
 
         _debug.logic(
             "caba_lines_collected",
             move=self,
             to_process_lines=len(values["to_process_lines"]),
             has_term_lines=has_term_lines,
-            currencies=len(currencies),
+            term_currencies=len(term_currencies),
         )
         if not values["to_process_lines"] or not has_term_lines:
             return None
 
-        if len(currencies) == 1:
-            values["currency"] = next(iter(currencies))
-        else:
-            return None
-
+        # The paid share is measured on the term lines alone; when they carry
+        # several currencies only the company currency adds them up.
         values["is_fully_paid"] = self.company_id.currency_id.is_zero(
             values["total_residual"]
-        ) or values["currency"].is_zero(values["total_residual_currency"])
+        )
+        if len(term_currencies) == 1:
+            values["currency"] = next(iter(term_currencies))
+            values["is_fully_paid"] |= values["currency"].is_zero(
+                values["total_residual_currency"]
+            )
+        else:
+            _debug.logic("caba_term_currencies_mixed", move=self)
+            values["currency"] = self.company_id.currency_id
 
         _debug.logic(
             "caba_fully_paid_decided",

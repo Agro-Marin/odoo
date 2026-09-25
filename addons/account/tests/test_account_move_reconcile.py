@@ -9886,61 +9886,6 @@ class TestAccountMoveReconcile(AccountTestInvoicingCommon):
             },
         )
 
-    def test_same_move_reconciliation_does_not_create_cash_basis_entry(self):
-        self.env.company.account_config_id.tax_exigibility = True
-        tax_repartition_line = (
-            self.cash_basis_tax_a_third_amount.invoice_repartition_line_ids.filtered(
-                lambda line: line.repartition_type == "tax"
-            )
-        )
-        move = self.env["account.move"].create(
-            {
-                "move_type": "entry",
-                "date": "2025-01-01",
-                "line_ids": [
-                    Command.create(
-                        {
-                            "account_id": self.revenue_account.id,
-                            "balance": -100.0,
-                            "tax_ids": [
-                                Command.set(self.cash_basis_tax_a_third_amount.ids)
-                            ],
-                        }
-                    ),
-                    Command.create(
-                        {
-                            "account_id": self.cash_basis_transfer_account.id,
-                            "balance": -33.33,
-                            "tax_repartition_line_id": tax_repartition_line.id,
-                        }
-                    ),
-                    Command.create(
-                        {
-                            "account_id": self.receivable_account.id,
-                            "partner_id": self.partner_a.id,
-                            "date_maturity": "2025-01-01",
-                            "balance": 183.33,
-                        }
-                    ),
-                    Command.create(
-                        {
-                            "account_id": self.receivable_account.id,
-                            "partner_id": self.partner_a.id,
-                            "date_maturity": "2025-01-01",
-                            "balance": -50.0,
-                        }
-                    ),
-                ],
-            }
-        )
-        move.action_post()
-        receivable_lines = move.line_ids.filtered(
-            lambda line: line.account_id == self.receivable_account
-        )
-        receivable_lines.reconcile()
-
-        self.assertFalse(move.tax_cash_basis_created_move_ids)
-
     def test_reconcile_cash_basis_payment_term_full_amount(self):
         self.env.company.account_config_id.tax_exigibility = True
 

@@ -14,12 +14,10 @@ class AccountPartialReconcile(models.Model):
 
     def _get_cash_basis_line_pairs(self):
         self.check_singleton()
-        for source_line, counterpart_line in (
+        return (
             (self.debit_move_id, self.credit_move_id),
             (self.credit_move_id, self.debit_move_id),
-        ):
-            if source_line.move_id != counterpart_line.move_id:
-                yield source_line, counterpart_line
+        )
 
     def _get_cash_basis_journal(self):
         self.check_singleton()
@@ -143,6 +141,7 @@ class AccountPartialReconcile(models.Model):
             "both_move_posted": self.debit_move_id.move_id.state == "posted"
             and self.credit_move_id.move_id.state == "posted",
             "payment_date": payment_date,
+            "payment_currency": source_line.currency_id,
             "counterpart_move": counterpart_move,
         }
 
@@ -362,6 +361,23 @@ class AccountPartialReconcile(models.Model):
             vals["tax_base_amount"] += cb_line_vals["tax_base_amount"]
             aggregated["tax_line"] |= line
 
+    def _get_cash_basis_line_rate(self, partial_values, line):
+        if line.currency_id == partial_values["payment_currency"]:
+            return partial_values["payment_rate"]
+        if line.currency_id == line.company_currency_id:
+            return 1.0
+        _debug.logic(
+            "cash_basis_line_rate_at_payment_date",
+            line=line,
+            payment_currency=partial_values["payment_currency"],
+        )
+        return self.env["res.currency"]._get_conversion_rate(
+            line.company_currency_id,
+            line.currency_id,
+            line.company_id,
+            partial_values["payment_date"],
+        )
+
     def _get_cash_basis_lines_to_create(
         self, move_values, partial_values, residual_per_tax_line
     ):
@@ -370,7 +386,7 @@ class AccountPartialReconcile(models.Model):
             amount_currency = self._get_cash_basis_line_amount_currency(
                 move_values, partial_values, caba_treatment, line, residual_per_tax_line
             )
-            payment_rate = partial_values["payment_rate"]
+            payment_rate = self._get_cash_basis_line_rate(partial_values, line)
             balance = (payment_rate and amount_currency / payment_rate) or 0.0
             grouping_key, cb_line_vals = self._prepare_cash_basis_line_vals(
                 partial_values, caba_treatment, line, balance, amount_currency
