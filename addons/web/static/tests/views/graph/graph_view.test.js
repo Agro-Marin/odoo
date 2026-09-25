@@ -1,6 +1,6 @@
 // @ts-check
 
-import { expect, test } from "@odoo/hoot";
+import { after, expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
 import { animationFrame, Deferred, mockDate } from "@odoo/hoot-mock";
 import { onRendered } from "@odoo/owl";
@@ -27,6 +27,7 @@ import {
     toggleSearchBarMenu,
     validateSearch,
 } from "@web/../tests/web_test_helpers";
+import { colorScheme } from "@web/core/color_scheme";
 import {
     DEFAULT_BG,
     getBorderWhite,
@@ -3618,4 +3619,16 @@ test("changing graph mode waits for pending property preparation", async () => {
         "properties.delayed",
     ]);
     expect(model.fetches.isBusy).toBe(false);
+});
+
+test("a scheme switch recolours the chart in place", async () => {
+    after(() => colorScheme.publish("light"));
+    const view = await mountView({ type: "graph", resModel: "foo" });
+    const lightChart = getChart(view);
+    expect(getScaleY(view).ticks.color).toBe("#111827");
+
+    colorScheme.publish("dark");
+    await animationFrame();
+    expect(getChart(view) === lightChart).toBe(true);
+    expect(getScaleY(view).ticks.color).toBe("#E4E4E4");
 });

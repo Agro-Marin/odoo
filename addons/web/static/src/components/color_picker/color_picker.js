@@ -10,7 +10,7 @@ import {
 } from "@web/core/colors/colors";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 export { DEFAULT_COLORS, DEFAULT_THEME_COLOR_VARS } from "@web/core/colors/colors";
-import { colorScheme } from "@web/core/color_scheme";
+import { useColorScheme } from "@web/core/color_scheme";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { usePositionBus } from "@web/core/position/position_hook";
@@ -99,6 +99,7 @@ export class ColorPicker extends Component {
     getPreviewColor = () => {};
 
     setup() {
+        this.colorScheme = useColorScheme();
         this.positionBus = usePositionBus();
         useLifecycleLog(log);
         this.tabHandlers = {
@@ -177,7 +178,7 @@ export class ColorPicker extends Component {
     }
 
     get isDarkTheme() {
-        return colorScheme.isDark;
+        return this.colorScheme.isDark;
     }
 
     setTab(tab) {

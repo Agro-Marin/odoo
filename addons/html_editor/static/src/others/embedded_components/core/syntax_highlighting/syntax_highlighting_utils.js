@@ -1,6 +1,8 @@
 /** @odoo-module native */
 import { fillEmpty } from "@html_editor/utils/dom";
 import { descendants, lastLeaf } from "@html_editor/utils/dom_traversal";
+import { loadBundle } from "@web/core/assets";
+import { colorScheme } from "@web/core/color_scheme";
 
 export const DEFAULT_LANGUAGE_ID = "plaintext";
 
@@ -86,3 +88,19 @@ export const highlightPre = (pre, value, languageId) => {
     [...pre.childNodes].forEach((child) => child.remove());
     [...fakeElement.childNodes].forEach((child) => pre.append(child));
 };
+
+/** @param {Document} targetDoc */
+export async function loadPrism(targetDoc) {
+    const dark = colorScheme.isDark;
+    await Promise.all([
+        loadBundle("html_editor.assets_prism", { targetDoc }),
+        loadBundle(`html_editor.assets_prism_${dark ? "dark" : "light"}`, {
+            targetDoc,
+        }),
+    ]);
+    for (const link of targetDoc.querySelectorAll(
+        'link[href*="html_editor.assets_prism_"]',
+    )) {
+        link.disabled = link.href.includes("assets_prism_dark") !== dark;
+    }
+}

@@ -5,6 +5,7 @@ import { Component, onWillStart, onWillUnmount, useRef } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useAction } from "@web/core/action_port";
+import { useColorScheme } from "@web/core/color_scheme";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { Chart, loadChartJS } from "@web/core/lib/chartjs";
@@ -57,6 +58,7 @@ export class GraphRenderer extends Component {
         this.canvasRef = useRef("canvas");
         this.containerRef = useRef("container");
         this.actionService = useAction();
+        this.colorScheme = useColorScheme();
 
         this.chart = null;
         this.tooltip = null;
@@ -68,7 +70,7 @@ export class GraphRenderer extends Component {
 
         useLayoutEffect(
             () => this.renderChart(),
-            () => [this.model.data, this.model.metaData],
+            () => [this.model.data, this.model.metaData, this.colorScheme.current],
         );
         onWillUnmount(this.onWillUnmount);
     }

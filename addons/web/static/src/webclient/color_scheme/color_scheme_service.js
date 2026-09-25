@@ -48,8 +48,5 @@ export const colorSchemeService = {
     async start() {
         return new ColorSchemeService();
     },
-    reload() {
-        browser.location.reload();
-    },
 };
 serviceRegistry.add("color_scheme", colorSchemeService);

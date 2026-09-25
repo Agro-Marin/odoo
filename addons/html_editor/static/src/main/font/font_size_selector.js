@@ -5,7 +5,7 @@ import { toolbarButtonProps } from "@html_editor/main/toolbar/toolbar";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
-import { colorScheme } from "@web/core/color_scheme";
+import { colorScheme, useColorSchemeEffect } from "@web/core/color_scheme";
 import { useChildRef } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useDebounced } from "@web/core/utils/timing";
@@ -52,14 +52,10 @@ export class FontSizeSelector extends Component {
                 }
 
                 this.fontSizeInput = iframeDoc.createElement("input");
-                const isDarkMode = colorScheme.isDark;
-                const htmlStyle = getHtmlStyle(document);
-                const backgroundColor = getCSSVariableValue(
-                    isDarkMode ? "gray-200" : "white",
-                    htmlStyle,
+                const fontFamily = getCSSVariableValue(
+                    "o-system-fonts",
+                    getHtmlStyle(document),
                 );
-                const color = getCSSVariableValue("black", htmlStyle);
-                const fontFamily = getCSSVariableValue("o-system-fonts", htmlStyle);
                 Object.assign(iframeDoc.body.style, {
                     padding: "0",
                     margin: "0",
@@ -70,10 +66,9 @@ export class FontSizeSelector extends Component {
                     border: "none",
                     outline: "none",
                     textAlign: "center",
-                    backgroundColor: backgroundColor,
-                    color: color,
                     fontFamily: fontFamily,
                 });
+                this.paintFontSizeInput();
                 this.fontSizeInput.type = "text";
                 this.fontSizeInput.name = "font-size-input";
                 this.fontSizeInput.autocomplete = "off";
@@ -98,6 +93,7 @@ export class FontSizeSelector extends Component {
             }
             iframeEl.addEventListener("load", initFontSizeInput);
         });
+        useColorSchemeEffect(() => this.paintFontSizeInput());
         useLayoutEffect(
             () => {
                 if (this.fontSizeInput) {
@@ -123,6 +119,20 @@ export class FontSizeSelector extends Component {
             },
             () => [this.dropdown.isOpen],
         );
+    }
+
+    paintFontSizeInput() {
+        if (!this.fontSizeInput) {
+            return;
+        }
+        const htmlStyle = getHtmlStyle(document);
+        Object.assign(this.fontSizeInput.style, {
+            backgroundColor: getCSSVariableValue(
+                colorScheme.isDark ? "gray-200" : "white",
+                htmlStyle,
+            ),
+            color: getCSSVariableValue("black", htmlStyle),
+        });
     }
 
     onCustomFontSizeInput(ev) {

@@ -522,6 +522,9 @@ export class Store extends BaseStore {
     /** @this {import("models").Store} */
     onStarted() {
         this.isOdooWhiteTheme = !colorScheme.isDark || this.inPublicPage;
+        colorScheme.subscribe((scheme) => {
+            this.isOdooWhiteTheme = scheme === "light" || this.inPublicPage;
+        });
         /** @param {MessageEvent} ev */
         const onServiceWorkerMessage = (ev) => {
             const { data = {} } = ev;

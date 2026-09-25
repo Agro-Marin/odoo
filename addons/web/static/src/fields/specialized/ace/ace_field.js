@@ -3,7 +3,7 @@
 
 import { useState } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
-import { colorScheme } from "@web/core/color_scheme";
+import { useColorScheme } from "@web/core/color_scheme";
 import { ModelEvent } from "@web/core/events";
 import { formatText } from "@web/core/formatters";
 import { _t } from "@web/core/translation";
@@ -35,6 +35,7 @@ export class AceField extends FieldComponent {
     state;
 
     setup() {
+        this.colorScheme = useColorScheme();
         this.state = useState({ initialValue: "", revision: 0 });
         this.isDirty = false;
         this.setFieldDirty = useFieldDirtySignal();
@@ -69,7 +70,7 @@ export class AceField extends FieldComponent {
         return this.props.mode === "xml" ? "qweb" : this.props.mode;
     }
     get theme() {
-        return colorScheme.isDark ? "monokai" : "";
+        return this.colorScheme.isDark ? "monokai" : "";
     }
     /** @returns {boolean} */
     get isJson() {

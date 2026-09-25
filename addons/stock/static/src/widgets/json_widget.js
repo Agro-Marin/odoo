@@ -1,11 +1,11 @@
 /** @odoo-module native */
-import { Component, onWillStart, useRef } from "@odoo/owl";
+import { Component } from "@odoo/owl";
 import { readJsonField } from "@stock/utils/json_field";
 import { getColor } from "@web/core/colors/colors";
-import { Chart, loadChartJS } from "@web/core/lib/chartjs";
+import { Chart } from "@web/core/lib/chartjs";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { useLayoutEffect } from "@web/core/utils/layout_effect";
+import { useChartCanvas } from "@web/fields/chart_canvas_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class JsonPopOver extends Component {
@@ -36,23 +36,9 @@ export class ReplenishmentGraphWidget extends JsonPopOver {
     static template = "stock.replenishmentGraph";
     setup() {
         super.setup();
-        this.chart = null;
-        this.canvasRef = useRef("canvas");
-        onWillStart(async () => {
-            await loadChartJS();
-        });
-
-        useLayoutEffect(
-            () => {
-                this.renderChart();
-                return () => {
-                    if (this.chart) {
-                        this.chart.destroy();
-                    }
-                };
-            },
-            () => [this.props.record.data[this.props.name]],
-        );
+        this.canvasRef = useChartCanvas(this, () => [
+            this.props.record.data[this.props.name],
+        ]);
     }
     get productUomName() {
         return this.jsonValue["product_uom_name"];

@@ -1,12 +1,12 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillStart, xml } from "@odoo/owl";
-import { loadBundle } from "@web/core/assets";
-import { colorScheme } from "@web/core/color_scheme";
+import { useColorSchemeEffect } from "@web/core/color_scheme";
 
 import {
     DEFAULT_LANGUAGE_ID,
     getPreValue,
     highlightPre,
+    loadPrism,
 } from "./syntax_highlighting_utils.js";
 
 export class ReadonlySyntaxHighlightingComponent extends Component {
@@ -18,11 +18,8 @@ export class ReadonlySyntaxHighlightingComponent extends Component {
     static template = xml`<span/>`;
 
     setup() {
-        onWillStart(() =>
-            loadBundle(`html_editor.assets_prism${colorScheme.isDark ? "_dark" : ""}`, {
-                targetDoc: this.props.host.ownerDocument,
-            }),
-        );
+        onWillStart(() => loadPrism(this.props.host.ownerDocument));
+        useColorSchemeEffect(() => loadPrism(this.props.host.ownerDocument));
         onMounted(() => {
             const owlRoot = [...(this.props.host.children || [])].find(
                 (child) => child.nodeName === "OWL-ROOT",

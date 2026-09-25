@@ -2,7 +2,7 @@
 import { useAccountContext } from "@account/components/account_context";
 import { Component, onWillStart } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
-import { colorScheme } from "@web/core/color_scheme";
+import { useColorScheme } from "@web/core/color_scheme";
 import { registry } from "@web/core/registry";
 import { user } from "@web/core/user";
 import { useViewConfig } from "@web/core/view_config_hooks";
@@ -19,6 +19,7 @@ export class AccountReturnSelectionBadge extends Component {
     };
 
     setup() {
+        this.colorScheme = useColorScheme();
         this.accountContext = useAccountContext();
         this.config = useViewConfig();
         onWillStart(async () => {
@@ -91,11 +92,11 @@ export class AccountReturnSelectionBadge extends Component {
         const decoration = this.props.options[value]?.decoration;
         if (decoration) {
             if (decoration === "muted") {
-                return colorScheme.isDark ? "text-bg-200" : "text-bg-300";
+                return this.colorScheme.isDark ? "text-bg-200" : "text-bg-300";
             }
             return `text-bg-${this.props.options[value].decoration}`;
         }
-        return colorScheme.isDark ? "text-bg-200" : "text-bg-100";
+        return this.colorScheme.isDark ? "text-bg-200" : "text-bg-100";
     }
 
     get additionalClassName() {

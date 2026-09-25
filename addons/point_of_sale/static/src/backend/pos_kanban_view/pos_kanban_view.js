@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { onWillStart, useState } from "@odoo/owl";
 import { useTrackedAsync } from "@point_of_sale/app/hooks/hooks";
-import { colorScheme } from "@web/core/color_scheme";
+import { useColorScheme } from "@web/core/color_scheme";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -59,6 +59,7 @@ export class PosKanbanRenderer extends KanbanRenderer {
 
     setup() {
         super.setup();
+        this.colorScheme = useColorScheme();
         this.searchModel = useSearchModel();
         this.ui = useService("ui");
         this.orm = useService("orm");
@@ -119,7 +120,7 @@ export class PosKanbanRenderer extends KanbanRenderer {
     }
 
     get isDarkTheme() {
-        return colorScheme.isDark;
+        return this.colorScheme.isDark;
     }
 
     async callWithViewUpdate(func) {

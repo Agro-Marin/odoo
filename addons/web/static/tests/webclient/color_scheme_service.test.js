@@ -1,5 +1,6 @@
 import { after, expect, test } from "@odoo/hoot";
-import { mockMatchMedia } from "@odoo/hoot-mock";
+import { animationFrame, mockMatchMedia } from "@odoo/hoot-mock";
+import { Component, useState, xml } from "@odoo/owl";
 import {
     defineModels,
     fields,
@@ -10,6 +11,7 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
+import { colorScheme, useColorSchemeEffect } from "@web/core/color_scheme";
 import { _makeUser, user } from "@web/core/user";
 import { MainComponentsContainer } from "@web/ui/main_components_container";
 
@@ -121,5 +123,71 @@ test("an explicit preference ignores the OS switching theme", async () => {
     await startWith({ prefers: "light", setting: "light" });
     mockMatchMedia({ ["prefers-color-scheme"]: "dark" });
     expect(cookie.get("color_scheme")).toBe("light");
+    expect.verifySteps([]);
+});
+
+function startLight() {
+    cookie.set("color_scheme", "light");
+    const initial = document.documentElement.dataset.colorScheme;
+    after(() => {
+        if (initial === undefined) {
+            delete document.documentElement.dataset.colorScheme;
+        } else {
+            document.documentElement.dataset.colorScheme = initial;
+        }
+    });
+}
+
+test("a subscriber hears a change, not a re-publish of the same scheme", () => {
+    startLight();
+    const unsubscribe = colorScheme.subscribe((scheme) => expect.step(scheme));
+    after(unsubscribe);
+
+    colorScheme.publish("light");
+    colorScheme.publish("dark");
+    colorScheme.publish("dark");
+    colorScheme.publish("light");
+    expect.verifySteps(["dark", "light"]);
+});
+
+test("an unsubscribed listener hears nothing", () => {
+    startLight();
+    const unsubscribe = colorScheme.subscribe((scheme) => expect.step(scheme));
+    unsubscribe();
+
+    colorScheme.publish("dark");
+    expect.verifySteps([]);
+});
+
+test("useColorSchemeEffect runs while mounted and stops at unmount", async () => {
+    startLight();
+    class Probe extends Component {
+        static template = xml`<div class="o_probe"/>`;
+        static props = {};
+
+        setup() {
+            useColorSchemeEffect((scheme) => expect.step(scheme));
+        }
+    }
+    class Host extends Component {
+        static template = xml`<Probe t-if="state.shown"/>`;
+        static components = { Probe };
+        static props = {};
+
+        setup() {
+            this.state = useState({ shown: true });
+        }
+    }
+    const host = await mountWithCleanup(Host);
+    expect.verifySteps([]);
+
+    colorScheme.publish("dark");
+    await animationFrame();
+    expect.verifySteps(["dark"]);
+
+    host.state.shown = false;
+    await animationFrame();
+    expect(".o_probe").toHaveCount(0);
+    colorScheme.publish("light");
     expect.verifySteps([]);
 });

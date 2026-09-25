@@ -6,13 +6,13 @@ import {
 } from "@html_editor/others/embedded_component_utils";
 import { nodeSize } from "@html_editor/utils/position";
 import { Component, onMounted, onWillStart, useRef, useState } from "@odoo/owl";
-import { loadBundle } from "@web/core/assets";
-import { colorScheme } from "@web/core/color_scheme";
+import { useColorSchemeEffect } from "@web/core/color_scheme";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 
 import {
     getPreValue,
     highlightPre,
+    loadPrism,
 } from "../../core/syntax_highlighting/syntax_highlighting_utils.js";
 import { CodeToolbar } from "./code_toolbar.js";
 
@@ -40,6 +40,7 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
         this.textareaRef = useRef("textarea");
 
         onWillStart(() => this.loadPrism());
+        useColorSchemeEffect(() => this.loadPrism());
         onMounted(() => {
             this.pre = this.preRef.el;
             this.textarea = this.textareaRef.el;
@@ -54,10 +55,7 @@ export class EmbeddedSyntaxHighlightingComponent extends Component {
     }
 
     loadPrism() {
-        return loadBundle(
-            `html_editor.assets_prism${colorScheme.isDark ? "_dark" : ""}`,
-            { targetDoc: this.props.host.ownerDocument },
-        );
+        return loadPrism(this.props.host.ownerDocument);
     }
 
     highlight() {

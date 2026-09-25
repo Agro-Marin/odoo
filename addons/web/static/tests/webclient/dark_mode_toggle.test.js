@@ -9,10 +9,10 @@ import {
     patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
 import { colorScheme } from "@web/core/color_scheme";
 import { _makeUser, user } from "@web/core/user";
-import { colorSchemeService } from "@web/webclient/color_scheme/color_scheme_service";
 import { DarkModeToggle } from "@web/webclient/dark_mode_toggle/dark_mode_toggle";
 
 class ResUsersSettings extends webModels.ResUsersSettings {
@@ -32,17 +32,25 @@ defineModels([ResUsersSettings]);
 
 async function mountToggle(/** @type {string} */ scheme) {
     cookie.set("color_scheme", scheme);
+    const initial = document.documentElement.dataset.colorScheme;
+    after(() => {
+        if (initial === undefined) {
+            delete document.documentElement.dataset.colorScheme;
+        } else {
+            document.documentElement.dataset.colorScheme = initial;
+        }
+    });
     patchWithCleanup(
         user,
         _makeUser({ user_settings: { id: 1, color_scheme: scheme } }),
     );
-    patchWithCleanup(colorSchemeService, {
+    patchWithCleanup(browser.location, {
         reload: () => expect.step("reload"),
     });
     await mountWithCleanup(DarkModeToggle);
 }
 
-test("toggling from light persists dark and re-serves the page", async () => {
+test("toggling from light persists dark and switches the page in place", async () => {
     onRpc("res.users.settings", "set_res_users_settings", ({ kwargs }) => {
         expect.step(`set:${kwargs.new_settings.color_scheme}`);
         return {};
@@ -50,8 +58,9 @@ test("toggling from light persists dark and re-serves the page", async () => {
     await mountToggle("light");
     await click(".o_dark_mode_toggle");
     await animationFrame();
-    expect(cookie.get("color_scheme")).toBe("light");
-    expect.verifySteps(["set:dark", "reload"]);
+    expect(cookie.get("color_scheme")).toBe("dark");
+    expect(document.documentElement.dataset.colorScheme).toBe("dark");
+    expect.verifySteps(["set:dark"]);
 });
 
 test("the in-memory user settings track the new scheme", async () => {
@@ -62,7 +71,7 @@ test("the in-memory user settings track the new scheme", async () => {
     await click(".o_dark_mode_toggle");
     await animationFrame();
     expect(user.settings.color_scheme).toBe("dark");
-    expect.verifySteps(["reload"]);
+    expect.verifySteps([]);
 });
 
 test("toggling from dark persists light", async () => {
@@ -73,8 +82,9 @@ test("toggling from dark persists light", async () => {
     await mountToggle("dark");
     await click(".o_dark_mode_toggle");
     await animationFrame();
-    expect(cookie.get("color_scheme")).toBe("dark");
-    expect.verifySteps(["set:light", "reload"]);
+    expect(cookie.get("color_scheme")).toBe("light");
+    expect(document.documentElement.dataset.colorScheme).toBe("light");
+    expect.verifySteps(["set:light"]);
 });
 
 test("the button follows the OS switching theme", async () => {
@@ -96,10 +106,12 @@ test("the button follows the OS switching theme", async () => {
     expect(".o_dark_mode_toggle").toHaveAttribute("title", "Switch to light mode");
 });
 
-test("the reload goes through the service, not browser.location", async () => {
+test("switching the scheme never reloads the page", async () => {
     onRpc("res.users.settings", "set_res_users_settings", () => ({}));
     await mountToggle("light");
     await click(".o_dark_mode_toggle");
     await animationFrame();
-    expect.verifySteps(["reload"]);
+    await click(".o_dark_mode_toggle");
+    await animationFrame();
+    expect.verifySteps([]);
 });

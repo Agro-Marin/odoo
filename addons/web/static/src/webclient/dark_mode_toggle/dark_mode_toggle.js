@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { useColorScheme } from "@web/core/color_scheme";
+import { colorScheme, useColorScheme } from "@web/core/color_scheme";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
-import { colorSchemeService } from "@web/webclient/color_scheme/color_scheme_service";
 
 export class DarkModeToggle extends Component {
     static template = "web.DarkModeToggle";
@@ -28,7 +27,7 @@ export class DarkModeToggle extends Component {
     async toggle() {
         const newScheme = this.colorScheme.isDark ? "light" : "dark";
         await user.setUserSettings("color_scheme", newScheme);
-        colorSchemeService.reload();
+        colorScheme.publish(newScheme);
     }
 }
 
