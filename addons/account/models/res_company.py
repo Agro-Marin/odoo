@@ -8,8 +8,6 @@ from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, date_utils, format_list
 from odoo.tools.misc import format_date
 
-from odoo.addons.account.models.account_move import MAX_HASH_VERSION
-
 _debug = DebugLog(__name__)
 
 
@@ -807,8 +805,8 @@ class ResCompany(models.Model):
                         if not move.secure_sequence_number
                         else last_move
                     )
-                    computed_hash, hash_version = self._recompute_move_hash(
-                        move, previous_move.inalterable_hash or "", hash_version
+                    computed_hash, hash_version = move._recompute_integrity_hash(
+                        previous_move.inalterable_hash or "", hash_version
                     )
                     if move.inalterable_hash != computed_hash:
                         _debug.logic(
@@ -851,19 +849,6 @@ class ResCompany(models.Model):
             )
             for prefix, prefix_result in prefix2result.items()
         ]
-
-    @staticmethod
-    def _recompute_move_hash(move, previous_hash, start_version):
-        version = start_version
-        computed_hash = move.with_context(hash_version=version)._get_hashes(
-            previous_hash
-        )[move]
-        while move.inalterable_hash != computed_hash and version < MAX_HASH_VERSION:
-            version += 1
-            computed_hash = move.with_context(hash_version=version)._get_hashes(
-                previous_hash
-            )[move]
-        return computed_hash, version
 
     def _hash_integrity_no_data_result(self, journal, restricted_flag):
         return {

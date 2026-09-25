@@ -12,6 +12,8 @@ from .account_move import AccountMove as AccountMoveMain
 
 _debug = DebugLog(__name__)
 
+LAST_UNPREFIXED_HASH_VERSION = 3
+
 
 class AccountMove(models.Model):
     _inherit = "account.move"
@@ -20,7 +22,7 @@ class AccountMove(models.Model):
         hash_version = self.env.context.get("hash_version", MAX_HASH_VERSION)
         if hash_version == 1:
             return ["date", "journal_id", "company_id"]
-        elif hash_version in (2, 3, 4):
+        elif hash_version in (2, 3, 4, 5):
             return ["name", "date", "journal_id", "company_id"]
         raise NotImplementedError(f"hash_version={hash_version} doesn't exist")
 
@@ -259,16 +261,60 @@ class AccountMove(models.Model):
             return False
         return res
 
+    def _recompute_integrity_hash(self, previous_hash, start_version):
+        self.check_singleton()
+        # Versions never decrease along a chain: a hash older than its
+        # predecessor's version is itself the corruption.
+        if not previous_hash:
+            min_version = 1
+        elif previous_hash.startswith("$"):
+            min_version = int(previous_hash.split("$")[1])
+        else:
+            min_version = min(start_version, LAST_UNPREFIXED_HASH_VERSION)
+        stored_hash = self.inalterable_hash or ""
+        if stored_hash.startswith("$"):
+            version = stored_hash.split("$")[1]
+            if not (
+                version.isdigit()
+                and max(min_version, LAST_UNPREFIXED_HASH_VERSION + 1)
+                <= int(version)
+                <= MAX_HASH_VERSION
+            ):
+                _debug.logic(
+                    "hash_version_rejected",
+                    move=self,
+                    version=version,
+                    min_version=min_version,
+                )
+                return None, min_version
+            versions = [int(version)]
+        else:
+            versions = range(min_version, LAST_UNPREFIXED_HASH_VERSION + 1)
+        computed_hash = None
+        for version in versions:
+            computed_hash = self.with_context(hash_version=version)._get_hashes(
+                previous_hash
+            )[self]
+            if computed_hash == stored_hash:
+                return computed_hash, version
+        return computed_hash, max(min_version, start_version)
+
     @_debug.perf.timed
     def _get_hashes(self, previous_hash):
         hash_version = self.env.context.get("hash_version", MAX_HASH_VERSION)
 
         def get_field_as_string(obj, field_name):
+            field = obj._fields[field_name]
             field_value = obj[field_name]
-            if obj._fields[field_name].type == "many2one":
+            if field.type == "many2one":
                 field_value = field_value.id
-            if obj._fields[field_name].type == "monetary" and hash_version >= 3:
-                return float_repr(field_value, obj.currency_id.decimal_places)
+            if field.type == "monetary" and hash_version >= 3:
+                currency = (
+                    obj[field.get_currency_field(obj)]
+                    if hash_version >= 5
+                    else obj.currency_id
+                )
+                return float_repr(field_value, currency.decimal_places)
             return str(field_value)
 
         move2hash = {}
@@ -302,7 +348,9 @@ class AccountMove(models.Model):
                 (previous_hash + current_record).encode("utf-8")
             ).hexdigest()
             move2hash[move] = (
-                f"${hash_version}${hash_string}" if hash_version >= 4 else hash_string
+                f"${hash_version}${hash_string}"
+                if hash_version > LAST_UNPREFIXED_HASH_VERSION
+                else hash_string
             )
             previous_hash = move2hash[move]
         _debug.pipeline(

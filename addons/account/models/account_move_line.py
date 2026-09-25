@@ -4194,6 +4194,16 @@ class AccountMoveLine(models.Model):
             return ["debit", "credit", "account_id", "partner_id"]
         elif hash_version in (2, 3, 4):
             return ["name", "debit", "credit", "account_id", "partner_id"]
+        elif hash_version == 5:
+            return [
+                "name",
+                "debit",
+                "credit",
+                "account_id",
+                "partner_id",
+                "amount_currency",
+                "currency_id",
+            ]
         raise NotImplementedError(f"hash_version={hash_version} doesn't exist")
 
     @_debug.perf.timed

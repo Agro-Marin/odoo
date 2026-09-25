@@ -49,7 +49,7 @@ INVOICE_TEMPLATE_REPORTS = TransactionMemo(
 _debug = DebugLog(__name__)
 
 
-MAX_HASH_VERSION = 4
+MAX_HASH_VERSION = 5
 
 DISABLE_RECURSION_STACK_CACHE_KEY = "account_disable_recursion_stack"
 
