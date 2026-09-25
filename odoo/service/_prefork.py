@@ -24,7 +24,7 @@ from odoo.tools.cache import log_ormcache_stats
 from odoo.tools.misc import dumpstacks, stripped_sys_argv
 
 from . import _process_state
-from ._base_server import CommonServer
+from ._base_server import CommonServer, run_process_exit_hooks
 from ._census import WorkerCensus
 from ._cron import LISTENER_KINDS
 from ._env import INHERITED_SOCKET_FD, INHERITED_WEBSOCKET_FD, get_env_float
@@ -347,6 +347,7 @@ class PreforkServer(CommonServer):
                 pid=os.getpid(),
                 exit_code=exit_code,
             )
+            run_process_exit_hooks(self.logger)
             os._exit(exit_code)
 
     def spawn_long_polling_process(self) -> None:

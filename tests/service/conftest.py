@@ -46,6 +46,7 @@ def _no_global_state_leak():
             # any later test builds.  There was no way to unregister until
             # `clear_on_stop` existed, so this went unnoticed.
             "_base_server._on_stop_hooks": tuple(_base_server._on_stop_hooks),
+            "_base_server._process_exit_hooks": tuple(_base_server._process_exit_hooks),
             "_process_state.server": _process_state.server,
             "_process_state.server_phoenix": _process_state.server_phoenix,
             "current_thread().name": thread.name,

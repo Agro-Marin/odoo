@@ -695,7 +695,19 @@ class _PackageLoader:
         declared = len(model_names)  # debuglog
 
         if self.operation:
-            model_names = registry.get_descendants(model_names, "_inherit", "_inherits")
+            # a class that only adds methods to a model leaves its descendants'
+            # tables alone: an _inherit = "base" of methods is not every model
+            schema_changing = registry.get_schema_changing_models(package)
+            model_names |= registry.get_descendants(
+                schema_changing, "_inherit", "_inherits"
+            )
+            _debug.logic(
+                "modules.package.descendants_expanded",
+                module=self.name,
+                declared=declared,
+                schema_changing=len(schema_changing),
+                models=len(model_names),
+            )
             self.models_updated.update(model_names)
             self.models_to_check -= model_names
             registry.setup_models(self.cr, [], skip_if_clean=True)

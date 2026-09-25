@@ -21,6 +21,9 @@ class _Registry:
     def load(self, package):
         return list(self.models_of.get(package.name, ()))
 
+    def get_schema_changing_models(self, package):
+        return list(self.models_of.get(package.name, ()))
+
     def get_descendants(self, model_names, *_kinds):
         return OrderedSet(model_names)
 

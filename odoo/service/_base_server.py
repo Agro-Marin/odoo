@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import atexit
 import logging
 import os
 import signal
@@ -63,6 +64,39 @@ def run_on_stop_hooks(logger: logging.Logger) -> None:
             name = getattr(func, "__name__", repr(func))
             logger.warning("Exception in %s", name, exc_info=True)
             _debug.logic("server.stop_hook.failed", hook=name)
+
+
+# what to run when the process that registered it ends, however it ends: atexit
+# covers an ordinary exit, and a prefork child, which leaves through os._exit and
+# so skips atexit, runs the hooks it registered itself (run_process_exit_hooks);
+# never one inherited from its parent, which owns what that hook would release
+_process_exit_hooks: list[tuple[int, Callable]] = []
+
+
+def register_process_exit_hook(func: Callable) -> None:
+    entry = (os.getpid(), func)
+    if entry in _process_exit_hooks:
+        return
+    _process_exit_hooks.append(entry)
+    atexit.register(func)
+    _debug.lifecycle(
+        "server.process_exit_hook.registered",
+        hook=getattr(func, "__qualname__", None),
+        pid=entry[0],
+    )
+
+
+def run_process_exit_hooks(logger: logging.Logger) -> None:
+    pid = os.getpid()
+    own = [func for owner, func in _process_exit_hooks if owner == pid]
+    _debug.pipeline("server.process_exit_hooks.run", pid=pid, hooks=len(own))
+    for func in own:
+        try:
+            func()
+        except Exception:
+            name = getattr(func, "__name__", repr(func))
+            logger.warning("Exception in process exit hook %s", name, exc_info=True)
+            _debug.logic("server.process_exit_hook.failed", hook=name)
 
 
 class CommonServer:

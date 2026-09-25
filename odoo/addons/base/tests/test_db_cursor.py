@@ -286,7 +286,6 @@ class TestHTTPCursor(HttpCase):
 class TestTestCursor(common.TransactionCase):
     def setUp(self):
         super().setUp()
-        self.registry_enter_test_mode()
         self.cr = self.registry.cursor()
         self.addCleanup(self.cr.close)
         self.env = api.Environment(self.cr, api.SUPERUSER_ID, {})
@@ -440,10 +439,6 @@ class TestTestCursor(common.TransactionCase):
 
 
 class TestStatementBudgetOnATestCursor(common.TransactionCase):
-    def setUp(self):
-        super().setUp()
-        self.registry_enter_test_mode()
-
     def _sleeps(self, cr, seconds=0.4):
         try:
             cr.execute("SELECT pg_sleep(%s)", (seconds,))
@@ -489,7 +484,7 @@ class TestCursorHooks(common.TransactionCase):
         self.assertEqual(self.log, [])
 
     def test_hooks_on_cursor(self):
-        cr = self.registry.cursor()
+        cr = db_connect(self.cr.dbname).cursor()
 
         self.prepare_hooks(cr)
         cr.commit()
@@ -506,8 +501,6 @@ class TestCursorHooks(common.TransactionCase):
         self.assertEqual(self.log, ["preR", "postR"])
 
     def test_hooks_on_testcursor(self):
-        self.registry_enter_test_mode()
-
         cr = self.registry.cursor()
 
         self.prepare_hooks(cr)
@@ -6004,16 +5997,15 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
         return self.env.cr.fetchone()[0]
 
     def _run_and_roll_back(self, write):
-        with self.enter_registry_test_mode():
-            cr = self.registry.cursor()
-            self.assertIsInstance(cr, TestCursor, "registry test mode is not active")
-            try:
-                write(cr)
-                self.assertIsNotNone(
-                    cr._savepoint, "the write did not open the rollback savepoint"
-                )
-            finally:
-                cr.close()
+        cr = self.registry.cursor()
+        self.assertIsInstance(cr, TestCursor, "registry test mode is not active")
+        try:
+            write(cr)
+            self.assertIsNotNone(
+                cr._savepoint, "the write did not open the rollback savepoint"
+            )
+        finally:
+            cr.close()
         return self._survivors()
 
     def test_execute_is_contained(self):
@@ -6192,21 +6184,20 @@ class TestTestCursorContainsBulkWrites(common.TransactionCase):
         )
 
     def test_each_cursor_takes_its_own_savepoint(self):
-        with self.enter_registry_test_mode():
-            outer = self.registry.cursor()
-            self.addCleanup(outer.close)
-            outer.execute("SELECT 1")
-            inner = self.registry.cursor()
-            self.addCleanup(inner.close)
-            self.assertIsNone(inner._savepoint)
-            outer.execute("SELECT 1")
-            self.assertIsNone(
-                inner._savepoint,
-                "the outer cursor's statement opened the inner cursor's savepoint",
-            )
-            inner.execute("SELECT 1")
-            self.assertIsNotNone(inner._savepoint)
-            self.assertIsNot(inner._savepoint, outer._savepoint)
+        outer = self.registry.cursor()
+        self.addCleanup(outer.close)
+        outer.execute("SELECT 1")
+        inner = self.registry.cursor()
+        self.addCleanup(inner.close)
+        self.assertIsNone(inner._savepoint)
+        outer.execute("SELECT 1")
+        self.assertIsNone(
+            inner._savepoint,
+            "the outer cursor's statement opened the inner cursor's savepoint",
+        )
+        inner.execute("SELECT 1")
+        self.assertIsNotNone(inner._savepoint)
+        self.assertIsNot(inner._savepoint, outer._savepoint)
 
 
 class TestCopyFromTableIdentity(BaseCase):

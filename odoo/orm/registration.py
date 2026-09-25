@@ -27,6 +27,43 @@ _logger = logging.getLogger("odoo.registry")
 _debug = DebugLog(__name__)
 
 
+# what a model's descendants inherit into their tables or their reflection: a
+# definition class setting none of these, nor adding fields, table objects or
+# parents, leaves every descendant's schema as it was
+_SCHEMA_ATTRIBUTES = frozenset(
+    {
+        "_abstract",
+        "_auto",
+        "_depends",
+        "_description",
+        "_inherits",
+        "_log_access",
+        "_order",
+        "_parent_name",
+        "_parent_store",
+        "_table",
+        "_table_query",
+        "_transient",
+    }
+)
+_SCHEMA_METHODS = frozenset({"_auto_init", "init"})
+
+
+def changes_descendant_schema(model_def: type[BaseModel]) -> bool:
+    attrs = vars(model_def)
+    name = model_def._name
+    inherit = model_def._inherit
+    parent_names = {inherit} if isinstance(inherit, str) else set(inherit or ())
+    if name not in parent_names:
+        return True
+    return bool(
+        attrs.get("_field_definitions")
+        or attrs.get("_table_object_definitions")
+        or parent_names - {name, "base"}
+        or (_SCHEMA_ATTRIBUTES | _SCHEMA_METHODS) & attrs.keys()
+    )
+
+
 def is_model_definition(cls: type) -> bool:
     return isinstance(cls, models.MetaModel) and getattr(cls, "pool", None) is None
 

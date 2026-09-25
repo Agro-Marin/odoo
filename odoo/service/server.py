@@ -1,4 +1,4 @@
-from ._base_server import CommonServer
+from ._base_server import CommonServer, register_process_exit_hook
 from ._factory import start
 from ._prefork import PreforkServer
 from ._process_state import get_server, is_ready
@@ -33,6 +33,7 @@ __all__ = (
     "is_ready",
     "load_server_wide_modules",
     "preload_registries",
+    "register_process_exit_hook",
     "restart",
     "serve_prefork_connection",
     "start",

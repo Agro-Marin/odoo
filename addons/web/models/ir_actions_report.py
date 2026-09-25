@@ -2,7 +2,9 @@ import base64
 import io
 import logging
 import mimetypes
+import os
 import re
+import shutil
 import threading
 from collections import deque
 from collections.abc import Callable, Iterator
@@ -33,6 +35,7 @@ from odoo.libs.debug_log import DebugLog
 from odoo.libs.json import loads as json_loads
 from odoo.libs.netguard import DestinationRefused
 from odoo.service import security
+from odoo.service.server import register_process_exit_hook
 from odoo.tools.safe_eval import safe_eval, time
 
 from odoo.addons.base.models.report_paperformat import PAPER_SIZE_BY_KEY
@@ -177,6 +180,7 @@ class _WeasySharedState:
         self._lock = threading.Lock()
         self._db_states: dict[str, _WeasyDatabaseState] = {}
         self._process_setup_done = False
+        self._exit_hook_pid: int | None = None
 
     def setup_process(self) -> None:
         if self._process_setup_done:
@@ -199,6 +203,9 @@ class _WeasySharedState:
             state = self._db_states.pop(dbname, None)
             if state is None:
                 state = _WeasyDatabaseState()
+                if self._exit_hook_pid != os.getpid():
+                    self._exit_hook_pid = os.getpid()
+                    register_process_exit_hook(self.remove_font_folders)
                 while len(self._db_states) >= _WEASY_DB_STATE_MAX:
                     self._db_states.pop(next(iter(self._db_states)))
             self._db_states[dbname] = state
@@ -220,6 +227,24 @@ class _WeasySharedState:
                     state.css_cache.pop(next(iter(state.css_cache)))
                 state.css_cache[key] = parsed
             return state.css_cache[key]
+
+    def remove_font_folders(self) -> None:
+        # the folder weasyprint makes on a first @font-face goes only with
+        # FontConfiguration.__del__, which neither an interpreter exit nor a
+        # prefork worker's os._exit runs; an evicted state is collected, and
+        # its __del__ runs then. No lock: a worker thread may hold it at exit
+        try:
+            states = tuple(self._db_states.values())
+        except RuntimeError:
+            states = ()
+        folders = [
+            folder
+            for state in states
+            if (folder := getattr(state.font_config, "_folder", None)) is not None
+        ]
+        _debug.lifecycle("weasy_font_folders_removed", folders=len(folders))
+        for folder in folders:
+            shutil.rmtree(folder, ignore_errors=True)
 
     def clear_for_tests(self) -> None:
         with self._lock:

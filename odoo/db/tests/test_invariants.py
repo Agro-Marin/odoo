@@ -961,6 +961,28 @@ class TestALostConnectionIsReplacedBeforeTheFirstStatementOnly(unittest.TestCase
         with self.assertRaises(psycopg.OperationalError):
             cr.execute("SELECT 1")
 
+    def test_not_while_the_caller_holds_session_state(self):
+        cr, fake_pool = self._cursor()
+        with cr.holding_session_state(), cr.holding_session_state():
+            self._kill(cr)
+            with self.assertRaises(psycopg.OperationalError):
+                cr.execute("SELECT 1")
+        self.assertEqual(
+            len(fake_pool.handed),
+            1,
+            "a session advisory lock dies with its backend; replayed onto a "
+            "fresh one, the caller would carry on as if it still held it",
+        )
+
+    def test_a_released_hold_leaves_the_next_transaction_replayable(self):
+        cr, fake_pool = self._cursor()
+        with cr.holding_session_state(), cr.holding_session_state():
+            pass
+        self._kill(cr)
+        with self.assertLogs("odoo.db.cursor", level="WARNING"):
+            cr.execute("SELECT 1")
+        self.assertEqual(len(fake_pool.handed), 2)
+
     def test_the_first_statement_of_a_pipeline_block_is_still_replayed(self):
         cr, fake_pool = self._cursor()
         self._kill(cr)

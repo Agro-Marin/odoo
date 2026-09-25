@@ -71,6 +71,7 @@ class BaseCursor:
     cache: dict[Any, Any]
     dbname: str
     _savepoint_depth: int = 0
+    _session_state_holds: int = 0
     _closed: bool = False
 
     def __init__(self) -> None:
@@ -204,7 +205,24 @@ class BaseCursor:
             _debug.logic("cursor.read_committed_skipped", reason="transaction_open")
             return False
         self.execute("SET TRANSACTION ISOLATION LEVEL READ COMMITTED")
+        _debug.logic("cursor.read_committed")
         return True
+
+    @contextmanager
+    def holding_session_state(self) -> Generator[None]:
+        self._session_state_holds += 1
+        _debug.lifecycle(
+            "cursor.session_state_held", db=self.dbname, holds=self._session_state_holds
+        )
+        try:
+            yield
+        finally:
+            self._session_state_holds -= 1
+            _debug.lifecycle(
+                "cursor.session_state_released",
+                db=self.dbname,
+                holds=self._session_state_holds,
+            )
 
     def savepoint(self, flush: bool = True) -> Savepoint:
         if getattr(self, "in_pipeline", False):
@@ -535,7 +553,10 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, _PipelineMixin, BaseCursor):
     # savepoint is open or psycopg's pipeline has been entered (the block's
     # second statement; the first is an ordinary statement, and the ORM's
     # flush opens such a block), the transaction has state only the caller
-    # can rebuild, and the loss propagates as it did.
+    # can rebuild, and the loss propagates as it did. So does one while the
+    # caller holds session state (holding_session_state): a session advisory
+    # lock dies with the backend, and a caller replayed onto a fresh one
+    # would carry on believing it still holds it.
     def _replace_lost_connection(self, exc: Exception) -> bool:
         refused = (
             "not_a_loss"
@@ -547,6 +568,8 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, _PipelineMixin, BaseCursor):
             if self._savepoint_depth
             else "pipeline"
             if self._pipeline is not None
+            else "session_state"
+            if self._session_state_holds
             else None
         )
         if refused is not None:

@@ -336,6 +336,15 @@ class Registry(
         )
         return model_names
 
+    def get_schema_changing_models(self, module: module_graph.ModuleNode) -> list[str]:
+        return [
+            model_def._name
+            for model_def in models.MetaModel._module_to_models__.get(module.name, [])
+            if registration.changes_descendant_schema(
+                typing.cast("type[BaseModel]", model_def)
+            )
+        ]
+
     def _setup_reset_all_models(self) -> None:
         self.many2many_relations.clear()
         self.field_setup_dependents.clear()

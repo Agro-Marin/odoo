@@ -412,7 +412,10 @@ class WriteMixin(_ModelStubs):
                         parent=parent.id,
                         records=len(records),
                     )
-                    raise UserError(self.env._("Recursion Detected."))
+                    message = getattr(self, "_hierarchy_cycle_message", None)
+                    raise UserError(
+                        str(message) if message else self.env._("Recursion Detected.")
+                    )
 
             updated = self.env.backend.move_parent_paths(self, records.ids, prefix)
 

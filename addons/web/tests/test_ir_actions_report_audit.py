@@ -1,7 +1,10 @@
 import base64
 import io
 import logging
+import os
 import socket
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 from urllib.parse import urlparse
 
@@ -13,6 +16,7 @@ from weasyprint.urls import URLFetcher
 
 from odoo.exceptions import AccessError, RedirectWarning, UserError
 from odoo.libs.json import loads as json_loads
+from odoo.service import _base_server
 from odoo.tests import tagged
 from odoo.tests.common import TransactionCase
 from odoo.tests.transaction_case import _super_send
@@ -640,6 +644,18 @@ class TestImageCacheLifetime(TransactionCase):
                     "entry; evicting across that boundary used to orphan a "
                     "payload and fail every later render of the survivor",
                 )
+
+    def test_font_folders_go_with_the_process(self):
+        self.addCleanup(_weasy_state.clear_for_tests)
+        state = _weasy_state.for_database("audit_db_fonts")
+        folder = Path(tempfile.mkdtemp(prefix="weasyprint-"))
+        state.font_config._folder = folder
+        self.assertIn(
+            (os.getpid(), _weasy_state.remove_font_folders),
+            _base_server._process_exit_hooks,
+        )
+        _weasy_state.remove_font_folders()
+        self.assertFalse(folder.exists())
 
     def test_database_state_is_scoped_and_evicted_as_one_unit(self):
         self.addCleanup(_weasy_state.clear_for_tests)

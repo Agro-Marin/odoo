@@ -71,9 +71,9 @@ rows and register their external ids through `registry.xmlids`.
 
 ## 2. The signalling tables — cross-process coordination
 
-Ten tables, one for the registry and one for each key in `CACHES_BY_KEY`
+Twelve tables, one for the registry and one for each key in `CACHES_BY_KEY`
 (`default`, `assets`, `stable`, `templates`, `routing`, `groups`,
-`product_variants`, `actions`, `mail`), each created as:
+`product_variants`, `actions`, `xmlid`, `mail`, `memberships`), each created as:
 
 ```sql
 CREATE TABLE orm_signaling_<name> (id SERIAL PRIMARY KEY, date TIMESTAMP DEFAULT now())

@@ -426,11 +426,11 @@ class TestCycleCheckOnParentStoreCreate(TransactionCase):
         self.assertEqual(child.parent_path, f"{root.id}/{child.id}/")
         self.assertEqual(leaf.parent_path, f"{root.id}/{child.id}/{leaf.id}/")
         self.assertFalse((root | child | leaf)._has_cycle())
-        # the parent_path update refuses it before the constraint gets to
-        with self.assertRaisesRegex(UserError, "Recursion"):
+        # the parent_path update refuses it, in the model's own words
+        with self.assertRaisesRegex(UserError, "recursive menus"):
             root.parent_id = leaf
 
-    def test_a_parent_store_create_under_a_valid_parent_runs_no_cycle_query(self):
+    def test_a_parent_store_create_runs_no_cycle_query(self):
         Menu = self.env["ir.ui.menu"]
         parent = Menu.create({"name": "Cycle Menu Parent"})
 
@@ -446,4 +446,6 @@ class TestCycleCheckOnParentStoreCreate(TransactionCase):
         transaction = type(self.env.transaction)
         with patch.object(transaction, "is_checking_inserted", return_value=False):
             unchecked = create_child()
-        self.assertEqual(unchecked, checked + 1)
+        # a new row has no descendants: no cycle query, whether or not the
+        # transaction would check the rows it inserted
+        self.assertEqual(unchecked, checked)
