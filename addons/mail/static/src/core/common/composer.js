@@ -60,9 +60,8 @@ import { delay } from "@web/core/utils/concurrency";
 import { isEventHandled, markEventHandled } from "@web/core/utils/dom/events";
 import { htmlJoin, isHtmlEmpty, setElementContent } from "@web/core/utils/dom/html";
 import { isEmail } from "@web/core/utils/format/strings";
-import { useService } from "@web/core/utils/hooks";
+import { useMountedListener, useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
-import { useListener } from "@web/core/utils/owl_bridge";
 import { rootIdOf } from "@web/ui/overlay/root_id";
 const EDIT_CLICK_TYPE = {
     CANCEL: "cancel",
@@ -182,7 +181,7 @@ export class Composer extends Component {
         this.markEventHandled = markEventHandled;
         this.onDropFile = this.onDropFile.bind(this);
         this.updateFromEditor = false;
-        useListener(
+        useMountedListener(
             window,
             "click",
             /** @param {MouseEvent} ev */

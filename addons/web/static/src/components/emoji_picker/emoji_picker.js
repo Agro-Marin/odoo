@@ -24,9 +24,13 @@ import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { escapeRegExp } from "@web/core/utils/format/strings";
-import { useAutofocus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
+import {
+    useAutofocus,
+    useMountedListener,
+    useOwnedDialogs,
+    useService,
+} from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
-import { useListener } from "@web/core/utils/owl_bridge";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 /**
@@ -943,7 +947,7 @@ class PickerMobileInDialog extends PickerMobile {
     setup() {
         super.setup();
         this.root = useRef("root");
-        useListener(
+        useMountedListener(
             window,
             "click",
             (ev) => {

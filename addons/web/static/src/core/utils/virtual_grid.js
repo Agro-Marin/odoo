@@ -4,8 +4,8 @@
 import { markRaw, toRaw, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { pick, shallowEqual } from "@web/core/utils/collections/objects";
+import { useMountedListener } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
-import { useListener } from "@web/core/utils/owl_bridge";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 /**
@@ -170,7 +170,7 @@ export function useVirtualGrid({
         },
         () => [scrollableRef.el],
     );
-    useListener(window, "resize", () => throttledCompute());
+    useMountedListener(window, "resize", () => throttledCompute());
     return {
         get columnsIndexes() {
             return visible.columnsIndexes;

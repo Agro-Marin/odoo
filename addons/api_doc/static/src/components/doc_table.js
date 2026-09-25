@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { Component, useRef, useState } from "@odoo/owl";
+import { useMountedListener } from "@web/core/utils/hooks";
 import { useListener } from "@web/core/utils/owl_bridge";
 
 export const TABLE_TYPES = {
@@ -32,7 +33,7 @@ export class DocTable extends Component {
         this.hideTimeout = null;
         this.requestAnim = null;
 
-        useListener(window, "click", (event) => {
+        useMountedListener(window, "click", (event) => {
             if (
                 this.subTableRef.el &&
                 this.subTableRef.el !== event.target &&

@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { Component, useRef } from "@odoo/owl";
+import { useMountedListener } from "@web/core/utils/hooks";
 import { useListener } from "@web/core/utils/owl_bridge";
 
 export class ApiKeyModal extends Component {
@@ -19,7 +20,7 @@ export class ApiKeyModal extends Component {
             }
         });
 
-        useListener(window, "click", (event) => {
+        useMountedListener(window, "click", (event) => {
             if (!this.modalRef.el.contains(event.target)) {
                 this.cancel();
             }

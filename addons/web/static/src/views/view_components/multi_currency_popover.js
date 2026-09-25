@@ -6,7 +6,7 @@ import { getCurrency, getCurrencyRates } from "@web/core/currency";
 import { formatMonetary } from "@web/core/formatters";
 import { toLocaleDateString } from "@web/core/l10n/dates";
 import { user } from "@web/core/user";
-import { useListener } from "@web/core/utils/owl_bridge";
+import { useMountedListener } from "@web/core/utils/hooks";
 
 export class MultiCurrencyPopover extends Component {
     static template = "web.MultiCurrencyPopover";
@@ -29,7 +29,7 @@ export class MultiCurrencyPopover extends Component {
         onWillStart(async () => {
             this.state.rates = await getCurrencyRates();
         });
-        useListener(window, "mouseover", (ev) => {
+        useMountedListener(window, "mouseover", (ev) => {
             const popoverEl = this.rootRef.el;
             const target = /** @type {Node} */ (ev.target);
             if (!this.props.target.contains(target) && !popoverEl?.contains(target)) {

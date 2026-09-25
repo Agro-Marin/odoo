@@ -28,6 +28,7 @@ import { usePositionHook } from "@html_editor/position_hook";
 import { closestElement } from "@html_editor/utils/dom_traversal";
 import { Component, onMounted, useRef } from "@odoo/owl";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
+import { useMountedListener } from "@web/core/utils/hooks";
 import { useListener } from "@web/core/utils/owl_bridge";
 
 const rad = Math.PI / 180;
@@ -60,11 +61,11 @@ export class ImageTransformation extends Component {
             this.positionTransfoContainer();
             this.props.onComponentMounted();
         });
-        useListener(window, "mousemove", this.mouseMove.bind(this));
+        useMountedListener(window, "mousemove", this.mouseMove.bind(this));
         useListener(window, "mouseup", this.mouseUp.bind(this));
         if (this.document.defaultView.frameElement) {
             const iframeWindow = this.document.defaultView;
-            useListener(iframeWindow, "mousemove", this.mouseMove.bind(this));
+            useMountedListener(iframeWindow, "mousemove", this.mouseMove.bind(this));
             useListener(iframeWindow, "mouseup", this.mouseUp.bind(this));
         }
         useListener(this.document, "selectionchange", () => this.destroy());

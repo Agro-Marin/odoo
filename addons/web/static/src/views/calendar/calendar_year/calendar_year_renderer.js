@@ -5,9 +5,8 @@ import { useRef } from "@odoo/owl";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { DateTime, Info, Interval, Settings } from "@web/core/l10n/luxon";
-import { useService } from "@web/core/utils/hooks";
+import { useMountedListener, useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
-import { useListener } from "@web/core/utils/owl_bridge";
 import { useReactiveModel } from "@web/model/model";
 import { formatFcInitialDate } from "@web/views/calendar/calendar_common/calendar_common_renderer";
 import { CalendarRendererBase } from "@web/views/calendar/calendar_renderer_base";
@@ -61,7 +60,7 @@ export class CalendarYearRenderer extends CalendarRendererBase {
             () => [this.rootRef.el],
         );
 
-        useListener(window, "resize", () => this.onWindowResize());
+        useMountedListener(window, "resize", () => this.onWindowResize());
     }
 
     get options() {

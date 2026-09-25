@@ -24,8 +24,12 @@ import { ErrorHandler } from "@web/core/utils/components";
 import { KeepLast, Race } from "@web/core/utils/concurrency";
 import { highlightText } from "@web/core/utils/dom/html";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
-import { useAutofocus, useChildRef, useService } from "@web/core/utils/hooks";
-import { useListener } from "@web/core/utils/owl_bridge";
+import {
+    useAutofocus,
+    useChildRef,
+    useMountedListener,
+    useService,
+} from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { debounce } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -258,7 +262,7 @@ export class CommandPalette extends Component {
             ...inPalette,
             allowRepeat: true,
         });
-        useListener(window, "mousedown", this.onWindowMouseDown.bind(this));
+        useMountedListener(window, "mousedown", this.onWindowMouseDown.bind(this));
 
         /**
          * @type {{

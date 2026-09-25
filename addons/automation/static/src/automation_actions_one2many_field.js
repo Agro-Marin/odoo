@@ -4,7 +4,7 @@ import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { _t } from "@web/core/translation";
 import { registry } from "@web/core/registry";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
-import { useListener } from "@web/core/utils/owl_bridge";
+import { useMountedListener } from "@web/core/utils/hooks";
 
 class ActionsOne2ManyField extends Component {
     static props = ["*"];
@@ -19,7 +19,7 @@ class ActionsOne2ManyField extends Component {
             },
             () => [],
         );
-        useListener(
+        useMountedListener(
             window,
             "resize",
             useThrottleForAnimation(() => this.adapt()),

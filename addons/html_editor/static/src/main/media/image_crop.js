@@ -8,7 +8,7 @@ import {
 import { Component, markup, onMounted, onWillDestroy, status, useRef } from "@odoo/owl";
 import { _t } from "@web/core/translation";
 import { closestScrollableY, scrollTo } from "@web/core/utils/dom/scrolling";
-import { useService } from "@web/core/utils/hooks";
+import { useMountedListener, useService } from "@web/core/utils/hooks";
 import { useListener } from "@web/core/utils/owl_bridge";
 
 import { IMAGE_SHAPES } from "./image_plugin.js";
@@ -43,13 +43,23 @@ export class ImageCrop extends Component {
         this.discardButtonRef = useRef("discardButton");
         this.isCropperActive = false;
 
-        useListener(this.document, "mousedown", this.onDocumentMousedown.bind(this), {
-            capture: true,
-        });
-        useListener(this.document, "keydown", this.onDocumentKeydown.bind(this), {
-            capture: true,
-        });
-        useListener(document, "keydown", this.onDocumentKeydown.bind(this), {
+        useMountedListener(
+            this.document,
+            "mousedown",
+            this.onDocumentMousedown.bind(this),
+            {
+                capture: true,
+            },
+        );
+        useMountedListener(
+            this.document,
+            "keydown",
+            this.onDocumentKeydown.bind(this),
+            {
+                capture: true,
+            },
+        );
+        useMountedListener(document, "keydown", this.onDocumentKeydown.bind(this), {
             capture: true,
         });
         useListener(

@@ -3,7 +3,7 @@
 
 import { onWillDestroy } from "@odoo/owl";
 import { Dropzone } from "@web/components/dropzone/dropzone";
-import { useService } from "@web/core/utils/hooks";
+import { useMountedListener, useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useListener } from "@web/core/utils/owl_bridge";
 
@@ -58,8 +58,8 @@ export function useCustomDropzone(
     /** @type {false|(() => void)} */
     let removeDropzone = false;
 
-    useListener(document, "dragenter", onDragEnter, { capture: true });
-    useListener(document, "dragleave", onDragLeave, { capture: true });
+    useMountedListener(document, "dragenter", onDragEnter, { capture: true });
+    useMountedListener(document, "dragleave", onDragLeave, { capture: true });
     useSuppressWindowFileDrop(() => {
         dragCount = 0;
         updateDropzone();

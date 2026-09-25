@@ -7,6 +7,7 @@ import {
 import { getVideoUrl } from "@html_editor/utils/url";
 import { Component, onMounted, onWillDestroy, onWillUnmount, useRef } from "@odoo/owl";
 import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
+import { useMountedListener } from "@web/core/utils/hooks";
 import { useListener } from "@web/core/utils/owl_bridge";
 
 import { ReadonlyEmbeddedVideoComponent } from "../../core/video/readonly_video.js";
@@ -39,7 +40,7 @@ export class EmbeddedVideoComponent extends ReadonlyEmbeddedVideoComponent {
         });
         this.iframeRef = useRef("iframeRef");
 
-        useListener(this.videoBlock, "pointerenter", () => {
+        useMountedListener(this.videoBlock, "pointerenter", () => {
             this.videoSettingsOverlay.open({
                 target: this.videoBlock,
                 props: {

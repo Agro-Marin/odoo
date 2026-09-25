@@ -6,6 +6,7 @@ import { Component, useRef, useState } from "@odoo/owl";
 import { useNavigation } from "@web/core/navigation/navigation";
 import { usePosition } from "@web/core/position/position_hook";
 import { getComponentElement } from "@web/core/utils/components";
+import { useMountedListener } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { useListener } from "@web/core/utils/owl_bridge";
 export class CallDropdown extends Component {
@@ -35,7 +36,7 @@ export class CallDropdown extends Component {
             margin: 4,
             flip: true,
         });
-        useListener(this.window, "click", this.onClickAway.bind(this), {
+        useMountedListener(this.window, "click", this.onClickAway.bind(this), {
             capture: true,
         });
         useListener(this.window, "keydown", this.onKeydown.bind(this));

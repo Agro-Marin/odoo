@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { useCommand } from "@web/ui/commands";
 import { _t } from "@web/core/translation";
-import { useService, useBus } from "@web/core/utils/hooks";
+import { useBus, useMountedListener, useService } from "@web/core/utils/hooks";
 import { useDraggableDocuments } from "@document/views/helper/document_draggable";
 import {
     preprocessMany2oneChanges,
@@ -13,7 +13,6 @@ import { onWillUnmount, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { useViewModel } from "@web/model/model";
 import { useSearchModel } from "@web/search/search_model";
 import { useViewConfig } from "@web/core/view_config_hooks";
-import { useListener } from "@web/core/utils/owl_bridge";
 
 export const DocumentsRendererMixin = (component) =>
     class extends component {
@@ -108,17 +107,17 @@ export const DocumentsRendererMixin = (component) =>
             const setShortcutModifier = (active) => {
                 this.root?.el?.classList.toggle("o_documents_dnd_shortcut", active);
             };
-            useListener(window, "keydown", (ev) => {
+            useMountedListener(window, "keydown", (ev) => {
                 if (ev.key === "Control") {
                     setShortcutModifier(true);
                 }
             });
-            useListener(window, "keyup", (ev) => {
+            useMountedListener(window, "keyup", (ev) => {
                 if (ev.key === "Control") {
                     setShortcutModifier(false);
                 }
             });
-            useListener(window, "blur", () => setShortcutModifier(false));
+            useMountedListener(window, "blur", () => setShortcutModifier(false));
 
             onWillUpdateProps((nextProps) => {
                 if (nextProps.list !== this.props.list) {

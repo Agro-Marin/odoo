@@ -5,8 +5,7 @@ import { Component, useRef, useState } from "@odoo/owl";
 import { Dropdown, useDropdownState } from "@web/components/dropdown";
 import { loadEmoji, useEmojiPicker } from "@web/components/emoji_picker";
 import { makeLogger } from "@web/core/debug/debug_logger";
-import { useService } from "@web/core/utils/hooks";
-import { useListener } from "@web/core/utils/owl_bridge";
+import { useMountedListener, useService } from "@web/core/utils/hooks";
 
 const log = makeLogger("mail.message.reaction");
 /**
@@ -63,7 +62,7 @@ export class QuickReactionMenu extends Component {
             }),
         );
         this.frequentEmojiService = useService("web.frequent.emoji");
-        useListener(
+        useMountedListener(
             window,
             "keydown",
             /** @param {KeyboardEvent} ev */ async (ev) => {

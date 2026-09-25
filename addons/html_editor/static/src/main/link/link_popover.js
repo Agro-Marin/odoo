@@ -4,9 +4,8 @@ import { CheckBox } from "@web/components/checkbox";
 import { useColorPicker } from "@web/components/color_picker";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
+import { useMountedListener, useService } from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
-import { useListener } from "@web/core/utils/owl_bridge";
 import { session } from "@web/session";
 
 import { cleanZWChars, deduceURLfromText } from "./utils.js";
@@ -264,9 +263,9 @@ export class LinkPopover extends Component {
                 this.onClickApply();
             }
         };
-        useListener(this.props.document, "pointerdown", onPointerDown);
+        useMountedListener(this.props.document, "pointerdown", onPointerDown);
         if (this.props.document !== document) {
-            useListener(document, "pointerdown", onPointerDown);
+            useMountedListener(document, "pointerdown", onPointerDown);
         }
     }
 

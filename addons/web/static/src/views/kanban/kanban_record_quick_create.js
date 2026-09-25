@@ -6,8 +6,7 @@ import { makeLogger } from "@web/core/debug/debug_logger";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { RPCError } from "@web/core/network/rpc";
 import { _t } from "@web/core/translation";
-import { useOwnedDialogs, useService } from "@web/core/utils/hooks";
-import { useListener } from "@web/core/utils/owl_bridge";
+import { useMountedListener, useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { provideViewConfig } from "@web/core/view_config_hooks";
 import { extractFieldsFromArchInfo } from "@web/model/relational_model";
 import { formView } from "@web/views/form/form_view";
@@ -105,10 +104,10 @@ export class KanbanQuickCreateController extends Component {
         onMounted(() => {
             this.uiActiveElement = this.uiService.activeElement;
         });
-        useListener(window, "mousedown", (/** @type {Event} */ ev) => {
+        useMountedListener(window, "mousedown", (/** @type {Event} */ ev) => {
             this.mousedownTarget = ev.target;
         });
-        useListener(
+        useMountedListener(
             window,
             "click",
             (/** @type {Event} */ ev) => {

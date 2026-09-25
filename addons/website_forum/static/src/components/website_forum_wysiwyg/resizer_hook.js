@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { useRef } from "@odoo/owl";
+import { useMountedListener } from "@web/core/utils/hooks";
 import { useListener } from "@web/core/utils/owl_bridge";
 
 /**
@@ -16,7 +17,7 @@ export function useResizer(targetRefName, minHeight = 100) {
         startHeight = targetRef.el.offsetHeight;
         startOffsetTop = ev.pageY;
     };
-    useListener(document, "mousemove", (ev) => {
+    useMountedListener(document, "mousemove", (ev) => {
         if (isMouseDownOnResizer) {
             const offsetTop = ev.pageY - startOffsetTop;
             const newHeight = Math.max(startHeight + offsetTop, minHeight);

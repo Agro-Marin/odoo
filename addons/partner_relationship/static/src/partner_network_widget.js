@@ -12,7 +12,7 @@ import {
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
+import { useMountedListener, useService } from "@web/core/utils/hooks";
 
 import { loadJoint } from "./lib/joint.js";
 import {
@@ -28,7 +28,6 @@ import {
     primaryTies,
     shortName,
 } from "./network_layout.js";
-import { useListener } from "@web/core/utils/owl_bridge";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const ZOOM_STEP = 1.25;
@@ -79,7 +78,7 @@ export class PartnerNetwork extends Component {
                 await this.load(nextProps.record.resId);
             }
         });
-        useListener(window, "resize", () => this.onResize());
+        useMountedListener(window, "resize", () => this.onResize());
         onWillUnmount(() => this.teardown());
     }
 

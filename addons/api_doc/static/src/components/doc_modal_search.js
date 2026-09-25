@@ -2,6 +2,7 @@
 import { useDocModelStore } from "@api_doc/doc_model_store_context";
 import { search } from "@api_doc/utils/doc_model_search";
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
+import { useMountedListener } from "@web/core/utils/hooks";
 import { useListener } from "@web/core/utils/owl_bridge";
 import { useDebounced } from "@web/core/utils/timing";
 
@@ -50,7 +51,7 @@ export class SearchModal extends Component {
             }
         });
 
-        useListener(window, "click", (event) => {
+        useMountedListener(window, "click", (event) => {
             if (!this.modalRef.el.contains(event.target)) {
                 this.props.close();
             }

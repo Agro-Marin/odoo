@@ -13,8 +13,7 @@ import { useDebugMode } from "@web/core/debug/debug_context";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { isEventHandled } from "@web/core/utils/dom/events";
-import { useEventBus, useService } from "@web/core/utils/hooks";
-import { useListener } from "@web/core/utils/owl_bridge";
+import { useEventBus, useMountedListener, useService } from "@web/core/utils/hooks";
 
 const log = makeLogger("mail.rtc.ui");
 /** @type {Set<string>} */
@@ -66,7 +65,11 @@ export class CallParticipantCard extends Component {
                 viewCountIncrement: -1,
             });
         });
-        useListener(browser, "fullscreenchange", this.onFullScreenChange.bind(this));
+        useMountedListener(
+            browser,
+            "fullscreenchange",
+            this.onFullScreenChange.bind(this),
+        );
     }
 
     get isContextMenuAvailable() {

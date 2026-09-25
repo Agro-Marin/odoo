@@ -14,8 +14,7 @@ import {
     getPreviousTabableElement,
 } from "@web/core/utils/dom/ui";
 import { roundDecimals } from "@web/core/utils/format/numbers";
-import { useService } from "@web/core/utils/hooks";
-import { useListener } from "@web/core/utils/owl_bridge";
+import { useMountedListener, useService } from "@web/core/utils/hooks";
 import { Field } from "@web/fields/field";
 import { placeholderFieldOption } from "@web/fields/field_options";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
@@ -70,8 +69,8 @@ export class AnalyticDistribution extends Component {
         useRecordObserver(this.willUpdateRecord.bind(this));
         onPatched(this.patched);
 
-        useListener(window, "click", this.onWindowClick.bind(this), true);
-        useListener(window, "resize", this.onWindowResized.bind(this));
+        useMountedListener(window, "click", this.onWindowClick.bind(this), true);
+        useMountedListener(window, "resize", this.onWindowResized.bind(this));
 
         this.openTemplate = useOpenMany2XRecord({
             resModel: "account.analytic.distribution.model",

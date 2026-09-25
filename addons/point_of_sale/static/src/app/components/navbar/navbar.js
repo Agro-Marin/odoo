@@ -20,8 +20,7 @@ import { isDisplayStandalone } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
-import { useListener } from "@web/core/utils/owl_bridge";
+import { useMountedListener, useService } from "@web/core/utils/hooks";
 import { AlertDialog } from "@web/ui/dialog";
 const log = makeLogger("pos.navbar");
 
@@ -54,7 +53,7 @@ export class Navbar extends Component {
         onMounted(async () => {
             this.hasProductCreationAccess = await this.pos.allowProductCreation();
         });
-        useListener(document, "keydown", this.handleKeydown.bind(this));
+        useMountedListener(document, "keydown", this.handleKeydown.bind(this));
         this.openPresetTiming = useAsyncLockedMethod(this.openPresetTiming.bind(this));
     }
 

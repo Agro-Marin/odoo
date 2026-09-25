@@ -2,7 +2,8 @@
 import { onMounted, onPatched, useRef, useState } from "@odoo/owl";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { KeepLast } from "@web/core/utils/concurrency";
-import { useComponentName, useListener } from "@web/core/utils/owl_bridge";
+import { useMountedListener } from "@web/core/utils/hooks";
+import { useComponentName } from "@web/core/utils/owl_bridge";
 const log = makeLogger("pos.hooks");
 
 export function useAutoFocusToLast() {
@@ -153,7 +154,7 @@ export function useIsChildLarger(container) {
         }));
     };
 
-    useListener(window, "resize", () => {
+    useMountedListener(window, "resize", () => {
         computeSize();
     });
 

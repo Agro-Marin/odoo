@@ -3,8 +3,7 @@
 
 import { Component, onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { useChildRef, useService } from "@web/core/utils/hooks";
-import { useListener } from "@web/core/utils/owl_bridge";
+import { useChildRef, useMountedListener, useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 
 export class PromoteStudioDialog extends Component {
@@ -32,7 +31,7 @@ export class PromoteStudioDialog extends Component {
         this.modalRef = useChildRef();
         onWillDestroy(() => this.releaseInstallBlock());
 
-        useListener(window, "mousedown", this.onWindowMouseDown.bind(this));
+        useMountedListener(window, "mousedown", this.onWindowMouseDown.bind(this));
     }
 
     async onClickInstallStudio() {

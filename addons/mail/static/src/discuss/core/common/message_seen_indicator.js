@@ -3,8 +3,7 @@
 import { Component, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/translation";
-import { useService } from "@web/core/utils/hooks";
-import { useListener } from "@web/core/utils/owl_bridge";
+import { useMountedListener, useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 class MessageSeenIndicatorDialog extends Component {
     static components = { Dialog };
@@ -14,7 +13,7 @@ class MessageSeenIndicatorDialog extends Component {
     setup() {
         super.setup();
         this.contentRef = useRef("content");
-        useListener(
+        useMountedListener(
             browser,
             "click",
             /** @param {Event} ev */

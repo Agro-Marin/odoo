@@ -15,9 +15,14 @@ import { registry } from "@web/core/registry";
 import { Transition } from "@web/core/transition";
 import { _t } from "@web/core/translation";
 import { ErrorHandler } from "@web/core/utils/components";
-import { useBus, useEventBus, useService } from "@web/core/utils/hooks";
+import {
+    useBus,
+    useEventBus,
+    useMountedListener,
+    useService,
+} from "@web/core/utils/hooks";
 import { useLayoutEffect } from "@web/core/utils/layout_effect";
-import { Portal, useListener } from "@web/core/utils/owl_bridge";
+import { Portal } from "@web/core/utils/owl_bridge";
 import { debounce } from "@web/core/utils/timing";
 import { usePopover } from "@web/ui/popover";
 import { QuickLauncher } from "@web/webclient/home_menu/quick_launcher";
@@ -111,7 +116,7 @@ export class NavBar extends Component {
         );
         const debouncedAdapt = debounce(this.adapt.bind(this), 250);
         onWillDestroy(() => debouncedAdapt.cancel());
-        useListener(window, "resize", debouncedAdapt);
+        useMountedListener(window, "resize", debouncedAdapt);
 
         const onSystrayUpdate = () => this.state.systrayRevision++;
         const onMenusChanged = () => this.state.menuRevision++;
