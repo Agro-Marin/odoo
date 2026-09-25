@@ -59,11 +59,13 @@ export class HtmlUpgradeManager {
         for (const version of upgradeSequence) {
             const modules = this.upgradeRegistry.category(version);
             for (const [key, module] of modules.getEntries()) {
-                const migrate = odoo.loader.modules.get(module).migrate;
+                const migrate = odoo.loader.modules.get(module)?.migrate;
                 if (!migrate) {
-                    console.error(
-                        `A "${key}" migrate function could not be found at "${module}" or it did not load.`,
-                    );
+                    // abort the whole pass: the caller keeps the raw value, as it
+                    // does for a migration that throws
+                    const message = `A "${key}" migrate function could not be found at "${module}" or it did not load.`;
+                    console.error(message);
+                    throw new Error(message);
                 }
                 migrate(this.element, this.env);
             }

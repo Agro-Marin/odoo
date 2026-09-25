@@ -72,6 +72,34 @@ describe("Public HTML migration only run once per interaction", () => {
     });
 });
 
+describe("a migration module that did not load", () => {
+    beforeEach(() => {
+        registry
+            .category("html_editor_upgrade")
+            .category("1.1")
+            .add(
+                "test_unregistered_migration",
+                "@html_editor/../tests/public/not_registered",
+            );
+    });
+    afterEach(() => {
+        registry
+            .category("html_editor_upgrade")
+            .category("1.1")
+            .remove("test_unregistered_migration");
+    });
+    test("is reported by name and leaves the HTML untouched", async () => {
+        patchWithCleanup(console, {
+            error: (message) => expect.step(String(message)),
+        });
+        await startInteractions(`<div data-oe-version="1.0">before</div>`);
+        expect.verifySteps([
+            'A "test_unregistered_migration" migrate function could not be found at "@html_editor/../tests/public/not_registered" or it did not load.',
+        ]);
+        expect(queryOne("#wrapwrap")).toHaveInnerHTML(`<div>before</div>`);
+    });
+});
+
 describe("public html migration to editor version 1.1", () => {
     test("replace excalidraw embedded component by a link", async () => {
         await startInteractions(
