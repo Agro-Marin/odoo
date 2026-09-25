@@ -10,8 +10,7 @@
     min-width: 16rem;
     padding: 5px;
     border-radius: 12px;
-    backdrop-filter: blur(30px) saturate(1.6);
-    -webkit-backdrop-filter: blur(30px) saturate(1.6);
+    @include o-material("thick");
 
     .o_user_menu_header {
         margin-bottom: 5px;

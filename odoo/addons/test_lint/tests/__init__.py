@@ -5,6 +5,7 @@ from . import test_checkers
 from . import test_python_lint
 from . import test_bundle_token_defs
 from . import test_color_scheme_reads
+from . import test_style_literals
 from . import test_dark_sibling_scope
 from . import test_orphan_assets
 from . import test_orphan_test_registrations

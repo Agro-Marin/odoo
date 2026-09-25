@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 7.6
+:Version: 7.7
 :Date: 2026-09-25
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -3847,7 +3847,15 @@ any.
 * **Reuse Bootstrap 5 utilities and components before writing SCSS** ``[review]``.
 * **Never hard-code a colour or spacing a variable controls; override the Odoo or
   Bootstrap variable in ``web._assets_primary_variables`` /
-  ``_secondary_variables``** ``[review]``.
+  ``_secondary_variables``** ``[review]``. A colour literal -- hex, or ``rgb()`` /
+  ``hsl()`` over numbers -- outside a palette file (``tokens.scss``,
+  ``palette_dark.scss``, ``primary_variables*``, ``bootstrap_overridden*``, a
+  module's ``*.variables.scss``) is counted per repository and may only shrink
+  ``[test_lint colour_literals]``.
+* **Glass is a material: ``@include o-material("ultrathin" | "thin" | "regular" |
+  "thick")``, or ``o-glass()`` for a material over the glass background; never a
+  raw ``backdrop-filter``** ``[test_lint backdrop_filters]``. ``$o-materials`` is
+  the one definition and ``--o-material-*`` publishes it.
 * **One stylesheet answers both schemes: a dark value is a token, a
   ``light-dark()`` pair or a scoped restatement (§5.3-§5.5), never a separate
   file** ``[test_lint test_scheme_duplication]``. ``web.assets_web_dark`` is
@@ -5434,6 +5442,11 @@ collisions, so an eighth fails and so does a renumbering.
    * - Version
      - Date
      - Summary
+   * - 7.7
+     - 2026-09-25
+     - §5.2: colour literals outside palette files, and raw ``backdrop-filter``
+       outside ``o-material()``, are per-repository ratchets (``test_lint``
+       ``test_style_literals``).
    * - 7.6
      - 2026-09-25
      - §5.2: one stylesheet answers both schemes and ``web.assets_web_dark`` is a

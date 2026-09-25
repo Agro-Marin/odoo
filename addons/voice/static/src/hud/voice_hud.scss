@@ -12,7 +12,7 @@
     border-radius: $border-radius-lg;
     background-color: o-token(--o-dropdown-bg, $dropdown-bg);
     color: o-token(--o-text, $o-main-text-color);
-    box-shadow: $box-shadow-lg;
+    box-shadow: o-token(--#{$prefix}box-shadow-lg, $box-shadow-lg);
 
     .o_voice_hud_head,
     .o_voice_session,

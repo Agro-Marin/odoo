@@ -59,8 +59,7 @@
         background: var(--Home-bar);
         border-bottom: 1px solid var(--Home-bar-border);
         box-shadow: none;
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
+        @include o-material("thin");
 
         .o_dropdown_active,
         > ul > li.show > a {
@@ -95,7 +94,10 @@
     }
 
     .o_menu_systray {
-        @include print-variable(o-navbar-badge-bg, o-token(--danger, $o-navbar-badge-bg));
+        @include print-variable(
+            o-navbar-badge-bg,
+            o-token(--danger, $o-navbar-badge-bg)
+        );
     }
 
     .o_navbar_home_brand {
@@ -134,8 +136,7 @@
         background: var(--Home-tile);
         border-radius: $o-home-menu-tile-radius;
         box-shadow: 17px 20px 40px var(--Home-shadow);
-        backdrop-filter: blur(24px);
-        -webkit-backdrop-filter: blur(24px);
+        @include o-material("thick");
     }
 
     // Edit toolbar: replaces the top bar while customizing.
@@ -145,8 +146,7 @@
         z-index: 10;
         background: var(--Home-bar);
         border-bottom: 1px solid var(--Home-bar-border);
-        backdrop-filter: blur(14px);
-        -webkit-backdrop-filter: blur(14px);
+        @include o-material("thin");
     }
 
     .o_home_menu_toolbar_inner {
@@ -209,8 +209,7 @@
         border-radius: $o-home-menu-tile-radius;
         background: var(--Home-banner);
         box-shadow: 17px 20px 40px var(--Home-shadow);
-        backdrop-filter: blur(15px) saturate(0.86);
-        -webkit-backdrop-filter: blur(15px) saturate(0.86);
+        @include o-material("regular");
     }
 
     .o_home_banner_icon {
@@ -342,8 +341,7 @@
         height: 80px;
         border-radius: $o-home-menu-tile-radius $o-home-menu-tile-radius 0 0;
         background: var(--Home-banner);
-        backdrop-filter: blur(15px) saturate(0.86);
-        -webkit-backdrop-filter: blur(15px) saturate(0.86);
+        @include o-material("regular");
     }
 
     .o_home_tile_header_link {
@@ -584,8 +582,7 @@
     .o_home_launcher_tile {
         padding: 16px 20px 20px;
         border-radius: $o-home-menu-launcher-radius;
-        backdrop-filter: blur(15px) saturate(0.86);
-        -webkit-backdrop-filter: blur(15px) saturate(0.86);
+        @include o-material("regular");
 
         .row {
             display: grid;
@@ -708,8 +705,7 @@
         color: var(--Home-label);
         font-size: 17px;
         line-height: 21px;
-        backdrop-filter: blur(15px);
-        -webkit-backdrop-filter: blur(15px);
+        @include o-material("regular");
 
         &:hover,
         &:focus-visible {

@@ -529,6 +529,12 @@ $-o-dark-scheme: map-merge(
     }
 }
 
+:root {
+    @each $-kind, $-filter in $o-materials {
+        --o-material-#{$-kind}: #{$-filter};
+    }
+}
+
 @if $o-bootstrap-follows-palette {
     :root {
         @each $-step in (100, 200, 300, 400, 500, 600, 700, 800, 900) {

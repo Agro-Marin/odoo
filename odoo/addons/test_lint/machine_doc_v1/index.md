@@ -50,7 +50,14 @@ repository, the bare `sudo()` calls (`bare_sudo_odoo`, `bare_sudo_enterprise`,
 behalf, and the `has_group` checks (`has_group_odoo`, `has_group_enterprise`,
 `has_group_agromarin`) that ir.access rows replace as authority;
 `grant_membership_write` counts the memberships odoo's modules still write
-outside base instead of granting them with a cause. All of them only shrink; the
+outside base instead of granting them with a cause. `tests/test_style_literals.py`
+counts, per repository, the hex and numeric `rgb()`/`hsl()` colours module
+stylesheets state outside the palette files (`colour_literals_odoo`,
+`colour_literals_enterprise`, `colour_literals_agromarin`,
+`colour_literals_design_themes`), and the raw `backdrop-filter` declarations
+outside web's `o-material()` (`backdrop_filters_odoo`,
+`backdrop_filters_enterprise`, `backdrop_filters_agromarin`). All of them only
+shrink; the
 sibling repositories' floors are read on the full addons path, and the narrow
 scope grades the odoo ones alone. `lint_receiver_fail_open` carried one
 for the six hours between the rule's rewrite and the last family's conversion. Everything else -- every other AST rule,

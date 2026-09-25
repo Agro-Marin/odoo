@@ -381,14 +381,21 @@ $o-webclient-medias: screen, print;
     );
 }
 
-@mixin o-glass($opacity: 0.8, $blur: 12px, $saturate: 1.5) {
+@mixin o-material($-kind) {
+    $-filter: map-get($o-materials, $-kind);
+    @if not $-filter {
+        @error "o-material: no material named #{$-kind}";
+    }
+    backdrop-filter: var(--o-material-#{$-kind}, #{$-filter});
+}
+
+@mixin o-glass($opacity: 0.8, $-material: "thin") {
     background-color: o-token-alpha(--o-glass-bg, $o-glass-bg, $opacity);
-    backdrop-filter: blur($blur) saturate($saturate);
-    -webkit-backdrop-filter: blur($blur) saturate($saturate);
+    @include o-material($-material);
 }
 
 @mixin o-glass-subtle() {
-    @include o-glass(0.85, 10px, 1.2);
+    @include o-glass(0.85, "ultrathin");
 }
 
 @mixin owl-fade($time, $name) {

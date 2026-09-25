@@ -303,6 +303,13 @@ $o-bg-raised: $o-gray-200 !default;
 
 $o-glass-bg: $o-white !default;
 
+$o-materials: (
+    "ultrathin": blur(10px) saturate(1.2),
+    "thin": blur(14px) saturate(1.5),
+    "regular": blur(15px) saturate(0.86),
+    "thick": blur(24px),
+) !default;
+
 $o-ring-width: 2px !default;
 $o-ring-color: map-get($o-theme-text-colors, "primary") !default;
 $o-ring-offset: 2px !default;
