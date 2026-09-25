@@ -9,12 +9,39 @@ import { _t } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 
 const log = makeLogger("mail.store");
-const unread_store = (() => {
-    if (!window.idbKeyval) {
-        return undefined;
+let unread_store;
+
+/**
+ * Save the unread counter in the database shared with the service worker, so
+ * that the app badge stays up to date.
+ *
+ * @param {number} counter
+ * @param {boolean} [retry=true]
+ */
+async function saveUnreadCounter(counter, retry = true) {
+    try {
+        // opened lazily: idbKeyval is a classic library, read when first needed
+        // rather than when this module evaluates
+        unread_store ??= new window.idbKeyval.Store(
+            "odoo-mail-unread-db",
+            "odoo-mail-unread-store",
+        );
+    } catch {
+        // the browser does not allow the database (private mode, blocked
+        // storage): opening it again would fail the same way
+        return;
     }
-    return new window.idbKeyval.Store("odoo-mail-unread-db", "odoo-mail-unread-store");
-})();
+    try {
+        await window.idbKeyval.set("unread", counter, unread_store);
+    } catch {
+        // the connection idbKeyval cached was closed by the browser: drop it so
+        // the retry saves the counter on a new one
+        unread_store = undefined;
+        if (retry) {
+            await saveUnreadCounter(counter, false);
+        }
+    }
+}
 
 /** @type {Partial<import("models").Store> & ThisType<import("models").Store>} */
 const StorePatch = {
@@ -138,12 +165,10 @@ const StorePatch = {
     updateAppBadge() {
         log.logic("updateAppBadge", () => ({
             globalCounter: this.globalCounter,
-            supported: Boolean(unread_store),
+            supported: Boolean(window.idbKeyval),
         }));
-        if (unread_store) {
-            Promise.resolve(
-                window.idbKeyval.set("unread", this.globalCounter, unread_store),
-            ).catch(() => {});
+        if (window.idbKeyval) {
+            saveUnreadCounter(this.globalCounter);
             Promise.resolve(navigator.setAppBadge?.(this.globalCounter)).catch(
                 () => {},
             );
