@@ -1,0 +1,518 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* stock_fleet
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-25 10:08+0000\n"
+"PO-Revision-Date: 2026-09-25 10:08+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: es_MX\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_trip.py:0
+msgid "%(picking)s came back undelivered: %(reason)s"
+msgstr "%(picking)s regresó sin entregar: %(reason)s"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_kanban_driver
+msgid "<i class=\"fa fa-calendar me-1\" title=\"Scheduled\"/>"
+msgstr "<i class=\"fa fa-calendar me-1\" title=\"Programado\"/>"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_kanban_driver
+msgid "<i class=\"fa fa-truck me-1\" title=\"Vehicle\"/>"
+msgstr "<i class=\"fa fa-truck me-1\" title=\"Vehículo\"/>"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.report_picking_batch_inherit
+msgid "<strong>Departure</strong>"
+msgstr "<strong>Salida</strong>"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.report_picking_batch_inherit
+msgid "<strong>Operator:</strong>"
+msgstr "<strong>Operador:</strong>"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.report_picking_batch_inherit
+msgid "<strong>Return</strong>"
+msgstr "<strong>Cierre</strong>"
+
+#. module: stock_fleet
+#: model_terms:ir.actions.act_window,help:stock_fleet.action_my_trips
+msgid "A trip shows up here when you are its operator."
+msgstr "Un viaje aparece aquí cuando tú eres su operador."
+
+#. module: stock_fleet
+#: model:ir.model,name:stock_fleet.model_resource_asset_log
+msgid "Asset Log"
+msgstr "Bitácora del activo"
+
+#. module: stock_fleet
+#: model:ir.model.fields.selection,name:stock_fleet.selection__stock_picking_batch__trip_state__cancelled
+msgid "Cancelled"
+msgstr "Cancelado"
+
+#. module: stock_fleet
+#: model:ir.model.fields.selection,name:stock_fleet.selection__stock_picking_batch__trip_state__closed
+msgid "Closed"
+msgstr "Cerrado"
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Closed at odometer %(odometer)s: %(delivered)s delivered, %(pending)s pending."
+msgstr "Cerrado con odómetro %(odometer)s: %(delivered)s entregados, %(pending)s pendientes."
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_delivery_failure_form
+msgid "Confirm"
+msgstr "Confirmar"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_delivery_failure__create_uid
+msgid "Created by"
+msgstr "Creado por"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_delivery_failure__create_date
+msgid "Created on"
+msgstr "Creado el"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_delivery_failure_form
+msgid "Customer absent, refused, wrong address..."
+msgstr "Cliente ausente, rechazó, dirección equivocada..."
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.report_picking_batch_inherit
+msgid "Date"
+msgstr "Fecha"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_type__dispatch_batch_required
+msgid "Deliver in Trips"
+msgstr "Entregar en viajes"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__trip_delivered_count
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_form_driver
+msgid "Delivered"
+msgstr "Entregado"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_form_driver
+msgid "Deliveries"
+msgstr "Entregas"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking__delivery_failure_reason
+msgid "Delivery Failure Reason"
+msgstr "Motivo de no entrega"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_form_trip
+msgid "Depart"
+msgstr "Despachar"
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Departed with %(vehicle)s, operator %(operator)s, odometer %(odometer)s."
+msgstr "Salió con %(vehicle)s, operador %(operator)s, odómetro %(odometer)s."
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__date_departure
+msgid "Departure"
+msgstr "Salida"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_delivery_failure_form
+msgid "Discard"
+msgstr "Descartar"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__departed_uid
+msgid "Dispatched By"
+msgstr "Despachado por"
+
+#. module: stock_fleet
+#: model:res.groups,comment:stock_fleet.group_trip_driver
+msgid "Drivers: see their own trips, mark each delivery and register the return."
+msgstr "Conductores: ven sus propios viajes, marcan cada entrega y cierran el viaje."
+
+#. module: stock_fleet
+#: model:ir.model.fields,help:stock_fleet.field_stock_picking_batch__operator_id
+msgid ""
+"Employee who drives this trip, chosen for each trip: who drives depends on "
+"the load and on who is free, not on who holds the vehicle. Frozen once the "
+"trip departs."
+msgstr ""
+"Empleado que maneja este viaje, elegido en cada viaje: quién maneja depende "
+"de la carga y de quién está disponible, no de quién tiene el resguardo del "
+"vehículo. Queda fijo cuando el viaje sale."
+
+#. module: stock_fleet
+#: model:ir.model.fields.selection,name:stock_fleet.selection__stock_picking_batch__trip_state__in_transit
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_filter_trip
+msgid "In Transit"
+msgstr "En ruta"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_delivery_failure__write_uid
+msgid "Last Updated by"
+msgstr "Última actualización por"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_delivery_failure__write_date
+msgid "Last Updated on"
+msgstr "Última actualización el"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_form_driver
+msgid "My Trip"
+msgstr "Mi viaje"
+
+#. module: stock_fleet
+#: model:ir.actions.act_window,name:stock_fleet.action_my_trips
+#: model:ir.ui.menu,name:stock_fleet.menu_my_trips
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_filter_trip
+msgid "My Trips"
+msgstr "Mis viajes"
+
+#. module: stock_fleet
+#: model_terms:ir.actions.act_window,help:stock_fleet.action_my_trips
+msgid "No trip assigned to you"
+msgstr "No tienes viajes asignados"
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_trip.py:0
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_form_driver
+msgid "Not delivered"
+msgstr "No entregado"
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_trip.py:0
+msgid "Not delivered on trip %(batch)s: %(reason)s"
+msgstr "No entregado en el viaje %(batch)s: %(reason)s"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.report_picking_batch_inherit
+msgid "Odometer"
+msgstr "Odómetro"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__odometer_uom_id
+msgid "Odometer Uom"
+msgstr "Unidad del odómetro"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__odometer_departure
+msgid "Odometer at Departure"
+msgstr "Odómetro de salida"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__odometer_return
+msgid "Odometer at Return"
+msgstr "Odómetro al cierre"
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Odometer at departure"
+msgstr "Odómetro de salida"
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__operator_id
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_filter_trip
+msgid "Operator"
+msgstr "Operador"
+
+#. module: stock_fleet
+#: model:ir.model.fields,help:stock_fleet.field_stock_picking_type__dispatch_batch_required
+msgid "Outgoing transfers of this type are validated only inside a trip that has departed with its vehicle, operator and supervisor."
+msgstr "Las salidas de este tipo solo se validan dentro de un viaje que ya salió con su vehículo, operador y supervisor."
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__trip_pending_count
+msgid "Pending"
+msgstr "Pendientes"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_delivery_failure__picking_id
+msgid "Picking"
+msgstr "Albarán"
+
+#. module: stock_fleet
+#: model:ir.model.fields.selection,name:stock_fleet.selection__stock_picking_batch__trip_state__planned
+msgid "Planned"
+msgstr "Planeado"
+
+#. module: stock_fleet
+#: model:ir.model,name:stock_fleet.model_product_template
+msgid "Product"
+msgstr "Producto"
+
+#. module: stock_fleet
+#: model:ir.model,name:stock_fleet.model_product_product
+msgid "Product Variant"
+msgstr "Variante de producto"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_delivery_failure__reason
+msgid "Reason"
+msgstr "Motivo"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_form_driver
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_form_trip
+msgid "Register Return"
+msgstr "Cerrar viaje"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__date_return
+msgid "Return"
+msgstr "Cierre"
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Return odometer of trip %(batch)s."
+msgstr "Odómetro de cierre del viaje %(batch)s."
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_resource_asset_log__source
+msgid "Source"
+msgstr "Origen"
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__supervisor_id
+msgid "Supervisor"
+msgstr "Supervisor"
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "The odometer at return (%(end)s) cannot be lower than the odometer at departure (%(start)s) on trip %(batch)s."
+msgstr "El odómetro de cierre (%(end)s) no puede ser menor que el de salida (%(start)s) en el viaje %(batch)s."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "The odometer at return (%(trip)s) does not advance the vehicle's last reading (%(vehicle)s); the ledger keeps its own."
+msgstr "El odómetro de cierre (%(trip)s) no supera la última lectura del vehículo (%(vehicle)s); la bitácora conserva la suya."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "The odometer at return is not set."
+msgstr "Falta el odómetro de cierre."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "The return cannot be earlier than the departure on trip %(batch)s."
+msgstr "El cierre no puede ser anterior a la salida en el viaje %(batch)s."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "The supervisor who authorises the departure of trip %(batch)s cannot be its operator."
+msgstr "El supervisor que autoriza la salida del viaje %(batch)s no puede ser su operador."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "The vehicle's ledger refused the return odometer: %(error)s"
+msgstr "La bitácora del vehículo rechazó el odómetro de cierre: %(error)s"
+
+#. module: stock_fleet
+#: model:ir.model.constraint,message:stock_fleet.constraint_resource_asset_log_picking_batch_uniq
+msgid "This trip has already recorded its return odometer."
+msgstr "Este viaje ya registró su odómetro de cierre."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_trip.py:0
+msgid "Transfer %(name)s belongs to trip %(batch)s, which has not departed. Register the departure first."
+msgstr "El albarán %(name)s pertenece al viaje %(batch)s, que no ha salido. Registra primero la salida."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_trip.py:0
+msgid "Transfer %(name)s is not ready to deliver (%(state)s)."
+msgstr "El albarán %(name)s no está listo para entregarse (%(state)s)."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_trip.py:0
+msgid "Transfer %(name)s leaves on a vehicle and must be delivered from a trip. Add it to a trip and register the departure first."
+msgstr "El albarán %(name)s sale en un vehículo y debe entregarse desde un viaje. Agrégalo a un viaje y registra primero la salida."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_trip.py:0
+msgid "Transfer %s is not on a trip that has departed."
+msgstr "El albarán %s no está en un viaje que haya salido."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Transfers"
+msgstr "Albaranes"
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_resource_asset_log__picking_batch_id
+#: model:ir.model.fields.selection,name:stock_fleet.selection__resource_asset_log__source__delivery
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_form_trip
+msgid "Trip"
+msgstr "Viaje"
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Trip %(batch)s cannot depart with transfers that are not ready: %(pickings)s."
+msgstr "El viaje %(batch)s no puede salir con albaranes que no están listos: %(pickings)s."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Trip %(batch)s cannot depart, it is missing: %(fields)s."
+msgstr "El viaje %(batch)s no puede salir, le falta: %(fields)s."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Trip %(batch)s has already left: its vehicle, crew and readings are the dispatch record and can no longer change."
+msgstr "El viaje %(batch)s ya salió: su vehículo, tripulación y lecturas son el registro del despacho y ya no pueden cambiar."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Trip %(batch)s has already left; %(pickings)s cannot be added to it. Put them on the next trip."
+msgstr "El viaje %(batch)s ya salió; no se le puede agregar %(pickings)s. Súbelo al siguiente viaje."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Trip %(batch)s is dispatched by its supervisor or the office, not by its operator."
+msgstr "El viaje %(batch)s lo despacha su supervisor o la oficina, no su operador."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Trip %s has already departed."
+msgstr "El viaje %s ya salió."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Trip %s has already left and cannot be deleted or merged."
+msgstr "El viaje %s ya salió y no se puede borrar ni fusionar."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Trip %s has not departed yet."
+msgstr "El viaje %s todavía no sale."
+
+#. module: stock_fleet
+#. odoo-python
+#: code:addons/stock_fleet/models/stock_picking_batch_trip.py:0
+msgid "Trip %s is already closed."
+msgstr "El viaje %s ya está cerrado."
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__trip_state
+msgid "Trip State"
+msgstr "Estado del viaje"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_filter_trip
+msgid "Trip Status"
+msgstr "Estado del viaje"
+
+#. module: stock_fleet
+#: model:ir.model.fields,help:stock_fleet.field_resource_asset_log__picking_batch_id
+msgid "Trip whose return odometer this reading is."
+msgstr "Viaje al que pertenece esta lectura de odómetro de cierre."
+
+#. module: stock_fleet
+#: model:res.groups.privilege,name:stock_fleet.res_groups_privilege_trips
+msgid "Trips"
+msgstr "Viajes"
+
+#. module: stock_fleet
+#: model:ir.model,name:stock_fleet.model_stock_picking_delivery_failure
+msgid "Undelivered Transfer"
+msgstr "Albarán no entregado"
+
+#. module: stock_fleet
+#: model:ir.model.fields,help:stock_fleet.field_stock_picking_batch__odometer_uom_id
+msgid "Unit of measurement for the odometer readings"
+msgstr "Unidad de medida de las lecturas del odómetro"
+
+#. module: stock_fleet
+#: model:ir.model.fields,help:stock_fleet.field_stock_picking_batch__supervisor_id
+msgid "User who authorises the departure. It cannot be the operator."
+msgstr "Usuario que autoriza la salida. No puede ser el operador."
+
+#. module: stock_fleet
+#: model:ir.model.fields,help:stock_fleet.field_stock_picking_batch__departed_uid
+msgid "User who registered the departure."
+msgstr "Usuario que registró la salida."
+
+#. module: stock_fleet
+#: model:ir.model.fields,field_description:stock_fleet.field_stock_picking_batch__vehicle_model_id
+msgid "Vehicle Model"
+msgstr "Modelo de vehículo"
+
+#. module: stock_fleet
+#: model:ir.model.fields,help:stock_fleet.field_stock_picking_batch__date_return
+msgid "When the trip was closed: the vehicle came back, or the last delivery was made where the trip does not return."
+msgstr "Cuándo se cerró el viaje: el vehículo regresó, o se hizo la última entrega cuando el viaje no regresa."
+
+#. module: stock_fleet
+#: model:ir.model.fields,help:stock_fleet.field_stock_picking_batch__date_departure
+msgid "When the vehicle left with this trip."
+msgstr "Cuándo salió el vehículo con este viaje."
+
+#. module: stock_fleet
+#: model:ir.model.fields,help:stock_fleet.field_stock_picking_batch__trip_state
+msgid "Where the trip stands, read from its departure and return stamps. Empty on batches whose operation type does not dispatch."
+msgstr "En qué punto va el viaje, según sus marcas de salida y regreso. Vacío en lotes cuyo tipo de operación no despacha."
+
+#. module: stock_fleet
+#: model:ir.model.fields,help:stock_fleet.field_resource_asset_log__source
+msgid "Which producer wrote this row. Every asset cost and every odometer reading in the system is a log line, so the ledger has one provenance axis. Each producing module adds its own value through selection_add, so a value exists here only where something writes it."
+msgstr "Qué productor escribió esta fila. Cada costo y cada lectura de odómetro de un activo es una línea de bitácora, así que la bitácora tiene un solo eje de procedencia. Cada módulo productor agrega su propio valor con selection_add, así que un valor existe aquí solo donde algo lo escribe."
+
+#. module: stock_fleet
+#: model:ir.model.fields,help:stock_fleet.field_stock_picking__delivery_failure_reason
+msgid "Why the goods came back undelivered on the last trip."
+msgstr "Por qué la mercancía regresó sin entregar en el último viaje."
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_kanban_driver
+msgid "delivered,"
+msgstr "entregados,"
+
+#. module: stock_fleet
+#: model_terms:ir.ui.view,arch_db:stock_fleet.stock_picking_batch_kanban_driver
+msgid "pending"
+msgstr "pendientes"
