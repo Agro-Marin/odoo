@@ -11,6 +11,7 @@ from . import base_document_layout
 from . import account_payment_register
 from . import accrued_orders
 from . import base_partner_merge
+from . import mixin_account_merge
 from . import account_merge_wizard
 from . import account_tax_merge_wizard
 from . import account_auto_reconcile_wizard

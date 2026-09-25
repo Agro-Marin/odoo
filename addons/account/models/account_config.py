@@ -479,20 +479,19 @@ class AccountConfig(models.Model):
                 )
             )
 
-    @api.constrains(
-        "account_opening_move_id", "fiscalyear_last_day", "fiscalyear_last_month"
-    )
+    @api.constrains("fiscalyear_last_day", "fiscalyear_last_month")
     def _check_fiscalyear_last_day(self):
         for config in self:
-            if config.fiscalyear_last_day == 29 and config.fiscalyear_last_month == "2":
-                continue
-            if config.account_opening_date:
-                year = config.account_opening_date.year
-            else:
-                year = fields.Date.context_today(config).year
-            max_day = calendar.monthrange(year, int(config.fiscalyear_last_month))[1]
-            if config.fiscalyear_last_day <= 0 or config.fiscalyear_last_day > max_day:
-                raise ValidationError(self.env._("Invalid fiscal year last day"))
+            # 2020 is a leap year, so February accepts its 29th every year
+            last_day = calendar.monthrange(2020, int(config.fiscalyear_last_month))[1]
+            if not 1 <= config.fiscalyear_last_day <= last_day:
+                raise ValidationError(
+                    self.env._(
+                        "Incorrect fiscal year date: day is out of range for month. Month: %(month)s; Day: %(day)s",
+                        month=config.fiscalyear_last_month,
+                        day=config.fiscalyear_last_day,
+                    )
+                )
 
     def _compute_force_restrictive_audit_trail(self):
         for config in self:

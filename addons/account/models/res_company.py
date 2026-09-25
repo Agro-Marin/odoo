@@ -499,23 +499,20 @@ class ResCompany(models.Model):
             code=code,
             used_codes=len(used_codes),
         )
-        return (
-            self.env["account.account"]
-            .with_company(self)
-            ._load_records(
-                [
-                    {
-                        "xml_id": f"account.{self.id!s}_unaffected_earnings_account",
-                        "values": {
-                            "code": str(code),
-                            "name": self.env._("Profit or Loss Appropriation"),
-                            "account_type": unaffected_earnings_type,
-                            "company_ids": [Command.link(self.id)],
-                        },
-                        "noupdate": True,
-                    }
-                ]
-            )
+        return self.env["account.chart.template"]._load_model_records(
+            self.env["account.account"].with_company(self),
+            [
+                {
+                    "xml_id": f"account.{self.id!s}_unaffected_earnings_account",
+                    "values": {
+                        "code": str(code),
+                        "name": self.env._("Profit or Loss Appropriation"),
+                        "account_type": unaffected_earnings_type,
+                        "company_ids": [Command.link(self.id)],
+                    },
+                    "noupdate": True,
+                }
+            ],
         )
 
     @staticmethod

@@ -1,7 +1,4 @@
-from datetime import date
-
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
 from odoo.libs.debug_log import DebugLog
 
 _debug = DebugLog(__name__)
@@ -118,21 +115,6 @@ class ResConfigSettings(models.TransientModel):
             settings.module_sign = (
                 sign_installed or settings.company_id.account_config_id.sign_invoice
             )
-
-    @api.constrains("fiscalyear_last_day", "fiscalyear_last_month")
-    @_debug.perf.timed
-    def _check_fiscalyear(self):
-        for wiz in self:
-            try:
-                date(2020, int(wiz.fiscalyear_last_month), wiz.fiscalyear_last_day)
-            except ValueError as e:
-                raise ValidationError(
-                    self.env._(
-                        "Incorrect fiscal year date: day is out of range for month. Month: %(month)s; Day: %(day)s",
-                        month=wiz.fiscalyear_last_month,
-                        day=wiz.fiscalyear_last_day,
-                    ),
-                ) from e
 
     @api.model_create_multi
     @_debug.perf.timed

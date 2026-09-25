@@ -1,5 +1,6 @@
 import ast
 import csv
+import itertools
 import logging
 import re
 from collections import defaultdict, deque
@@ -40,6 +41,7 @@ REPARTITION_LINE_FIELDS = (
 TEMPLATE_MODELS_REMOVAL_ORDER = ("account.move", *reversed(TEMPLATE_MODELS))
 
 TAX_TAG_DELIMITER = "||"
+COMPANY_XMLID_PATTERN = re.compile(r"account\.\d+_")
 
 SYSCOHADA_LIST = [
     "BJ",
@@ -1260,12 +1262,31 @@ class AccountChartTemplate(models.AbstractModel):
                 model=model,
                 all_records_vals_count=len(all_records_vals),
             ):
-                created_records[model] = (
-                    self.with_context(lang="en_US", foreign_record_to_create=True)
-                    .env[model]
-                    ._load_records(all_records_vals)
+                created_records[model] = self._load_model_records(
+                    self.with_context(lang="en_US").env[model], all_records_vals
                 )
         return created_records
+
+    def _load_model_records(self, Model, all_records_vals):
+        loaded = []
+        for is_company_record, records_vals in itertools.groupby(
+            all_records_vals, key=self._is_company_record_vals
+        ):
+            _debug.logic(
+                "load_run", model=Model._name, company_records=is_company_record
+            )
+            Loader = (
+                Model.with_context(foreign_record_to_create=True)
+                if is_company_record
+                else Model
+            )
+            loaded.append(Loader._load_records(list(records_vals)))
+        return Model.concat(*loaded)
+
+    @api.model
+    def _is_company_record_vals(self, record_vals):
+        xml_id = record_vals["xml_id"]
+        return not xml_id or bool(COMPANY_XMLID_PATTERN.match(xml_id))
 
     @_debug.perf.timed
     def _post_load_journal_accounts(self, company):
@@ -1604,7 +1625,8 @@ class AccountChartTemplate(models.AbstractModel):
                     company_attr_name
                 ]
         else:
-            accounts = self.env["account.account"]._load_records(
+            accounts = self._load_model_records(
+                self.env["account.account"],
                 [
                     {
                         "xml_id": self.company_xmlid(xml_id, company),
@@ -1612,7 +1634,7 @@ class AccountChartTemplate(models.AbstractModel):
                         "noupdate": True,
                     }
                     for xml_id, values in accounts_data.items()
-                ]
+                ],
             )
             for company_attr_name, account in zip(accounts_data, accounts, strict=True):
                 config[company_attr_name] = account
@@ -1637,7 +1659,8 @@ class AccountChartTemplate(models.AbstractModel):
                 "reconcile": True,
             },
         }
-        self.env["account.account"]._load_records(
+        self._load_model_records(
+            self.env["account.account"],
             [
                 {
                     "xml_id": self.company_xmlid(xml_id, company),
@@ -1645,7 +1668,7 @@ class AccountChartTemplate(models.AbstractModel):
                     "noupdate": True,
                 }
                 for xml_id, values in accounts_by_xmlid.items()
-            ]
+            ],
         )
 
     @api.model
