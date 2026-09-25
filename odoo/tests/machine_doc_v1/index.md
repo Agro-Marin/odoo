@@ -25,6 +25,7 @@ package live in `odoo/addons/base/tests/` (see Conventions).
 | `transaction_case.py` | `BaseCase`/`TransactionCase`/`SingleTransactionCase`, their assertions, and the registry-lock, statement-recorder and stranded-cursor machinery they own |
 | `in_memory_case.py` | `InMemoryCase`: hosts a module's own `TransactionCase` class on the DB-free tier -- a `model_test_env` for the class with `hosts_modules`' data files loaded, `allow_inherited_tests_method` so the hosted methods are collected, and the per-test snapshot plus the cache clears a dict rollback does not cover |
 | `matchers.py` | `Like`, `Approx`, `WhitespaceInsensitive`, `RecordCapturer` and the XML normaliser — value comparison, no dependency on the case hierarchy |
+| `css.py` | Reads a compiled stylesheet the way the cascade does -- declarations, `:root` and the `data-color-scheme="dark"` block, `var()` resolution, colour canonicalisation (`color-mix`, relative `hsl(from …)`, `calc()`) -- plus WCAG contrast; shared by `test_lint`'s scheme gate and web's design-system tests |
 | `http.py` | `HttpCase`/`Opener`/`Transport`/`JsonRpcException` (extracted from common; still re-exported there) |
 | `browser.py` | `ChromeBrowser` CDP client, `Screencaster`, Chrome discovery |
 | `utils.py` | `HOST`, `get_db_name`, `save_test_file`, `env_int` (shared by common+http+browser, no cycle) |

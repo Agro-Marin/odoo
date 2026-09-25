@@ -45,12 +45,12 @@ $o-dark-theme-text-colors: (
     "success": #30d158,
     "info": #409cff,
     "warning": #ff9f0a,
-    "danger": #ff453a,
+    "danger": #ff5950,
 ) !default;
 
 $o-dark-main-text-color: $o-dark-gray-900 !default;
 $o-dark-ring-color: map-get($o-dark-theme-text-colors, "primary") !default;
-$o-dark-main-color-muted: rgba($o-dark-gray-700, 0.9) !default;
+$o-dark-main-color-muted: rgba(#9e9ea2, 0.9) !default;
 
 $o-dark-bs-light: $o-dark-gray-300 !default;
 $o-dark-bs-dark: $o-dark-gray-700 !default;
@@ -260,7 +260,7 @@ $o-dark-table-variants: () !default;
 $o-dark-view-background-color: $o-dark-gray-200 !default;
 $o-dark-navbar-background: $o-dark-gray-300 !default;
 $o-dark-component-active-bg: o-round-color(
-    mix($o-dark-action, $o-dark-gray-300, 10%)
+    mix($o-dark-action, $o-dark-gray-200, 12%)
 ) !default;
 $o-dark-bg-chrome: $o-dark-gray-200 !default;
 $o-dark-bg-disabled: $o-dark-gray-300 !default;

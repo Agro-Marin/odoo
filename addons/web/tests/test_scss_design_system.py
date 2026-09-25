@@ -3,6 +3,7 @@ import re
 from itertools import pairwise
 
 from odoo.tests import TransactionCase, tagged
+from odoo.tests.css import composite, contrast_ratio, scheme_scopes, token_colour
 
 DARK_BUNDLE = "web.assets_web_dark"
 
@@ -10,6 +11,34 @@ WCAG_AA_TEXT = 4.5
 WCAG_NON_TEXT = 3.0
 
 LIST_HEADER = ".o_list_renderer .o_list_table thead th"
+
+TEXT_TOKENS = (
+    "--o-text",
+    "--o-text-muted",
+    "--o-action-text",
+    "--o-success-text",
+    "--o-info-text",
+    "--o-warning-text",
+    "--o-danger-text",
+    "--heading-color",
+    "--link-color",
+    "--body-color",
+    "--emphasis-color",
+    "--secondary-color",
+)
+
+SURFACE_TOKENS = (
+    "--body-bg",
+    "--o-bg-view",
+    "--o-bg-raised",
+    "--o-bg-active",
+    "--o-dropdown-bg",
+    "--o-popover-bg",
+    "--o-gray-100",
+    "--o-gray-200",
+    "--secondary-bg",
+    "--tertiary-bg",
+)
 
 
 RFS_REFERENCE_WIDTH = 1200
@@ -161,6 +190,31 @@ class TestScssDesignSystem(TransactionCase):
         value = _declaration(self.css, "--body-bg")
         self.assertTrue(value, "--body-bg is not defined")
         return _parse_color(value)[0]
+
+    def test_every_text_token_meets_wcag_aa_on_every_surface(self):
+        light, dark = scheme_scopes(self._compiled("web.assets_web"))
+        failures = []
+        for scheme, scope in (("light", light), ("dark", dark)):
+            is_dark = scope is dark
+            page = token_colour("--body-bg", scope, dark=is_dark)
+            for surface_name in SURFACE_TOKENS:
+                surface = composite(
+                    token_colour(surface_name, scope, dark=is_dark), page
+                )
+                for text_name in TEXT_TOKENS:
+                    text = composite(
+                        token_colour(text_name, scope, dark=is_dark), surface
+                    )
+                    ratio = contrast_ratio(text, surface)
+                    if ratio < WCAG_AA_TEXT:
+                        failures.append(
+                            f"{scheme}: {text_name} on {surface_name} {ratio:.2f}:1"
+                        )
+        self.assertFalse(
+            failures,
+            f"{len(failures)} text/surface pair(s) fall below WCAG AA "
+            f"({WCAG_AA_TEXT}:1):\n  " + "\n  ".join(failures),
+        )
 
     def test_subdued_text_meets_wcag_aa_in_both_schemes(self):
         failures = []
