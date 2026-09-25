@@ -9,7 +9,7 @@
         <field name="arch" type="xml">
             <block position="after" id="restaurant_section">
                 <block id="self_ordering_section" title="Mobile self-order &amp; Kiosk">
-                    <setting string="QR menu &amp; Kiosk activation" help="Let your customers order using their mobile or a kiosk.">a
+                    <setting string="QR menu &amp; Kiosk activation" help="Let your customers order using their mobile or a kiosk.">
                         <div class="content-group row">
                             <label
                                 for="pos_self_ordering_mode"
