@@ -1,3 +1,6 @@
+import math
+
+from odoo import Command
 from odoo.tests import tagged
 
 from odoo.addons.mrp.tests.common import TestMrpCommon
@@ -123,3 +126,40 @@ class TestMoOverviewReport(TestMrpCommon):
             [line["name"] for line in breakdown._get_lines(options)],
             [row["name"] for row in data["cost_breakdown"]],
         )
+
+    def test_an_operation_added_after_confirmation_is_costed_once(self):
+        report = self.env["report.mrp.report_mo_overview"]
+        before = report._get_report_data(self.production.id)["summary"]["bom_cost"]
+        workcenter = self.env["mrp.workcenter"].create(
+            {"name": "Costed", "costs_hour": 100, "time_start": 0, "time_stop": 0}
+        )
+        self.bom_1.operation_ids = [
+            Command.create(
+                {
+                    "name": "late",
+                    "workcenter_id": workcenter.id,
+                    "time_cycle_manual": 60,
+                }
+            )
+        ]
+        after = report._get_report_data(self.production.id)["summary"]["bom_cost"]
+        cycles = math.ceil(self.production.product_qty / self.bom_1.product_qty)
+        self.assertAlmostEqual(after - before, cycles * 100)
+
+    def test_a_component_added_after_confirmation_is_costed_in_the_bom_unit(self):
+        report = self.env["report.mrp.report_mo_overview"]
+        before = report._get_report_data(self.production.id)["summary"]["bom_cost"]
+        component = self.env["product.product"].create(
+            {"name": "Late component", "is_storable": True, "standard_price": 10}
+        )
+        self.bom_1.bom_line_ids = [
+            Command.create({"product_id": component.id, "product_qty": 1})
+        ]
+        after = report._get_report_data(self.production.id)["summary"]["bom_cost"]
+        batches = (
+            self.production.product_uom_id._get_quantity_in_unit(
+                self.production.product_qty, self.bom_1.product_uom_id, round=False
+            )
+            / self.bom_1.product_qty
+        )
+        self.assertAlmostEqual(after - before, round(10 * batches, 2))

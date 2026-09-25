@@ -80,10 +80,9 @@ class StockRule(models.Model):
                 procurement.product_id
             )
             if bom_kit:
-                order_qty = procurement.product_uom_id._get_quantity_in_unit(
-                    procurement.product_qty, bom_kit.product_uom_id, round=False
+                qty_to_produce = bom_kit._get_explode_factor(
+                    procurement.product_qty, procurement.product_uom_id
                 )
-                qty_to_produce = order_qty / bom_kit.product_qty
                 _dummy, bom_sub_lines = bom_kit._explode(
                     procurement.product_id,
                     qty_to_produce,
@@ -465,14 +464,16 @@ class StockRule(models.Model):
         if not manufacture_rule:
             return delays, delay_description
         manufacture_rule.check_singleton()
-        if "bom" in values:
-            bom = values["bom"]
-        else:
-            bom = self.env["mrp.bom"]._get_bom_by_product(
-                product,
-                picking_type=manufacture_rule.picking_type_id,
-                company_id=manufacture_rule.company_id.id,
-            )[product]
+        bom = (
+            values.get("bom")
+            or (
+                self.env["mrp.bom"]._get_bom_by_product(
+                    product,
+                    picking_type=manufacture_rule.picking_type_id,
+                    company_id=manufacture_rule.company_id.id,
+                )[product]
+            )
+        )
         if not bom:
             _debug.logic(
                 "lead_days_no_bom", product=product.id, rule=manufacture_rule.id

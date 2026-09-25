@@ -90,10 +90,6 @@ class MrpWorkcenter(models.Model):
         string="Total Running Orders",
         compute="_compute_workorder_counts_and_load",
     )
-    workorder_blocked_count = fields.Integer(
-        string="Total Pending Orders",
-        compute="_compute_workorder_counts_and_load",
-    )
     workorder_late_count = fields.Integer(
         string="Total Late Orders",
         compute="_compute_workorder_counts_and_load",
@@ -334,7 +330,6 @@ class MrpWorkcenter(models.Model):
         )
         for workcenter in self:
             workcenter.workorder_count = sum(counts[workcenter.id].values())
-            workcenter.workorder_blocked_count = counts[workcenter.id].get("blocked", 0)
             workcenter.workcenter_load = load[workcenter.id]
             workcenter.workorder_ready_count = counts[workcenter.id].get("ready", 0)
             workcenter.workorder_progress_count = counts[workcenter.id].get(
@@ -832,7 +827,9 @@ class MrpWorkcenter(models.Model):
                 "workcenter_capacity", workcenter=self.id, by="matched", rank=rank
             )
             return (
-                capacity.product_uom_id._get_quantity_in_unit(capacity.capacity, unit),
+                capacity.product_uom_id._get_quantity_in_unit(
+                    capacity.capacity, unit, round=False
+                ),
                 capacity.time_start,
                 capacity.time_stop,
             )
@@ -894,7 +891,6 @@ class MrpWorkcenterProductivityLoss(models.Model):
     loss_type = fields.Selection(
         related="loss_id.loss_type",
         string="Effectiveness Category",
-        readonly=False,
     )
 
     WALL_CLOCK_LOSS_TYPES = ("productive", "performance")
@@ -956,7 +952,7 @@ class MrpWorkcenterProductivityLoss(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
-        if "loss_id" in vals or "loss_type" in vals:
+        if "loss_id" in vals or "sequence" in vals:
             self.env.registry.clear_cache()
         return super().write(vals)
 
@@ -1024,7 +1020,6 @@ class MrpWorkcenterProductivity(models.Model):
     loss_type = fields.Selection(
         related="loss_id.loss_type",
         string="Effectiveness",
-        readonly=False,
     )
     description = fields.Text()
     date_start = fields.Datetime(

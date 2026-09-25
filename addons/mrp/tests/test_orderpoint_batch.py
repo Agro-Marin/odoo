@@ -1,3 +1,5 @@
+import gc
+
 from odoo import Command
 from odoo.tests import TransactionCase, tagged
 
@@ -62,8 +64,15 @@ class TestMrpOrderpointBatch(TransactionCase):
         )
 
     def statements(self, orderpoints, reader):
+        # The transaction holds derived environments weakly, so whether their
+        # cached `company`/`companies` survive to the next measurement is the
+        # garbage collector's call: one collection between the two sizes made
+        # it 14 against 13. Both start cold, ormcaches included, so both pay
+        # the same misses.
         self.env.flush_all()
         self.env.invalidate_all()
+        self.env.registry.clear_all_caches()
+        gc.collect()
         orderpoints = orderpoints.browse(orderpoints.ids)
         before = self.env.cr.sql_statement_count
         result = reader(orderpoints)
@@ -105,3 +114,17 @@ class TestMrpOrderpointBatch(TransactionCase):
         self.assertEqual(
             self.qty_to_order_statements(3), self.qty_to_order_statements(12)
         )
+
+    def lead_time_statements(self, count):
+        count, _result = self.statements(
+            self.make_orderpoints(
+                self.make_products(count, with_bom=False),
+                route_id=self.manufacture_route.id,
+            ),
+            lambda orderpoints: orderpoints._compute_lead_time(),
+        )
+        return count
+
+    def test_lead_time_statements_do_not_grow_without_boms(self):
+        self.lead_time_statements(1)
+        self.assertEqual(self.lead_time_statements(3), self.lead_time_statements(12))

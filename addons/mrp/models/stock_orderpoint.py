@@ -219,10 +219,6 @@ class StockWarehouseOrderpoint(models.Model):
                 routes[orderpoint.id] = route_id[0]
         return routes
 
-    def _get_default_bom(self):
-        self.check_singleton()
-        return self._get_default_boms()[self]
-
     def _get_default_boms(self):
         Bom = self.env["mrp.bom"]
         result = dict.fromkeys(self, Bom)

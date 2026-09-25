@@ -45,11 +45,6 @@ class MrpBomLine(models.Model):
         string="Sub BoM",
         compute="_compute_child_bom_id",
     )
-    child_line_ids = fields.One2many(
-        comodel_name="mrp.bom.line",
-        string="BOM lines of the referred bom",
-        compute="_compute_child_line_ids",
-    )
     attachments_count = fields.Integer(compute="_compute_attachments_count")
     tracking = fields.Selection(related="product_id.tracking")
 
@@ -98,11 +93,6 @@ class MrpBomLine(models.Model):
             line.attachments_count = counts_by_product.get(
                 line.product_id.id, 0
             ) + counts_by_template.get(line.product_tmpl_id.id, 0)
-
-    @api.depends("child_bom_id")
-    def _compute_child_line_ids(self):
-        for line in self:
-            line.child_line_ids = line.child_bom_id.bom_line_ids
 
     def _get_uom_mismatch_message(self):
         return self.env._(

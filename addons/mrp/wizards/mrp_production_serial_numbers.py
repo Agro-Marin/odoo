@@ -53,11 +53,8 @@ class MrpProductionSerials(models.TransientModel):
 
     def _get_names_from_serial_numbers(self):
         self.check_singleton()
-        return list(
-            dict.fromkeys(
-                name for name in (self.serial_numbers or "").split("\n") if name.strip()
-            )
-        )
+        names = (line.strip() for line in (self.serial_numbers or "").splitlines())
+        return list(dict.fromkeys(name for name in names if name))
 
     @api.onchange("serial_numbers")
     def _onchange_serial_numbers(self):

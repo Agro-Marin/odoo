@@ -565,7 +565,9 @@
                 <list string="Workcenter Productivity Loss" editable="bottom">
                     <field name="sequence" widget="handle" />
                     <field name="name" />
-                    <field name="loss_type" string="Category" />
+                    <field
+                        name="loss_id"
+                        options="{'no_open': True, 'no_create': True}" />
                 </list>
             </field>
         </record>

@@ -66,7 +66,7 @@ class StockForecasted_Product_Product(models.AbstractModel):
                 reason="the draft production quantity of a forecast",
             )
             ._read_group(
-                in_domain, aggregates=["product_qty:sum"], groupby=["product_id"]
+                in_domain, aggregates=["product_uom_qty:sum"], groupby=["product_id"]
             )
         }
         out_product_qty = {

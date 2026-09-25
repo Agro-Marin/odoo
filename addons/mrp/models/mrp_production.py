@@ -1190,12 +1190,11 @@ class MrpProduction(models.Model):
                 and production.product_qty > 0
             ):
                 workorders_values = []
-                product_qty = production.product_uom_id._get_quantity_in_unit(
-                    production.product_qty, production.bom_id.product_uom_id
-                )
                 exploded_boms, _dummy = production.bom_id._explode(
                     production.product_id,
-                    product_qty / production.bom_id.product_qty,
+                    production.bom_id._get_explode_factor(
+                        production.product_qty, production.product_uom_id
+                    ),
                     picking_type=production.bom_id.picking_type_id,
                     never_attribute_values=production.never_product_template_attribute_value_ids,
                 )
@@ -1364,11 +1363,17 @@ class MrpProduction(models.Model):
                 [("product_id", "!=", order.product_id.id)]
             )
 
-    def _inverse_move_byproduct_ids(self):
-        move_finished_ids = self.move_finished_ids.filtered(
-            lambda m: m.product_id == self.product_id
+    def _get_main_finished_moves(self):
+        self.check_singleton()
+        return self.move_finished_ids.filtered_domain(
+            [("product_id", "=", self.product_id.id)]
         )
-        self.move_finished_ids = move_finished_ids | self.move_byproduct_ids
+
+    def _inverse_move_byproduct_ids(self):
+        for order in self:
+            order.move_finished_ids = (
+                order._get_main_finished_moves() | order.move_byproduct_ids
+            )
 
     @api.depends("state")
     @api.depends_context("uid")
@@ -2014,8 +2019,8 @@ class MrpProduction(models.Model):
     def _post_write_one(self, vals):
         self.check_singleton()
         if self.state == "done" and "qty_producing" in vals:
-            self.move_finished_ids.filtered(
-                lambda move: move.product_id == self.product_id and move.state == "done"
+            self._get_main_finished_moves().filtered_domain(
+                [("state", "=", "done")]
             ).quantity = vals["qty_producing"]
         if (
             self._has_workorders()
@@ -2080,7 +2085,7 @@ class MrpProduction(models.Model):
         finished_moves_by_date = defaultdict(lambda: self.env["stock.move"])
         for rec, vals in zip(res, vals_list, strict=True):
             if vals.get("move_dest_ids"):
-                rec.move_finished_ids.move_dest_ids = vals.get("move_dest_ids")
+                rec._get_main_finished_moves().move_dest_ids = vals["move_dest_ids"]
             regrouped = (rec.move_raw_ids | rec.move_finished_ids).filtered_domain(
                 [("production_group_id", "!=", rec.production_group_id.id)]
             )
@@ -2230,9 +2235,7 @@ class MrpProduction(models.Model):
         action["context"] = {
             "active_id": self.product_id.id,
             "active_model": "product.product",
-            "move_to_match_ids": self.move_finished_ids.filtered(
-                lambda m: m.product_id == self.product_id
-            ).ids,
+            "move_to_match_ids": self._get_main_finished_moves().ids,
         }
         warehouse = self.picking_type_id.warehouse_id
         if warehouse:
@@ -2367,18 +2370,18 @@ class MrpProduction(models.Model):
             )
             finished_move_values["location_final_id"] = production.location_final_id.id
             moves.append(finished_move_values)
+            if not production.bom_id:
+                continue
+            factor = production.bom_id._get_explode_factor(
+                production.product_qty, production.product_uom_id
+            )
             for byproduct in production.bom_id.byproduct_ids:
                 if byproduct._is_bom_line_skipped(
                     production.product_id,
                     production.never_product_template_attribute_value_ids,
                 ):
                     continue
-                product_uom_factor = production.product_uom_id._get_quantity_in_unit(
-                    production.product_qty, production.bom_id.product_uom_id
-                )
-                qty = byproduct.product_qty * (
-                    product_uom_factor / production.bom_id.product_qty
-                )
+                qty = byproduct.product_qty * factor
                 moves.append(
                     production._prepare_move_finished_vals(
                         byproduct.product_id.id,
@@ -2398,9 +2401,7 @@ class MrpProduction(models.Model):
             move.byproduct_id.id: move
             for move in self.move_finished_ids.filtered(lambda m: m.byproduct_id)
         }
-        move_finished = self.move_finished_ids.filtered(
-            lambda m: m.product_id == self.product_id
-        )
+        move_finished = self._get_main_finished_moves()
         for move_finished_values in moves_finished_values:
             if move_finished_values.get("byproduct_id") in moves_byproduct_dict:
                 list_move_finished += [
@@ -2433,13 +2434,8 @@ class MrpProduction(models.Model):
         for production in batch:
             if not production.bom_id:
                 continue
-            factor = (
-                production.product_uom_id._get_quantity_in_unit(
-                    production.product_qty,
-                    production.bom_id.product_uom_id,
-                    round=False,
-                )
-                / production.bom_id.product_qty
+            factor = production.bom_id._get_explode_factor(
+                production.product_qty, production.product_uom_id
             )
             _boms, lines = production.bom_id._explode(
                 production.product_id,
@@ -2824,9 +2820,7 @@ class MrpProduction(models.Model):
                         "product_uom_id": production.product_id.uom_id,
                     }
                 )
-                for move_finish in production.move_finished_ids.filtered_domain(
-                    [("product_id", "=", production.product_id.id)]
-                ):
+                for move_finish in production._get_main_finished_moves():
                     move_finish.write(
                         {
                             "product_uom_qty": move_finish.product_uom_id._get_quantity_in_unit(
@@ -2885,7 +2879,6 @@ class MrpProduction(models.Model):
         workorder_per_operation = {
             workorder.operation_id: workorder for workorder in self.workorder_ids
         }
-        last_workorder_per_bom = defaultdict(lambda: self.env["mrp.workorder"])
         self.allow_workorder_dependencies = self.bom_id.allow_operation_dependencies
         _debug.pipeline(
             "workorders_linked",
@@ -2897,21 +2890,21 @@ class MrpProduction(models.Model):
         if self.allow_workorder_dependencies:
             for workorder in self.workorder_ids._sorted_by_routing():
                 workorder.blocked_by_workorder_ids = [
-                    Command.link(workorder_per_operation[operation_id].id)
-                    for operation_id in workorder.operation_id.blocked_by_operation_ids
-                    if operation_id in workorder_per_operation
+                    Command.set(
+                        [
+                            workorder_per_operation[operation].id
+                            for operation in workorder.operation_id.blocked_by_operation_ids
+                            if operation in workorder_per_operation
+                        ]
+                    )
                 ]
-                if not workorder.needed_by_workorder_ids:
-                    last_workorder_per_bom[workorder.operation_id.bom_id] = workorder
         else:
-            previous_workorder = False
+            previous_workorder = self.env["mrp.workorder"]
             for workorder in self.workorder_ids._sorted_by_routing():
-                if previous_workorder:
-                    workorder.blocked_by_workorder_ids = [
-                        Command.link(previous_workorder.id)
-                    ]
+                workorder.blocked_by_workorder_ids = [
+                    Command.set(previous_workorder.ids)
+                ]
                 previous_workorder = workorder
-                last_workorder_per_bom[workorder.operation_id.bom_id] = workorder
         moves_by_workorder = defaultdict(lambda: self.env["stock.move"])
         for move in self.move_raw_ids | self.move_finished_ids:
             if move.operation_id:
@@ -4001,7 +3994,8 @@ class MrpProduction(models.Model):
         return True
 
     def action_unreserve(self):
-        (self.move_finished_ids | self.move_raw_ids).filtered(
+        main_finished = self.move_finished_ids - self.move_byproduct_ids
+        (main_finished | self.move_raw_ids).filtered(
             lambda x: x.state not in ("done", "cancel")
         )._unreserve()
 
@@ -4497,11 +4491,7 @@ class MrpProduction(models.Model):
 
     def _get_ratio_between_mo_and_bom_quantities(self, bom):
         self.check_singleton()
-        bom_product_uom = (bom.product_id or bom.product_tmpl_id).uom_id
-        bom_qty = bom.product_uom_id._get_quantity_in_unit(
-            bom.product_qty, bom_product_uom
-        )
-        return bom_qty / self.product_uom_qty
+        return 1 / bom._get_explode_factor(self.product_qty, self.product_uom_id)
 
     def _check_sn_uniqueness(self):
         self.check_singleton()

@@ -64,12 +64,6 @@ class StockMove(models.Model):
         index="btree_not_null",
         check_company=True,
     )
-    consume_unbuild_id = fields.Many2one(
-        comodel_name="mrp.unbuild",
-        string="Consumed Disassembly Order",
-        index="btree_not_null",
-        check_company=True,
-    )
     allowed_operation_ids = fields.One2many(
         comodel_name="mrp.routing.workcenter",
         related="raw_material_production_id.bom_id.operation_ids",
@@ -654,10 +648,7 @@ class StockMove(models.Model):
                 if move.product_uom_id.is_zero(move.product_uom_qty)
                 else move.product_uom_qty
             )
-            factor = (
-                move.product_uom_id._get_quantity_in_unit(quantity, bom.product_uom_id)
-                / bom.product_qty
-            )
+            factor = bom._get_explode_factor(quantity, move.product_uom_id)
             _dummy, lines = bom.sudo()._explode(
                 move.product_id,
                 factor,

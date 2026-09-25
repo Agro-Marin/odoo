@@ -34,7 +34,10 @@ class ProductTemplate(models.Model):
         ):
             bom_ids_by_template[template.id].update(bom_ids)
         for product, bom_ids in self.env["mrp.bom.byproduct"]._read_group(
-            [("product_id.product_tmpl_id", "in", self.ids)],
+            [
+                ("product_id.product_tmpl_id", "in", self.ids),
+                ("bom_id.active", "=", True),
+            ],
             ["product_id"],
             ["bom_id:array_agg"],
         ):

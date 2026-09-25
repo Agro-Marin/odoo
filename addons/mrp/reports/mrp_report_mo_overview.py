@@ -85,6 +85,12 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             "show_uom": self.env.user.has_group("uom.group_uom"),
         }
 
+    def _get_bom_factor(self, production):
+        qty_in_bom_uom = production.product_uom_id._get_quantity_report(
+            production.product_qty, production.bom_id.product_uom_id, round=False
+        )
+        return qty_in_bom_uom / production.bom_id.product_qty
+
     def _get_report_data(self, production_id):
         production = self.env["mrp.production"].browse(production_id)
         production = production.with_context(warehouse_id=production.warehouse_id.id)
@@ -128,9 +134,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     * line.product_qty
                 )
                 initial_bom_cost += currency.round(
-                    line_cost
-                    * production.product_uom_qty
-                    / production.bom_id.product_qty
+                    line_cost * self._get_bom_factor(production)
                 )
             for operation in missing_operations:
                 cost = operation.with_context(
@@ -138,9 +142,7 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                     quantity=production.product_qty,
                     unit=production.product_uom_id,
                 ).cost
-                initial_bom_cost += currency.round(
-                    cost * production.product_uom_qty / production.bom_id.product_qty
-                )
+                initial_bom_cost += currency.round(cost)
 
         remaining_cost_share, byproducts = self._get_byproducts_data(
             production,
@@ -862,15 +864,11 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         )
         if production.bom_id:
             if move_raw.bom_line_id:
-                qty_in_bom_uom = production.product_uom_id._get_quantity_report(
-                    production.product_qty, production.bom_id.product_uom_id
-                )
                 bom_cost = currency.round(
                     self._get_component_real_cost(
                         move_raw,
                         move_raw.bom_line_id.product_qty
-                        * qty_in_bom_uom
-                        / production.bom_id.product_qty,
+                        * self._get_bom_factor(production),
                     )
                 )
             else:
@@ -1056,13 +1054,8 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
                 ),
             )
             if production.bom_id and move_raw.bom_line_id:
-                qty_in_bom_uom = production.product_uom_id._get_quantity_report(
-                    production.product_qty, production.bom_id.product_uom_id
-                )
-                full_bom_demand = (
-                    qty_in_bom_uom
-                    * move_raw.bom_line_id.product_qty
-                    / production.bom_id.product_qty
+                full_bom_demand = move_raw.bom_line_id.product_qty * (
+                    self._get_bom_factor(production)
                 )
             else:
                 full_bom_demand = quantity
@@ -1187,13 +1180,8 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
         available_qty = reserved_quantity + qty_free + total_ordered
         missing_quantity = quantity - available_qty
         if production.bom_id and move_raw.bom_line_id:
-            qty_in_bom_uom = production.product_uom_id._get_quantity_report(
-                production.product_qty, production.bom_id.product_uom_id
-            )
-            full_bom_demand = (
-                qty_in_bom_uom
-                * move_raw.bom_line_id.product_qty
-                / production.bom_id.product_qty
+            full_bom_demand = move_raw.bom_line_id.product_qty * (
+                self._get_bom_factor(production)
             )
         else:
             full_bom_demand = quantity
@@ -1334,10 +1322,14 @@ class ReportMrpReport_Mo_Overview(models.AbstractModel):
             self.env
         )
         receipt_date = datetime.strptime(in_transit["delivery_date"], lg.date_format)
+        full_bom_demand = (
+            move_raw.bom_line_id.product_qty * self._get_bom_factor(production)
+            if production.bom_id and move_raw.bom_line_id
+            else 0
+        )
         bom_missing_qty = max(
             0,
-            production.product_uom_qty * move_raw.bom_line_id.product_qty
-            - (move_raw.product_uom_qty - in_transit["quantity"]),
+            full_bom_demand - (move_raw.product_uom_qty - in_transit["quantity"]),
         )
         mo_cost = self._get_replenishment_mo_cost(
             product, in_transit["quantity"], in_transit["uom_id"], currency

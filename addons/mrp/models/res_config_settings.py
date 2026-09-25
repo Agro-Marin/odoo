@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import fields, models
 
 
 class ResConfigSettings(models.TransientModel):
@@ -9,7 +9,6 @@ class ResConfigSettings(models.TransientModel):
         implied_group="mrp.group_mrp_byproducts",
     )
     module_mrp_mps = fields.Boolean(string="Master Production Schedule")
-    module_mrp_plm = fields.Boolean(string="Product Lifecycle Management (PLM)")
     module_quality_control = fields.Boolean(string="Quality")
     module_quality_control_worksheet = fields.Boolean(string="Quality Worksheet")
     module_mrp_subcontracting = fields.Boolean(string="Subcontracting")
@@ -32,7 +31,17 @@ class ResConfigSettings(models.TransientModel):
 
     def set_values(self):
         routing_before = self.env.user.has_group("mrp.group_mrp_routings")
+        unlocked_before = self.default_get(["group_unlocked_by_default"])[
+            "group_unlocked_by_default"
+        ]
         super().set_values()
+        if unlocked_before != self.group_unlocked_by_default:
+            self.env["mrp.production"].search(
+                [
+                    ("state", "not in", ("cancel", "done")),
+                    ("is_locked", "=", self.group_unlocked_by_default),
+                ]
+            ).is_locked = not self.group_unlocked_by_default
         if routing_before and not self.group_mrp_routings:
             self.env["mrp.routing.workcenter"].search([]).active = False
         elif not routing_before and self.group_mrp_routings:
@@ -49,14 +58,3 @@ class ResConfigSettings(models.TransientModel):
             self.env["mrp.bom"].sudo().search(
                 [("allow_operation_dependencies", "=", True)]
             ).allow_operation_dependencies = False
-
-    @api.onchange("group_unlocked_by_default")
-    def _onchange_group_unlocked_by_default(self):
-        if self.group_unlocked_by_default:
-            self.env["mrp.production"].search(
-                [("state", "not in", ("cancel", "done")), ("is_locked", "=", True)]
-            ).is_locked = False
-        else:
-            self.env["mrp.production"].search(
-                [("state", "not in", ("cancel", "done")), ("is_locked", "=", False)]
-            ).is_locked = True

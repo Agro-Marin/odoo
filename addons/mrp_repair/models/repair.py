@@ -43,12 +43,7 @@ class RepairOrder(models.Model):
             if not bom:
                 _debug.logic("repair_explode_skipped", move=op.id, reason="no_kit_bom")
                 continue
-            factor = (
-                op.product_uom_id._get_quantity_in_unit(
-                    op.product_uom_qty, bom.product_uom_id
-                )
-                / bom.product_qty
-            )
+            factor = bom._get_explode_factor(op.product_uom_qty, op.product_uom_id)
             _boms, lines = bom.sudo()._explode(
                 op.product_id, factor, picking_type=bom.picking_type_id
             )

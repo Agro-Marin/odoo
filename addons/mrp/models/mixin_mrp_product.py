@@ -51,7 +51,10 @@ class MixinMrpProduct(models.AbstractModel):
         counts = {
             record.id: count
             for record, count in self.env["mrp.bom.line"]._read_group(
-                [(self._mrp_product_field, "in", self.ids)],
+                [
+                    (self._mrp_product_field, "in", self.ids),
+                    ("bom_id.active", "=", True),
+                ],
                 [self._mrp_product_field],
                 ["bom_id:count_distinct"],
             )

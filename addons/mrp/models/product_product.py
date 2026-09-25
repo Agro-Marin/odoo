@@ -61,7 +61,9 @@ class ProductProduct(models.Model):
         ):
             bom_ids_by_template[template.id].update(bom_ids)
         for product, bom_ids in self.env["mrp.bom.byproduct"]._read_group(
-            [("product_id", "in", self.ids)], ["product_id"], ["bom_id:array_agg"]
+            [("product_id", "in", self.ids), ("bom_id.active", "=", True)],
+            ["product_id"],
+            ["bom_id:array_agg"],
         ):
             bom_ids_by_product[product.id].update(bom_ids)
         for product in self:
@@ -263,11 +265,11 @@ class ProductProduct(models.Model):
             by="min_ratio",
             components=len(lines_by_component),
         )
+        kit_qty = bom_kit.product_uom_id._get_quantity_in_unit(
+            bom_kit.product_qty, self.uom_id, round=False
+        )
         return {
-            field: self.uom_id.round(
-                min(values) * bom_kit.product_qty, rounding_method="DOWN"
-            )
-            // 1
+            field: self.uom_id.round(min(values) * kit_qty, rounding_method="DOWN") // 1
             for field, values in ratios.items()
         }
 

@@ -75,6 +75,14 @@ class ChangeProductionQty(models.TransientModel):
             old_production_qty = production.product_qty
             new_production_qty = wizard.product_qty
 
+            if production.state in ("done", "cancel"):
+                _debug.logic("qty_change_refused", reason="closed", mo=production.id)
+                raise UserError(
+                    self.env._(
+                        "%s is done or cancelled; its quantity can no longer change.",
+                        production.display_name,
+                    )
+                )
             if production.product_uom_id.is_zero(old_production_qty):
                 _debug.logic("qty_change_refused", mo=production)
                 raise UserError(
@@ -95,11 +103,21 @@ class ChangeProductionQty(models.TransientModel):
             self._update_finished_moves(
                 production, new_production_qty, old_production_qty
             )
+            producing_all = (
+                production.product_uom_id.compare(
+                    production.qty_producing, old_production_qty
+                )
+                == 0
+            )
             production.write({"product_qty": new_production_qty})
-            if (
-                not production.product_uom_id.is_zero(production.qty_producing)
-                and not production.workorder_ids
-            ):
+            overflowing = (
+                production.product_uom_id.compare(
+                    production.qty_producing, new_production_qty
+                )
+                > 0
+            )
+            follows = producing_all and production.product_id.tracking != "serial"
+            if (follows or overflowing) and not production.workorder_ids:
                 production.qty_producing = new_production_qty
                 production._update_moves_from_qty_producing()
 

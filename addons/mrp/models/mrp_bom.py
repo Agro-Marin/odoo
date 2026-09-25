@@ -481,6 +481,8 @@ class MrpBom(models.Model):
         "product_tmpl_id",
         "product_id",
         "product_qty",
+        "product_uom_id",
+        "type",
     )
 
     def write(self, vals):
@@ -854,6 +856,13 @@ class MrpBom(models.Model):
             lines_done = self._round_last_line_done(lines_done)
             span.set(boms=len(boms_done), lines=len(lines_done))
             return boms_done, lines_done
+
+    def _get_explode_factor(self, quantity, unit):
+        self.check_singleton()
+        return (
+            unit._get_quantity_in_unit(quantity, self.product_uom_id, round=False)
+            / self.product_qty
+        )
 
     def _get_kit_component_qty(self, product):
         self.check_singleton()

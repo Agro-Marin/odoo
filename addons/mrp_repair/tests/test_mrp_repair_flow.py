@@ -90,3 +90,40 @@ class TestMrpRepairFlow(TestMrpCommon):
             set(repair.move_ids.product_id.ids),
             set(self.product_5.bom_ids.bom_line_ids.product_id.ids),
         )
+
+    def test_a_kit_part_explodes_to_what_one_unit_holds(self):
+        kit, component = self.env["product.product"].create(
+            [
+                {"name": "Kit per dozen"},
+                {"name": "Kit component", "is_storable": True},
+            ]
+        )
+        self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": kit.product_tmpl_id.id,
+                "type": "phantom",
+                "product_uom_id": self.uom_dozen.id,
+                "product_qty": 1,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 12})
+                ],
+            }
+        )
+        repair = self.env["repair.order"].create(
+            {
+                "product_id": self.product.id,
+                "picking_type_id": self.warehouse_1.repair_type_id.id,
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": kit.id,
+                            "product_uom_qty": 1.0,
+                            "product_uom_id": self.uom_unit.id,
+                            "repair_line_type": "add",
+                        }
+                    )
+                ],
+            }
+        )
+        self.assertEqual(repair.move_ids.product_id, component)
+        self.assertEqual(repair.move_ids.product_uom_qty, 1.0)

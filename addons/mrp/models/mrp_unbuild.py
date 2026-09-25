@@ -1,4 +1,5 @@
 from collections import defaultdict
+from itertools import chain
 
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
@@ -124,12 +125,6 @@ class MrpUnbuild(models.Model):
         check_company=True,
         help="Location where you want to send the components resulting from the unbuild order.",
     )
-    consume_line_ids = fields.One2many(
-        comodel_name="stock.move",
-        inverse_name="consume_unbuild_id",
-        string="Consumed Disassembly Lines",
-        readonly=True,
-    )
     produce_line_ids = fields.One2many(
         comodel_name="stock.move",
         inverse_name="unbuild_id",
@@ -178,7 +173,7 @@ class MrpUnbuild(models.Model):
         orders_without_mo = self.filtered(lambda order: not order.mo_id)
         boms_by_company = {
             company.id: self.env["mrp.bom"]._get_bom_by_product(
-                orders.product_id, company_id=company.id
+                orders.product_id, company_id=company.id, bom_type="normal"
             )
             for company, orders in orders_without_mo.grouped("company_id").items()
         }
@@ -246,6 +241,9 @@ class MrpUnbuild(models.Model):
         self.check_singleton()
         self._check_company()
         self = self.with_env(self.env(context=clean_context(self.env.context)))
+        if self.state == "done":
+            _debug.logic("unbuild_refused", reason="already_done", unbuild=self.id)
+            raise UserError(self.env._("This unbuild order is already done."))
         if self.product_id.tracking != "none" and not self.lot_id.id:
             _debug.logic("unbuild_refused", reason="no_lot", unbuild=self.id)
             raise UserError(
@@ -330,6 +328,11 @@ class MrpUnbuild(models.Model):
             self.env["stock.move.line"].create(finished_line_vals)
 
         qty_already_used = defaultdict(float)
+        returned_before = (
+            defaultdict(float)
+            if self.lot_id
+            else self._get_quantities_returned_before()
+        )
         unbuild_lines = self.env["stock.move.line"]
         for move in produce_moves | consume_moves:
             if (
@@ -361,12 +364,23 @@ class MrpUnbuild(models.Model):
                         and ml.lot_id not in previously_unbuilt_lots
                     )
                 )
+            not_returned = {}
             for move_line in moves_lines:
+                key = (move_line.product_id, move_line.lot_id)
+                returned = min(returned_before[key], move_line.quantity)
+                returned_before[key] -= returned
+                not_returned[move_line] = move_line.quantity - returned
+            # What earlier unbuilds of the order already returned is taken
+            # last, not never: an unbuild larger than the order is allowed.
+            for move_line, limit in chain(
+                not_returned.items(),
+                ((move_line, move_line.quantity) for move_line in moves_lines),
+            ):
                 taken_quantity = min(
-                    needed_quantity, move_line.quantity - qty_already_used[move_line]
+                    needed_quantity, limit - qty_already_used[move_line]
                 )
                 taken_quantity = move.product_uom_id.round(taken_quantity)
-                if taken_quantity:
+                if taken_quantity > 0:
                     move_line_vals = self._prepare_move_line_vals(
                         move, move_line, taken_quantity
                     )
@@ -413,18 +427,30 @@ class MrpUnbuild(models.Model):
             )
         return self.write({"state": "done"})
 
+    def _get_quantities_returned_before(self):
+        self.check_singleton()
+        returned = defaultdict(float)
+        earlier = (self.mo_id.unbuild_ids - self).filtered_domain(
+            [("state", "=", "done")]
+        )
+        for line in earlier.produce_line_ids.move_line_ids:
+            if line.product_id != self.product_id:
+                returned[line.product_id, line.lot_id] += line.quantity
+        _debug.logic(
+            "unbuild_returned_before",
+            unbuild=self.id,
+            earlier=earlier,
+            keys=len(returned),
+        )
+        return returned
+
     def _get_unbuild_factor(self):
         self.check_singleton()
         if self.mo_id:
             return self.product_qty / self.mo_id.product_uom_id._get_quantity_in_unit(
-                self.mo_id.qty_produced, self.product_uom_id
+                self.mo_id.qty_produced, self.product_uom_id, round=False
             )
-        return (
-            self.product_uom_id._get_quantity_in_unit(
-                self.product_qty, self.bom_id.product_uom_id
-            )
-            / self.bom_id.product_qty
-        )
+        return self.bom_id._get_explode_factor(self.product_qty, self.product_uom_id)
 
     def _create_consume_moves(self):
         moves = self.env["stock.move"]

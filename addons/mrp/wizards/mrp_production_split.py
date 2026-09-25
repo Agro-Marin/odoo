@@ -1,7 +1,6 @@
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import float_round
 
 _debug = DebugLog(__name__)
 
@@ -62,9 +61,13 @@ class MrpProductionSplit(models.TransientModel):
     @api.depends("production_id")
     def _compute_max_batch_size(self):
         for wizard in self:
-            bom_id = wizard.production_id.bom_id
+            bom = wizard.production_id.bom_id
             wizard.max_batch_size = (
-                bom_id.batch_size if bom_id.enable_batch_size else wizard.product_qty
+                bom.product_uom_id._get_quantity_in_unit(
+                    bom.batch_size, wizard.product_uom_id, round=False
+                )
+                if bom.enable_batch_size
+                else wizard.product_qty
             )
 
     @api.depends("max_batch_size")
@@ -73,10 +76,9 @@ class MrpProductionSplit(models.TransientModel):
         for wizard in self:
             if wizard.product_uom_id.compare(wizard.max_batch_size, 0) <= 0:
                 continue
-            num_splits = float_round(
-                wizard.product_qty / wizard.max_batch_size,
-                precision_digits=0,
-                rounding_method="UP",
+            whole, remainder = divmod(wizard.product_qty, wizard.max_batch_size)
+            num_splits = int(whole) + (
+                0 if wizard.product_uom_id.is_zero(remainder) else 1
             )
             if num_splits > wizard.MAX_SPLITS:
                 _debug.logic(

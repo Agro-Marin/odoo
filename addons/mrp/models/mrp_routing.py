@@ -72,10 +72,6 @@ class MrpRoutingWorkcenter(models.Model):
         string="Based on",
         default=10,
     )
-    time_computed_on = fields.Char(
-        string="Computed on last",
-        compute="_compute_time_computed_on",
-    )
     time_cycle_manual = fields.Float(
         string="Manual Duration",
         default=60,
@@ -142,15 +138,6 @@ class MrpRoutingWorkcenter(models.Model):
         "- Based on Estimated time: the cost will be calculated based on estimated time and costs.",
     )
     cost = fields.Float(compute="_compute_cost")
-
-    @api.depends("time_mode", "time_mode_batch")
-    def _compute_time_computed_on(self):
-        for operation in self:
-            operation.time_computed_on = (
-                self.env._("%i work orders", operation.time_mode_batch)
-                if operation.time_mode != "manual"
-                else False
-            )
 
     def _get_recent_workorders(self):
         Workorder = self.env["mrp.workorder"]
@@ -223,11 +210,15 @@ class MrpRoutingWorkcenter(models.Model):
             total_duration = 0
             cycle_number = 0
             for item in history[operation.id]:
-                total_duration += item.duration
-                capacity, _setup, _cleanup = item.workcenter_id._get_capacity(
+                capacity, setup, cleanup = item.workcenter_id._get_capacity(
                     item.product_id,
                     item.product_uom_id,
                     operation.bom_id.product_qty or 1,
+                )
+                total_duration += (
+                    max(item.duration - setup - cleanup, 0.0)
+                    * (item.workcenter_id.time_efficiency or 100.0)
+                    / 100.0
                 )
                 cycle_number += float_round(
                     item.qty_produced / capacity,
@@ -344,7 +335,7 @@ class MrpRoutingWorkcenter(models.Model):
                 skip_bom_outdated_unmark=True
             )._update_outdated_bom_in_productions()
         if "bom_id" in vals:
-            for op in self:
+            for op in self.filtered_domain([("bom_id", "!=", vals["bom_id"])]):
                 op.bom_id.bom_line_ids.filtered_domain(
                     [("operation_id", "=", op.id)]
                 ).operation_id = False
@@ -354,6 +345,7 @@ class MrpRoutingWorkcenter(models.Model):
                 op.bom_id.operation_ids.filtered_domain(
                     [("blocked_by_operation_ids", "in", op.ids)]
                 ).blocked_by_operation_ids = [Command.unlink(op.id)]
+                op.blocked_by_operation_ids = [Command.clear()]
         return super().write(vals)
 
     def action_archive(self):

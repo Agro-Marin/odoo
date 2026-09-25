@@ -30,3 +30,6 @@ from . import test_mo_overview_report
 from . import test_bom_overview_report
 from . import test_warehouse_rule_roles
 from . import test_orderpoint_batch
+from . import test_unit_conversions
+from . import test_order_guards
+from . import test_workorder_lifecycle

@@ -45,9 +45,6 @@ class MrpWorkorder(models.Model):
                 and workorder.date_start < now
             )
 
-    def _default_sequence(self):
-        return self.operation_id.sequence or 100
-
     def _sorted_by_routing(self):
         return self.sorted(lambda workorder: (workorder.sequence, workorder.id))
 
@@ -67,7 +64,7 @@ class MrpWorkorder(models.Model):
         string="Work Order",
         required=True,
     )
-    sequence = fields.Integer(default=lambda self: self._default_sequence())
+    sequence = fields.Integer(default=100)
     barcode = fields.Char(
         compute="_compute_barcode",
         store=True,
@@ -98,11 +95,6 @@ class MrpWorkorder(models.Model):
         readonly=True,
         required=True,
         check_company=True,
-    )
-    production_availability = fields.Selection(
-        related="production_id.reservation_state",
-        string="Stock Availability",
-        readonly=True,
     )
     production_state = fields.Selection(
         related="production_id.state",
@@ -202,14 +194,14 @@ class MrpWorkorder(models.Model):
     )
     duration_unit = fields.Float(
         string="Duration Per Unit",
-        compute="_compute_durations",
+        compute="_compute_duration_deviation",
         store=True,
         readonly=True,
         aggregator="avg",
     )
     duration_percent = fields.Integer(
         string="Duration Deviation (%)",
-        compute="_compute_durations",
+        compute="_compute_duration_deviation",
         store=True,
         readonly=True,
         aggregator="avg",
@@ -420,6 +412,7 @@ class MrpWorkorder(models.Model):
             wo_to_update.button_start()
         else:
             wo_to_update.write({"state": state})
+            wo_to_update._compute_state()
 
     @api.depends("production_id.date_start", "date_start")
     def _compute_production_date(self):
@@ -671,12 +664,14 @@ class MrpWorkorder(models.Model):
             if qty_changed or product_changed:
                 workorder.duration_expected = workorder._get_duration_expected()
 
-    @api.depends(
-        "time_ids.duration", "time_ids.loss_type", "qty_produced", "duration_expected"
-    )
+    @api.depends("time_ids.duration", "time_ids.loss_type")
     def _compute_durations(self):
         for order in self:
             order.duration = order._get_duration()
+
+    @api.depends("duration", "qty_produced", "duration_expected")
+    def _compute_duration_deviation(self):
+        for order in self:
             order.duration_unit = (
                 round(order.duration / order.qty_produced, 2)
                 if order.qty_produced
@@ -702,12 +697,6 @@ class MrpWorkorder(models.Model):
             workorder.duration_live = workorder._get_duration(until=now)
 
     def _inverse_duration(self):
-
-        def _float_duration_to_seconds(duration):
-            minutes = duration // 1
-            seconds = (duration % 1) * 60
-            return minutes * 60 + seconds
-
         for order in self:
             old_order_duration = order._get_duration()
             new_order_duration = order.duration
@@ -720,17 +709,13 @@ class MrpWorkorder(models.Model):
                 if order.state not in ("progress", "done", "cancel"):
                     order.state = "progress"
                 enddate = fields.Datetime.now()
-                date_start = enddate - timedelta(
-                    seconds=_float_duration_to_seconds(delta_duration)
-                )
+                date_start = enddate - timedelta(minutes=delta_duration)
                 end_dates = order.time_ids.filtered("date_end").mapped("date_end")
                 if end_dates:
                     latest_end = max(end_dates)
                     if latest_end > date_start:
                         date_start = latest_end
-                        enddate = latest_end + timedelta(
-                            seconds=_float_duration_to_seconds(delta_duration)
-                        )
+                        enddate = latest_end + timedelta(minutes=delta_duration)
                 if (
                     order.duration_expected >= new_order_duration
                     or old_order_duration >= order.duration_expected
@@ -757,7 +742,7 @@ class MrpWorkorder(models.Model):
             else:
                 duration_to_remove = abs(delta_duration)
                 timelines_to_unlink = self.env["mrp.workcenter.productivity"]
-                for timeline in order.time_ids.sorted():
+                for timeline in order.time_ids.filtered("date_end").sorted():
                     if duration_to_remove <= 0.0:
                         break
                     if timeline.duration <= duration_to_remove:
@@ -766,7 +751,7 @@ class MrpWorkorder(models.Model):
                     else:
                         new_time_line_duration = timeline.duration - duration_to_remove
                         timeline.date_start = timeline.date_end - timedelta(
-                            seconds=_float_duration_to_seconds(new_time_line_duration)
+                            minutes=new_time_line_duration
                         )
                         break
                 timelines_to_unlink.unlink()
@@ -1058,16 +1043,15 @@ class MrpWorkorder(models.Model):
             {
                 values["operation_id"]
                 for values in vals_list
-                if values.get("operation_id") and not values.get("sequence")
+                if values.get("operation_id") and "sequence" not in values
             }
         )
         sequence_by_operation = {
             operation.id: operation.sequence for operation in operations
         }
         for values in vals_list:
-            sequence = sequence_by_operation.get(values.get("operation_id"))
-            if sequence:
-                values["sequence"] = sequence
+            if values.get("operation_id") in sequence_by_operation:
+                values["sequence"] = sequence_by_operation[values["operation_id"]]
 
         res = super().create(vals_list)
         _debug.lifecycle(
@@ -1558,11 +1542,15 @@ class MrpWorkorder(models.Model):
 
         A timer may span several intervals; that is not a problem, because what
         the split is for is telling employee time from blocking time.
+
+        Overlapping timers merge into one span carrying all of their rows, so
+        the caller passes timers sharing one loss type and one work center, and
+        the span's first row speaks for the rest.
         """
         if not intervals:
             return 0.0
         spans = [
-            (timer.loss_id, timer.workcenter_id, date_start, date_stop)
+            (timer.loss_id[:1], timer.workcenter_id[:1], date_start, date_stop)
             for date_start, date_stop, timer in Intervals(intervals)
         ]
         return sum(
@@ -1582,11 +1570,11 @@ class MrpWorkorder(models.Model):
         drops it.
         """
         self.check_singleton()
-        loss_type_times = defaultdict(lambda: self.env["mrp.workcenter.productivity"])
-        for time in self.time_ids:
-            loss_type_times[time.loss_id.loss_type] |= time
+        times_by_kind = self.time_ids.grouped(
+            lambda time: (time.loss_id.loss_type, time.workcenter_id)
+        )
         duration = 0
-        for times in loss_type_times.values():
+        for times in times_by_kind.values():
             duration += self._get_duration_of_intervals(
                 [
                     (time.date_start, time.date_end or until, time)
