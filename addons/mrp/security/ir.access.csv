@@ -61,3 +61,4 @@ mrp_bom_line_rule,mrp_bom_line multi-company,model_mrp_bom_line,base.group_every
 mrp_bom_byproduct_rule,mrp_bom_byproduct multi-company,model_mrp_bom_byproduct,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
 mrp_routing_workcenter_rule,mrp_routing_workcenter multi-company,model_mrp_routing_workcenter,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
 mrp_workcenter_productivity,mrp_workcenter_productivity multi-company,model_mrp_workcenter_productivity,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids)]"
+privilege_read_forecast_production_mrp_production,Privilege: count the draft manufacturing orders a product's forecast expects,model_mrp_production,privilege_read_forecast_production,permission,r,

@@ -7,6 +7,11 @@
             <field name="sequence">5</field>
             <field name="category_id" ref="base.module_category_supply_chain" />
         </record>
+        <record id="privilege_read_forecast_production" model="res.groups">
+            <field
+                name="name">Privilege: count the draft manufacturing orders a product's forecast expects</field>
+            <field name="is_privilege" eval="True" />
+        </record>
         <record id="group_mrp_readonly" model="res.groups">
             <field name="name">Read-only</field>
             <field name="sequence">5</field>

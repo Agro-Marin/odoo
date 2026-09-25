@@ -60,7 +60,12 @@ class StockForecasted_Product_Product(models.AbstractModel):
         ]
         in_product_qty = {
             k.id: v
-            for k, v in self.env["mrp.production"]._read_group(
+            for k, v in self.env["mrp.production"]
+            .with_privilege(
+                "mrp.privilege_read_forecast_production",
+                reason="the draft production quantity of a forecast",
+            )
+            ._read_group(
                 in_domain, aggregates=["product_qty:sum"], groupby=["product_id"]
             )
         }
