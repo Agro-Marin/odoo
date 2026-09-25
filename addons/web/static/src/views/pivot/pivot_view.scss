@@ -2,14 +2,20 @@
     width: var(--PivotView-width, auto);
 
     &.o_enable_linking .o_pivot_cell_value:not(.o_empty) {
-        @include o-hover-text-color($body-color, $o-main-link-color);
+        @include o-hover-text-color(
+            o-token(--body-color, $body-color),
+            o-token(--link-color, $o-main-link-color)
+        );
     }
 
     .o_pivot_measure_row,
     .o_pivot_origin_row,
     .o_pivot_header_cell_closed,
     .o_pivot_header_cell_opened {
-        @include o-hover-text-color($body-color, $headings-color);
+        @include o-hover-text-color(
+            o-token(--body-color, $body-color),
+            o-token(--heading-color, $headings-color)
+        );
 
         &:hover {
             background-color: o-palette-token(
@@ -48,5 +54,14 @@
     overflow: hidden !important;
     .o_pivot {
         @include o-sample-data-disabled;
+    }
+}
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_pivot table .o_pivot_cell_value.o_cell_hover {
+        background-color: rgba(
+            var(--#{$prefix}emphasis-color-rgb),
+            #{$o-dark-table-hover-bg-factor}
+        );
     }
 }

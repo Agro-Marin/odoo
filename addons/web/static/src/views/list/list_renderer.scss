@@ -204,7 +204,7 @@
                 max-width: 300px;
             }
             > tr > td {
-                color: $o-list-footer-color;
+                color: o-token(--o-black, $o-list-footer-color);
                 background-color: $o-list-footer-bg-color;
                 font-weight: $o-list-footer-font-weight;
                 @include o-text-overflow(table-cell);
@@ -263,7 +263,7 @@
             th:focus-within,
             td:focus-within {
                 --table-accent-bg: none;
-                background-color: $o-form-lightsecondary;
+                background-color: o-token(--o-bg-raised, $o-form-lightsecondary);
                 outline: none;
             }
         }
@@ -313,7 +313,10 @@
                     padding: 0 5px;
                     background-color: lighten($o-brand-lightsecondary, 10%);
                     &:hover {
-                        background-color: $o-brand-lightsecondary;
+                        background-color: o-token(
+                            --o-gray-100,
+                            $o-brand-lightsecondary
+                        );
                     }
                 }
             }
@@ -473,7 +476,7 @@
             a:active,
             button:focus,
             button:active {
-                color: $link-hover-color;
+                color: o-token(--link-hover-color, $link-hover-color);
                 outline: none;
             }
 
@@ -487,13 +490,13 @@
 
     .o_data_row.o_selected_row
         > .o_data_cell.o_required_modifier:not(.o_readonly_modifier) {
-        border-bottom: 1px solid $o-input-border-required;
+        border-bottom: 1px solid o-token(--o-black, $o-input-border-required);
     }
 
     .o_data_row.o_selected_row > .o_data_cell.o_invalid_cell:not(.o_readonly_modifier) {
         &:not(:focus-within) {
             border-bottom: 1px solid o-token(--danger, $danger);
-            background-color: $o-input-invalid-bg;
+            background-color: o-token-alpha(--danger, $o-danger, 0.1);
         }
     }
 
@@ -553,7 +556,7 @@
 
     .o_optional_columns_dropdown .o_invalid_optional_columns_button {
         color: o-text-color("danger");
-        background-color: #{$o-input-invalid-bg};
+        background-color: o-token-alpha(--danger, $o-danger, 0.1);
     }
 }
 
@@ -561,6 +564,30 @@
 // so this rule cannot be nested with the button one above.
 .o_optional_columns_menu .o_invalid_dropdown_item {
     color: o-text-color("danger");
+}
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_list_renderer {
+        .o_list_table tbody > tr.o_group_header .o_pager {
+            .o_pager_previous,
+            .o_pager_next {
+                background-color: lighten($o-dark-brand-lightsecondary, 10%);
+            }
+        }
+
+        .o_data_row:not(.o_selected_row):not(.o_data_row_selected):focus-within > * {
+            $-focus-bg: rgba(
+                var(--#{$variable-prefix}emphasis-color-rgb),
+                #{$o-dark-table-hover-bg-factor * 2}
+            );
+
+            --#{$variable-prefix}table-accent-bg: #{$-focus-bg};
+            --#{$variable-prefix}table-striped-bg: var(
+                --ListRenderer-data-row-focused-striped-bg,
+                #{$-focus-bg}
+            );
+        }
+    }
 }
 
 @include media-breakpoint-down(md) {

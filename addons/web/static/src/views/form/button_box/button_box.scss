@@ -270,3 +270,12 @@
         }
     }
 }
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o-form-buttonbox-small {
+        --button-box-border-color: #{map-get(
+                map-get($o-dark-btns-bs-outline-override, "secondary"),
+                "border"
+            )};
+    }
+}

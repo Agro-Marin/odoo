@@ -70,7 +70,7 @@
 
             .selected {
                 background-color: var(--settings__tab-bg--active, var(--o-bg-active));
-                box-shadow: inset 2px 0 0 $o-component-active-border;
+                box-shadow: inset 2px 0 0 o-token(--o-action, $o-component-active-border);
             }
 
             .tab {

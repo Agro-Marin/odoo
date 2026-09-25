@@ -43,3 +43,9 @@
 .o_switch_company_menu .oe_topbar_name {
     max-width: 15rem;
 }
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_switch_company_menu_buttons .btn-primary {
+        color: map-get(map-get($o-dark-btns-bs-override, "primary"), "color");
+    }
+}

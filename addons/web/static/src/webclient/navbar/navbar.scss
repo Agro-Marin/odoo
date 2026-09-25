@@ -265,7 +265,7 @@
             padding: ($o-navbar-badge-padding * 0.5) $o-navbar-badge-padding;
             background-color: var(--o-navbar-badge-bg, #{$o-navbar-badge-bg});
             font-size: $o-navbar-badge-size;
-            color: var(--o-navbar-badge-color, $o-navbar-badge-color);
+            color: var(--o-navbar-badge-color, #{o-token(--o-on-danger, $o-navbar-badge-color)});
             text-shadow: var(
                 --o-navbar-badge-text-shadow,
                 #{$o-navbar-badge-text-shadow}

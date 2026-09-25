@@ -147,7 +147,7 @@
 
     &:hover,
     &:hover .form-check-input:not(:disabled) {
-        border-color: $form-check-input-checked-border-color;
+        border-color: o-token(--o-action, $form-check-input-checked-border-color);
     }
 }
 
@@ -278,7 +278,7 @@ $o-generic-font-families:
 
     > p:first-of-type {
         margin-top: 0;
-        color: $headings-color;
+        color: o-token(--heading-color, $headings-color);
         font-weight: bold;
         font-size: 125%;
     }
@@ -382,7 +382,7 @@ $o-webclient-medias: screen, print;
 }
 
 @mixin o-glass($opacity: 0.8, $blur: 12px, $saturate: 1.5) {
-    background-color: rgba($o-glass-bg, $opacity);
+    background-color: o-token-alpha(--o-glass-bg, $o-glass-bg, $opacity);
     backdrop-filter: blur($blur) saturate($saturate);
     -webkit-backdrop-filter: blur($blur) saturate($saturate);
 }
@@ -408,9 +408,9 @@ $o-webclient-medias: screen, print;
     border-radius: $radius;
     background: linear-gradient(
         90deg,
-        $o-gray-300 25%,
-        $o-gray-200 50%,
-        $o-gray-300 75%
+        o-token(--o-gray-300, $o-gray-300) 25%,
+        o-token(--o-gray-200, $o-gray-200) 50%,
+        o-token(--o-gray-300, $o-gray-300) 75%
     );
     background-size: 200% 100%;
     animation: o-shimmer 1.5s ease-in-out infinite;

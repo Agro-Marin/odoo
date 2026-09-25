@@ -16,7 +16,7 @@
     .o_user_menu_header {
         margin-bottom: 5px;
         padding: 8px 12px 10px;
-        border-bottom: 1px solid var(--o-border-color, #{$border-color});
+        border-bottom: 1px solid o-token(--border-color, $border-color);
     }
 
     .o_user_menu_name {
@@ -36,6 +36,6 @@
     }
 
     .dropdown-item[data-menu="logout"] {
-        color: $o-danger;
+        color: o-token(--danger, $o-danger);
     }
 }

@@ -32,3 +32,12 @@
 .o_app_menu_sidebar .o_quick_launcher {
     width: 100%;
 }
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_quick_launcher .o_app {
+        &:hover,
+        &:focus-visible {
+            background: $o-dark-surface-raised;
+        }
+    }
+}

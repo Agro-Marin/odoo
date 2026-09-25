@@ -88,7 +88,7 @@
     }
 
     .o_bottom_sheet_sheet {
-        --offcanvas-box-shadow: #{$box-shadow};
+        --offcanvas-box-shadow: #{o-token(--box-shadow, $box-shadow)};
 
         margin: 0 auto;
         min-height: var(--sheet-height);
@@ -101,7 +101,7 @@
         backface-visibility: hidden;
         perspective: 1000px;
         user-select: none;
-        background-color: $dropdown-bg;
+        background-color: o-token(--o-dropdown-bg, $dropdown-bg);
 
         .o_bottom_sheet_body {
             scrollbar-width: none;
@@ -231,7 +231,7 @@
 
     %BottomSheet-Entry-active {
         position: relative;
-        border: $border-width solid $list-group-active-border-color;
+        border: $border-width solid o-token(--o-action, $list-group-active-border-color);
         border-radius: $border-radius-lg;
         color: var(
             --BottomSheetStatusBar__entry-color--active,
@@ -336,5 +336,18 @@
                 font-weight: $o-font-weight-medium;
             }
         }
+    }
+}
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        --BottomSheetStatusBar__entry-color--active: #{o-scheme-contrast(
+                $o-dark-surface-raised,
+                o-dark-scheme()
+            )};
+        --BottomSheetStatusBar__entry-background--active: #{rgba(
+                $o-dark-surface-raised,
+                0.5
+            )};
     }
 }

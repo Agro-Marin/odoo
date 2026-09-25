@@ -56,7 +56,10 @@
     .nav-tabs {
         .nav-link {
             &.active {
-                --#{$prefix}nav-tabs-link-active-color: #{$o-enterprise-action-color};
+                --#{$prefix}nav-tabs-link-active-color: #{o-token(
+                        --o-action,
+                        $o-enterprise-action-color
+                    )};
             }
         }
     }

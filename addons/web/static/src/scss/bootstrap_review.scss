@@ -48,7 +48,7 @@
 }
 
 .form-select:where(:not(:disabled)):hover {
-    border-color: $form-check-input-checked-border-color;
+    border-color: o-token(--o-action, $form-check-input-checked-border-color);
 }
 
 .dropdown-menu {
@@ -113,7 +113,10 @@ $o-datetime-picker-width: calc(5px * 7 * 8 + (2 * #{map-get($spacers, 2)})) !def
 
 .accordion-button {
     &::after {
-        background-color: var(--#{$prefix}accordion-btn-icon-color, #{$body-color});
+        background-color: var(
+            --#{$prefix}accordion-btn-icon-color,
+            #{o-token(--body-color, $body-color)}
+        );
         background-image: none;
         mask-image: var(--#{$prefix}accordion-btn-icon);
         mask-repeat: no-repeat;

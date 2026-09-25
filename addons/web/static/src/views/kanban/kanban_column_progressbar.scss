@@ -31,7 +31,7 @@
             height: $font-size-sm;
 
             .bg-200 {
-                --background-color: RGBA(#{to-rgb($o-gray-300)}, var(--bg-opacity, 1));
+                --background-color: RGBA(var(--o-gray-300-rgb, #{to-rgb($o-gray-300)}), var(--bg-opacity, 1));
             }
         }
     }

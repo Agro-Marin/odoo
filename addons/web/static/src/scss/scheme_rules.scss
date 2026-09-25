@@ -633,3 +633,166 @@
         }
     }
 }
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        kbd {
+            color: $o-dark-kbd-color;
+            background-color: $o-dark-kbd-bg;
+            box-shadow: $o-dark-kbd-box-shadow;
+        }
+
+        .text-body {
+            color: $o-dark-main-text-color !important;
+        }
+
+        .text-muted {
+            color: $o-dark-main-color-muted !important;
+        }
+
+        .table {
+            --#{$prefix}table-bg: #{$o-dark-surface-sunken};
+            --#{$prefix}table-striped-bg: rgba(
+                var(--#{$prefix}emphasis-color-rgb),
+                #{$o-dark-table-striped-bg-factor}
+            );
+            --#{$prefix}table-active-bg: rgba(
+                var(--#{$prefix}emphasis-color-rgb),
+                #{$o-dark-table-active-bg-factor}
+            );
+            --#{$prefix}table-hover-bg: rgba(
+                var(--#{$prefix}emphasis-color-rgb),
+                #{$o-dark-table-hover-bg-factor}
+            );
+        }
+
+        @each $-control in (".form-control", ".form-select", ".input-group-text") {
+            #{$-control} {
+                border: $input-border-width solid $o-dark-border-color;
+            }
+        }
+
+        .form-control:focus {
+            background-color: $o-dark-input-focus-bg;
+        }
+
+        .form-control::placeholder {
+            color: $o-dark-input-placeholder-color;
+        }
+
+        .form-check-input {
+            border: var(--#{$prefix}border-width) solid #{$o-dark-input-boundary-color};
+        }
+
+        .form-range::-webkit-slider-thumb {
+            box-shadow: 0 0.1rem 0.25rem rgba($o-dark-black, 0.1);
+        }
+
+        .form-range::-webkit-slider-thumb:active {
+            background-color: $o-dark-form-range-thumb-active-bg;
+        }
+
+        .form-range::-webkit-slider-runnable-track {
+            background-color: $o-dark-surface-raised;
+        }
+
+        .form-range::-moz-range-thumb {
+            box-shadow: 0 0.1rem 0.25rem rgba($o-dark-black, 0.1);
+        }
+
+        .form-range::-moz-range-thumb:active {
+            background-color: $o-dark-form-range-thumb-active-bg;
+        }
+
+        .form-range::-moz-range-track {
+            background-color: $o-dark-surface-raised;
+        }
+
+        .dropdown-menu {
+            --#{$prefix}dropdown-bg: #{$o-dark-surface-raised};
+            --#{$prefix}dropdown-header-color: #{$o-dark-dropdown-header-color};
+        }
+
+        .nav {
+            --#{$prefix}nav-link-color: #{$o-dark-main-text-color};
+        }
+
+        .nav-tabs {
+            --#{$prefix}nav-tabs-link-active-color: #{$o-dark-black};
+        }
+
+        .card {
+            --#{$prefix}card-border-color: #{$o-dark-card-border-color};
+            --#{$prefix}card-cap-bg: #{$o-dark-surface-sunken};
+        }
+
+        .breadcrumb {
+            --#{$prefix}breadcrumb-divider-color: #{$o-dark-main-color-muted};
+            --#{$prefix}breadcrumb-item-active-color: #{$o-dark-main-text-color};
+        }
+
+        .modal {
+            --#{$prefix}modal-border-color: #{$o-dark-hairline};
+        }
+
+        .offcanvas,
+        .offcanvas-xxl,
+        .offcanvas-xl,
+        .offcanvas-lg,
+        .offcanvas-md,
+        .offcanvas-sm {
+            --#{$prefix}offcanvas-border-color: #{$o-dark-hairline};
+        }
+
+        .tooltip {
+            --#{$prefix}tooltip-bg: #{$o-dark-surface-raised};
+            --#{$prefix}tooltip-color: #{$o-dark-tooltip-color};
+        }
+    }
+}
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_datetime_picker {
+        .o_select_start,
+        .o_select_end {
+            --selected-day-color: #{mix(
+                    lighten($o-dark-component-active-border, 10%),
+                    $o-dark-component-active-bg,
+                    15%
+                )};
+        }
+
+        .o_today > div {
+            color: o-scheme-contrast(
+                map-get($o-dark-theme-text-colors, "danger"),
+                o-dark-scheme()
+            );
+        }
+    }
+
+    :root[data-color-scheme="dark"] .o-dropdown {
+        &.btn-secondary,
+        &.btn-outline-secondary {
+            &.show {
+                $-value: map-get($o-dark-btns-bs-outline-override, "secondary");
+                background-color: map-get($-value, "active-background");
+                border-color: map-get($-value, "active-border");
+            }
+        }
+    }
+
+    :root[data-color-scheme="dark"] .o-FileViewer-headerButton:hover {
+        color: lighten($o-dark-gray-400, 15%);
+    }
+
+    :root[data-color-scheme="dark"] .o-file-upload-progress-bar-value {
+        border-right: 1px solid darken($o-dark-brand-primary, 7.5%);
+    }
+
+    :root[data-color-scheme="dark"]
+        .o_model_field_selector
+        > .o_model_field_selector_value
+        > .o_model_field_selector_chain_part {
+        border: 1px solid darken($o-dark-brand-lightsecondary, 10%);
+    }
+}

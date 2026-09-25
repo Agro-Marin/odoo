@@ -95,3 +95,13 @@
         }
     }
 }
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"]
+        .o_web_client
+        .o_mobile_search
+        .o_mobile_search_header
+        .o_mobile_search_button:active {
+        background-color: darken($o-dark-brand-primary, 10%);
+    }
+}

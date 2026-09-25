@@ -45,14 +45,14 @@
 }
 
 .o_select_menu_menu {
-    background-color: $dropdown-bg;
+    background-color: o-token(--o-dropdown-bg, $dropdown-bg);
     @include o-glass-subtle();
     box-shadow: $o-shadow-md;
     border-radius: $o-border-radius-lg;
     animation: o-scaleIn $o-duration-fast $o-easing-spring;
 
     .o_select_menu_searchbox {
-        background-color: $dropdown-bg;
+        background-color: o-token(--o-dropdown-bg, $dropdown-bg);
         position: sticky;
         top: $dropdown-padding-y * -1;
         padding: 5px;
@@ -78,7 +78,7 @@
     }
 
     .o_select_menu_group {
-        background-color: $dropdown-bg;
+        background-color: o-token(--o-dropdown-bg, $dropdown-bg);
         top: $input-height;
         &:not(.o_select_menu_searchable_group) {
             top: $dropdown-padding-y * -1;

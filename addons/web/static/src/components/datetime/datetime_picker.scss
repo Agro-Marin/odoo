@@ -70,7 +70,10 @@
 
         &:hover,
         &:focus {
-            --DateTimePicker__date-cell-border-color-hover: #{$o-component-active-border};
+            --DateTimePicker__date-cell-border-color-hover: #{o-token(
+                    --o-action,
+                    $o-component-active-border
+                )};
         }
 
         &:not([disabled])::before {

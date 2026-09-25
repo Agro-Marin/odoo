@@ -11,7 +11,7 @@ $o-navbar-entry-border-radius: $o-border-radius-sm !default;
 $o-navbar-entry-color: $o-main-text-color !default;
 $o-navbar-entry-color--hover: $o-black !default;
 $o-navbar-entry-font-size: 1em !default;
-$o-navbar-entry-bg--hover: rgba($o-brand-primary, 0.06) !default;
+$o-navbar-entry-bg--hover: o-token-alpha(--o-brand, $o-brand-primary, 0.06) !default;
 
 $o-navbar-entry-color--active: unset !default;
 $o-navbar-entry-bg--active: unset !default;

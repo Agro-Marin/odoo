@@ -56,8 +56,8 @@
         li,
         button {
             @include o-hover-text-color(
-                rgba($o-burger-base-color, 0.8),
-                $o-burger-base-color
+                o-token-alpha(--o-gray-800, $o-burger-base-color, 0.8),
+                o-token(--o-gray-800, $o-burger-base-color)
             );
         }
     }

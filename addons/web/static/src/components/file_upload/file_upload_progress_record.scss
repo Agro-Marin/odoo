@@ -13,7 +13,7 @@
     border: 1px solid #dfdfdf;
 
     .o_file_upload_upload_title {
-        color: $headings-color;
+        color: o-token(--heading-color, $headings-color);
         font-size: 13px;
         font-weight: 500;
     }

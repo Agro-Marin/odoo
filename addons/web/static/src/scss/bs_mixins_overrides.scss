@@ -43,11 +43,17 @@ $enable-deprecation-messages: false !default;
     --#{$prefix}btn-disabled-color: #{$-disabled-color};
 }
 
+$-o-published-text-colors: ("primary", "success", "info", "warning", "danger");
+
 @function o-text-color($key) {
     $-all-text-colors: map-merge($theme-colors, $o-theme-text-colors);
 
     @if map-has-key($-all-text-colors, $key) {
-        @return map-get($-all-text-colors, $key);
+        $-color: map-get($-all-text-colors, $key);
+        @if index($-o-published-text-colors, $key) {
+            @return o-token(--o-#{$key}-text, $-color);
+        }
+        @return $-color;
     }
 
     @return false;

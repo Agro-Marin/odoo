@@ -246,7 +246,7 @@
         .fc-timeGridDay-view,
         .fc-timeGridWeek-view {
             --o-cw-bg: #{o-palette-token(--danger, $o-calendar-today-background-color)};
-            --o-cw-color: #{$o-calendar-today-color};
+            --o-cw-color: #{o-token(--o-on-danger, $o-calendar-today-color)};
 
             .fc-scrollgrid-section-body {
                 &:not(.fc-scrollgrid-section-liquid) .fc-scroller-harness {
@@ -307,8 +307,8 @@
                         @include o-position-absolute($border-width, 0, -15px, 0);
                         background: linear-gradient(
                             0deg,
-                            rgba($o-shadow-color, 0),
-                            rgba($o-shadow-color, 0.16)
+                            o-token-alpha(--o-shadow-color, $o-shadow-color, 0),
+                            o-token-alpha(--o-shadow-color, $o-shadow-color, 0.16)
                         );
                         pointer-events: none;
                         content: "";
@@ -485,7 +485,7 @@
                     }
 
                     &.fc-day-today {
-                        --o-cw-color: #{$o-calendar-today-color};
+                        --o-cw-color: #{o-token(--o-on-danger, $o-calendar-today-color)};
                         --o-cw-bg: #{o-palette-token(
                                 --danger,
                                 $o-calendar-today-background-color
@@ -764,5 +764,22 @@
             var(--fc-neutral-bg-color) 25px,
             transparent 50px
         );
+    }
+}
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"]
+        .o_calendar_renderer
+        .o_calendar_widget
+        .fc-dayGridYear-view:not(.fc-readonly-year-view)
+        .fc-daygrid-body
+        tr
+        .fc-day
+        .fc-daygrid-day-top:hover
+        > .fc-daygrid-day-number {
+        $-bg: mix($o-dark-view-background-color, $o-dark-action, 75%);
+
+        --o-cw-color: #{o-scheme-contrast($-bg, o-dark-scheme())};
+        --o-cw-bg: #{$-bg};
     }
 }

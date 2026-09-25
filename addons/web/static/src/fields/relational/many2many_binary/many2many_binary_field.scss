@@ -38,8 +38,8 @@ $o-attachment-margin: 5px;
 
         a {
             @include o-hover-text-color(
-                $default-color: $o-main-text-color,
-                $hover-color: $headings-color
+                $default-color: o-token(--o-text, $o-main-text-color),
+                $hover-color: o-token(--heading-color, $headings-color)
             );
         }
     }
@@ -92,5 +92,11 @@ $o-attachment-margin: 5px;
     &:hover .o_attachment_delete {
         transition: all 0.1s ease 0s;
         transform: translateX(0);
+    }
+}
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_attachment .o_attachment_delete {
+        background: desaturate(map-get($o-dark-theme-colors, "primary"), 50%);
     }
 }

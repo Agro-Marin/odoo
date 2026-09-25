@@ -1,6 +1,7 @@
 .o_field_widget {
     .o_signature {
-        outline: 1px solid rgba(map-get($theme-colors, "secondary"), 0.3);
+        outline: 1px solid
+            o-token-alpha(--o-gray-300, map-get($theme-colors, "secondary"), 0.3);
         position: relative;
         &.o_signature_empty {
             display: flex;
@@ -22,7 +23,7 @@
 }
 .o_form_editable {
     .o_signature:hover {
-        outline: 3px solid $o-enterprise-action-color;
+        outline: 3px solid o-token(--o-action, $o-enterprise-action-color);
         cursor: pointer;
     }
 }

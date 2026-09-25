@@ -1,5 +1,7 @@
+import ast
 import base64
 import logging
+import operator
 import re
 from collections import Counter
 
@@ -53,7 +55,7 @@ SINGLE_BUNDLE_GAP_FLOOR = {
     "spreadsheet_dashboard": 2,
     "stock": 1,
     "survey": 1,
-    "web": 91,
+    "web": 0,
     "web_tour": 0,
     "website": 13,
     "website_sale": 1,
@@ -203,18 +205,263 @@ def _is_opaque(literal):
 
 def norm(value):
     value = re.sub(r"\s+", " ", (value or "").strip().lower())
-    value = _KEYWORDS.get(value, value)
-    if re.fullmatch(r"#[0-9a-f]{3}", value):
-        value = "#" + "".join(char * 2 for char in value[1:])
-    match = re.fullmatch(r"rgba?\(([^()]*)\)", value)
+    value = re.sub(r"(?<![\w.])\.(\d)", r"0.\1", value)
+    return canonical_colours(_KEYWORDS.get(value, value))
+
+
+# A colour is compared by what it paints, not how it is spelled: a token
+# rewrite turns `mix()` or `rgba($x, .1)` into color-mix(), rgb(from ...) or
+# hsl(...), and the dark bundle serves the literal Sass computed.
+_COLOUR_FUNCTIONS = ("rgba", "rgb", "hsla", "hsl", "color-mix")
+_NAMED = {
+    "white": (255.0, 255.0, 255.0, 1.0),
+    "black": (0.0, 0.0, 0.0, 1.0),
+    "transparent": (0.0, 0.0, 0.0, 0.0),
+}
+_HEX_RE = re.compile(r"#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{4}|[0-9a-f]{3})\b")
+
+
+def _closing(value, open_index):
+    depth = 0
+    for index in range(open_index, len(value)):
+        if value[index] == "(":
+            depth += 1
+        elif value[index] == ")":
+            depth -= 1
+            if not depth:
+                return index
+    return -1
+
+
+def _split_top(text, separators):
+    parts, depth, current = [], 0, ""
+    for char in text:
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        if char in separators and not depth:
+            parts.append(current.strip())
+            current = ""
+            continue
+        current += char
+    parts.append(current.strip())
+    return [part for part in parts if part]
+
+
+_ARITHMETIC = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+}
+
+
+def _arithmetic(node):
+    if isinstance(node, ast.Expression):
+        return _arithmetic(node.body)
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+        return float(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+        return -_arithmetic(node.operand)
+    if isinstance(node, ast.BinOp) and type(node.op) in _ARITHMETIC:
+        return _ARITHMETIC[type(node.op)](
+            _arithmetic(node.left), _arithmetic(node.right)
+        )
+    raise ValueError(ast.dump(node))
+
+
+def _calc(expression, channels):
+    text = expression.strip()
+    if text.startswith("calc(") and text.endswith(")"):
+        text = text[len("calc(") : -1]
+    for name, number in sorted(channels.items(), key=lambda item: -len(item[0])):
+        text = re.sub(rf"\b{name}\b", repr(number), text)
+    text = re.sub(r"(\d(?:\.\d+)?)(?:%|deg)", r"\1", text)
+    return _arithmetic(ast.parse(text, mode="eval"))
+
+
+def _number(token, scale=1.0):
+    token = token.strip()
+    if token.endswith("%"):
+        return float(token[:-1]) * scale / 100
+    return float(token)
+
+
+def _hsl_to_rgb(hue, saturation, lightness):
+    hue, saturation, lightness = hue % 360, saturation / 100, lightness / 100
+
+    def channel(n):
+        k = (n + hue / 30) % 12
+        a = saturation * min(lightness, 1 - lightness)
+        return 255 * (lightness - a * max(-1, min(k - 3, 9 - k, 1)))
+
+    return channel(0), channel(8), channel(4)
+
+
+def _rgb_to_hsl(red, green, blue):
+    red, green, blue = red / 255, green / 255, blue / 255
+    high, low = max(red, green, blue), min(red, green, blue)
+    lightness = (high + low) / 2
+    if high == low:
+        return 0.0, 0.0, lightness * 100
+    delta = high - low
+    saturation = delta / (1 - abs(2 * lightness - 1))
+    if high == red:
+        hue = 60 * (((green - blue) / delta) % 6)
+    elif high == green:
+        hue = 60 * ((blue - red) / delta + 2)
+    else:
+        hue = 60 * ((red - green) / delta + 4)
+    return hue, saturation * 100, lightness * 100
+
+
+def _parse_colour(text):
+    text = text.strip()
+    if text in _NAMED:
+        return _NAMED[text]
+    match = _HEX_RE.fullmatch(text)
     if match:
-        parts = [part for part in re.split(r"[,\s/]+", match.group(1)) if part]
-        if all(re.fullmatch(r"[\d.]+%?", part) for part in parts):
-            parts = [f"{float(part.rstrip('%')):g}" for part in parts]
-            if len(parts) == 4 and parts[3] == "1":
-                parts = parts[:3]
-            value = "rgb(" + ",".join(parts) + ")"
-    return value
+        digits = match.group(1)
+        if len(digits) in (3, 4):
+            digits = "".join(char * 2 for char in digits)
+        values = [int(digits[i : i + 2], 16) for i in range(0, len(digits), 2)]
+        alpha = values[3] / 255 if len(values) == 4 else 1.0
+        return float(values[0]), float(values[1]), float(values[2]), alpha
+    open_index = text.find("(")
+    if open_index < 0 or _closing(text, open_index) != len(text) - 1:
+        raise ValueError(text)
+    name, inner = text[:open_index], text[open_index + 1 : -1]
+    if name == "color-mix":
+        return _parse_mix(inner)
+    if name not in ("rgb", "rgba", "hsl", "hsla"):
+        raise ValueError(text)
+    if inner.startswith("from "):
+        return _parse_relative(name, inner[len("from ") :])
+    head, _, alpha = inner.partition("/")
+    parts = _split_top(head, ", ")
+    if len(parts) == 4 and not alpha:
+        parts, alpha = parts[:3], parts[3]
+    if len(parts) != 3:
+        raise ValueError(text)
+    opacity = _number(alpha, 1.0) if alpha.strip() else 1.0
+    if name.startswith("rgb"):
+        return (*(_number(part, 255.0) for part in parts), opacity)
+    hue = float(parts[0].removesuffix("deg"))
+    return (*_hsl_to_rgb(hue, _number(parts[1], 100), _number(parts[2], 100)), opacity)
+
+
+def _parse_relative(name, inner):
+    head, _, alpha = inner.partition("/")
+    parts = _split_top(head, " ")
+    origin = _parse_colour(parts[0])
+    red, green, blue, opacity = origin
+    if name.startswith("rgb"):
+        channels = {"r": red, "g": green, "b": blue, "alpha": opacity}
+        values = [_calc(part, channels) for part in parts[1:4]]
+        result = tuple(values)
+    else:
+        hue, saturation, lightness = _rgb_to_hsl(red, green, blue)
+        channels = {
+            "h": hue,
+            "s": saturation,
+            "l": lightness,
+            "alpha": opacity,
+        }
+        values = [_calc(part, channels) for part in parts[1:4]]
+        result = _hsl_to_rgb(*values)
+    if alpha.strip():
+        opacity = _calc(alpha, {"alpha": opacity})
+    return (*result, opacity)
+
+
+def _parse_mix(inner):
+    parts = _split_top(inner, ",")
+    if len(parts) != 3 or parts[0].replace(" ", "") != "insrgb":
+        raise ValueError(inner)
+    colours, weights = [], []
+    for part in parts[1:]:
+        match = re.fullmatch(r"(.*?)(?:\s+([\d.]+)%)?", part.strip())
+        colours.append(_parse_colour(match.group(1)))
+        weights.append(float(match.group(2)) if match.group(2) else None)
+    first, second = weights
+    if first is None and second is None:
+        first = second = 50.0
+    elif first is None:
+        first = 100 - second
+    elif second is None:
+        second = 100 - first
+    total = first + second
+    if not total:
+        raise ValueError(inner)
+    first, second = first / total, second / total
+    (r1, g1, b1, a1), (r2, g2, b2, a2) = colours
+    alpha = a1 * first + a2 * second
+    if alpha:
+        mixed = [
+            (c1 * a1 * first + c2 * a2 * second) / alpha
+            for c1, c2 in ((r1, r2), (g1, g2), (b1, b2))
+        ]
+    else:
+        mixed = [0.0, 0.0, 0.0]
+    return (*mixed, alpha * min(total, 100) / 100)
+
+
+def _format_colour(red, green, blue, alpha):
+    # what reaches the screen: 8-bit channels, so Sass's and the browser's
+    # arithmetic agree once rounded the way the paint rounds them
+    if round(alpha, 2) == 0:
+        return "rgb(0,0,0,0)"
+    parts = [str(round(channel)) for channel in (red, green, blue)]
+    if round(alpha, 2) != 1:
+        parts.append(f"{round(alpha, 2):g}")
+    return "rgb(" + ",".join(parts) + ")"
+
+
+def canonical_colours(value):
+    out, index = "", 0
+    while index < len(value):
+        matched = False
+        for name in _COLOUR_FUNCTIONS:
+            if value.startswith(name + "(", index) and (
+                index == 0
+                or not (value[index - 1].isalnum() or value[index - 1] in "-_")
+            ):
+                end = _closing(value, index + len(name))
+                if end < 0:
+                    break
+                text = value[index : end + 1]
+                try:
+                    out += _format_colour(*_parse_colour(text))
+                except ValueError, ZeroDivisionError, SyntaxError:
+                    out += text
+                index = end + 1
+                matched = True
+                break
+        if matched:
+            continue
+        match = _HEX_RE.match(value, index)
+        if match and (index == 0 or not value[index - 1].isalnum()):
+            out += _format_colour(*_parse_colour(match.group(0)))
+            index = match.end()
+            continue
+        word = re.match(r"[a-z]+", value[index:])
+        if (
+            word
+            and word.group(0) in _NAMED
+            and (
+                index == 0
+                or not (value[index - 1].isalnum() or value[index - 1] in "-_")
+            )
+        ):
+            end = index + len(word.group(0))
+            if end == len(value) or not (value[end].isalnum() or value[end] in "-_("):
+                out += _format_colour(*_NAMED[word.group(0)])
+                index = end
+                continue
+        out += value[index]
+        index += 1
+    return out
 
 
 def measure(light_css, dark_css):
@@ -471,4 +718,32 @@ class TestSchemeDuplication(lint_case.LintCase):
             {"--o-bg": "#fff", "--other": "1px"},
         )
         self.assertTrue(DARK_SELECTOR_RE.fullmatch(':root[data-color-scheme="dark"]'))
-        self.assertEqual(norm(resolve("var(--o-bg)", {"--o-bg": "black"})), "#000000")
+        self.assertEqual(
+            norm(resolve("var(--o-bg)", {"--o-bg": "black"})), "rgb(0,0,0)"
+        )
+
+    def test_a_colour_is_compared_by_what_it_paints(self):
+        self.assertEqual(
+            norm("color-mix(in srgb, #3a3a3c 50%, #48484a)"), norm("rgb(65, 65, 67)")
+        )
+        self.assertEqual(
+            norm("rgb(from #f5f5f7 r g b / 0.2)"), norm("rgba(245, 245, 247, .2)")
+        )
+        self.assertEqual(
+            norm("1px solid hsla(0, 0%, 100%, .08)"),
+            norm("1px solid rgba(255,255,255,0.08)"),
+        )
+        self.assertEqual(
+            norm("hsl(240, 4.347826087%, 19.0196078431%)"), norm("rgb(46, 46, 51)")
+        )
+        self.assertEqual(
+            norm("color-mix(in srgb, #0071e3 10%, transparent)"),
+            norm("rgba(0, 113, 227, 0.1)"),
+        )
+        self.assertEqual(norm("hsl(from #0071e3 h s calc(l - 10%))"), norm("#0058b0"))
+        self.assertNotEqual(norm("rgba(245,245,247,.11)"), norm("rgba(245,245,247,.2)"))
+        unresolved = "color-mix(in srgb, var(--x) 50%, #000)"
+        self.assertEqual(norm(unresolved), unresolved)
+        self.assertEqual(norm("white-space"), "white-space")
+        self.assertEqual(norm("0 .5rem 1rem"), norm("0 0.5rem 1rem"))
+        self.assertEqual(norm("rgba(48, 48, 48, 0)"), norm("transparent"))

@@ -19,7 +19,7 @@
         > .o_model_field_selector_chain_part {
             cursor: inherit;
             border: 1px solid darken($o-brand-lightsecondary, 10%);
-            background: $o-brand-lightsecondary;
+            background: o-token(--o-gray-100, $o-brand-lightsecondary);
         }
         > i {
             font-size: 10px;

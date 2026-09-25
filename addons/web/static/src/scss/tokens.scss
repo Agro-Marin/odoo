@@ -98,7 +98,57 @@
     @return $-set;
 }
 
-$-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view");
+$-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view", "o-gray-300");
+
+@function o-system-tokens($-dark) {
+    // the dark scheme map is still being built when this runs, so its
+    // contrast inputs are taken from the variables o-dark-scheme() reads
+    $-contrast: if(
+        $-dark,
+        o-scheme(
+            (
+                $o-dark-color-contrast-light,
+                $o-dark-color-contrast-dark,
+                $o-dark-white,
+                $o-dark-black
+            ),
+            $o-dark-min-contrast-ratio,
+            true
+        ),
+        null
+    );
+    @return (
+        "o-glass-bg": if($-dark, $o-dark-glass-bg, $o-glass-bg),
+        "o-dropdown-bg": if($-dark, $o-dark-surface-raised, $dropdown-bg),
+        "o-hairline": if($-dark, $o-dark-hairline, $o-hairline),
+        "o-form-lightsecondary": if(
+                $-dark,
+                $o-dark-form-lightsecondary,
+                $o-form-lightsecondary
+            ),
+        "o-form-separator-color": if(
+                $-dark,
+                $o-dark-form-separator-color,
+                $o-form-separator-color
+            ),
+        "o-shadow-color": if($-dark, $o-dark-shadow-color, $o-shadow-color),
+        "o-on-danger": if(
+                $-dark,
+                o-scheme-contrast(map-get($o-dark-theme-colors, "danger"), $-contrast),
+                color-contrast($o-danger)
+            ),
+        "o-on-info": if(
+                $-dark,
+                o-scheme-contrast(map-get($o-dark-theme-colors, "info"), $-contrast),
+                color-contrast($info)
+            ),
+        "o-input-invalid-bg": if(
+                $-dark,
+                rgba(map-get($o-dark-theme-text-colors, "danger"), 0.1),
+                $o-input-invalid-bg
+            )
+    );
+}
 
 @mixin o-print-token-set($-set) {
     @each $-name, $-value in $-set {
@@ -231,6 +281,7 @@ $-o-light-scheme: map-merge(
                 $o-ring-color,
                 $o-main-favorite-color
             ),
+        "system": o-system-tokens(false),
         "bootstrap": o-bootstrap-inputs(
                 $o-grays,
                 $o-white,
@@ -283,6 +334,7 @@ $-o-dark-scheme: map-merge(
                 $o-dark-ring-color,
                 $o-dark-main-favorite-color
             ),
+        "system": o-system-tokens(true),
         "bootstrap": o-bootstrap-inputs(
                 $o-dark-grays,
                 $o-dark-white,
@@ -425,6 +477,7 @@ $-o-dark-scheme: map-merge(
 
     @include o-print-scheme-targets($-scheme);
     @include o-print-token-set(map-get($-scheme, "tokens"));
+    @include o-print-token-set(map-get($-scheme, "system"));
     @include o-print-color-ramp($-ramp, $-scheme);
     @include o-print-record-chip-ramp($-record-colors, $-scheme);
 

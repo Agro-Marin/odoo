@@ -95,7 +95,7 @@
     }
 
     .o_menu_systray {
-        @include print-variable(o-navbar-badge-bg, $o-navbar-badge-bg);
+        @include print-variable(o-navbar-badge-bg, o-token(--danger, $o-navbar-badge-bg));
     }
 
     .o_navbar_home_brand {

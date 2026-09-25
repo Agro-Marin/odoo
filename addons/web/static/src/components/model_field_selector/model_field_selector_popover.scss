@@ -5,7 +5,7 @@
     .o_model_field_selector_popover_body {
         .o_model_field_selector_popover_page {
             > .o_model_field_selector_popover_item {
-                background: $dropdown-bg;
+                background: o-token(--o-dropdown-bg, $dropdown-bg);
 
                 &.active button {
                     background: $dropdown-link-hover-bg;

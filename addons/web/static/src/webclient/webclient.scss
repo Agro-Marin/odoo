@@ -296,3 +296,19 @@ html {
     scrollbar-width: thin;
     scrollbar-color: var(--o-gray-300) transparent;
 }
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        @each $-placeholder
+            in (
+                "::-webkit-input-placeholder",
+                "::-moz-placeholder",
+                ":-ms-input-placeholder"
+            )
+        {
+            #{$-placeholder} {
+                color: $o-dark-input-placeholder-color;
+            }
+        }
+    }
+}

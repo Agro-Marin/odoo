@@ -43,3 +43,11 @@
         width: 20px;
     }
 }
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_kanban_examples_dialog .o_notebook .nav-link.active {
+        $-colors: map-get($o-dark-btns-bs-override, "primary");
+        background-color: map-get($-colors, "background");
+        color: map-get($-colors, "color");
+    }
+}

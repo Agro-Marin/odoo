@@ -10,7 +10,10 @@
     .o_input,
     .o_dropdown_button,
     .o_datepicker_button {
-        @include print-variable(o-input-border-color, $o-form-lightsecondary);
+        @include print-variable(
+            o-input-border-color,
+            o-token(--o-form-lightsecondary, $o-form-lightsecondary)
+        );
         color: var(--o-text) !important;
     }
     .o_dropdown_button,
@@ -99,7 +102,7 @@
     user-select: none;
     height: 20px;
     &:not(.folded) {
-        box-shadow: 0 $border-width 0 $o-form-separator-color;
+        box-shadow: 0 $border-width 0 o-token(--o-form-separator-color, $o-form-separator-color);
     }
 }
 

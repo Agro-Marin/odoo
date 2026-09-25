@@ -15,7 +15,7 @@ $o-we-color-success: #00ff9e !default;
     overflow-y: auto;
     border-radius: inherit;
     background-color: inherit;
-    box-shadow: $box-shadow;
+    box-shadow: o-token(--box-shadow, $box-shadow);
     &::-webkit-scrollbar {
         display: none;
     }
@@ -38,7 +38,7 @@ $o-we-color-success: #00ff9e !default;
 
     &:not(.selected):focus,
     &:not(.selected):hover {
-        outline: solid $o-enterprise-action-color;
+        outline: solid o-token(--o-action, $o-enterprise-action-color);
         z-index: 1;
         transition: transform 0.1s ease-out;
     }
@@ -52,7 +52,7 @@ $o-we-color-success: #00ff9e !default;
     }
 
     .o_color_picker_button.selected {
-        border: 3px solid $o-enterprise-action-color !important;
+        border: 3px solid o-token(--o-action, $o-enterprise-action-color) !important;
     }
 }
 
