@@ -1,6 +1,7 @@
 import json
 from collections import defaultdict
 from datetime import timedelta
+from itertools import pairwise
 
 from babel.dates import format_date
 from dateutil import relativedelta
@@ -22,6 +23,10 @@ class SlotIntervals(dict):
     __hash__ = object.__hash__
     __eq__ = object.__eq__
     __ne__ = object.__ne__
+
+
+def _has_overlap(spans):
+    return any(later[0] < earlier[1] for earlier, later in pairwise(sorted(spans)))
 
 
 class MrpWorkcenter(models.Model):
@@ -375,8 +380,8 @@ class MrpWorkcenter(models.Model):
     )
     def _compute_effectiveness_times(self):
         wall_clock = self.env["mrp.workcenter.productivity.loss"].WALL_CLOCK_LOSS_TYPES
-        time_by_workcenter = defaultdict(lambda: {"blocked": 0.0, "productive": 0.0})
-        for workcenter, loss_type, duration in self.env[
+        spans_by_group = defaultdict(list)
+        for workcenter, workorder, loss_type, starts, stops, durations in self.env[
             "mrp.workcenter.productivity"
         ]._read_group(
             [
@@ -384,14 +389,25 @@ class MrpWorkcenter(models.Model):
                 ("workcenter_id", "in", self.ids),
                 ("date_end", "!=", False),
             ],
-            ["workcenter_id", "loss_type"],
-            ["duration:sum"],
+            ["workcenter_id", "workorder_id", "loss_type"],
+            ["date_start:array_agg", "date_end:array_agg", "duration:array_agg"],
         ):
             bucket = "productive" if loss_type in wall_clock else "blocked"
-            time_by_workcenter[workcenter.id][bucket] += duration
+            spans_by_group[workcenter, bucket, workorder] += zip(
+                starts, stops, durations, strict=True
+            )
+        groups_by_workcenter = defaultdict(lambda: {"blocked": [], "productive": []})
+        for (workcenter, bucket, _workorder), spans in spans_by_group.items():
+            groups_by_workcenter[workcenter][bucket].append(spans)
         for workcenter in self:
-            measured = time_by_workcenter[workcenter.id]
-            blocked, productive = measured["blocked"], measured["productive"]
+            groups = groups_by_workcenter[workcenter._origin]
+            productive = sum(
+                workcenter._origin._get_occupied_minutes(
+                    [(start, stop) for start, stop, _duration in spans], []
+                )
+                for spans in groups["productive"]
+            )
+            blocked = workcenter._origin._get_blocked_minutes(groups["blocked"])
             workcenter.blocked_time = blocked / 60.0
             workcenter.productive_time = productive / 60.0
             workcenter.oee = (
@@ -401,6 +417,24 @@ class MrpWorkcenter(models.Model):
                 if productive
                 else 0.0
             )
+
+    def _get_blocked_minutes(self, groups):
+        minutes = 0.0
+        overlapping = []
+        for group in groups:
+            if _has_overlap(group):
+                overlapping.append([(start, stop) for start, stop, _duration in group])
+            else:
+                minutes += sum(duration for _start, _stop, duration in group)
+        if overlapping:
+            working_intervals = self._get_working_intervals_of_spans(
+                [span for group in overlapping for span in group]
+            )
+            minutes += sum(
+                self._get_occupied_minutes([], group, working_intervals)
+                for group in overlapping
+            )
+        return minutes
 
     @api.depends("order_ids.duration", "order_ids.duration_expected", "order_ids.state")
     def _compute_performance(self):
@@ -485,6 +519,44 @@ class MrpWorkcenter(models.Model):
         return self.resource_calendar_id._work_intervals_batch(
             localized(start), localized(stop), resources=resource
         ).get(resource.id, Intervals())
+
+    def _get_working_intervals_of_spans(self, spans):
+        self.check_singleton()
+        if not (spans and self.resource_calendar_id):
+            return None
+        return self._get_working_intervals(
+            min(start for start, _stop in spans), max(stop for _start, stop in spans)
+        )
+
+    def _get_occupied_minutes(
+        self, wall_clock_spans, on_calendar_spans, working_intervals=None
+    ):
+        self.check_singleton()
+        Attendance = self.env["resource.calendar.attendance"]
+        occupied = Intervals(
+            [
+                (localized(start), localized(stop), Attendance)
+                for start, stop in wall_clock_spans
+            ]
+        )
+        if on_calendar_spans:
+            blocked = Intervals(
+                [
+                    (localized(start), localized(stop), Attendance)
+                    for start, stop in on_calendar_spans
+                ]
+            )
+            if self.resource_calendar_id:
+                if working_intervals is None:
+                    working_intervals = self._get_working_intervals_of_spans(
+                        on_calendar_spans
+                    )
+                blocked &= working_intervals
+            occupied |= blocked
+        return (
+            sum((stop - start).total_seconds() for start, stop, _records in occupied)
+            / 60.0
+        )
 
     def _get_working_minutes_batch(self, spans):
         self.check_singleton()
@@ -701,11 +773,7 @@ class MrpWorkcenter(models.Model):
                 occupied,
             )
         resource = self.resource_id
-        available = self.resource_calendar_id._work_intervals_batch(
-            date_start,
-            date_stop,
-            resources=resource,
-        )[resource.id]
+        available = self._get_working_intervals(date_start, date_stop)
         occupied = (
             self.env["resource.reservation"]
             ._reservation_intervals_batch(
@@ -858,31 +926,36 @@ class MrpWorkcenter(models.Model):
             bom.product_qty, unit, round=False
         )
 
-    def _get_duration_breakdown(self, product, unit, quantity, time_cycle, bom):
-        if not self:
-            capacity, setup, cleanup = self._get_bom_capacity(bom, unit), 0.0, 0.0
-            efficiency = 100.0
-        else:
+    def _get_cycles(self, product, unit, quantity, bom):
+        if self:
             capacity, setup, cleanup = self._get_capacity(
                 product, unit, self._get_bom_capacity(bom, unit)
             )
-            efficiency = self.time_efficiency
+        else:
+            capacity, setup, cleanup = self._get_bom_capacity(bom, unit), 0.0, 0.0
         cycles = float_round(
             quantity / capacity, precision_digits=0, rounding_method="UP"
         )
+        return cycles, setup, cleanup
+
+    def _get_efficiency(self):
+        return self.time_efficiency if self else 100.0
+
+    def _get_net_minutes(self, duration, setup, cleanup):
+        return max(duration - setup - cleanup, 0.0) * self._get_efficiency() / 100.0
+
+    def _get_duration_breakdown(self, product, unit, quantity, time_cycle, bom):
+        cycles, setup, cleanup = self._get_cycles(product, unit, quantity, bom)
         overhead = setup + cleanup
-        return cycles, overhead, overhead + cycles * time_cycle * 100.0 / efficiency
+        return (
+            cycles,
+            overhead,
+            overhead + cycles * time_cycle * 100.0 / self._get_efficiency(),
+        )
 
     def _get_cycles_and_working_minutes(self, product, unit, quantity, duration, bom):
-        capacity, setup, cleanup = self._get_capacity(
-            product, unit, self._get_bom_capacity(bom, unit)
-        )
-        cycles = float_round(
-            quantity / capacity, precision_digits=0, rounding_method="UP"
-        )
-        return cycles, max(
-            duration - setup - cleanup, 0.0
-        ) * self.time_efficiency / 100.0
+        cycles, setup, cleanup = self._get_cycles(product, unit, quantity, bom)
+        return cycles, self._get_net_minutes(duration, setup, cleanup)
 
     def _get_capacity(self, product, unit, default_capacity=1):
         self.check_singleton()

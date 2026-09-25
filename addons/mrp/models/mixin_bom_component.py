@@ -56,6 +56,25 @@ class MixinBomComponent(models.AbstractModel):
         "A quantity on a bill of materials cannot be negative.",
     )
 
+    _OUTDATING_FIELDS = ("product_id", "product_qty", "product_uom_id")
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        records.bom_id._mark_open_productions_outdated()
+        return records
+
+    def write(self, vals):
+        if any(field_name in vals for field_name in self._OUTDATING_FIELDS):
+            self.bom_id._mark_open_productions_outdated()
+        return super().write(vals)
+
+    def unlink(self):
+        boms = self.bom_id
+        result = super().unlink()
+        boms._mark_open_productions_outdated()
+        return result
+
     @api.depends("product_id")
     def _compute_product_uom_id(self):
         for record in self:

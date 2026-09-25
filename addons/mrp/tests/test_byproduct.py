@@ -747,6 +747,39 @@ class TestMrpByProduct(common.TransactionCase):
             ],
         )
 
+    def _confirmed_order(self):
+        production = self.env["mrp.production"].create(
+            {"product_id": self.product_a.id, "bom_id": self.bom_byproduct.id}
+        )
+        production.action_confirm()
+        self.assertFalse(production.is_outdated_bom)
+        return production
+
+    def test_a_catalog_by_product_change_outdates_open_orders(self):
+        production = self._confirmed_order()
+        self.bom_byproduct._update_order_line_info(
+            self.product_b.id, 5, child_field="byproduct_ids"
+        )
+        self.assertEqual(self.bom_byproduct.byproduct_ids.product_qty, 5)
+        self.assertTrue(
+            production.is_outdated_bom,
+            "a by-product quantity changed through the catalog outdates the "
+            "order, as a component's does",
+        )
+
+    def test_a_catalog_by_product_removal_outdates_open_orders(self):
+        production = self._confirmed_order()
+        self.bom_byproduct._update_order_line_info(
+            self.product_b.id, 0, child_field="byproduct_ids"
+        )
+        self.assertFalse(self.bom_byproduct.byproduct_ids)
+        self.assertTrue(production.is_outdated_bom)
+
+    def test_a_by_product_cost_share_change_outdates_open_orders(self):
+        production = self._confirmed_order()
+        self.bom_byproduct.byproduct_ids.cost_share = 10
+        self.assertTrue(production.is_outdated_bom)
+
 
 @tagged("post_install", "-at_install")
 class TestByproductMoves(common.TransactionCase):

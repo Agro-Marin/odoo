@@ -7,6 +7,7 @@ class MrpBomByproduct(models.Model):
     _description = "Byproduct"
 
     _bom_child_field = "byproduct_ids"
+    _OUTDATING_FIELDS = ("product_id", "product_qty", "product_uom_id", "cost_share")
 
     product_id = fields.Many2one(
         comodel_name="product.product",

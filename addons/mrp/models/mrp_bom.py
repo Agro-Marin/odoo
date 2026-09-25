@@ -988,6 +988,11 @@ class MrpBom(models.Model):
             }
         ]
 
+    def _mark_open_productions_outdated(self):
+        self.with_context(
+            skip_bom_outdated_unmark=True
+        )._update_outdated_bom_in_productions()
+
     def _update_outdated_bom_in_productions(self):
         if not self:
             return

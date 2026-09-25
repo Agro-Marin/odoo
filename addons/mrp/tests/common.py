@@ -363,6 +363,60 @@ class TestMrpCommon(TestStockCommon):
             }
         )
 
+    @classmethod
+    def _routed_bom(
+        cls, finished, component, *operation_names, workcenter, product_qty=1
+    ):
+        return cls.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": finished.product_tmpl_id.id,
+                "product_qty": product_qty,
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 1})
+                ],
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": name,
+                            "workcenter_id": workcenter.id,
+                            "time_cycle_manual": 60,
+                            "sequence": sequence,
+                        }
+                    )
+                    for sequence, name in enumerate(operation_names)
+                ],
+            }
+        )
+
+    def _confirmed_production(self, bom, qty=1, unit=None):
+        form = Form(self.env["mrp.production"])
+        form.product_id = bom.product_id or bom.product_tmpl_id.product_variant_id
+        form.bom_id = bom
+        form.product_qty = qty
+        if unit:
+            form.product_uom_id = unit
+        production = form.save()
+        production.action_confirm()
+        return production
+
+    def _timers(self, target, *rows):
+        workorder = (
+            target if target._name == "mrp.workorder" else self.env["mrp.workorder"]
+        )
+        return self.env["mrp.workcenter.productivity"].create(
+            [
+                {
+                    "workorder_id": workorder.id,
+                    "workcenter_id": (workorder.workcenter_id or target).id,
+                    "loss_id": self.env.ref(loss).id,
+                    "date_start": date_start,
+                    "date_end": date_end,
+                    **({"user_id": user[0].id} if user else {}),
+                }
+                for loss, date_start, date_end, *user in rows
+            ]
+        )
+
     def _without_vendor_pull(self, warehouse):
         # Buy (purchase_stock) takes the vendor pull off the reception route;
         # without purchase it is there, and a vendor would supply these.

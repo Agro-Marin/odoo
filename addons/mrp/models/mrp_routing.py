@@ -150,7 +150,7 @@ class MrpRoutingWorkcenter(models.Model):
                 continue
             query = Workorder._search(
                 [
-                    ("operation_id", "in", operations.ids),
+                    ("operation_id", "in", operations._origin.ids),
                     ("qty_produced", ">", 0),
                     ("state", "=", "done"),
                 ],
@@ -178,8 +178,10 @@ class MrpRoutingWorkcenter(models.Model):
             ids_by_operation = defaultdict(list)
             for workorder_id, operation_id in rows:
                 ids_by_operation[operation_id].append(workorder_id)
-            for operation_id, workorder_ids in ids_by_operation.items():
-                result[operation_id] = Workorder.browse(workorder_ids)
+            for operation in operations:
+                result[operation.id] = Workorder.browse(
+                    ids_by_operation[operation._origin.id]
+                )
             _debug.perf.count(
                 "operation_history_ranked",
                 batch_size=batch_size,
@@ -191,9 +193,14 @@ class MrpRoutingWorkcenter(models.Model):
     @api.depends(
         "time_cycle_manual",
         "time_mode",
+        "time_mode_batch",
         "workorder_ids",
+        "workorder_ids.duration",
+        "workorder_ids.qty_produced",
+        "workorder_ids.state",
         "bom_id.product_id",
         "bom_id.product_qty",
+        "bom_id.product_uom_id",
         "workcenter_id.time_start",
         "workcenter_id.time_stop",
         "workcenter_id.time_efficiency",
@@ -235,12 +242,13 @@ class MrpRoutingWorkcenter(models.Model):
 
         for operation in self:
             workcenter = self.env.context.get("workcenter", operation.workcenter_id)
-            product = self.env.context.get(
-                "product", operation.bom_id.product_id
-            ) or self.env.context.get(
-                "action_button_product",
-                operation._get_applicable_variants(),
-            )
+            product = self.env.context.get("product", operation.bom_id.product_id)
+            if not product:
+                product = (
+                    self.env.context["action_button_product"]
+                    if "action_button_product" in self.env.context
+                    else operation._get_applicable_variants()
+                )
             if len(product) > 1:
                 product = product[0]
             quantity = self.env.context.get(
@@ -293,9 +301,7 @@ class MrpRoutingWorkcenter(models.Model):
     def create(self, vals_list):
         res = super().create(vals_list)
         _debug.lifecycle("create", operations=res, boms=res.bom_id)
-        res.bom_id.with_context(
-            skip_bom_outdated_unmark=True
-        )._update_outdated_bom_in_productions()
+        res.bom_id._mark_open_productions_outdated()
         return res
 
     _OUTDATING_FIELDS = (
@@ -313,9 +319,7 @@ class MrpRoutingWorkcenter(models.Model):
     def write(self, vals):
         _debug.lifecycle("write", operations=self, fields=list(vals))
         if any(field_name in vals for field_name in self._OUTDATING_FIELDS):
-            self.bom_id.with_context(
-                skip_bom_outdated_unmark=True
-            )._update_outdated_bom_in_productions()
+            self.bom_id._mark_open_productions_outdated()
         if "bom_id" in vals:
             for op in self.filtered_domain([("bom_id", "!=", vals["bom_id"])]):
                 op.bom_id.bom_line_ids.filtered_domain(
@@ -348,9 +352,7 @@ class MrpRoutingWorkcenter(models.Model):
         )
         bom_lines.write({"operation_id": False})
         byproduct_lines.write({"operation_id": False})
-        self.bom_id.with_context(
-            skip_bom_outdated_unmark=True
-        )._update_outdated_bom_in_productions()
+        self.bom_id._mark_open_productions_outdated()
         return res
 
     def action_unarchive(self):
@@ -361,9 +363,7 @@ class MrpRoutingWorkcenter(models.Model):
         _debug.lifecycle("operation_unarchived", operations=self)
         self.archived_bom_line_ids = [Command.clear()]
         self.archived_byproduct_ids = [Command.clear()]
-        self.bom_id.with_context(
-            skip_bom_outdated_unmark=True
-        )._update_outdated_bom_in_productions()
+        self.bom_id._mark_open_productions_outdated()
         return res
 
     def action_copy_to_bom(self):

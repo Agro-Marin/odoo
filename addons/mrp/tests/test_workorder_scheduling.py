@@ -1,10 +1,11 @@
+import gc
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from freezegun import freeze_time
 
 from odoo import Command, fields
-from odoo.tests import Form, tagged
+from odoo.tests import tagged
 
 from .common import TestMrpCommon
 from odoo.addons.mrp.models.mrp_workorder import MrpWorkorder
@@ -56,37 +57,13 @@ class WorkorderSchedulingCase(TestMrpCommon):
 
     @classmethod
     def _bom(cls, *names, product_qty=1, workcenter=None):
-        return cls.env["mrp.bom"].create(
-            {
-                "product_tmpl_id": cls.finished.product_tmpl_id.id,
-                "product_qty": product_qty,
-                "bom_line_ids": [
-                    Command.create({"product_id": cls.component.id, "product_qty": 1})
-                ],
-                "operation_ids": [
-                    Command.create(
-                        {
-                            "name": name,
-                            "workcenter_id": (workcenter or cls.workcenter).id,
-                            "time_cycle_manual": 60,
-                            "sequence": sequence,
-                        }
-                    )
-                    for sequence, name in enumerate(names)
-                ],
-            }
+        return cls._routed_bom(
+            cls.finished,
+            cls.component,
+            *names,
+            workcenter=workcenter or cls.workcenter,
+            product_qty=product_qty,
         )
-
-    def _confirmed(self, bom, qty=1, unit=None):
-        form = Form(self.env["mrp.production"])
-        form.product_id = self.finished
-        form.bom_id = bom
-        form.product_qty = qty
-        if unit:
-            form.product_uom_id = unit
-        production = form.save()
-        production.action_confirm()
-        return production
 
     def _at(self, *args, workcenter=None):
         zone = ZoneInfo((workcenter or self.workcenter).resource_id.tz or "UTC")
@@ -96,7 +73,7 @@ class WorkorderSchedulingCase(TestMrpCommon):
 @tagged("post_install", "-at_install")
 class TestWorkorderResourceZone(WorkorderSchedulingCase):
     def test_moving_a_work_order_ends_it_in_the_work_centers_zone(self):
-        workorder = self._confirmed(self._bom("press")).workorder_ids
+        workorder = self._confirmed_production(self._bom("press")).workorder_ids
         workorder.write({"date_start": self._at(2030, 1, 7, 8)})
         self.assertEqual(
             workorder.date_end,
@@ -105,7 +82,7 @@ class TestWorkorderResourceZone(WorkorderSchedulingCase):
         )
 
     def test_resizing_a_work_order_measures_the_work_centers_hours(self):
-        workorder = self._confirmed(self._bom("press")).workorder_ids
+        workorder = self._confirmed_production(self._bom("press")).workorder_ids
         workorder.write(
             {
                 "date_start": self._at(2030, 1, 7, 8),
@@ -126,27 +103,58 @@ class TestWorkorderResourceZone(WorkorderSchedulingCase):
                 "date_to": self._at(2030, 1, 7, 12),
             }
         )
-        workorder = self._confirmed(self._bom("press")).workorder_ids
+        workorder = self._confirmed_production(self._bom("press")).workorder_ids
         workorder.write({"date_start": self._at(2030, 1, 7, 8)})
         self.assertEqual(workorder.date_end, self._at(2030, 1, 7, 14))
 
 
 @tagged("post_install", "-at_install")
-class TestWorkorderTimerClose(WorkorderSchedulingCase):
-    def _open_timer(self, workorder, loss_xmlid, minutes_ago):
-        return self.env["mrp.workcenter.productivity"].create(
+class TestWorkorderWorkedTime(WorkorderSchedulingCase):
+    def setUp(self):
+        super().setUp()
+        self.env["resource.schedule.exception"].create(
             {
-                "workorder_id": workorder.id,
-                "workcenter_id": workorder.workcenter_id.id,
-                "loss_id": self.env.ref(loss_xmlid).id,
-                "date_start": fields.Datetime.now() - timedelta(minutes=minutes_ago),
+                "name": "Press training",
+                "calendar_id": self.calendar.id,
+                "resource_id": self.workcenter.resource_id.id,
+                "time_type_id": self.env.ref("resource.time_type_work").id,
+                "date_from": self._at(2030, 1, 7, 8),
+                "date_to": self._at(2030, 1, 7, 10),
             }
         )
 
+    def test_moving_an_order_counts_worked_time_as_working_time(self):
+        workorder = self._confirmed_production(self._bom("press")).workorder_ids
+        slot = self.workcenter._get_first_available_slot(self._at(2030, 1, 7, 8), 60)
+        workorder.write({"date_start": self._at(2030, 1, 7, 8)})
+        self.assertEqual(
+            (workorder.date_start, workorder.date_end),
+            tuple(slot[:2]),
+            "planning and moving an order agree on what working time is",
+        )
+
+    def test_resizing_an_order_over_worked_time_measures_it(self):
+        workorder = self._confirmed_production(self._bom("press")).workorder_ids
+        workorder.write(
+            {
+                "date_start": self._at(2030, 1, 7, 8),
+                "date_end": self._at(2030, 1, 7, 9),
+                "duration_expected": 60,
+            }
+        )
+        workorder.write({"date_end": self._at(2030, 1, 7, 10)})
+        self.assertEqual(workorder.duration_expected, 120)
+
+
+@tagged("post_install", "-at_install")
+class TestWorkorderTimerClose(WorkorderSchedulingCase):
     def test_a_work_order_without_expectation_stays_productive(self):
-        workorder = self._confirmed(self._bom("press")).workorder_ids
+        workorder = self._confirmed_production(self._bom("press")).workorder_ids
         workorder.duration_expected = 0
-        timer = self._open_timer(workorder, "mrp.block_reason7", 60)
+        (timer,) = self._timers(
+            workorder,
+            ("mrp.block_reason7", fields.Datetime.now() - timedelta(minutes=60), False),
+        )
         workorder.end_all()
         self.assertEqual(
             (workorder.time_ids.mapped("loss_type"), timer.loss_type),
@@ -155,19 +163,18 @@ class TestWorkorderTimerClose(WorkorderSchedulingCase):
         )
 
     def test_closing_keeps_a_blocking_reason(self):
-        workorder = self._confirmed(self._bom("press")).workorder_ids
+        workorder = self._confirmed_production(self._bom("press")).workorder_ids
         workorder.duration_expected = 30
-        start = fields.Datetime.now() - timedelta(hours=5)
-        self.env["mrp.workcenter.productivity"].create(
-            {
-                "workorder_id": workorder.id,
-                "workcenter_id": workorder.workcenter_id.id,
-                "loss_id": self.env.ref("mrp.block_reason7").id,
-                "date_start": start,
-                "date_end": start + timedelta(minutes=120),
-            }
+        now = fields.Datetime.now()
+        _worked, blocked = self._timers(
+            workorder,
+            (
+                "mrp.block_reason7",
+                now - timedelta(hours=5),
+                now - timedelta(hours=3),
+            ),
+            ("mrp.block_reason0", now - timedelta(minutes=10), False),
         )
-        blocked = self._open_timer(workorder, "mrp.block_reason0", 10)
         workorder.end_all()
         self.assertEqual(
             (blocked.loss_id, len(workorder.time_ids)),
@@ -182,7 +189,7 @@ class TestWorkorderStartStop(WorkorderSchedulingCase):
     def test_starting_a_late_order_keeps_its_length(self):
         for planned_start in (self._at(2030, 1, 7, 8), self._at(2030, 1, 7, 9, 30)):
             with self.subTest(planned_start=planned_start):
-                workorder = self._confirmed(self._bom("press")).workorder_ids
+                workorder = self._confirmed_production(self._bom("press")).workorder_ids
                 workorder.write(
                     {
                         "date_start": planned_start,
@@ -198,7 +205,7 @@ class TestWorkorderStartStop(WorkorderSchedulingCase):
                 )
 
     def test_back_to_ready_stops_every_users_timer(self):
-        workorder = self._confirmed(self._bom("press")).workorder_ids
+        workorder = self._confirmed_production(self._bom("press")).workorder_ids
         workorder.button_start()
         workorder.time_ids.unlink()
         Timer = self.env["mrp.workcenter.productivity"]
@@ -227,7 +234,9 @@ class TestWorkorderStartStop(WorkorderSchedulingCase):
         )
 
     def test_unblocking_two_orders_of_one_work_center(self):
-        workorders = self._confirmed(self._bom("first", "second")).workorder_ids
+        workorders = self._confirmed_production(
+            self._bom("first", "second")
+        ).workorder_ids
         self.env["mrp.workcenter.productivity"].create(
             {
                 "workcenter_id": self.workcenter.id,
@@ -242,7 +251,7 @@ class TestWorkorderStartStop(WorkorderSchedulingCase):
 @tagged("post_install", "-at_install")
 class TestWorkorderProductionDates(WorkorderSchedulingCase):
     def test_the_order_spans_its_earliest_start_and_latest_end(self):
-        production = self._confirmed(self._bom("a", "b", "c"))
+        production = self._confirmed_production(self._bom("a", "b", "c"))
         first, second, third = production.workorder_ids.sorted("sequence")
         base = datetime(2030, 1, 7, 1)
         for index, workorder in enumerate((first, second, third)):
@@ -279,7 +288,7 @@ class TestWorkorderProductionDates(WorkorderSchedulingCase):
 class TestWorkorderCapacityUnits(WorkorderSchedulingCase):
     def test_the_bom_batch_is_counted_in_the_orders_unit(self):
         bom = self._bom("press", product_qty=10)
-        production = self._confirmed(bom, qty=1, unit=self.dozen)
+        production = self._confirmed_production(bom, qty=1, unit=self.dozen)
         self.assertEqual(
             production.workorder_ids.duration_expected,
             120,
@@ -338,7 +347,7 @@ class TestWorkorderAlternativeWithoutOperation(WorkorderSchedulingCase):
                 "enforcement_mode": "soft",
             }
         )
-        production = self._confirmed(self._bom())
+        production = self._confirmed_production(self._bom())
         production.workorder_ids = [
             Command.create(
                 {
@@ -374,7 +383,7 @@ class TestWorkorderWorkcenterChange(WorkorderSchedulingCase):
         other = self.env["mrp.workcenter"].create(
             {"name": "Other press", "resource_calendar_id": self.calendar.id}
         )
-        workorder = self._confirmed(self._bom("press")).workorder_ids
+        workorder = self._confirmed_production(self._bom("press")).workorder_ids
         workorder.write(
             {
                 "date_start": self._at(2030, 1, 7, 8),
@@ -389,7 +398,7 @@ class TestWorkorderWorkcenterChange(WorkorderSchedulingCase):
 @tagged("post_install", "-at_install")
 class TestWorkorderMarkAsDoneBatch(WorkorderSchedulingCase):
     def _statements_to_mark_done(self, operations):
-        workorders = self._confirmed(
+        workorders = self._confirmed_production(
             self._bom(*(f"op {index}" for index in range(operations)))
         ).workorder_ids
         self.env.flush_all()
@@ -407,4 +416,60 @@ class TestWorkorderMarkAsDoneBatch(WorkorderSchedulingCase):
             eight - two,
             two,
             f"six more work orders cost {eight - two} statements on top of {two}",
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestWorkorderTimeBatch(WorkorderSchedulingCase):
+    def _marginal_statements(self, action, prepare=None):
+        cost = {}
+        for count in (2, 8):
+            workorders = self._confirmed_production(
+                self._bom(*(f"op {index}" for index in range(count)))
+            ).workorder_ids
+            if prepare:
+                prepare(workorders)
+            self.env.flush_all()
+            self.env.invalidate_all()
+            self.env.registry.clear_all_caches()
+            gc.collect()
+            before = self.env.cr.sql_statement_count
+            action(workorders)
+            self.env.flush_all()
+            cost[count] = self.env.cr.sql_statement_count - before
+        return (cost[8] - cost[2]) / 6, cost
+
+    def test_measuring_blockages_reads_the_calendar_once(self):
+        def block(workorders):
+            for workorder in workorders:
+                self._timers(
+                    workorder,
+                    (
+                        "mrp.block_reason0",
+                        self._at(2030, 1, 7, 9),
+                        self._at(2030, 1, 7, 10),
+                    ),
+                )
+
+        def measure(workorders):
+            self.env.add_to_compute(workorders._fields["duration"], workorders)
+            self.assertEqual(set(workorders.mapped("duration")), {60})
+
+        marginal, cost = self._marginal_statements(measure, prepare=block)
+        self.assertLess(
+            marginal,
+            1,
+            f"each work order read its work center's calendar again: {cost}",
+        )
+
+    def test_writing_durations_logs_them_in_one_batch(self):
+        def log(workorders):
+            workorders.duration = 30
+            self.assertEqual(set(workorders.mapped("duration")), {30})
+
+        marginal, cost = self._marginal_statements(log)
+        self.assertLess(
+            marginal,
+            1,
+            f"each work order created its time log on its own: {cost}",
         )

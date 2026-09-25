@@ -206,6 +206,12 @@ class MrpUnbuild(models.Model):
                 else production.qty_produced
             )
 
+    def _get_earlier_unbuilds(self):
+        self.check_singleton()
+        return (self.mo_id.unbuild_ids - self).filtered(
+            lambda unbuild: unbuild.state == "done"
+        )
+
     def _get_quantity_unbuilt_before(self):
         self.check_singleton()
         production = self.mo_id
@@ -213,8 +219,7 @@ class MrpUnbuild(models.Model):
             unbuild.product_uom_id._get_quantity_in_unit(
                 unbuild.product_qty, production.product_uom_id, round=False
             )
-            for unbuild in production.unbuild_ids
-            if unbuild.state == "done" and unbuild != self
+            for unbuild in self._get_earlier_unbuilds()
         )
 
     @api.model_create_multi
@@ -306,7 +311,7 @@ class MrpUnbuild(models.Model):
         _debug.pipeline("unbuild", consume=consume_moves, produce=produce_moves)
 
         previously_unbuilt_lots = (
-            (self.mo_id.unbuild_ids - self)
+            self._get_earlier_unbuilds()
             .produce_line_ids.filtered(
                 lambda ml: (
                     ml.product_id != self.product_id
@@ -480,9 +485,7 @@ class MrpUnbuild(models.Model):
     def _get_quantities_returned_before(self):
         self.check_singleton()
         returned = defaultdict(float)
-        earlier = (self.mo_id.unbuild_ids - self).filtered_domain(
-            [("state", "=", "done")]
-        )
+        earlier = self._get_earlier_unbuilds()
         for line in earlier.produce_line_ids.move_line_ids:
             if line.product_id != self.product_id:
                 returned[line.product_id, line.lot_id] += line.quantity

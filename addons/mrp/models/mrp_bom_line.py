@@ -112,15 +112,10 @@ class MrpBomLine(models.Model):
         "bom_product_template_attribute_value_ids",
     )
 
-    _OUTDATING_FIELDS = ("product_id", "product_qty", "product_uom_id")
-
     @api.model_create_multi
     def create(self, vals_list):
         lines = super().create(vals_list)
         _debug.lifecycle("create", lines=lines, boms=lines.bom_id)
-        lines.bom_id.with_context(
-            skip_bom_outdated_unmark=True
-        )._update_outdated_bom_in_productions()
         if not self._is_chatter_muted():
             for bom, added in lines.grouped("bom_id").items():
                 bom.message_post(
@@ -143,11 +138,6 @@ class MrpBomLine(models.Model):
         return lines
 
     def write(self, vals):
-        if any(field_name in vals for field_name in self._OUTDATING_FIELDS):
-            self.bom_id.with_context(
-                skip_bom_outdated_unmark=True
-            )._update_outdated_bom_in_productions()
-
         tracked = [name for name in self._CHATTER_TRACKED_FIELDS if name in vals]
         _debug.lifecycle("write", lines=self, fields=list(vals), tracked=len(tracked))
         if not tracked or self._is_chatter_muted():
@@ -192,15 +182,7 @@ class MrpBomLine(models.Model):
         return result
 
     def unlink(self):
-        boms = self.bom_id
-        _debug.lifecycle("unlink", lines=self, boms=boms)
-        result = self._unlink_and_notify_boms()
-        boms.with_context(
-            skip_bom_outdated_unmark=True
-        )._update_outdated_bom_in_productions()
-        return result
-
-    def _unlink_and_notify_boms(self):
+        _debug.lifecycle("unlink", lines=self, boms=self.bom_id)
         if self._is_chatter_muted():
             return super().unlink()
 

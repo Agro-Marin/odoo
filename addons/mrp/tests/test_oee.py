@@ -10,17 +10,6 @@ from odoo.addons.mrp.tests.common import TestMrpCommon
 
 
 class TestOee(TestMrpCommon):
-    def create_productivity_line(self, loss_reason, date_start=False, date_end=False):
-        return self.env["mrp.workcenter.productivity"].create(
-            {
-                "workcenter_id": self.workcenter_1.id,
-                "date_start": date_start,
-                "date_end": date_end,
-                "loss_id": loss_reason.id,
-                "description": loss_reason.name,
-            }
-        )
-
     @freeze_time("2025-05-30")
     def test_unset_end_date(self):
         with Form(self.env["mrp.workcenter.productivity"]) as workcenter_productivity:
@@ -55,13 +44,11 @@ class TestOee(TestMrpCommon):
 
         start_time = time_to_string_utc_datetime(time(10, 43, 22))
         end_time = time_to_string_utc_datetime(time(10, 56, 22))
-        self.create_productivity_line(
-            self.env.ref("mrp.block_reason7"), start_time, end_time
-        )
+        self._timers(self.workcenter_1, ("mrp.block_reason7", start_time, end_time))
 
         start_time = time_to_string_utc_datetime(time(10, 47, 8))
-        workcenter_productivity_1 = self.create_productivity_line(
-            self.env.ref("mrp.block_reason0"), start_time
+        (workcenter_productivity_1,) = self._timers(
+            self.workcenter_1, ("mrp.block_reason0", start_time, False)
         )
         self.assertEqual(
             self.workcenter_1.working_state,
@@ -79,17 +66,16 @@ class TestOee(TestMrpCommon):
 
         start_time = time_to_string_utc_datetime(time(10, 48, 38))
         end_time = time_to_string_utc_datetime(time(10, 49, 58))
-        self.create_productivity_line(
-            self.env.ref("mrp.block_reason5"), start_time, end_time
-        )
+        self._timers(self.workcenter_1, ("mrp.block_reason5", start_time, end_time))
         start_time = time_to_string_utc_datetime(time(10, 50, 22))
         end_time = time_to_string_utc_datetime(time(10, 53, 22))
-        self.create_productivity_line(
-            self.env.ref("mrp.block_reason4"), start_time, end_time
-        )
+        self._timers(self.workcenter_1, ("mrp.block_reason4", start_time, end_time))
 
-        blocked_time = 1.33 + 1.52
-        productive_time = 13.0 + 3.0
+        # Overlaps count once: the quality stop starts a second before the
+        # availability stop ends, and the performance timer lies inside the
+        # productive one.
+        blocked_time = 170 / 60
+        productive_time = 13.0
 
         self.assertEqual(
             self.workcenter_1.blocked_time,

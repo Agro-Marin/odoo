@@ -8,9 +8,8 @@ from odoo import Command, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.libs.intervals import Intervals
 from odoo.tools import format_datetime, frozendict
-from odoo.tools.date_utils import get_intervals_hours, localized
+from odoo.tools.date_utils import get_intervals_hours
 
 _debug = DebugLog(__name__)
 
@@ -682,8 +681,27 @@ class MrpWorkorder(models.Model):
 
     @api.depends("time_ids.duration", "time_ids.loss_type")
     def _compute_durations(self):
+        working_intervals_by_workcenter = self._get_working_intervals_by_workcenter()
         for order in self:
-            order.duration = order._get_duration()
+            order.duration = order._get_duration(
+                working_intervals_by_workcenter=working_intervals_by_workcenter
+            )
+
+    def _get_working_intervals_by_workcenter(self):
+        spans_by_workcenter = defaultdict(list)
+        for timer in self.time_ids:
+            if (
+                timer.date_start
+                and timer.date_end
+                and timer.loss_id._is_measured_on_working_time()
+            ):
+                spans_by_workcenter[timer.workcenter_id].append(
+                    (timer.date_start, timer.date_end)
+                )
+        return {
+            workcenter: workcenter._get_working_intervals_of_spans(spans)
+            for workcenter, spans in spans_by_workcenter.items()
+        }
 
     @api.depends("duration", "qty_produced", "duration_expected")
     def _compute_duration_deviation(self):
@@ -713,64 +731,68 @@ class MrpWorkorder(models.Model):
             workorder.duration_live = workorder._get_duration(until=now)
 
     def _inverse_duration(self):
+        Productivity = self.env["mrp.workcenter.productivity"]
+        added_timer_vals = []
+        timers_to_unlink = Productivity
+        to_start = self.browse()
         for order in self:
             old_order_duration = order._get_duration()
             new_order_duration = order.duration
             if new_order_duration == old_order_duration:
                 continue
-
-            delta_duration = new_order_duration - old_order_duration
-
-            if delta_duration > 0:
+            if new_order_duration > old_order_duration:
                 if order.state not in ("progress", "done", "cancel"):
-                    order.state = "progress"
-                enddate = fields.Datetime.now()
-                date_start = enddate - timedelta(minutes=delta_duration)
-                end_dates = order.time_ids.filtered("date_end").mapped("date_end")
-                if end_dates:
-                    latest_end = max(end_dates)
-                    if latest_end > date_start:
-                        date_start = latest_end
-                        enddate = latest_end + timedelta(minutes=delta_duration)
-                if (
-                    order.duration_expected >= new_order_duration
-                    or old_order_duration >= order.duration_expected
-                ):
-                    self.env["mrp.workcenter.productivity"].create(
-                        order._prepare_timeline_vals(
-                            new_order_duration, date_start, enddate
-                        )
-                    )
-                else:
-                    maxdate = fields.Datetime.from_string(enddate) - relativedelta(
-                        minutes=new_order_duration - order.duration_expected
-                    )
-                    self.env["mrp.workcenter.productivity"].create(
-                        [
-                            order._prepare_timeline_vals(
-                                order.duration_expected, date_start, maxdate
-                            ),
-                            order._prepare_timeline_vals(
-                                new_order_duration, maxdate, enddate
-                            ),
-                        ]
-                    )
+                    to_start |= order
+                added_timer_vals += order._prepare_added_timeline_vals(
+                    old_order_duration, new_order_duration
+                )
             else:
-                duration_to_remove = abs(delta_duration)
-                timelines_to_unlink = self.env["mrp.workcenter.productivity"]
-                for timeline in order.time_ids.filtered("date_end").sorted():
-                    if duration_to_remove <= 0.0:
-                        break
-                    if timeline.duration <= duration_to_remove:
-                        duration_to_remove -= timeline.duration
-                        timelines_to_unlink |= timeline
-                    else:
-                        new_time_line_duration = timeline.duration - duration_to_remove
-                        timeline.date_start = timeline.date_end - timedelta(
-                            minutes=new_time_line_duration
-                        )
-                        break
-                timelines_to_unlink.unlink()
+                timers_to_unlink |= order._shorten_timeline(
+                    old_order_duration - new_order_duration
+                )
+        to_start.state = "progress"
+        Productivity.create(added_timer_vals)
+        timers_to_unlink.unlink()
+
+    def _prepare_added_timeline_vals(self, old_duration, new_duration):
+        self.check_singleton()
+        added = new_duration - old_duration
+        date_end = fields.Datetime.now()
+        date_start = date_end - timedelta(minutes=added)
+        end_dates = self.time_ids.filtered("date_end").mapped("date_end")
+        if end_dates and max(end_dates) > date_start:
+            date_start = max(end_dates)
+            date_end = date_start + timedelta(minutes=added)
+        if (
+            self.duration_expected >= new_duration
+            or old_duration >= self.duration_expected
+        ):
+            return [self._prepare_timeline_vals(new_duration, date_start, date_end)]
+        date_expected_reached = date_end - timedelta(
+            minutes=new_duration - self.duration_expected
+        )
+        return [
+            self._prepare_timeline_vals(
+                self.duration_expected, date_start, date_expected_reached
+            ),
+            self._prepare_timeline_vals(new_duration, date_expected_reached, date_end),
+        ]
+
+    def _shorten_timeline(self, duration_to_remove):
+        self.check_singleton()
+        timers_to_unlink = self.env["mrp.workcenter.productivity"]
+        for timer in self.time_ids.filtered("date_end").sorted():
+            if duration_to_remove <= 0.0:
+                break
+            if timer.duration <= duration_to_remove:
+                duration_to_remove -= timer.duration
+                timers_to_unlink |= timer
+            else:
+                timer.date_start = timer.date_end - timedelta(
+                    minutes=timer.duration - duration_to_remove
+                )
+                break
+        return timers_to_unlink
 
     @api.depends("duration", "duration_expected", "state")
     def _compute_progress(self):
@@ -846,7 +868,6 @@ class MrpWorkorder(models.Model):
             self.duration_expected / 60.0,
             date_start or self.date_start,
             compute_leaves=True,
-            domain=[("time_type_id", "!=", False)],
             resource=workcenter.resource_id,
         )
 
@@ -868,14 +889,10 @@ class MrpWorkorder(models.Model):
         workcenter = self.workcenter_id
         if not workcenter.resource_calendar_id:
             return (date_end - date_start).total_seconds() / 60
-        resource = workcenter.resource_id
-        worked = workcenter.resource_calendar_id._work_intervals_batch(
-            localized(date_start),
-            localized(date_end),
-            resources=resource,
-            domain=[("time_type_id", "!=", False)],
-        )[resource.id]
-        return get_intervals_hours(worked) * 60
+        return (
+            get_intervals_hours(workcenter._get_working_intervals(date_start, date_end))
+            * 60
+        )
 
     @api.onchange("finished_lot_ids")
     def _onchange_finished_lot_ids(self):
@@ -981,13 +998,9 @@ class MrpWorkorder(models.Model):
             "bypass_duration_calculation"
         ):
             return {}
-        if values.get("date_start") and values.get("date_end"):
-            return {
-                "date_end": self._get_date_end(
-                    date_start=date_start, new_workcenter=new_workcenter
-                )
-            }
-        if date_start and not date_end:
+        if date_start and (
+            not date_end or (values.get("date_start") and values.get("date_end"))
+        ):
             return {
                 "date_end": self._get_date_end(
                     date_start=date_start, new_workcenter=new_workcenter
@@ -1410,11 +1423,8 @@ class MrpWorkorder(models.Model):
             _capacity, old_setup, old_cleanup = previous._get_capacity(
                 previous_record.product_id, previous_record.product_uom_id
             )
-            working_minutes = max(
-                (self.duration_expected - old_setup - old_cleanup)
-                * previous.time_efficiency
-                / 100.0,
-                0,
+            working_minutes = previous._get_net_minutes(
+                self.duration_expected, old_setup, old_cleanup
             )
             if self.qty_producing not in (
                 0,
@@ -1529,7 +1539,9 @@ class MrpWorkorder(models.Model):
         if self.qty_producing:
             self.qty_producing = quantity
 
-    def _get_occupied_minutes(self, until=None, closed_by=None):
+    def _get_occupied_minutes(
+        self, until=None, closed_by=None, working_intervals_by_workcenter=None
+    ):
         """How long the work order occupied its work centers, in minutes.
 
         Timers of one work center merge, so two operators or a blockage during
@@ -1541,7 +1553,6 @@ class MrpWorkorder(models.Model):
         alone); `closed_by` keeps only timers closed by then.
         """
         self.check_singleton()
-        Attendance = self.env["resource.calendar.attendance"]
         minutes = 0.0
         for workcenter, timers in self.time_ids.grouped("workcenter_id").items():
             spans = [
@@ -1552,34 +1563,25 @@ class MrpWorkorder(models.Model):
                 and (not closed_by or (timer.date_end and timer.date_end <= closed_by))
             ]
             on_calendar = [
-                span for span in spans if span[0].loss_id._is_measured_on_working_time()
+                (start, stop)
+                for timer, start, stop in spans
+                if timer.loss_id._is_measured_on_working_time()
             ]
-            occupied = Intervals(
+            working_intervals = None
+            if until is None and working_intervals_by_workcenter:
+                working_intervals = working_intervals_by_workcenter.get(workcenter)
+            minutes += workcenter._get_occupied_minutes(
                 [
-                    (localized(start), localized(stop), Attendance)
+                    (start, stop)
                     for timer, start, stop in spans
                     if not timer.loss_id._is_measured_on_working_time()
-                ]
+                ],
+                on_calendar,
+                working_intervals,
             )
-            if on_calendar:
-                blocked = Intervals(
-                    [
-                        (localized(start), localized(stop), Attendance)
-                        for _timer, start, stop in on_calendar
-                    ]
-                )
-                if workcenter.resource_calendar_id:
-                    blocked &= workcenter._get_working_intervals(
-                        min(start for _timer, start, _stop in on_calendar),
-                        max(stop for _timer, _start, stop in on_calendar),
-                    )
-                occupied |= blocked
-            minutes += sum(
-                (stop - start).total_seconds() for start, stop, _records in occupied
-            )
-        return minutes / 60.0
+        return minutes
 
-    def _get_duration(self, until=None):
+    def _get_duration(self, until=None, working_intervals_by_workcenter=None):
         """The stored `duration` is the occupied time of `_get_occupied_minutes`.
 
         `duration_live` passes the wall clock -- the same clock `button_start`
@@ -1588,7 +1590,13 @@ class MrpWorkorder(models.Model):
         second into the transaction spans backwards and `Intervals` drops it.
         """
         self.check_singleton()
-        return round(self._get_occupied_minutes(until=until), 2)
+        return round(
+            self._get_occupied_minutes(
+                until=until,
+                working_intervals_by_workcenter=working_intervals_by_workcenter,
+            ),
+            2,
+        )
 
     def get_duration(self):
         return self._get_duration(until=fields.Datetime.now())
@@ -1602,10 +1610,19 @@ class MrpWorkorder(models.Model):
                 self.env._("Please unblock the work center to validate the work order")
             )
         self.button_finish()
-        for wo in self:
-            if not wo.duration:
-                wo.duration = wo.duration_expected
-                wo.duration_percent = 100
+        self._set_default_time_log()
+
+    def _set_default_time_log(self):
+        self.env["mrp.workcenter.productivity"].create(
+            [
+                vals
+                for workorder in self
+                if not workorder.duration and workorder.duration_expected
+                for vals in workorder._prepare_added_timeline_vals(
+                    0.0, workorder.duration_expected
+                )
+            ]
+        )
 
     def _get_machine_cost(self, minutes):
         self.check_singleton()
