@@ -50,20 +50,20 @@ class AccountChartTemplate(models.AbstractModel):
             return {}
 
         taxes = {}
-        if company.account_config_id.account_sale_tax_id:
+        if company.tax_config_id.account_sale_tax_id:
             taxes.update(
                 {
                     "taxes_id": [
-                        Command.link(company.account_config_id.account_sale_tax_id.id)
+                        Command.link(company.tax_config_id.account_sale_tax_id.id)
                     ]
                 }
             )
-        if company.account_config_id.account_purchase_tax_id:
+        if company.tax_config_id.account_purchase_tax_id:
             taxes.update(
                 {
                     "supplier_taxes_id": [
                         Command.link(
-                            company.account_config_id.account_purchase_tax_id.id
+                            company.tax_config_id.account_purchase_tax_id.id
                         )
                     ]
                 }

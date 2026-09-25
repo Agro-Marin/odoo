@@ -262,3 +262,45 @@ msgstr "Début de l'intervalle de code postal"
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_to
 msgid "Zip Range To"
 msgstr "Fin de l'intervalle de code postal"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/product_template.py:0
+msgid "%(amount)s Excl. Taxes"
+msgstr "%(amount)s hors taxes"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/product_template.py:0
+msgid "%(amount)s Incl. Taxes"
+msgstr "%(amount)s toutes taxes comprises"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_product_product__supplier_taxes_id
+#: model:ir.model.fields,help:tax.field_product_template__supplier_taxes_id
+msgid "Default taxes used when buying the product"
+msgstr "Taxes utilisées par défaut lors de l'achat du produit"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_product_product__taxes_id
+#: model:ir.model.fields,help:tax.field_product_template__taxes_id
+msgid "Default taxes used when selling the product"
+msgstr "Taxes utilisées par défaut lors de la vente du produit"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_product_product__supplier_taxes_id
+#: model:ir.model.fields,field_description:tax.field_product_template__supplier_taxes_id
+msgid "Purchase Taxes"
+msgstr "Taxes d'achat"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_product_product__taxes_id
+#: model:ir.model.fields,field_description:tax.field_product_template__taxes_id
+msgid "Sales Taxes"
+msgstr "Taxes de vente"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_product_product__tax_string
+#: model:ir.model.fields,field_description:tax.field_product_template__tax_string
+msgid "Tax String"
+msgstr "String fiscal"

@@ -142,16 +142,6 @@ class AccountConfig(models.Model):
         check_company=True,
     )
     transfer_account_code_prefix = fields.Char(string="Prefix of the transfer accounts")
-    account_sale_tax_id = fields.Many2one(
-        comodel_name="account.tax",
-        string="Default Sale Tax",
-        check_company=True,
-    )
-    account_purchase_tax_id = fields.Many2one(
-        comodel_name="account.tax",
-        string="Default Purchase Tax",
-        check_company=True,
-    )
     account_purchase_receipt_fiscal_position_id = fields.Many2one(
         comodel_name="account.fiscal.position",
         string="Default Purchase Receipt Fiscal Position",
@@ -636,11 +626,6 @@ class AccountConfig(models.Model):
                 if expected_vat
                 else self.env._("/ if not applicable")
             )
-
-    def action_save_onboarding_sale_tax(self):
-        self.env["onboarding.onboarding.step"].action_validate_step(
-            "account.onboarding_onboarding_step_sales_tax"
-        )
 
     @api.depends("company_id.tax_config_id.account_fiscal_country_id.code")
     def _compute_account_display_representative_field(self):

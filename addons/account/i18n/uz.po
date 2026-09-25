@@ -119,20 +119,6 @@ msgstr "%(action)s jurnali uchun %(journal)s"
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/product.py:0
-#, fuzzy
-msgid "%(amount)s Excl. Taxes"
-msgstr "%(amount)s Soliqlar chiqarilgan"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/product.py:0
-#, fuzzy
-msgid "%(amount)s Incl. Taxes"
-msgstr "%(amount)s Soliqlar kiritilgan"
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/account_move.py:0
 #, fuzzy
 msgid "%(amount)s due %(date)s"
@@ -7844,20 +7830,6 @@ msgstr ""
 #, fuzzy
 msgid "Default taxes applied when creating new products."
 msgstr "Yangi mahsulotlar yaratishda qo‘llaniladigan standart soliqlar."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,help:account.field_product_template__supplier_taxes_id
-#, fuzzy
-msgid "Default taxes used when buying the product"
-msgstr "Mahsulotni sotib olishda qo‘llaniladigan standart soliqlar"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__taxes_id
-#: model:ir.model.fields,help:account.field_product_template__taxes_id
-#, fuzzy
-msgid "Default taxes used when selling the product"
-msgstr "Mahsulotni sotishda qo‘llaniladigan standart soliqlar"
 
 #. module: account
 #. odoo-python
@@ -16583,13 +16555,6 @@ msgid "Purchase Tax"
 msgstr "Xarid solig‘i"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__supplier_taxes_id
-#, fuzzy
-msgid "Purchase Taxes"
-msgstr "Xarid soliqlari"
-
-#. module: account
 #: model:account.account,name:account.1_expense_invest
 #, fuzzy
 msgid "Purchase of Equipments"
@@ -17705,13 +17670,6 @@ msgstr "Sotuv kvitansiyasi yaratildi"
 #, fuzzy
 msgid "Sales Tax"
 msgstr "Sotishdan olinadigan soliq"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__taxes_id
-#, fuzzy
-msgid "Sales Taxes"
-msgstr "Sotishdan olinadigan soliqlar"
 
 #. module: account
 #: model:account.account,description:account.2_account_account_us_sales_tax
@@ -19540,13 +19498,6 @@ msgstr "Soliq doirasi"
 #, fuzzy
 msgid "Tax Signed"
 msgstr "Imzolangan soliq"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__tax_string
-#: model:ir.model.fields,field_description:account.field_product_template__tax_string
-#, fuzzy
-msgid "Tax String"
-msgstr "Soliq qatori"
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__tax_tags

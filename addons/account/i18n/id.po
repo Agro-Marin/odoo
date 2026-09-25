@@ -118,18 +118,6 @@ msgstr "%(action)s untuk jurnal %(journal)s"
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/product.py:0
-msgid "%(amount)s Excl. Taxes"
-msgstr "%(amount)s Pajak. Tak Termasuk"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/product.py:0
-msgid "%(amount)s Incl. Taxes"
-msgstr "%(amount)s Termasuk. Pajak"
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/account_move.py:0
 msgid "%(amount)s due %(date)s"
 msgstr "%(amount)s jatuh tempo %(date)s"
@@ -6797,18 +6785,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Default taxes applied when creating new products."
 msgstr "Pajak default diterapkan saat membuat produk baru."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,help:account.field_product_template__supplier_taxes_id
-msgid "Default taxes used when buying the product"
-msgstr "Pajak standar yang digunakan saat membeli produk"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__taxes_id
-#: model:ir.model.fields,help:account.field_product_template__taxes_id
-msgid "Default taxes used when selling the product"
-msgstr "Pajak standar yang digunakan saat menjual produk"
 
 #. module: account
 #. odoo-python
@@ -14376,12 +14352,6 @@ msgid "Purchase Tax"
 msgstr "Pajak Pembelian"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__supplier_taxes_id
-msgid "Purchase Taxes"
-msgstr "Pajak Pembelian"
-
-#. module: account
 #: model:account.account,name:account.1_expense_invest
 msgid "Purchase of Equipments"
 msgstr "Pembelian Perlengkapan"
@@ -15340,12 +15310,6 @@ msgstr "Sales Receipt Created"
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Sales Tax"
 msgstr "Pajak Penjualan"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__taxes_id
-msgid "Sales Taxes"
-msgstr "Pajak Penjuala"
 
 #. module: account
 #: model:account.account,description:account.2_account_account_us_sales_tax
@@ -16926,12 +16890,6 @@ msgstr "Lingkup pajak"
 #: model:ir.model.fields,field_description:account.field_account_move__amount_tax_signed
 msgid "Tax Signed"
 msgstr "Tax Signed"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__tax_string
-#: model:ir.model.fields,field_description:account.field_product_template__tax_string
-msgid "Tax String"
-msgstr "Tax String"
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__tax_tags

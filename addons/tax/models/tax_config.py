@@ -29,6 +29,16 @@ class TaxConfig(models.Model):
         ],
         default="round_globally",
     )
+    account_sale_tax_id = fields.Many2one(
+        comodel_name="account.tax",
+        string="Default Sale Tax",
+        check_company=True,
+    )
+    account_purchase_tax_id = fields.Many2one(
+        comodel_name="account.tax",
+        string="Default Purchase Tax",
+        check_company=True,
+    )
     domestic_fiscal_position_id = fields.Many2one(
         comodel_name="account.fiscal.position",
         compute="_compute_domestic_fiscal_position_id",

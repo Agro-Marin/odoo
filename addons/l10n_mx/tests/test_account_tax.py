@@ -43,9 +43,9 @@ class TestMxWithholdingPriority(TestMxCommon):
         stops being true, a -1.25% withholding becomes the default purchase
         tax and this test says so.
 
-        The two defaults live on `account.config`, not on `res.company`:
-        this fork moved the accounting configuration off the company.
+        The two defaults live on `tax.config`, not on `res.company`:
+        this fork moved the tax configuration off the company.
         """
-        config = self.company_data["company"].account_config_id
+        config = self.company_data["company"].tax_config_id
         self.assertEqual(config.account_purchase_tax_id, self._template_record("tax14"))
         self.assertEqual(config.account_sale_tax_id, self._template_record("tax12"))

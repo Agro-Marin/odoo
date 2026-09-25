@@ -146,7 +146,7 @@ class TestAccountMove(TestStockValuationCommon):
         self.company.account_config_id.income_account_id.write(
             {
                 "tax_ids": [
-                    (6, 0, [self.env.company.account_config_id.account_sale_tax_id.id])
+                    (6, 0, [self.env.company.tax_config_id.account_sale_tax_id.id])
                 ]
             }
         )

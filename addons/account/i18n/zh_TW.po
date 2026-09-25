@@ -114,18 +114,6 @@ msgstr "針對流水賬 %(journal)s 的操作 %(action)s"
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/product.py:0
-msgid "%(amount)s Excl. Taxes"
-msgstr "%(amount)s 不連稅"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/product.py:0
-msgid "%(amount)s Incl. Taxes"
-msgstr "%(amount)s 連稅"
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/account_move.py:0
 msgid "%(amount)s due %(date)s"
 msgstr "%(amount)s 到期 %(date)s"
@@ -6733,18 +6721,6 @@ msgstr "預設設定，表示此公司的產品及發票所使用的銷售價格
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Default taxes applied when creating new products."
 msgstr "建立新產品時套用的預設稅項。"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,help:account.field_product_template__supplier_taxes_id
-msgid "Default taxes used when buying the product"
-msgstr "購買該產品時，使用的預設稅項"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__taxes_id
-#: model:ir.model.fields,help:account.field_product_template__taxes_id
-msgid "Default taxes used when selling the product"
-msgstr "銷售該產品時，使用的預設稅項"
 
 #. module: account
 #. odoo-python
@@ -14095,12 +14071,6 @@ msgid "Purchase Tax"
 msgstr "進項稅"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__supplier_taxes_id
-msgid "Purchase Taxes"
-msgstr "採購稅項"
-
-#. module: account
 #: model:account.account,name:account.1_expense_invest
 msgid "Purchase of Equipments"
 msgstr "設備採購"
@@ -15050,12 +15020,6 @@ msgstr "已建立銷售收據"
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Sales Tax"
 msgstr "銷項稅"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__taxes_id
-msgid "Sales Taxes"
-msgstr "銷售稅項"
 
 #. module: account
 #: model:account.account,description:account.2_account_account_us_sales_tax
@@ -16586,12 +16550,6 @@ msgstr "徵稅範圍"
 #: model:ir.model.fields,field_description:account.field_account_move__amount_tax_signed
 msgid "Tax Signed"
 msgstr "稅金簽署"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__tax_string
-#: model:ir.model.fields,field_description:account.field_product_template__tax_string
-msgid "Tax String"
-msgstr "稅金字串"
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__tax_tags

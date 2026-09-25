@@ -636,7 +636,7 @@ class TestStockValuationWithCOA(PurchaseTestCommon):
         self.env.company.account_config_id.anglo_saxon_accounting = False
         self.product1.categ_id = self.category_avco
         product = self.product1
-        tax = self.company.account_config_id.account_purchase_tax_id
+        tax = self.company.tax_config_id.account_purchase_tax_id
         purchase_order = self.env["purchase.order"].create(
             {
                 "partner_id": self.vendor.id,

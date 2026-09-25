@@ -1363,20 +1363,20 @@ class AccountChartTemplate(models.AbstractModel):
     @_debug.perf.timed
     def _post_load_default_taxes(self, company):
         _debug.lifecycle("_post_load_default_taxes", records=self)
-        if not company.account_config_id.account_sale_tax_id:
-            company.account_config_id.account_sale_tax_id = self._default_tax_for(
+        if not company.tax_config_id.account_sale_tax_id:
+            company.tax_config_id.account_sale_tax_id = self._default_tax_for(
                 company, ("sale", "all")
             )
-        if not company.account_config_id.account_purchase_tax_id:
-            company.account_config_id.account_purchase_tax_id = self._default_tax_for(
+        if not company.tax_config_id.account_purchase_tax_id:
+            company.tax_config_id.account_purchase_tax_id = self._default_tax_for(
                 company, ("purchase", "all")
             )
 
-        if company.account_config_id.account_sale_tax_id:
+        if company.tax_config_id.account_sale_tax_id:
             self._force_company_default_tax_on_products(
                 company, "account_sale_tax_id", "taxes_id"
             )
-        if company.account_config_id.account_purchase_tax_id:
+        if company.tax_config_id.account_purchase_tax_id:
             self._force_company_default_tax_on_products(
                 company, "account_purchase_tax_id", "supplier_taxes_id"
             )
@@ -1393,8 +1393,8 @@ class AccountChartTemplate(models.AbstractModel):
             _debug.logic(
                 "default_taxes_resolved",
                 company=company,
-                sale_tax=company.account_config_id.account_sale_tax_id,
-                purchase_tax=company.account_config_id.account_purchase_tax_id,
+                sale_tax=company.tax_config_id.account_sale_tax_id,
+                purchase_tax=company.tax_config_id.account_purchase_tax_id,
                 tax_exigibility=company.account_config_id.tax_exigibility,
             )
 
@@ -1936,8 +1936,8 @@ class AccountChartTemplate(models.AbstractModel):
 
         existing_accounts = {"": None, None: None}
         default_company_taxes = (
-            company.account_config_id.account_sale_tax_id
-            + company.account_config_id.account_purchase_tax_id
+            company.tax_config_id.account_sale_tax_id
+            + company.tax_config_id.account_purchase_tax_id
         )
         chart_template_code = self._guess_chart_template(country=country)
         chart_template_data = self._prepare_chart_template_data(chart_template_code)

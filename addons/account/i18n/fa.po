@@ -135,18 +135,6 @@ msgstr "%(action)s برای روزنامه %(journal)s"
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/product.py:0
-msgid "%(amount)s Excl. Taxes"
-msgstr "%(amount)s بدون مالیات"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/product.py:0
-msgid "%(amount)s Incl. Taxes"
-msgstr "%(amount)s با مالیات"
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/account_move.py:0
 msgid "%(amount)s due %(date)s"
 msgstr "%(amount)sناشی از %(date)s"
@@ -6928,18 +6916,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Default taxes applied when creating new products."
 msgstr "مالیات های پیش فرض در هنگام ایجاد محصولات جدید اعمال می شود."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,help:account.field_product_template__supplier_taxes_id
-msgid "Default taxes used when buying the product"
-msgstr "مالیات های پیش فرض استفاده شده در هنگام خرید محصول"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__taxes_id
-#: model:ir.model.fields,help:account.field_product_template__taxes_id
-msgid "Default taxes used when selling the product"
-msgstr "مالیات های پیش فرض استفاده شده در هنگام فروش محصول"
 
 #. module: account
 #. odoo-python
@@ -14420,12 +14396,6 @@ msgid "Purchase Tax"
 msgstr "مالیات خرید"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__supplier_taxes_id
-msgid "Purchase Taxes"
-msgstr "مالیات خرید"
-
-#. module: account
 #: model:account.account,name:account.1_expense_invest
 msgid "Purchase of Equipments"
 msgstr "خرید تجهیزات"
@@ -15378,12 +15348,6 @@ msgstr "رسید فروش ایجاد شد"
 #: model_terms:ir.ui.view,arch_db:account.res_company_form_view_onboarding_sale_tax
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Sales Tax"
-msgstr "مالیات فروش"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__taxes_id
-msgid "Sales Taxes"
 msgstr "مالیات فروش"
 
 #. module: account
@@ -16944,12 +16908,6 @@ msgstr "دامنه مالیات"
 #: model:ir.model.fields,field_description:account.field_account_move__amount_tax_signed
 msgid "Tax Signed"
 msgstr "مالیات امضاءشد"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__tax_string
-#: model:ir.model.fields,field_description:account.field_product_template__tax_string
-msgid "Tax String"
-msgstr "ردیف مالیت"
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__tax_tags

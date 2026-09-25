@@ -326,7 +326,7 @@ class TestCompanyBranch(AccountTestInvoicingCommon):
                     move = self.init_invoice(
                         move_type,
                         amounts=[100],
-                        taxes=self.root_company.account_config_id.account_sale_tax_id,
+                        taxes=self.root_company.tax_config_id.account_sale_tax_id,
                         invoice_date=invoice_date,
                         post=True,
                         company=company,

@@ -62,8 +62,8 @@ class TestProduct(AccountTestInvoicingCommon):
             product_without_company.sudo(),
             [
                 {
-                    "taxes_id": companies.account_config_id.account_sale_tax_id.ids,
-                    "supplier_taxes_id": companies.account_config_id.account_purchase_tax_id.ids,
+                    "taxes_id": companies.tax_config_id.account_sale_tax_id.ids,
+                    "supplier_taxes_id": companies.tax_config_id.account_purchase_tax_id.ids,
                 }
             ],
         )
@@ -73,10 +73,10 @@ class TestProduct(AccountTestInvoicingCommon):
                 {
                     "taxes_id": self.company_data[
                         "company"
-                    ].account_config_id.account_sale_tax_id.ids,
+                    ].tax_config_id.account_sale_tax_id.ids,
                     "supplier_taxes_id": self.company_data[
                         "company"
-                    ].account_config_id.account_purchase_tax_id.ids,
+                    ].tax_config_id.account_purchase_tax_id.ids,
                 }
             ],
         )
@@ -87,7 +87,7 @@ class TestProduct(AccountTestInvoicingCommon):
             {
                 "name": "Branch Company",
                 "parent_id": parent_company.id,
-                "account_sale_tax_id": parent_company.account_config_id.account_sale_tax_id.id,
+                "account_sale_tax_id": parent_company.tax_config_id.account_sale_tax_id.id,
             }
         )
 

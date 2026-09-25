@@ -1384,7 +1384,7 @@ class TestGeneralLedgerReport(TestAccountReportsCommon, odoo.tests.HttpCase):
         )
 
     def test_general_ledger_same_date_ordering(self):
-        self.env.company.account_config_id.account_sale_tax_id = None
+        self.env.company.tax_config_id.account_sale_tax_id = None
         self.env.company.account_config_id.totals_below_sections = False
 
         report = self.env.ref("account.general_ledger_report")

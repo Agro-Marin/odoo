@@ -150,18 +150,6 @@ msgstr "%(action)s päiväkirjalle %(journal)s"
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/product.py:0
-msgid "%(amount)s Excl. Taxes"
-msgstr "%(amount)s Ilman veroja"
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/product.py:0
-msgid "%(amount)s Incl. Taxes"
-msgstr "%(amount)s Sisältää verot"
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/account_move.py:0
 msgid "%(amount)s due %(date)s"
 msgstr "%(amount)s erääntyy %(date)s"
@@ -7180,18 +7168,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Default taxes applied when creating new products."
 msgstr "Oletusverot, joita sovelletaan uusia tuotteita luotaessa."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,help:account.field_product_template__supplier_taxes_id
-msgid "Default taxes used when buying the product"
-msgstr "Oletusvero tuotetta ostettaessa"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__taxes_id
-#: model:ir.model.fields,help:account.field_product_template__taxes_id
-msgid "Default taxes used when selling the product"
-msgstr "Oletusvero tuotetta myytäessä"
 
 #. module: account
 #. odoo-python
@@ -14741,12 +14717,6 @@ msgid "Purchase Tax"
 msgstr "Myyntivero"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__supplier_taxes_id
-msgid "Purchase Taxes"
-msgstr "Myyntiverot"
-
-#. module: account
 #: model:account.account,name:account.1_expense_invest
 msgid "Purchase of Equipments"
 msgstr "Laitteiden hankinta"
@@ -15707,12 +15677,6 @@ msgstr "Myyntikuitti luotu"
 #: model_terms:ir.ui.view,arch_db:account.res_company_form_view_onboarding_sale_tax
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Sales Tax"
-msgstr "Myyntivero"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__taxes_id
-msgid "Sales Taxes"
 msgstr "Myyntivero"
 
 #. module: account
@@ -17285,12 +17249,6 @@ msgstr "Verotettava tulo ja omaisuus"
 #: model:ir.model.fields,field_description:account.field_account_move__amount_tax_signed
 msgid "Tax Signed"
 msgstr "Vero allekirjoitettu"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__tax_string
-#: model:ir.model.fields,field_description:account.field_product_template__tax_string
-msgid "Tax String"
-msgstr "Veron merkkijono"
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_report_expression__engine__tax_tags

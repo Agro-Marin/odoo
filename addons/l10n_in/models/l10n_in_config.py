@@ -64,12 +64,12 @@ class L10nInConfig(models.Model):
                 ]
                 company._activate_l10n_in_taxes(gst_group_refs, company)
                 # Set sale and purchase tax accounts when user registered under GST.
-                company.account_config_id.account_sale_tax_id = (
+                company.tax_config_id.account_sale_tax_id = (
                     self.env["account.chart.template"]
                     .with_company(company)
                     .ref("sgst_sale_5", raise_if_not_found=False)
                 )
-                company.account_config_id.account_purchase_tax_id = (
+                company.tax_config_id.account_purchase_tax_id = (
                     self.env["account.chart.template"]
                     .with_company(company)
                     .ref("sgst_purchase_5", raise_if_not_found=False)

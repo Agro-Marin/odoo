@@ -442,8 +442,8 @@ class AccountTestInvoicingCommon(ProductCommon):
                 [*account_company_domain, ("account_type", "=", "liability_payable")],
                 limit=1,
             ),
-            "default_tax_account_receivable": company.account_config_id.account_purchase_tax_id.tax_group_id.tax_receivable_account_id,
-            "default_tax_account_payable": company.account_config_id.account_sale_tax_id.tax_group_id.tax_payable_account_id,
+            "default_tax_account_receivable": company.tax_config_id.account_purchase_tax_id.tax_group_id.tax_receivable_account_id,
+            "default_tax_account_payable": company.tax_config_id.account_sale_tax_id.tax_group_id.tax_payable_account_id,
             "default_account_assets": AccountAccount.search(
                 [*account_company_domain, ("account_type", "=", "asset_fixed")], limit=1
             ),
@@ -455,10 +455,10 @@ class AccountTestInvoicingCommon(ProductCommon):
                 [*account_company_domain, ("account_type", "=", "liability_current")],
                 limit=1,
             ),
-            "default_account_tax_sale": company.account_config_id.account_sale_tax_id.mapped(
+            "default_account_tax_sale": company.tax_config_id.account_sale_tax_id.mapped(
                 "invoice_repartition_line_ids.account_id"
             ),
-            "default_account_tax_purchase": company.account_config_id.account_purchase_tax_id.mapped(
+            "default_account_tax_purchase": company.tax_config_id.account_purchase_tax_id.mapped(
                 "invoice_repartition_line_ids.account_id"
             ),
             "default_journal_misc": cls.env["account.journal"].search(
@@ -488,8 +488,8 @@ class AccountTestInvoicingCommon(ProductCommon):
                     "company_id": company.id,
                 }
             ),
-            "default_tax_sale": company.account_config_id.account_sale_tax_id,
-            "default_tax_purchase": company.account_config_id.account_purchase_tax_id,
+            "default_tax_sale": company.tax_config_id.account_sale_tax_id,
+            "default_tax_purchase": company.tax_config_id.account_purchase_tax_id,
             "default_tax_return_journal": cls.env["account.journal"].create(
                 {
                     "name": "Tax Return Journal",

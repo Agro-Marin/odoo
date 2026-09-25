@@ -4870,7 +4870,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
         self.assertEqual(len(invoice.invoice_line_ids), 0)
 
         self.env.company.account_config_id.quick_edit_mode = "out_and_in_invoices"
-        self.env.company.account_config_id.account_sale_tax_id = self.env[
+        self.env.company.tax_config_id.account_sale_tax_id = self.env[
             "account.tax"
         ].create(
             {
@@ -4910,7 +4910,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
         move_form.invoice_date = fields.Date.from_string("2022-01-01")
 
         self.env.company.account_config_id.quick_edit_mode = "out_and_in_invoices"
-        self.env.company.account_config_id.account_sale_tax_id = self.env[
+        self.env.company.tax_config_id.account_sale_tax_id = self.env[
             "account.tax"
         ].create(
             {
@@ -4988,7 +4988,7 @@ class TestAccountMoveOutInvoiceOnchanges(AccountTestInvoicingCommon):
             }
         )
         self.env.company.account_config_id.quick_edit_mode = "out_and_in_invoices"
-        self.env.company.account_config_id.account_sale_tax_id = tax
+        self.env.company.tax_config_id.account_sale_tax_id = tax
 
         move_form = Form(
             self.env["account.move"].with_context(default_move_type="out_invoice")

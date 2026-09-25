@@ -66,3 +66,9 @@ msgstr "Última actualización en"
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__sequence
 msgid "Sequence"
 msgstr "Secuencia"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_product_product__taxes_id
+#: model:ir.model.fields,field_description:tax.field_product_template__taxes_id
+msgid "Customer Taxes"
+msgstr "Impuestos de cliente"

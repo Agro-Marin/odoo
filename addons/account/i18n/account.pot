@@ -99,18 +99,6 @@ msgstr ""
 
 #. module: account
 #. odoo-python
-#: code:addons/account/models/product.py:0
-msgid "%(amount)s Excl. Taxes"
-msgstr ""
-
-#. module: account
-#. odoo-python
-#: code:addons/account/models/product.py:0
-msgid "%(amount)s Incl. Taxes"
-msgstr ""
-
-#. module: account
-#. odoo-python
 #: code:addons/account/models/account_move_mail.py:0
 msgid "%(amount)s due %(date)s"
 msgstr ""
@@ -8235,18 +8223,6 @@ msgstr ""
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Default taxes applied when creating new products."
-msgstr ""
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,help:account.field_product_template__supplier_taxes_id
-msgid "Default taxes used when buying the product"
-msgstr ""
-
-#. module: account
-#: model:ir.model.fields,help:account.field_product_product__taxes_id
-#: model:ir.model.fields,help:account.field_product_template__taxes_id
-msgid "Default taxes used when selling the product"
 msgstr ""
 
 #. module: account
@@ -17952,12 +17928,6 @@ msgid "Purchase Tax"
 msgstr ""
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__supplier_taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__supplier_taxes_id
-msgid "Purchase Taxes"
-msgstr ""
-
-#. module: account
 #: model:account.account,name:account.1_expense_invest
 msgid "Purchase of Equipments"
 msgstr ""
@@ -19323,12 +19293,6 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:account.res_company_form_view_onboarding_sale_tax
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Sales Tax"
-msgstr ""
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__taxes_id
-#: model:ir.model.fields,field_description:account.field_product_template__taxes_id
-msgid "Sales Taxes"
 msgstr ""
 
 #. module: account
@@ -21157,12 +21121,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__amount_tax_signed
 #: model:ir.model.fields,field_description:account.field_account_move__amount_tax_signed
 msgid "Tax Signed"
-msgstr ""
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_product_product__tax_string
-#: model:ir.model.fields,field_description:account.field_product_template__tax_string
-msgid "Tax String"
 msgstr ""
 
 #. module: account

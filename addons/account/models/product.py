@@ -1,13 +1,13 @@
 import logging
 from itertools import batched
 
-from odoo import Command, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.text import name_length_band, similarity_ratio
 from odoo.models import PREFETCH_MAX
-from odoo.tools import SQL, format_amount
+from odoo.tools import SQL
 
 _logger = logging.getLogger(__name__)
 
@@ -23,33 +23,6 @@ class ProductTemplate(models.Model):
     _name = "product.template"
     _inherit = ["product.template", "mixin.fiscal.country.codes"]
 
-    taxes_id = fields.Many2many(
-        comodel_name="account.tax",
-        relation="product_taxes_rel",
-        column1="prod_id",
-        column2="tax_id",
-        string="Sales Taxes",
-        default=lambda self: (
-            self.env.companies.account_config_id.account_sale_tax_id
-            or self.env.companies.root_id.sudo().account_config_id.account_sale_tax_id
-        ),
-        domain=[("type_tax_use", "=", "sale")],
-        help="Default taxes used when selling the product",
-    )
-    tax_string = fields.Char(compute="_compute_tax_string")
-    supplier_taxes_id = fields.Many2many(
-        comodel_name="account.tax",
-        relation="product_supplier_taxes_rel",
-        column1="prod_id",
-        column2="tax_id",
-        string="Purchase Taxes",
-        default=lambda self: (
-            self.env.companies.account_config_id.account_purchase_tax_id
-            or self.env.companies.root_id.sudo().account_config_id.account_purchase_tax_id
-        ),
-        domain=[("type_tax_use", "=", "purchase")],
-        help="Default taxes used when buying the product",
-    )
     property_account_income_id = fields.Many2one(
         comodel_name="account.account",
         string="Income Account",
@@ -116,41 +89,6 @@ class ProductTemplate(models.Model):
     def _get_fiscal_country_companies(self):
         return self.company_id or super()._get_fiscal_country_companies()
 
-    @api.depends("taxes_id", "list_price")
-    @api.depends_context("company")
-    def _compute_tax_string(self):
-        for record in self:
-            record.tax_string = record._prepare_tax_string(record.list_price)
-
-    @_debug.perf.timed
-    def _prepare_tax_string(self, price):
-        currency = self.currency_id
-        res = self.taxes_id._filter_taxes_by_company(self.env.company).compute_all(
-            price, product=self, partner=self.env["res.partner"]
-        )
-        joined = []
-        included = res["total_included"]
-        if currency.compare_amounts(included, price):
-            joined.append(
-                self.env._(
-                    "%(amount)s Incl. Taxes",
-                    amount=format_amount(self.env, included, currency),
-                )
-            )
-        excluded = res["total_excluded"]
-        if currency.compare_amounts(excluded, price):
-            joined.append(
-                self.env._(
-                    "%(amount)s Excl. Taxes",
-                    amount=format_amount(self.env, excluded, currency),
-                )
-            )
-        if joined:
-            tax_string = f"(= {', '.join(joined)})"
-        else:
-            tax_string = " "
-        return tax_string
-
     @_debug.perf.timed
     def _check_uom_not_used_on_a_posted_entry(self):
         if not self:
@@ -180,36 +118,6 @@ class ProductTemplate(models.Model):
                 )
             )
 
-    @api.onchange("type")
-    def _onchange_type(self):
-        if self.type == "combo":
-            self.taxes_id = False
-            self.supplier_taxes_id = False
-        return super()._onchange_type()
-
-    def _clear_taxes_of_combo_products(self):
-        combos = self.filtered(lambda product: product.type == "combo")
-        if combos:
-            combos.write(
-                {"taxes_id": [Command.clear()], "supplier_taxes_id": [Command.clear()]}
-            )
-
-    def _force_default_tax_field(self, companies, company_tax_field, product_tax_field):
-        default_taxes = companies.account_config_id.mapped(company_tax_field)
-        if not default_taxes:
-            return
-        links = [Command.link(t.id) for t in default_taxes]
-        for sub_ids in batched(self.ids, self.env.cr.BATCH_SIZE, strict=False):
-            chunk = self.browse(sub_ids)
-            chunk.write({product_tax_field: links})
-            chunk.invalidate_recordset([product_tax_field])
-
-    def _force_default_tax(self, companies):
-        self._force_default_tax_field(companies, "account_sale_tax_id", "taxes_id")
-        self._force_default_tax_field(
-            companies, "account_purchase_tax_id", "supplier_taxes_id"
-        )
-
     @api.model_create_multi
     @_debug.perf.timed
     def create(self, vals_list):
@@ -220,23 +128,7 @@ class ProductTemplate(models.Model):
                 count=len(vals_list),
                 fields=sorted({key for vals in vals_list for key in vals}),
             )
-        products = super().create(vals_list)
-        products_without_company = products.filtered(lambda p: not p.company_id)
-        if products_without_company:
-            other_companies = (
-                self.env["res.company"]
-                .sudo()
-                .search(["!", ("id", "child_of", self.env.companies.ids)])
-            )
-            _debug.logic(
-                "default_taxes_forced",
-                products=products_without_company,
-                other_companies=other_companies,
-            )
-            if other_companies:
-                products_without_company.sudo()._force_default_tax(other_companies)
-        products.sudo()._clear_taxes_of_combo_products()
-        return products
+        return super().create(vals_list)
 
     @_debug.perf.timed
     def write(self, vals):
@@ -245,142 +137,14 @@ class ProductTemplate(models.Model):
             self.filtered(
                 lambda product: product.uom_id.id != vals["uom_id"]
             )._check_uom_not_used_on_a_posted_entry()
-        result = super().write(vals)
-        if "type" in vals:
-            self.sudo()._clear_taxes_of_combo_products()
-        return result
-
-    def _get_list_price(self, price):
-        self.check_singleton()
-        taxes = self.taxes_id._filter_taxes_by_company(self.env.company)
-        if not taxes:
-            return super()._get_list_price(price)
-        computed_price = taxes.compute_all(price, self.currency_id, product=self)
-        total_included = computed_price["total_included"]
-
-        if self.currency_id.compare_amounts(price, total_included) == 0:
-            return total_included
-        included_computed_price = taxes.with_context(
-            force_price_include=True
-        ).compute_all(price, self.currency_id, product=self)
-        return included_computed_price["total_excluded"]
+        return super().write(vals)
 
 
 class ProductProduct(models.Model):
     _inherit = "product.product"
 
-    tax_string = fields.Char(compute="_compute_tax_string")
-
     def _get_product_accounts(self, fiscal_pos=None):
         return self.product_tmpl_id._get_product_accounts(fiscal_pos=fiscal_pos)
-
-    @_debug.perf.timed
-    def _get_tax_included_unit_price(
-        self,
-        company,
-        currency,
-        document_date,
-        document_type,
-        is_refund_document=False,
-        product_uom_id=None,
-        product_currency=None,
-        product_price_unit=None,
-        product_taxes=None,
-        fiscal_position=None,
-    ):
-        self.check_singleton()
-        company.check_singleton()
-
-        if not document_type:
-            raise ValueError("document_type is required")
-
-        if product_uom_id is None:
-            product_uom_id = self.uom_id
-        if not product_currency:
-            if document_type == "sale":
-                product_currency = self.currency_id
-            elif document_type == "purchase":
-                product_currency = company.currency_id
-        if product_price_unit is None:
-            if document_type == "sale":
-                product_price_unit = self.with_company(company).lst_price
-            elif document_type == "purchase":
-                product_price_unit = self.with_company(company).standard_price
-            else:
-                _debug.logic(
-                    "unit_price_skipped",
-                    product=self,
-                    document_type=document_type,
-                    reason="no_price_source",
-                )
-                return 0.0
-        if product_taxes is None:
-            if document_type == "sale":
-                product_taxes = self.taxes_id
-            elif document_type == "purchase":
-                product_taxes = self.supplier_taxes_id
-        if product_taxes:
-            product_taxes = product_taxes._filter_taxes_by_company(company)
-        if product_uom_id and self.uom_id != product_uom_id:
-            product_price_unit = self.uom_id._get_price_in_unit(
-                product_price_unit, product_uom_id
-            )
-
-        if product_taxes and fiscal_position:
-            product_price_unit = self._get_tax_included_unit_price_from_price(
-                product_price_unit,
-                product_taxes,
-                fiscal_position=fiscal_position,
-            )
-
-        if product_currency and currency != product_currency:
-            product_price_unit = product_currency._convert(
-                product_price_unit, currency, company, document_date, round=False
-            )
-
-        _debug.logic(
-            "unit_price_resolved",
-            product=self,
-            company=company,
-            document_type=document_type,
-            taxes=product_taxes,
-            fiscal_position=fiscal_position,
-            currency=currency,
-            product_currency=product_currency,
-            price=product_price_unit,
-        )
-        return product_price_unit
-
-    def _get_tax_included_unit_price_from_price(
-        self,
-        product_price_unit,
-        product_taxes,
-        fiscal_position=None,
-        product_taxes_after_fp=None,
-    ):
-        if not product_taxes:
-            return product_price_unit
-
-        if product_taxes_after_fp is None:
-            if not fiscal_position:
-                return product_price_unit
-
-            product_taxes_after_fp = fiscal_position.map_tax(product_taxes)
-
-        return product_taxes._adapt_price_unit_to_another_taxes(
-            price_unit=product_price_unit,
-            product=self,
-            original_taxes=product_taxes,
-            new_taxes=product_taxes_after_fp,
-        )
-
-    @api.depends("lst_price", "product_tmpl_id", "taxes_id")
-    @api.depends_context("company")
-    def _compute_tax_string(self):
-        for record in self:
-            record.tax_string = record.product_tmpl_id._prepare_tax_string(
-                record.lst_price
-            )
 
     def _get_import_criteria_from_barcode(self, product_values):
         barcode = product_values.get("barcode")

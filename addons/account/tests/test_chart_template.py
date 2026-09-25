@@ -676,7 +676,7 @@ class TestChartTemplate(AccountTestInvoicingCommon):
             [("company_id", "=", new_company.id)]
         )
         self.assertEqual(fiscal_position.map_tax(tax_3), tax_2)
-        self.assertEqual(new_company.account_config_id.account_sale_tax_id, tax_3)
+        self.assertEqual(new_company.tax_config_id.account_sale_tax_id, tax_3)
 
     def test_update_taxes_update(self):
         def local_get_data(self, template_code):

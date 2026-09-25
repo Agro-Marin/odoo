@@ -53,7 +53,7 @@ class AccountChartTemplate(models.AbstractModel):
 
         # If Responsable Monotributista remove the default purchase tax
         if template_code in ("ar_base", "ar_ex"):
-            company.account_config_id.account_purchase_tax_id = self.env["account.tax"]
+            company.tax_config_id.account_purchase_tax_id = self.env["account.tax"]
 
         return res
 

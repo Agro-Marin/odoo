@@ -53,14 +53,14 @@ class ResConfigSettings(models.TransientModel):
     )
     sale_tax_id = fields.Many2one(
         comodel_name="account.tax",
-        related="company_id.account_config_id.account_sale_tax_id",
+        related="company_id.tax_config_id.account_sale_tax_id",
         string="Default Sale Tax",
         readonly=False,
         check_company=True,
     )
     purchase_tax_id = fields.Many2one(
         comodel_name="account.tax",
-        related="company_id.account_config_id.account_purchase_tax_id",
+        related="company_id.tax_config_id.account_purchase_tax_id",
         string="Default Purchase Tax",
         readonly=False,
         check_company=True,

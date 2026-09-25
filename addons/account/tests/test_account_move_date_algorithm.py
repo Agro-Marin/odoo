@@ -438,7 +438,7 @@ class TestAccountMoveDateAlgorithm(AccountTestInvoicingCommon):
                 move = self.init_invoice(
                     move_type,
                     amounts=[100],
-                    taxes=self.env.company.account_config_id.account_sale_tax_id,
+                    taxes=self.env.company.tax_config_id.account_sale_tax_id,
                     invoice_date="2024-07-01",
                     post=True,
                 )

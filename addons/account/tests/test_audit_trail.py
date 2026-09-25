@@ -154,7 +154,7 @@ class TestAuditTrail(AccountTestInvoicingCommon):
 
         self.move.line_ids[
             0
-        ].tax_ids = self.env.company.account_config_id.account_purchase_tax_id
+        ].tax_ids = self.env.company.tax_config_id.account_purchase_tax_id
         suspense_account_code = (
             self.env.company.account_config_id.account_journal_suspense_account_id.code
         )

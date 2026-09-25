@@ -119,8 +119,8 @@
     </record>
 
     <record id="res_company_form_view_onboarding_sale_tax" model="ir.ui.view">
-        <field name="name">account.config.form.view.onboarding.sale.tax</field>
-        <field name="model">account.config</field>
+        <field name="name">tax.config.form.view.onboarding.sale.tax</field>
+        <field name="model">tax.config</field>
         <field name="priority">1000</field>
         <field name="arch" type="xml">
             <form>

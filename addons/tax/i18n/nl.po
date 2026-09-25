@@ -253,3 +253,45 @@ msgstr "Van postcode"
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_to
 msgid "Zip Range To"
 msgstr "Tot postcode"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/product_template.py:0
+msgid "%(amount)s Excl. Taxes"
+msgstr "%(amount)s Excl. btw"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/product_template.py:0
+msgid "%(amount)s Incl. Taxes"
+msgstr "%(amount)s Incl. btw"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_product_product__supplier_taxes_id
+#: model:ir.model.fields,help:tax.field_product_template__supplier_taxes_id
+msgid "Default taxes used when buying the product"
+msgstr "Standaard btw-tarief gebruikt bij productinkoop"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_product_product__taxes_id
+#: model:ir.model.fields,help:tax.field_product_template__taxes_id
+msgid "Default taxes used when selling the product"
+msgstr "Standaard btw-tarief gebruikt bij productverkoop"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_product_product__supplier_taxes_id
+#: model:ir.model.fields,field_description:tax.field_product_template__supplier_taxes_id
+msgid "Purchase Taxes"
+msgstr "Btw Inkoop"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_product_product__taxes_id
+#: model:ir.model.fields,field_description:tax.field_product_template__taxes_id
+msgid "Sales Taxes"
+msgstr "Btw Verkoop"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_product_product__tax_string
+#: model:ir.model.fields,field_description:tax.field_product_template__tax_string
+msgid "Tax String"
+msgstr "Btw string"
