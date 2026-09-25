@@ -66,14 +66,14 @@ class MrpProduction(models.Model):
     def _update_finished_moves_price_unit(self, consumed_moves):
         super()._update_finished_moves_price_unit(consumed_moves)
 
-        finished_move = self.move_finished_ids.filtered(
+        finished_moves = self.move_finished_ids.filtered(
             lambda x: (
                 x.product_id == self.product_id
                 and x.state not in ("done", "cancel")
                 and x.quantity > 0
             )
         )
-        if not finished_move:
+        if not finished_moves:
             _debug.logic("finished_price_skipped", production=self.id, by="no_move")
             return True
 
@@ -81,7 +81,7 @@ class MrpProduction(models.Model):
             move.product_uom_id._get_quantity_in_unit(
                 move.quantity, move.product_id.uom_id
             )
-            for move in finished_move
+            for move in finished_moves
         )
         total_cost = (
             sum(move.value for move in consumed_moves)
@@ -121,9 +121,8 @@ class MrpProduction(models.Model):
                 cost_method=self.product_id.cost_method,
                 total_cost=total_cost,
             )
-            finished_move.price_unit = self.product_id.standard_price
+            finished_moves.price_unit = self.product_id.standard_price
             return True
-        finished_move.check_singleton()
         _debug.logic(
             "finished_price",
             production=self.id,
@@ -133,7 +132,7 @@ class MrpProduction(models.Model):
             quantity=quantity,
             byproducts=len(byproduct_moves),
         )
-        finished_move.price_unit = shared_value / quantity
+        finished_moves.price_unit = shared_value / quantity
         return True
 
     def _prepare_backorder_mo_vals(self):

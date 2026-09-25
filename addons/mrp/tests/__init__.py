@@ -35,3 +35,4 @@ from . import test_order_guards
 from . import test_workorder_lifecycle
 from . import test_stock_integration
 from . import test_unbuild_and_wizards
+from . import test_production_integrity

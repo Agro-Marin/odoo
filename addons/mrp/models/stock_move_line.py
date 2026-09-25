@@ -37,6 +37,7 @@ class StockMoveLine(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        self._stamp_production_vals(vals_list)
         res = super().create(vals_list)
         if self.env.context.get("force_manual_consumption"):
             lines_by_move = res.grouped("move_id")
@@ -74,6 +75,28 @@ class StockMoveLine(models.Model):
                     )
                 line.produce_line_ids = [Command.set(produced_move_lines.ids)]
         return res
+
+    @api.model
+    def _stamp_production_vals(self, vals_list):
+        unstamped = [
+            vals
+            for vals in vals_list
+            if vals.get("move_id") and not vals.get("production_id")
+        ]
+        if not unstamped:
+            return
+        moves_by_id = {
+            move.id: move
+            for move in self.env["stock.move"].browse(
+                {vals["move_id"] for vals in unstamped}
+            )
+        }
+        for vals in unstamped:
+            move = moves_by_id[vals["move_id"]]
+            if not move.raw_material_production_id:
+                continue
+            vals["production_id"] = move.raw_material_production_id.id
+            vals.setdefault("workorder_id", move.workorder_id.id)
 
     def _get_similar_move_lines(self):
         lines = super()._get_similar_move_lines()

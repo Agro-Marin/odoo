@@ -2,7 +2,7 @@ import datetime
 import json
 import math
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 from dateutil.relativedelta import relativedelta
 
@@ -2147,16 +2147,6 @@ class MrpProduction(models.Model):
             workorders_to_delete.unlink()
         return super().unlink()
 
-    @api.ondelete(at_uninstall=True)
-    def _unlink_except_done_at_uninstall(self):
-        if any(mo.state == "done" for mo in self):
-            _debug.logic("production_refused", reason="unlink_done", productions=self)
-            raise UserError(
-                self.env._(
-                    "You cannot delete a manufacturing order that is already done."
-                )
-            )
-
     def copy_data(self, default=None):
         default = dict(default or {})
         vals_list = super().copy_data(default=default)
@@ -2317,22 +2307,38 @@ class MrpProduction(models.Model):
             "product_uom_id": product_uom_id,
             "operation_id": operation_id,
             "byproduct_id": byproduct_id,
-            "date": self.date_end,
-            "date_deadline": self.date_deadline,
             "picking_type_id": self.picking_type_id.id,
-            "location_id": self.production_location_id.id,
             "location_dest_id": self.location_dest_id.id,
             "company_id": self.company_id.id,
             "production_id": self.id,
             "warehouse_id": self.location_dest_id.warehouse_id.id,
-            "origin": self.product_id.partner_ref,
-            "reference_ids": self.reference_ids.ids,
-            "propagate_cancel": self.propagate_cancel,
             "move_dest_ids": (
                 [Command.set(move_dest_ids.ids)] if not byproduct_id else []
             ),
             "cost_share": cost_share,
+            **self._prepare_move_finished_forced_vals(),
+        }
+
+    def _prepare_move_forced_vals(self):
+        return {
+            "origin": self._get_origin(),
+            "propagate_cancel": self.propagate_cancel,
+            "reference_ids": self.reference_ids.ids,
             "production_group_id": self.production_group_id.id,
+        }
+
+    def _prepare_move_raw_forced_vals(self):
+        return {
+            **self._prepare_move_forced_vals(),
+            "location_dest_id": self.production_location_id.id,
+        }
+
+    def _prepare_move_finished_forced_vals(self):
+        return {
+            **self._prepare_move_forced_vals(),
+            "location_id": self.production_location_id.id,
+            "date": self.date_end,
+            "date_deadline": self.date_deadline,
         }
 
     def _get_finished_move_dest_ids(self):
@@ -2482,20 +2488,16 @@ class MrpProduction(models.Model):
             "product_uom_qty": product_uom_qty,
             "product_uom_id": product_uom_id.id,
             "location_id": source_location.id,
-            "location_dest_id": self.production_location_id.id,
             "raw_material_production_id": self.id,
-            "production_group_id": self.production_group_id.id,
             "company_id": self.company_id.id,
             "operation_id": operation_id,
             "procure_method": "make_to_stock",
-            "origin": self._get_origin(),
             "state": "draft",
             "warehouse_id": source_location.warehouse_id.id,
-            "reference_ids": self.reference_ids.ids,
-            "propagate_cancel": self.propagate_cancel,
             "manual_consumption": self.env[
                 "stock.move"
             ]._is_manual_consumption_from_bom_line(bom_line),
+            **self._prepare_move_raw_forced_vals(),
         }
 
     def _get_origin(self):
@@ -2540,14 +2542,9 @@ class MrpProduction(models.Model):
 
             new_qty = move._get_qty_to_process()
             if move.has_tracking != "none":
-                qty_waiting = 0
-                for move_orig in move.move_orig_ids:
-                    if move_orig.state not in ("draft", "done", "cancel"):
-                        qty_waiting += move_orig.product_uom_id._get_quantity_in_unit(
-                            move_orig.quantity, move.product_uom_id
-                        )
-                if not move.product_uom_id.is_zero(qty_waiting):
-                    new_qty = min(new_qty, move.product_uom_qty - qty_waiting)
+                supplied_qty = move._get_qty_supplied_by_origins()
+                if supplied_qty is not None:
+                    new_qty = min(new_qty, supplied_qty)
             move._update_quantity_done(new_qty)
             if (
                 (not move.manual_consumption or pick_manual_consumption_moves)
@@ -2628,12 +2625,7 @@ class MrpProduction(models.Model):
         return update_info
 
     @api.ondelete(at_uninstall=False)
-    def _unlink_except_done(self):
-        if any(production.state == "done" for production in self):
-            _debug.logic("production_refused", reason="delete_done", productions=self)
-            raise UserError(
-                self.env._("Cannot delete a manufacturing order in done state.")
-            )
+    def _unlink_except_not_cancelled(self):
         not_cancel = self.filtered(lambda m: m.state != "cancel")
         if not_cancel:
             _debug.logic(
@@ -3199,10 +3191,11 @@ class MrpProduction(models.Model):
                     cancel=True,
                 )
 
-        if self._has_workorders():
-            self.workorder_ids.filtered(
-                lambda x: x.state not in ["done", "cancel"]
-            ).action_cancel()
+        self.filtered(
+            lambda production: production._has_workorders()
+        ).workorder_ids.filtered(
+            lambda workorder: workorder.state not in ("done", "cancel")
+        ).action_cancel()
         finish_moves = self.move_finished_ids.filtered(
             lambda x: x.state not in ("done", "cancel")
         )
@@ -3312,8 +3305,9 @@ class MrpProduction(models.Model):
             for move in finish_moves:
                 if move.has_tracking != "none" and not move.lot_ids:
                     move.lot_ids = order.lot_producing_ids.ids
-                move.quantity = order.product_uom_id.round(
-                    order.qty_producing - order.qty_produced, rounding_method="HALF-UP"
+                move.quantity = move.product_uom_id.round(
+                    (order.qty_producing - order.qty_produced) * move.unit_factor,
+                    rounding_method="HALF-UP",
                 )
                 extra_vals = order._prepare_finished_extra_vals()
                 if extra_vals:
@@ -3405,12 +3399,8 @@ class MrpProduction(models.Model):
             "orderpoint_id": self.orderpoint_id.id,
         }
 
-    def _split_productions(
-        self, amounts=False, cancel_remaining_qty=False, set_consumed_qty=False
-    ):
-        amounts, has_backorder_to_ignore = self._get_split_amounts(
-            amounts, cancel_remaining_qty
-        )
+    def _split_productions(self, amounts=False, cancel_remaining_qty=False):
+        amounts = self._get_split_amounts(amounts, cancel_remaining_qty)
         backorders, initial_qty_by_production = self._create_split_backorders(amounts)
         production_to_backorders, production_ids = self._get_split_backorder_map(
             amounts, backorders
@@ -3418,12 +3408,7 @@ class MrpProduction(models.Model):
         move_to_backorder_moves, backorder_moves = self._split_moves_into_backorders(
             production_to_backorders, initial_qty_by_production
         )
-        self._split_move_lines(
-            move_to_backorder_moves,
-            backorder_moves,
-            set_consumed_qty,
-            has_backorder_to_ignore,
-        )
+        self._split_move_lines(move_to_backorder_moves, backorder_moves)
         self._update_split_workorders(
             production_to_backorders, initial_qty_by_production
         )
@@ -3432,7 +3417,6 @@ class MrpProduction(models.Model):
             productions=self,
             backorders=backorders,
             cancel_remaining=cancel_remaining_qty,
-            set_consumed_qty=set_consumed_qty,
         )
         backorders._action_confirm_mo_backorders()
         return self.env["mrp.production"].browse(production_ids)
@@ -3443,7 +3427,6 @@ class MrpProduction(models.Model):
 
     def _get_split_amounts(self, amounts, cancel_remaining_qty):
         amounts = dict(amounts) if amounts else {}
-        has_backorder_to_ignore = defaultdict(lambda: False)
         for production in self:
             production_amounts = amounts.get(production)
             if not production_amounts:
@@ -3456,7 +3439,6 @@ class MrpProduction(models.Model):
                 amounts[production] = production_amounts + [
                     production.product_qty - sum(production_amounts)
                 ]
-                has_backorder_to_ignore[production] = True
             elif not self.env.context.get("allow_more") and (
                 diff < 0 or production.state in ("done", "cancel")
             ):
@@ -3472,7 +3454,7 @@ class MrpProduction(models.Model):
                         "Unable to split with more than the quantity to produce."
                     )
                 )
-        return amounts, has_backorder_to_ignore
+        return amounts
 
     def _create_split_backorders(self, amounts):
         backorder_vals_list = []
@@ -3576,27 +3558,11 @@ class MrpProduction(models.Model):
             move_to_backorder_moves[move] |= backorder_move
         return move_to_backorder_moves, backorder_moves
 
-    def _split_move_lines(
-        self,
-        move_to_backorder_moves,
-        backorder_moves,
-        set_consumed_qty,
-        has_backorder_to_ignore,
-    ):
+    def _split_move_lines(self, move_to_backorder_moves, backorder_moves):
         move_lines_vals = []
         assigned_moves = set()
         partially_assigned_moves = set()
         move_lines_to_unlink = set()
-        moves_to_consume = self.env["stock.move"]
-
-        for initial_move, split_backorder_moves in move_to_backorder_moves.items():
-            moves_to_consume |= self._get_split_moves_to_consume(
-                initial_move,
-                split_backorder_moves,
-                set_consumed_qty,
-                has_backorder_to_ignore,
-                move_lines_vals,
-            )
 
         for initial_move, split_backorder_moves in move_to_backorder_moves.items():
             self._spread_reservation_over_split_moves(
@@ -3620,7 +3586,6 @@ class MrpProduction(models.Model):
         emptied_lines = self.env["stock.move.line"].browse(move_lines_to_unlink)
         emptied_lines.write({"move_id": False})
         emptied_lines.unlink()
-        moves_to_consume.write({"picked": True})
 
     def _spread_reservation_over_split_moves(
         self,
@@ -3684,37 +3649,6 @@ class MrpProduction(models.Model):
 
         if move and move_qty_to_reserve != move.product_qty:
             partially_assigned_moves.add(move.id)
-
-    def _get_split_moves_to_consume(
-        self,
-        initial_move,
-        split_backorder_moves,
-        set_consumed_qty,
-        has_backorder_to_ignore,
-        move_lines_vals,
-    ):
-        if not set_consumed_qty:
-            return self.env["stock.move"]
-        if not initial_move.raw_material_production_id and not (
-            initial_move.production_id
-            and initial_move.product_id != initial_move.production_id.product_id
-        ):
-            return self.env["stock.move"]
-        ml_vals = initial_move._prepare_move_line_vals()
-        backorder_move_to_ignore = (
-            split_backorder_moves[-1]
-            if has_backorder_to_ignore[initial_move.raw_material_production_id]
-            else self.env["stock.move"]
-        )
-        moves_to_consume = (
-            initial_move + split_backorder_moves - backorder_move_to_ignore
-        )
-        if not initial_move.move_line_ids:
-            move_lines_vals.extend(
-                dict(ml_vals, quantity=move.product_uom_qty, move_id=move.id)
-                for move in moves_to_consume
-            )
-        return moves_to_consume
 
     def _update_split_workorders(
         self, production_to_backorders, initial_qty_by_production
@@ -3958,6 +3892,7 @@ class MrpProduction(models.Model):
         productions_auto = self.env["mrp.production"].browse(production_auto_ids)
         for production in productions_auto:
             production._update_quantities()
+        productions_auto._pick_reserved_raw_moves_of_full_runs()
 
         self.move_raw_ids.filtered(
             lambda m: m.manual_consumption and not m.picked
@@ -4011,6 +3946,28 @@ class MrpProduction(models.Model):
         self._check_company()
         for order in self:
             order._check_sn_uniqueness()
+
+    def _pick_reserved_raw_moves_of_full_runs(self):
+        full_runs = self.filtered(
+            lambda production: (
+                production.product_uom_id.compare(
+                    production.qty_producing,
+                    production.product_qty - production.qty_produced,
+                )
+                == 0
+            )
+        )
+        moves = full_runs.move_raw_ids.filtered(
+            lambda move: (
+                not move.manual_consumption
+                and not move.picked
+                and move.state not in ("done", "cancel")
+                and move.product_uom_id.compare(move.quantity, move.product_uom_qty)
+                == 0
+            )
+        )
+        _debug.logic("reserved_raw_moves_picked", productions=full_runs, moves=moves)
+        moves.picked = True
 
     def _is_auto_completable(self):
         self.check_singleton()
@@ -4196,9 +4153,9 @@ class MrpProduction(models.Model):
             user_id = self.env.user
 
         origs = self._prepare_merge_orig_links()
-        dests = {}
+        dests = defaultdict(list)
         for move in self.move_finished_ids:
-            dests.setdefault(move.byproduct_id.id, []).extend(move.move_dest_ids.ids)
+            dests[move.byproduct_id.id].extend(move.move_dest_ids.ids)
 
         production = (
             self.env["mrp.production"]
@@ -4408,7 +4365,7 @@ class MrpProduction(models.Model):
                     workorder.workcenter_id = operation.workcenter_id
                 if workorder.name != operation.name:
                     workorder.name = operation.name
-            elif workorder.operation_id:
+            elif not operation and workorder.state not in ("progress", "done"):
                 workorders_to_unlink |= workorder
         self.workorder_ids += self.env["mrp.workorder"].create(
             [
@@ -4533,9 +4490,7 @@ class MrpProduction(models.Model):
     def _check_sn_uniqueness(self):
         self.check_singleton()
         if self.product_tracking == "serial" and self.lot_producing_ids:
-            lots_to_check = self.lot_producing_ids.filtered(
-                lambda l: l.id not in self.move_raw_ids.lot_ids.ids
-            )
+            lots_to_check = self.lot_producing_ids - self.move_raw_ids.lot_ids
             if lots_to_check and self._is_any_finished_serial_already_produced(
                 lots_to_check,
                 suspect_lots=self._get_serials_produced_in_production_location(
@@ -4579,6 +4534,9 @@ class MrpProduction(models.Model):
         self.check_singleton()
         consumed_sn_ids = []
         sn_error_msg = {}
+        lines_per_lot = Counter(
+            line.lot_id.id for line in self.move_raw_ids.move_line_ids if line.quantity
+        )
         for move in self.move_raw_ids:
             if move.has_tracking != "serial" or not move.picked:
                 continue
@@ -4597,13 +4555,7 @@ class MrpProduction(models.Model):
                 )
                 consumed_sn_ids.append(sml_sn.id)
                 sn_error_msg[sml_sn.id] = message
-                duplicates = (
-                    self.move_raw_ids.move_line_ids.filtered_domain(
-                        [("quantity", "!=", 0), ("lot_id", "=", sml_sn.id)]
-                    )
-                    - move_line
-                )
-                if duplicates:
+                if lines_per_lot[sml_sn.id] > 1:
                     raise UserError(message)
 
         if not consumed_sn_ids:

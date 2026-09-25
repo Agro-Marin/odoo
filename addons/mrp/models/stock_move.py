@@ -398,6 +398,7 @@ class StockMove(models.Model):
             for location in self.env["stock.location"].browse(location_ids)
         }
         no_location = self.env["stock.location"]
+        final_location_by_dest = {}
         for values in vals_list:
             mo_id = values.get("raw_material_production_id", False) or values.get(
                 "production_id", False
@@ -405,26 +406,28 @@ class StockMove(models.Model):
             location_dest = locations_by_id.get(
                 values.get("location_dest_id"), no_location
             )
-            if mo_id and location_dest.usage != "inventory":
-                mo = productions_by_id[mo_id]
-                values["origin"] = mo._get_origin()
-                values["propagate_cancel"] = mo.propagate_cancel
-                values["reference_ids"] = mo.reference_ids.ids
-                values["production_group_id"] = mo.production_group_id.id
-                if values.get("raw_material_production_id", False):
-                    values["location_dest_id"] = mo.production_location_id.id
-                    if not values.get("location_id"):
-                        values["location_id"] = mo.location_src_id.id
-                    if mo.state in ["progress", "to_close"] and mo.qty_producing > 0:
-                        values["picked"] = True
-                    continue
-                values["location_id"] = mo.production_location_id.id
-                values["date"] = mo.date_end
-                values["date_deadline"] = mo.date_deadline
-                if not values.get("location_dest_id"):
-                    values["location_dest_id"] = mo.location_dest_id.id
-                if not values.get("location_final_id"):
-                    values["location_final_id"] = mo.warehouse_id.lot_stock_id.id
+            if not mo_id or location_dest.usage == "inventory":
+                continue
+            mo = productions_by_id[mo_id]
+            if values.get("raw_material_production_id", False):
+                values.update(mo._prepare_move_raw_forced_vals())
+                if not values.get("location_id"):
+                    values["location_id"] = mo.location_src_id.id
+                if mo.state in ["progress", "to_close"] and mo.qty_producing > 0:
+                    values["picked"] = True
+                continue
+            values.update(mo._prepare_move_finished_forced_vals())
+            if not values.get("location_dest_id"):
+                values["location_dest_id"] = mo.location_dest_id.id
+            if not values.get("location_final_id"):
+                dest_id = values["location_dest_id"]
+                if dest_id not in final_location_by_dest:
+                    final_location_by_dest[dest_id] = (
+                        self._get_production_final_location(
+                            self.env["stock.location"].browse(dest_id)
+                        ).id
+                    )
+                values["location_final_id"] = final_location_by_dest[dest_id]
         _debug.lifecycle(
             "create",
             count=len(vals_list),
@@ -432,6 +435,40 @@ class StockMove(models.Model):
             locations=len(locations_by_id),
         )
         return super().create(vals_list)
+
+    def _get_qty_supplied_by_origins(self):
+        self.check_singleton()
+        origins = self.move_orig_ids.filtered_domain(
+            [("state", "not in", ("draft", "cancel"))]
+        )
+        if not origins:
+            return None
+        uom = self.product_uom_id
+        supplied_qty = sum(
+            origin.product_uom_id._get_quantity_in_unit(origin.quantity, uom)
+            for origin in origins
+            if origin.state == "done"
+        )
+        taken_qty = sum(
+            sibling.product_uom_id._get_quantity_in_unit(sibling.quantity, uom)
+            for sibling in self.move_orig_ids.move_dest_ids - self
+            if sibling.state == "done"
+        )
+        if uom.compare(supplied_qty, taken_qty) < 0:
+            return None
+        return supplied_qty - taken_qty
+
+    @api.model
+    def _get_production_final_location(self, location_dest):
+        warehouse = location_dest.warehouse_id
+        if not warehouse.sam_loc_id or not location_dest._is_child_of(
+            warehouse.sam_loc_id
+        ):
+            return location_dest
+        store_rule = warehouse.pbm_route_id.rule_ids.filtered_domain(
+            [("picking_type_id", "=", warehouse.sam_type_id.id)]
+        )[:1]
+        return store_rule.location_dest_id or location_dest
 
     @api.model
     def _is_quantity_edited(self, demand, quantity, uom):
@@ -860,8 +897,6 @@ class StockMove(models.Model):
 
     def _prepare_move_line_vals(self, quantity=None, reserved_quant=None):
         vals = super()._prepare_move_line_vals(quantity, reserved_quant)
-        if self.raw_material_production_id:
-            vals["production_id"] = self.raw_material_production_id.id
         if (
             self.production_id.product_tracking == "lot"
             and self.product_id == self.production_id.product_id
@@ -872,7 +907,7 @@ class StockMove(models.Model):
 
     def _get_picking_assignation_key(self):
         keys = super()._get_picking_assignation_key()
-        return keys + (self.created_production_id,)
+        return keys + (self.created_production_id, self.production_group_id)
 
     def _prepare_merge_moves_distinct_fields(self):
         res = super()._prepare_merge_moves_distinct_fields()

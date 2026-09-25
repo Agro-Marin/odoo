@@ -934,7 +934,7 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
         self.bom_1.product_id = lovely_product
         self.assertEqual(
             lovely_product.with_context(
-                location_id=self.warehouse_1.lot_stock_id.id
+                location=self.warehouse_1.lot_stock_id.id
             ).qty_available_virtual,
             0.0,
         )
@@ -949,7 +949,7 @@ class TestMultistepManufacturingWarehouse(TestMrpCommon):
         self.assertEqual(mo.state, "confirmed")
         self.assertEqual(
             lovely_product.with_context(
-                location_id=self.warehouse_1.lot_stock_id.id
+                location=self.warehouse_1.lot_stock_id.id
             ).qty_available_virtual,
             3.0,
         )
