@@ -93,6 +93,7 @@
                         </div>
                         <field name="active" widget="boolean_toggle" />
                         <field name="nextcall" />
+                        <field name="schedule_anchor" groups="base.group_no_one" />
                         <field name="priority" />
                     </group>
                 </group>

@@ -174,10 +174,13 @@ def _job_session_lock(cr, job_id: int, *, blocking: bool = True) -> Iterator[boo
         cr.execute(SQL("SELECT pg_try_advisory_lock(%s)", _advisory_key_sql(job_id)))
         acquired = cr.fetchone()[0]
         _debug.logic("session_lock.tried", job=job_id, acquired=acquired)
-    try:
-        yield acquired
-    finally:
-        if acquired:
+    if not acquired:
+        yield False
+        return
+    with cr.holding_session_state():
+        try:
+            yield True
+        finally:
             _release_job_session_lock(cr, job_id)
 
 
@@ -877,6 +880,7 @@ class IrJob(models.Model):
                     _debug.logic("drain.yielded", db=db_name, reason="deadline")
                     IrJob._notify_workers(db_name)
                     return True
+                cr.rollback()
                 try:
                     job = IrJob._claim_next(
                         cr, worker_ident, channels, serialise=serialise
@@ -1034,6 +1038,10 @@ class IrJob(models.Model):
         for attempt in range(1, CLAIM_MAX_ATTEMPTS + 1):
             try:
                 if serialise:
+                    # the capacity count and the pick must see every claim
+                    # committed before the lock was granted; a snapshot taken
+                    # at or before the lock statement does not
+                    cr.use_read_committed()
                     cr.execute(
                         "SELECT pg_advisory_xact_lock("
                         "hashtextextended('ir_job_claim', 0))"

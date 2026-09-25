@@ -1,3 +1,4 @@
+import threading
 import time
 from datetime import timedelta
 from unittest.mock import patch
@@ -1390,14 +1391,16 @@ class TestIrJobClaimSnapshot(BaseCase):
                 len(claimed),
                 2,
                 "every claimer opened its snapshot before any claim committed, so "
-                "each one's capacity count starts stale. The advisory lock does "
-                "NOT refresh it -- the snapshot is taken before the lock is "
-                "granted. What holds the capacity line is that the claim always "
-                "targets the lowest-ordered pending row of the channel, so a "
-                "stale claimer collides with the row already taken, gets a "
-                "serialization failure, and retries against a fresh snapshot. A "
-                "claim that let stale claimers pick different rows would silently "
-                "overshoot: measured 9-12 starts against this capacity of 2.",
+                "its transaction is already REPEATABLE READ and each capacity "
+                "count starts stale: the claim lock does not refresh it. Here the "
+                "pending set is fixed, so every stale claimer targets the row "
+                "already taken, collides on it, gets a serialization failure and "
+                "retries on a fresh snapshot. That collision is a backstop, not "
+                "the guarantee: a job made pending after a claimer's snapshot is "
+                "a different row and escapes it (see "
+                "test_a_job_made_pending_after_a_claimers_snapshot_stays_within_"
+                "capacity). The guarantee is that the drain hands every claim a "
+                "fresh transaction, which _claim_next runs at READ COMMITTED.",
             )
             self.assertEqual(len(set(claimed)), 2, "and never the same job twice")
         finally:
@@ -1409,6 +1412,70 @@ class TestIrJobClaimSnapshot(BaseCase):
             cr.execute("DELETE FROM ir_job WHERE channel = 'capsnap'")
             cr.execute("DELETE FROM ir_job_channel WHERE name = 'capsnap'")
             cr.commit()
+
+    @mute_logger("odoo.db.cursor")
+    def test_a_job_made_pending_after_a_claimers_snapshot_stays_within_capacity(
+        self,
+    ):
+        with self.registry.cursor() as cr:
+            cr.execute(
+                "UPDATE ir_job_channel SET capacity = 1 WHERE name = 'claimtest'"
+            )
+        with (
+            self.registry.cursor() as cr_1,
+            self.registry.cursor() as cr_2,
+            self.registry.cursor() as observer,
+        ):
+            first = IrJob._claim_next(cr_1, "late:1", channels=["claimtest"])
+            self.assertIsNotNone(first)
+            observer.execute(
+                "INSERT INTO ir_job (channel, state, priority, model_name,"
+                " method_name, user_id, max_retries, retry, create_uid,"
+                " create_date, write_uid, write_date) VALUES"
+                " ('claimtest','pending',0,'ir.job','_job_ping',1,5,0,1,now(),1,now())"
+            )
+            observer.commit()
+
+            second = {}
+            claimer = threading.Thread(
+                target=lambda: second.update(
+                    job=IrJob._claim_next(cr_2, "late:2", channels=["claimtest"])
+                )
+            )
+            claimer.start()
+            self._wait_until_blocked(observer, cr_2.connection.info.backend_pid)
+            cr_1.commit()
+            claimer.join(10)
+            cr_2.commit()
+
+            observer.execute(
+                "SELECT count(*) FROM ir_job"
+                " WHERE channel = 'claimtest' AND state = 'started'"
+            )
+            self.assertEqual(
+                observer.fetchone()[0],
+                1,
+                "the second claimer took its snapshot before the first claim "
+                "committed and waited for the claim lock; read on that snapshot, "
+                "the capacity count missed the first claim and the job enqueued "
+                "meanwhile was a row nobody had taken: two started jobs on a "
+                "channel of capacity 1",
+            )
+            self.assertIsNone(second["job"])
+
+    def _wait_until_blocked(self, observer, pid):
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            observer.execute(
+                "SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = %s AND NOT granted)",
+                [pid],
+            )
+            blocked = observer.fetchone()[0]
+            observer.rollback()
+            if blocked:
+                return
+            time.sleep(0.01)
+        self.fail(f"backend {pid} never waited on the claim lock")
 
     @mute_logger("odoo.db.cursor")
     def test_a_contended_claim_raises_instead_of_reporting_an_empty_queue(self):
@@ -1652,6 +1719,29 @@ class TestIrJobExecutorLiveness(BaseCase):
             )
             cr_worker.commit()
 
+    @mute_logger("odoo.db.cursor", "odoo.addons.base.models.ir_job")
+    def test_a_job_whose_connection_dies_does_not_carry_on_unlocked(self):
+        worker = self.registry.cursor()
+        self.addCleanup(worker.close)
+        job_id = 987654321
+        with self.registry.cursor() as other:
+            with (
+                self.assertRaises(psycopg.OperationalError),
+                ir_job._job_session_lock(worker, job_id),
+            ):
+                worker.execute("SELECT pg_backend_pid()")
+                pid = worker.fetchone()[0]
+                worker.commit()
+                other.execute("SELECT pg_terminate_backend(%s, 5000)", [pid])
+                other.commit()
+                worker.execute("SELECT 1")
+                self.fail(
+                    "the job's next transaction ran on a fresh backend, where "
+                    "its liveness lock is not held: the reaper requeues a job "
+                    "that is still running"
+                )
+            self.assertEqual(worker._session_state_holds, 0)
+
     def test_second_manual_run_is_refused_instead_of_blocking(self):
         with self.registry.cursor() as cr_run, self.registry.cursor() as cr_other:
             job = self._enqueue(cr_run)
@@ -1829,14 +1919,40 @@ class TestIrJobDrainLoop(BaseCase):
         self.assertTrue(
             [q for q in statements if "ir_job_claim" in q],
             "a declared capacity is only enforced because concurrent claimers "
-            "are made to collide on one row; see "
-            "test_capacity_holds_when_every_claimer_starts_from_a_stale_snapshot",
+            "are serialised on this lock and read after it is granted; see "
+            "test_a_job_made_pending_after_a_claimers_snapshot_stays_within_"
+            "capacity",
         )
 
     def _clear_channel(self):
         with self.registry.cursor() as cr:
             cr.execute("DELETE FROM ir_job_channel WHERE name = %s", (self.CHANNEL,))
             cr.commit()
+
+    def test_every_claim_of_a_drain_starts_a_fresh_transaction(self):
+        self._enqueue(2)
+        entered = []
+        real = IrJob._claim_next
+
+        def spy(cr, *args, **kwargs):
+            entered.append(cr.connection.info.transaction_status)
+            return real(cr, *args, **kwargs)
+
+        with (
+            patch.object(IrJob, "_claim_next", staticmethod(spy)),
+            patch.object(ir_job.IrJob, "_notify_workers"),
+        ):
+            IrJob._claim_and_run_loop(
+                self.db_name, channels=[self.CHANNEL], deadline=time.monotonic() + 60
+            )
+
+        self.assertEqual(self._states(), {"done": 2})
+        self.assertEqual(
+            entered,
+            [psycopg.pq.TransactionStatus.IDLE] * 3,
+            "releasing the previous job's lock opens a transaction; a claim "
+            "that continues it reads a snapshot older than the claim lock",
+        )
 
     def test_drain_publishes_cache_invalidations(self):
         job_model = self.registry["ir.job"]

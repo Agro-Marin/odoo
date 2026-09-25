@@ -4,8 +4,10 @@ import secrets
 import textwrap
 import time
 from contextlib import closing
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from itertools import pairwise
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import psycopg
 from freezegun import freeze_time
@@ -13,6 +15,7 @@ from freezegun import freeze_time
 import odoo
 from odoo import fields
 from odoo.exceptions import AccessError, UserError
+from odoo.modules.module import get_module_path, load_script
 from odoo.modules.registry import Registry
 from odoo.tests import common
 from odoo.tests.common import BaseCase, Like, RecordCapturer, TransactionCase, tagged
@@ -55,6 +58,7 @@ def make_job(cron, **overrides):
         "repeat_interval": cron.repeat_interval,
         "failure_count": 0,
         "first_failure_date": None,
+        "schedule_anchor": cron.schedule_anchor,
         "progress_id": None,
         "timed_out_counter": 0,
     }
@@ -137,7 +141,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
 
         registry = self.cron.pool
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(
                 registry, "cursor", side_effect=registry.cursor, autospec=True
             ) as cursor_method,
@@ -158,7 +162,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         caller = self.env(user=self.env.ref("base.user_demo", False) or self.env.user)
         caller.transaction.default_env = caller
 
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             self.cron.method_direct_trigger()
 
         self.assertIs(
@@ -171,7 +175,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
     def test_cron_direct_trigger_exception(self):
         self.cron.code = textwrap.dedent("raise UserError('oops')")
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.assertLogs("odoo.addons.base.models.ir_cron", 40),
             self.registry.cursor() as cron_cr,
         ):
@@ -311,6 +315,20 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.assertTrue(self.cron.active, "matching domain -> cron enabled")
         self.cron.toggle("res.partner", [("id", "=", 0)])
         self.assertFalse(self.cron.active, "empty domain -> cron disabled")
+
+    def test_toggle_to_the_state_the_cron_already_has_writes_nothing(self):
+        self.env["ir.config_parameter"].sudo().set_param("database.is_neutralized", "")
+        self.cron.write({"active": True})
+        with patch.object(
+            type(self.cron),
+            "write",
+            side_effect=AssertionError(
+                "an unchanged state still locked the row and the running job"
+            ),
+        ):
+            self.assertTrue(
+                self.cron.toggle("res.partner", [("id", "=", self.partner.id)])
+            )
 
     def test_toggle_noop_on_neutralized_database(self):
         self.env["ir.config_parameter"].sudo().set_param("database.is_neutralized", "1")
@@ -453,7 +471,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
                         self.cron._trigger()
 
                 self.env.flush_all()
-                with self.enter_registry_test_mode():
+                with self.sync_env_with_side_cursors():
                     cb, state = cb(self.cron)
                     with (
                         mute_logger("odoo.addons.base.models.ir_cron"),
@@ -500,7 +518,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
@@ -531,7 +549,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
 
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
@@ -561,7 +579,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
 
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
@@ -592,7 +610,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
     def test_cron_failed_increase(self):
         self.cron._trigger()
         self.env.flush_all()
-        with self.enter_registry_test_mode():
+        with self.sync_env_with_side_cursors():
             with (
                 patch.object(
                     self.registry["ir.cron"],
@@ -615,7 +633,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(
                 self.registry["ir.cron"], "_run_server_action", side_effect=Exception
             ),
@@ -644,7 +662,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(
                 self.registry["ir.cron"], "_run_server_action", side_effect=Exception
             ),
@@ -681,7 +699,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         )
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             mute_logger("odoo.addons.base.models.ir_cron"),
             self.registry.cursor() as cr,
         ):
@@ -692,7 +710,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.assertEqual(self.cron.active, True, "The cron should still be active")
 
         self.cron._trigger()
-        with self.enter_registry_test_mode(), self.registry.cursor() as cr:
+        with self.sync_env_with_side_cursors(), self.registry.cursor() as cr:
             self.registry["ir.cron"]._run_job(cr, self._acquire_job(cr))
 
         self.env.invalidate_all()
@@ -722,7 +740,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         )
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             mute_logger("odoo.addons.base.models.ir_cron"),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
@@ -750,7 +768,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.cron.active = True
         self.cron.search([("id", "not in", self.cron.ids)]).active = False
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             self.registry.cursor() as cr,
         ):
 
@@ -880,7 +898,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
             acquire.assert_called_once()
 
     def test_cron_commit_progress(self):
-        with self.enter_registry_test_mode(), self.registry.cursor() as cr:
+        with self.sync_env_with_side_cursors(), self.registry.cursor() as cr:
             cron = self.cron.with_env(
                 self.cron.env(cr=cr, context={"cron_id": self.cron.id})
             )
@@ -930,7 +948,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
@@ -949,7 +967,7 @@ class TestIrCron(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
@@ -1037,7 +1055,7 @@ class TestIrCronUser(TransactionCaseWithUserDemo, TestIrCron):
 
         cron._trigger()
         self.env.flush_all()
-        with self.enter_registry_test_mode(), self.registry.cursor() as cr:
+        with self.sync_env_with_side_cursors(), self.registry.cursor() as cr:
             with self.assertLogs(
                 "odoo.addons.base.models.ir_cron", level="WARNING"
             ) as log_catcher:
@@ -1066,6 +1084,20 @@ class TestNotifyChannelIsBestEffort(BaseCase):
             )
             ir_cron.notify_channel(CRON_TRIGGER_CHANNEL, "somedb")
         self.assertIn("Could not notify", logs.output[0])
+
+    def test_a_spent_connection_budget_does_not_reach_the_caller(self):
+        with (
+            patch.object(ir_cron.db, "db_connect") as connect,
+            self.assertLogs("odoo.addons.base.models.ir_cron", "WARNING") as logs,
+        ):
+            connect.return_value.cursor.side_effect = odoo.db.PoolError(
+                "connection budget reached"
+            )
+            ir_cron.notify_channel(CRON_TRIGGER_CHANNEL, "somedb")
+        self.assertIn("Could not notify", logs.output[0])
+        connect.return_value.cursor.assert_called_once_with(
+            borrow_timeout=ir_cron.NOTIFY_BORROW_TIMEOUT
+        )
 
     def test_a_non_database_error_still_propagates(self):
         with patch.object(ir_cron.db, "db_connect") as connect:
@@ -1165,6 +1197,82 @@ class TestIrCronAcquireLock(BaseCase):
             env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
             env["ir.cron"].browse(cron_id).unlink()
             cr.commit()
+
+    def test_a_cron_finished_after_the_listing_is_not_run_again(self):
+        IrCronModel = self.registry["ir.cron"]
+        real_ready = IrCron._get_jobs_ready
+        real_check = IrCron._check_modules_state
+        finished, ran = [], []
+
+        def only_this_cron(cr):
+            return [job for job in real_ready(cr) if job.id == self.cron_id]
+
+        def finish_on_another_worker(cr, jobs):
+            real_check(cr, jobs)
+            with self.registry.cursor() as cr_a, self.registry.cursor() as job_cr:
+                finished.append(IrCronModel._acquire_job(cr_a, self.cron_id))
+                job_cr.execute(
+                    "UPDATE ir_cron SET nextcall = %s, lastcall = now() WHERE id = %s",
+                    [datetime(2999, 1, 1), self.cron_id],
+                )
+                job_cr.commit()
+                cr_a.commit()
+
+        with (
+            patch.object(IrCron, "_get_jobs_ready", staticmethod(only_this_cron)),
+            patch.object(
+                IrCron, "_check_modules_state", staticmethod(finish_on_another_worker)
+            ),
+            patch.object(
+                IrCronModel,
+                "_run_job",
+                classmethod(lambda cls, cron_cr, job, **kw: ran.append(job.id)),
+            ),
+        ):
+            IrCron._process_jobs(common.get_db_name())
+
+        self.assertEqual(len(finished), 1)
+        self.assertIsNotNone(finished[0], "worker A ran the cron")
+        self.assertEqual(
+            ran,
+            [],
+            "worker B listed the cron before A finished it; acquired on that "
+            "listing's snapshot, it read the old nextcall and ran it again",
+        )
+
+    def test_a_long_job_keeps_its_lock_past_the_idle_in_transaction_timeout(self):
+        IrCronModel = self.registry["ir.cron"]
+        seen = []
+
+        def outlive_the_timeout(cls, job, *, deadline=None):
+            time.sleep(0.6)
+            with self.registry.cursor() as other:
+                seen.append(IrCronModel._acquire_job(other, job.id))
+                other.rollback()
+
+        with (
+            closing(self.registry.cursor()) as cron_cr,
+            patch.object(
+                IrCronModel,
+                "_run_job_within_budget",
+                classmethod(outlive_the_timeout),
+            ),
+            mute_logger("odoo.addons.base.models.ir_cron"),
+        ):
+            cron_cr.execute("SET idle_in_transaction_session_timeout = '200ms'")
+            cron_cr.commit()
+            try:
+                IrCronModel._run_jobs_until_deadline(cron_cr, job_ids=[self.cron_id])
+            finally:
+                cron_cr.execute("RESET idle_in_transaction_session_timeout")
+                cron_cr.commit()
+
+        self.assertEqual(
+            seen,
+            [None],
+            "the cron's cursor idles in its transaction for the whole run; "
+            "killed by the timeout, it released the job's lock mid-run",
+        )
 
     def test_acquire_job_after_release(self):
         IrCronModel = self.registry["ir.cron"]
@@ -1337,6 +1445,168 @@ class TestIrCronComputeNextCall(TransactionCase):
             IrCron._get_next_call(rec, nextcall, now, "minute", 1),
             datetime(2026, 6, 15, 12, 1, 30),
         )
+
+
+PARIS = ZoneInfo("Europe/Paris")
+
+
+def paris(value):
+    return value.replace(tzinfo=UTC).astimezone(PARIS)
+
+
+class TestIrCronScheduleAnchor(TransactionCase, CronMixinCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env.user.tz = "Europe/Paris"
+        cls.cron = cls.env["ir.cron"].create(cls._get_cron_data(cls.env))
+
+    def _complete_run(self, cron, at):
+        self.env.flush_all()
+        IrCronModel = self.registry["ir.cron"]
+        job = IrCronModel._acquire_job(self.env.cr, cron.id, include_not_ready=True)
+        with patch.object(IrCronModel, "_get_now", lambda self: at):
+            IrCronModel._apply_job_completion(
+                self.env.cr,
+                self.env["ir.cron"].with_context(tz="Europe/Paris"),
+                job,
+                CompletionStatus.FULLY_DONE,
+            )
+        self.env.invalidate_all()
+
+    def _run_until(self, cron, end):
+        runs = []
+        while cron.nextcall < end:
+            self._complete_run(cron, cron.nextcall + timedelta(seconds=5))
+            runs.append(paris(cron.nextcall))
+        return runs
+
+    def test_a_run_in_the_spring_gap_does_not_move_the_later_runs(self):
+        cases = [
+            ("day", datetime(2026, 3, 27, 1, 0), datetime(2026, 11, 3)),
+            ("week", datetime(2026, 3, 1, 1, 0), datetime(2026, 11, 10)),
+            ("month", datetime(2026, 1, 29, 1, 0), datetime(2026, 12, 1)),
+        ]
+        for unit, first, end in cases:
+            with self.subTest(unit=unit):
+                self.cron.write({"repeat_unit": unit, "nextcall": first})
+                runs = self._run_until(self.cron, end)
+                self.assertEqual(paris(first).hour, 2)
+                gap_day = [
+                    run for run in runs if run.date().isoformat() == "2026-03-29"
+                ]
+                self.assertEqual(
+                    [run.hour for run in gap_day],
+                    [3],
+                    "02:00 does not exist on 2026-03-29 in Paris; the run is at 03:00",
+                )
+                self.assertEqual(
+                    {run.hour for run in runs if run not in gap_day},
+                    {2},
+                    "every run after the gap day is back at 02:00, summer and winter",
+                )
+                self.assertGreater(runs[-1].month, 10, "the series ran past autumn")
+                self.assertEqual(self.cron.schedule_anchor, first)
+
+    def test_a_scheduler_run_on_the_gap_day_keeps_the_anchor(self):
+        anchor = datetime(2026, 3, 28, 1, 0)
+        self.cron.write({"repeat_unit": "day", "nextcall": anchor})
+        self._complete_run(self.cron, anchor + timedelta(seconds=5))
+        self.assertEqual(
+            paris(self.cron.nextcall), datetime(2026, 3, 29, 3, 0, tzinfo=PARIS)
+        )
+        self.cron.code = ""
+        self.env.flush_all()
+        IrCronModel = self.registry["ir.cron"]
+        with (
+            self.sync_env_with_side_cursors(),
+            patch.object(
+                IrCronModel, "_get_now", lambda self: datetime(2026, 3, 29, 1, 0, 5)
+            ),
+            self.registry.cursor() as cr,
+        ):
+            job = IrCronModel._acquire_job(cr, self.cron.id, include_not_ready=True)
+            IrCronModel._run_job(cr, job)
+        self.env.invalidate_all()
+        self.assertEqual(self.cron.lastcall, datetime(2026, 3, 29, 1, 0, 5))
+        self.assertEqual(self.cron.schedule_anchor, anchor)
+        self.assertEqual(
+            paris(self.cron.nextcall), datetime(2026, 3, 30, 2, 0, tzinfo=PARIS)
+        )
+
+    def test_setting_the_next_execution_moves_the_anchor(self):
+        moved = datetime(2026, 5, 4, 5, 30)
+        self.cron.nextcall = moved
+        self.assertEqual(self.cron.schedule_anchor, moved)
+        self.cron.write({"nextcall": "2026-05-06 06:00:00", "repeat_interval": 2})
+        self.assertEqual(self.cron.schedule_anchor, datetime(2026, 5, 6, 6, 0))
+
+    def test_a_new_cron_is_anchored_at_its_first_execution(self):
+        given = self.env["ir.cron"].create(self._get_cron_data(self.env))
+        self.assertEqual(given.schedule_anchor, given.nextcall)
+        data = self._get_cron_data(self.env)
+        del data["nextcall"]
+        defaulted = self.env["ir.cron"].create(data)
+        self.assertTrue(defaulted.nextcall)
+        self.assertEqual(defaulted.schedule_anchor, defaulted.nextcall)
+        copied = given.copy()
+        self.assertEqual(copied.schedule_anchor, copied.nextcall)
+
+    def test_a_new_cadence_restarts_the_series_and_the_same_one_keeps_it(self):
+        anchor = datetime(2026, 3, 28, 1, 0)
+        self.cron.write({"repeat_unit": "day", "nextcall": anchor})
+        self._complete_run(self.cron, anchor + timedelta(seconds=5))
+        shifted = self.cron.nextcall
+        self.cron.write({"repeat_unit": "day", "repeat_interval": 1})
+        self.assertEqual(
+            self.cron.schedule_anchor,
+            anchor,
+            "rewriting the same cadence, as reloading a data file does, keeps it",
+        )
+        self.cron.write({"repeat_unit": "week"})
+        self.assertEqual(self.cron.schedule_anchor, shifted)
+
+    def test_an_hourly_cron_steps_exact_hours_across_the_gap(self):
+        first = datetime(2026, 3, 28, 22, 0)
+        self.cron.write({"repeat_unit": "hour", "nextcall": first})
+        calls = [first]
+        while calls[-1] < datetime(2026, 3, 29, 4, 0):
+            self._complete_run(self.cron, calls[-1] + timedelta(seconds=5))
+            calls.append(self.cron.nextcall)
+        self.assertEqual(
+            {later - earlier for earlier, later in pairwise(calls)},
+            {timedelta(hours=1)},
+        )
+        self.assertEqual(self.cron.schedule_anchor, first)
+
+
+class TestCronScheduleAnchorMigration(TransactionCase, CronMixinCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.script = load_script(
+            f"{get_module_path('base')}/migrations/1.112/"
+            "post-migrate_cron_schedule_anchor.py",
+            "base_1_112_post_migrate_cron_schedule_anchor",
+        )
+
+    def test_every_cron_is_anchored_at_its_next_execution_once(self):
+        unanchored = self.env["ir.cron"].create(self._get_cron_data(self.env))
+        anchored = self.env["ir.cron"].create(self._get_cron_data(self.env))
+        anchored.write({"schedule_anchor": datetime(2026, 1, 1, 1, 0)})
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE ir_cron SET schedule_anchor = NULL WHERE id = %s", [unanchored.id]
+        )
+        for _run in range(2):
+            self.script.migrate(self.env.cr, "1.101")
+        self.env.invalidate_all()
+        self.assertEqual(unanchored.schedule_anchor, unanchored.nextcall)
+        self.assertEqual(anchored.schedule_anchor, datetime(2026, 1, 1, 1, 0))
+        self.env.cr.execute(
+            "SELECT count(*) FROM ir_cron WHERE schedule_anchor IS NULL"
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], 0)
 
 
 class TestIrCronCanKeepRunning(BaseCase):
@@ -1587,7 +1857,7 @@ class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
             return real_write(self, job, vals)
 
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(self.registry["ir.cron"], "_write_job_row", spying_write),
             self.registry.cursor() as cr,
         ):
@@ -1615,7 +1885,7 @@ class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
@@ -1643,7 +1913,7 @@ class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             mute_logger("odoo.addons.base.models.ir_cron"),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
@@ -1680,7 +1950,7 @@ class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             mute_logger("odoo.addons.base.models.ir_cron"),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
@@ -1726,7 +1996,7 @@ class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
@@ -1786,7 +2056,7 @@ class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
@@ -1809,7 +2079,7 @@ class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,
         ):
@@ -1830,7 +2100,7 @@ class TestIrCronRunLoopContract(TransactionCase, CronMixinCase):
         self.cron._trigger()
         self.env.flush_all()
         with (
-            self.enter_registry_test_mode(),
+            self.sync_env_with_side_cursors(),
             patch.object(ir_cron, "MIN_TIME_PER_JOB", slice_seconds),
             patch.object(self.registry["ir.actions.server"], "run", mocked_run),
             self.registry.cursor() as cr,

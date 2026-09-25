@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from functools import partial
 from itertools import starmap
+from operator import attrgetter
 from typing import Any, Self
 
 import psycopg
@@ -63,9 +64,14 @@ CRON_ADVISORY_LOCK_NAMESPACE = 0x0DD0C401
 
 SLOW_COMPLETION_WRITE = 5.0
 
+NOTIFY_BORROW_TIMEOUT = 1.0
+
 NOTIFY_PENDING_KEY = "ir.cron.notify"
 
 ODOO_NOTIFY_FUNCTION = os.getenv("ODOO_NOTIFY_FUNCTION", "pg_notify")
+
+
+_cadence = attrgetter("repeat_interval", "repeat_unit")
 
 
 def is_user_archived(env: api.Environment) -> bool:
@@ -87,7 +93,9 @@ NOTIFY_CRON_CHANGES = str2bool(os.getenv("ODOO_NOTIFY_CRON_CHANGES", ""), defaul
 
 def notify_channel(channel: str, db_name: str) -> None:
     try:
-        with db.db_connect("postgres").cursor() as cr:
+        with db.db_connect("postgres").cursor(
+            borrow_timeout=NOTIFY_BORROW_TIMEOUT
+        ) as cr:
             cr.execute(
                 SQL(
                     "SELECT %s(%s, %s)",
@@ -96,7 +104,10 @@ def notify_channel(channel: str, db_name: str) -> None:
                     db_name,
                 )
             )
-    except psycopg.Error:
+    except (psycopg.Error, db.PoolError) as error:
+        _debug.logic(
+            "notify_failed", channel=channel, db=db_name, error=type(error).__name__
+        )
         _logger.warning(
             "Could not notify %s workers (%s); the next cron pass picks the "
             "work up regardless",
@@ -136,6 +147,7 @@ class CronJob:
     repeat_interval: int
     failure_count: int
     first_failure_date: datetime | None
+    schedule_anchor: datetime | None
     progress_id: int | None
     timed_out_counter: int
     deactivate: bool = False
@@ -153,6 +165,7 @@ class CronJob:
         "repeat_interval",
         "failure_count",
         "first_failure_date",
+        "schedule_anchor",
     )
     PROGRESS_COLUMNS: typing.ClassVar[tuple[str, ...]] = (
         "progress_id",
@@ -256,6 +269,14 @@ class IrCron(models.Model):
         required=True,
         help="Next planned execution date for this job.",
     )
+    schedule_anchor = fields.Datetime(
+        copy=False,
+        readonly=True,
+        help="Date the executions are counted from: the Next Execution Date as "
+        "last set by hand, by a data file or by a change of interval. Intervals of "
+        "a day or longer keep its local time of day, even after a daylight saving "
+        "change moved one execution.",
+    )
     lastcall = fields.Datetime(
         string="Last Execution Date",
         help="Previous time the cron ran to completion (whether it finished or failed), provided to the job through the context on the `lastcall` key",
@@ -286,10 +307,24 @@ class IrCron(models.Model):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         vals_list = [{**vals, "usage": "ir_cron"} for vals in vals_list]
+        for vals in vals_list:
+            if "nextcall" in vals:
+                vals.setdefault("schedule_anchor", vals["nextcall"])
         _debug.lifecycle("create", count=len(vals_list))
         if NOTIFY_CRON_CHANGES:
             self._notify_after_commit(self.env.cr)
-        return super().create(vals_list)
+        crons = super().create(vals_list)
+        unanchored = crons.browse(
+            [
+                cron.id
+                for cron, vals in zip(crons, vals_list, strict=True)
+                if "schedule_anchor" not in vals
+            ]
+        )
+        for nextcall, group in unanchored.grouped("nextcall").items():
+            super(IrCron, group).write({"schedule_anchor": nextcall})
+        _debug.lifecycle("schedule_anchor_set", records=crons, reason="create")
+        return crons
 
     @api.model
     def default_get(self, fields: list[str]) -> ValuesType:
@@ -342,6 +377,7 @@ class IrCron(models.Model):
                     if not jobs:
                         _debug.logic("cron_pass_idle", db=db_name)
                         return
+                    cron_cr.rollback()
                     cls._run_jobs_until_deadline(
                         cron_cr,
                         job_ids=[job.id for job in jobs],
@@ -529,6 +565,9 @@ class IrCron(models.Model):
     def _acquire_job(
         cr: BaseCursor, job_id: int, *, include_not_ready: bool = False
     ) -> CronJob | None:
+        # the row must be read after the lock is granted: a snapshot taken
+        # before it still shows the nextcall of a run that just finished
+        cr.use_read_committed()
         cr.execute(
             SQL(
                 "SELECT pg_try_advisory_xact_lock(%s, %s)",
@@ -593,6 +632,12 @@ class IrCron(models.Model):
         *,
         deadline: float | None = None,
     ) -> None:
+        # cron_cr idles in its transaction, holding the job's lock, for as long
+        # as the job runs; a server idle timeout would kill it mid-run
+        cron_cr.execute(
+            "SELECT set_config('idle_in_transaction_session_timeout', '0', true)"
+        )
+        _debug.lifecycle("coordinator_idle_timeout_lifted", job=job.id)
         env = api.Environment(cron_cr, job.user_id, {})
         with _job_default_env(env):
             ir_cron = env[cls._name]
@@ -990,23 +1035,28 @@ class IrCron(models.Model):
     @staticmethod
     def _get_next_call(
         record: models.BaseModel,
-        nextcall: datetime,
+        start: datetime,
         now: datetime,
         repeat_unit: str,
         repeat_interval: int,
     ) -> datetime:
-        return next_after(nextcall, now, repeat_interval, repeat_unit, record.env.tz)
+        return next_after(start, now, repeat_interval, repeat_unit, record.env.tz)
 
     @api.model
     def _prepare_reschedule_vals(self, job: CronJob) -> dict[str, Any]:
         now = self._get_now()
+        # counted from the anchor, not from the nextcall of the run that just
+        # ended: a nextcall a DST gap moved would shift every later run
+        start = job.schedule_anchor or job.nextcall
         nextcall = self._get_next_call(
-            self, job.nextcall, now, job.repeat_unit, job.repeat_interval
+            self, start, now, job.repeat_unit, job.repeat_interval
         )
         _debug.logic(
             "job_rescheduled",
             job=job.id,
             nextcall=nextcall,
+            start=start,
+            anchored=job.schedule_anchor is not None,
             unit=job.repeat_unit,
             interval=job.repeat_interval,
         )
@@ -1109,7 +1159,27 @@ class IrCron(models.Model):
         _debug.lifecycle("write", count=len(self), fields=list(vals))
         if ("nextcall" in vals or vals.get("active")) and NOTIFY_CRON_CHANGES:
             self._notify_after_commit(self.env.cr)
-        return super().write(vals)
+        if "schedule_anchor" in vals:
+            _debug.lifecycle("schedule_anchor_set", records=self, reason="explicit")
+            return super().write(vals)
+        if "nextcall" in vals:
+            _debug.lifecycle("schedule_anchor_set", records=self, reason="nextcall")
+            return super().write({**vals, "schedule_anchor": vals["nextcall"]})
+        if "repeat_interval" not in vals and "repeat_unit" not in vals:
+            return super().write(vals)
+        cadences = {cron.id: _cadence(cron) for cron in self}
+        super().write(vals)
+        # the series restarts from the pending execution, as it did before there
+        # was an anchor; a rewrite of the same cadence (a data file reloaded)
+        # keeps it, or an upgrade could pin a nextcall a DST gap had moved
+        restarted = self.filtered(lambda cron: cadences[cron.id] != _cadence(cron))
+        for nextcall, group in restarted.grouped("nextcall").items():
+            super(IrCron, group).write({"schedule_anchor": nextcall})
+        if restarted:
+            _debug.lifecycle("schedule_anchor_set", records=restarted, reason="cadence")
+        if kept := self - restarted:
+            _debug.logic("schedule_anchor_kept", records=kept, reason="same_cadence")
+        return True
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_running(self) -> None:
@@ -1124,6 +1194,9 @@ class IrCron(models.Model):
 
         active = bool(self.env[model].search_count(domain, limit=1))
         _debug.logic("toggle", job=self.id, model=model, active=active)
+        if self.active == active:
+            _debug.logic("toggle_skipped", job=self.id, reason="unchanged")
+            return True
         try:
             return self.write({"active": active})
         except UserError:
