@@ -750,26 +750,29 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             return self._do_action_change_account(move_vals)
         return None
 
-    @_debug.perf.timed
-    def _reconcile_accrual_lines(
-        self,
-        accrual_account,
-        accrual_move,
-        destination_move,
-        destination_move_offset,
-        accrual_move_offsets,
-    ):
-        destination_move_lines = destination_move.mapped("line_ids").filtered(
-            lambda line: line.account_id == accrual_account
-        )[destination_move_offset : destination_move_offset + 2]
-        offset = accrual_move_offsets[accrual_move]
-        accrual_move_lines = accrual_move.mapped("line_ids").filtered(
-            lambda line: line.account_id == accrual_account
-        )[offset : offset + 2]
-        accrual_move_offsets[accrual_move] += 2
-        (accrual_move_lines + destination_move_lines).filtered(
-            lambda line: not line.currency_id.is_zero(line.balance)
-        ).reconcile()
+    def _get_accrual_lines_per_source_line(self, accrual_account, created_moves):
+        lock_safe_dates = {
+            date: self._get_lock_safe_date(date)
+            for date in set(self.move_line_ids.mapped("date"))
+        }
+        source_lines_per_date = self.move_line_ids.grouped(
+            lambda aml: lock_safe_dates[aml.date]
+        )
+        accrual_lines = defaultdict(lambda: self.env["account.move.line"])
+        for move in created_moves:
+            source_lines = (
+                self.move_line_ids
+                if move == created_moves[0]
+                else source_lines_per_date[move.date]
+            )
+            move_accrual_lines = move.line_ids.filtered(
+                lambda line: line.account_id == accrual_account
+            )
+            for source_line, accrual_line in zip(
+                source_lines, move_accrual_lines, strict=True
+            ):
+                accrual_lines[source_line] |= accrual_line
+        return accrual_lines
 
     @_debug.perf.timed
     def _post_accrual_messages(self, move, accrual_move, destination_move, amount):
@@ -834,6 +837,20 @@ class AccountAutomaticEntryWizard(models.TransientModel):
             if self.account_type == "income"
             else self.expense_accrual_account
         )
+        if accrual_account in self.move_line_ids.account_id:
+            _debug.logic(
+                "change_period_refused",
+                autoentry=self,
+                accrual_account=accrual_account,
+                reason="accrual account is a source account",
+            )
+            raise UserError(
+                self.env._(
+                    "The accrual account %(account)s cannot be the account of the "
+                    "journal items being moved: the entries would cancel out on it.",
+                    account=accrual_account.display_name,
+                )
+            )
 
         created_moves = self.env["account.move"].create(move_vals)
         created_moves._post()
@@ -845,12 +862,16 @@ class AccountAutomaticEntryWizard(models.TransientModel):
         )
 
         destination_move = created_moves[0]
-        destination_move_offset = 0
+        accrual_lines_per_source_line = (
+            self._get_accrual_lines_per_source_line(accrual_account, created_moves)
+            if accrual_account.reconcile
+            else {}
+        )
         destination_messages = []
         accrual_move_messages = defaultdict(list)
-        accrual_move_offsets = defaultdict(int)
         for move in self.move_line_ids.move_id:
-            amount = sum((self.move_line_ids._origin & move.line_ids).mapped("balance"))
+            source_lines = self.move_line_ids._origin & move.line_ids
+            amount = sum(source_lines.mapped("balance"))
             lock_safe_date = self._get_lock_safe_date(move.date)
             accrual_move = created_moves[1:].filtered_domain(
                 [("date", "=", lock_safe_date)]
@@ -867,14 +888,11 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                     accrual_move=accrual_move,
                     destination_move=destination_move,
                 )
-                self._reconcile_accrual_lines(
-                    accrual_account,
-                    accrual_move,
-                    destination_move,
-                    destination_move_offset,
-                    accrual_move_offsets,
-                )
-                destination_move_offset += 2
+                self.env["account.move.line"].union(
+                    *(accrual_lines_per_source_line[line] for line in source_lines)
+                ).filtered(
+                    lambda line: not line.currency_id.is_zero(line.balance)
+                ).reconcile()
             destination_message, accrual_message = self._post_accrual_messages(
                 move, accrual_move, destination_move, amount
             )
@@ -923,13 +941,12 @@ class AccountAutomaticEntryWizard(models.TransientModel):
                 to_reconcile.reconcile()
 
         if destination_lines and self.destination_account_id.reconcile:
-            for partner, currency in {
-                (partner, currency) for partner, currency, __ in grouped_lines
-            }:
-                to_reconcile = destination_lines + new_lines_by_key.get(
-                    (self.destination_account_id, partner, currency), no_line
+            (
+                destination_lines
+                + new_move.line_ids.filtered(
+                    lambda line: line.account_id == self.destination_account_id
                 )
-                to_reconcile.reconcile()
+            ).reconcile()
 
         acc_transfer_per_move = defaultdict(lambda: defaultdict(lambda: 0))
         for line in self.move_line_ids:

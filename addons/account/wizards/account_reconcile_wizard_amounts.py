@@ -21,24 +21,24 @@ class AccountReconcileWizard(models.TransientModel):
         if len(foreign_currencies) == 1:
             return foreign_currencies
 
-        lines_with_residuals = self.env["account.move.line"]
-        for residual, residual_values in aml_values_map.items():
-            if (
-                residual_values["amount_residual"]
-                or residual_values["amount_residual_currency"]
-            ):
-                lines_with_residuals += residual
-                if (
-                    lines_with_residuals
-                    and len(lines_with_residuals.currency_id - company_currency) > 1
-                ):
-                    _debug.logic(
-                        "reco_currency_ambiguous",
-                        amls=amls,
-                        residual_lines=lines_with_residuals,
-                    )
-                    return False
-        return (lines_with_residuals.currency_id - company_currency) or company_currency
+        residual_currencies = (
+            self.env["res.currency"].union(
+                *(
+                    aml.currency_id
+                    for aml, values in aml_values_map.items()
+                    if values["amount_residual"] or values["amount_residual_currency"]
+                )
+            )
+            - company_currency
+        )
+        if len(residual_currencies) > 1:
+            _debug.logic(
+                "reco_currency_ambiguous",
+                amls=amls,
+                residual_currencies=residual_currencies,
+            )
+            return False
+        return residual_currencies or company_currency
 
     def _get_simulated_residuals(self, amls, shadowed_aml_values):
         plan_list, all_amls = amls._optimize_reconciliation_plan(

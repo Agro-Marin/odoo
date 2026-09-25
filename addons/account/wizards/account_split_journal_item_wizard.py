@@ -125,10 +125,14 @@ class AccountSplitJournalItemWizard(models.TransientModel):
                     # every split part comes back with the original amount. Split
                     # both, keeping the line's own rate.
                     rate = line.amount_currency / line.balance if line.balance else 0.0
-                    for split_vals in vals_list:
+                    for split_vals in vals_list[1:]:
                         split_vals["amount_currency"] = line.currency_id.round(
                             split_vals["balance"] * rate
                         )
+                    vals_list[0]["amount_currency"] = line.currency_id.round(
+                        line.amount_currency
+                        - sum(vals["amount_currency"] for vals in vals_list[1:])
+                    )
 
                 line.write(vals_list[0])
                 deferred_vals = {

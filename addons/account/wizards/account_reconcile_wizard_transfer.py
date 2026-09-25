@@ -138,14 +138,20 @@ class AccountReconcileWizard(models.TransientModel):
                 default_amount_currency -= amount_currency_to_transfer
                 amount -= amount_to_transfer
                 amount_currency -= amount_currency_to_transfer
-                if not currency.is_zero(abs(default_amount)):
+                if not (
+                    self.company_currency_id.is_zero(default_amount)
+                    and currency.is_zero(default_amount_currency)
+                ):
                     to_absorb[partner, currency, sign] = {
                         "balance": default_amount,
                         "amount_currency": default_amount_currency,
                     }
                 else:
                     del to_absorb[partner, currency, sign]
-            if not currency.is_zero(abs(amount)):
+            if not (
+                self.company_currency_id.is_zero(amount)
+                and currency.is_zero(amount_currency)
+            ):
                 room_per_partner[currency, sign][partner] = {
                     "balance": amount,
                     "amount_currency": amount_currency,

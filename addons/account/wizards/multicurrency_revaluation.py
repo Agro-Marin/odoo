@@ -23,7 +23,9 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
         comodel_name="account.journal",
         compute="_compute_accounting_values",
         inverse="_inverse_journal_id",
+        precompute=True,
         compute_sudo=True,
+        store=True,
         readonly=False,
         required=True,
         domain=[("type", "=", "general")],
@@ -40,7 +42,9 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
         string="Expense Account",
         compute="_compute_accounting_values",
         inverse="_inverse_expense_provision_account_id",
+        precompute=True,
         compute_sudo=True,
+        store=True,
         readonly=False,
         required=True,
     )
@@ -49,7 +53,9 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
         string="Income Account",
         compute="_compute_accounting_values",
         inverse="_inverse_income_provision_account_id",
+        precompute=True,
         compute_sudo=True,
+        store=True,
         readonly=False,
         required=True,
     )
@@ -135,7 +141,7 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
         for record in self:
             preview_vals = [
                 self.env["account.move"]._move_dict_to_preview_vals(
-                    self._prepare_move_vals(), record.company_id.currency_id
+                    record._prepare_move_vals(), record.company_id.currency_id
                 )
             ]
             record.preview_data = json.dumps(
@@ -158,15 +164,25 @@ class AccountMulticurrencyRevaluationWizard(models.TransientModel):
 
     def _inverse_journal_id(self):
         for record in self:
-            record.company_id.sudo().account_config_id.account_revaluation_journal_id = record.journal_id
+            config = record.company_id.account_config_id
+            if config.has_access("write"):
+                config.account_revaluation_journal_id = record.journal_id
 
     def _inverse_expense_provision_account_id(self):
         for record in self:
-            record.company_id.sudo().account_config_id.account_revaluation_expense_provision_account_id = record.expense_provision_account_id
+            config = record.company_id.account_config_id
+            if config.has_access("write"):
+                config.account_revaluation_expense_provision_account_id = (
+                    record.expense_provision_account_id
+                )
 
     def _inverse_income_provision_account_id(self):
         for record in self:
-            record.company_id.sudo().account_config_id.account_revaluation_income_provision_account_id = record.income_provision_account_id
+            config = record.company_id.account_config_id
+            if config.has_access("write"):
+                config.account_revaluation_income_provision_account_id = (
+                    record.income_provision_account_id
+                )
 
     @api.model
     @_debug.perf.timed

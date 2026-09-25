@@ -17,10 +17,11 @@ class AccountMoveLine(models.Model):
 
     analytic_coverage = fields.Float(
         compute="_compute_analytic_coverage",
+        value_sql="_analytic_coverage_sql",
         groups="analytic.group_analytic_accounting",
     )
 
-    @api.depends("journal_id")
+    @api.depends("account_id", "journal_id.default_account_id")
     def _compute_exclude_bank_lines(self):
         for move_line in self:
             move_line.exclude_bank_lines = (
@@ -131,35 +132,28 @@ class AccountMoveLine(models.Model):
     def _affect_tax_report(self):
         return super()._affect_tax_report() or self.move_id.closing_return_id
 
-    def _field_to_sql(
-        self, alias: str, fname: str, query: (Query | None) = None
+    def _analytic_coverage_sql(
+        self, field: fields.Field, alias: str, query: (Query | None) = None
     ) -> SQL:
-        if fname == "analytic_coverage":
-            plan_id = self.env.context.get("selected_analytic_plan")
-            _debug.logic("analytic_coverage_sql", plan_id=plan_id, alias=alias)
-            if not plan_id:
-                return SQL("0.0")
+        plan_id = self.env.context.get("selected_analytic_plan")
+        _debug.logic("analytic_coverage_sql", plan_id=plan_id, alias=alias)
+        if not plan_id:
+            return SQL("0.0")
 
-            move_line_distribution = self.env["account.move.line"]._field_to_sql(
-                "aml", "analytic_distribution"
-            )
-
-            return SQL(
-                """
-                   (SELECT COALESCE(SUM(CAST(distribution.value AS FLOAT)) / 100, 0)
-                      FROM jsonb_each_text(%(distribution)s) AS distribution(key, value)
-                     WHERE EXISTS (
-                              SELECT 1
-                                FROM regexp_split_to_table(distribution.key, ',') AS accounts
-                                JOIN account_analytic_account ON account_analytic_account.id = CAST(accounts AS INTEGER)
-                               WHERE account_analytic_account.plan_id = %(plan_id)s
-                   ))
-                """,
-                distribution=move_line_distribution,
-                plan_id=plan_id,
-            )
-
-        return super()._field_to_sql(alias, fname, query)
+        return SQL(
+            """
+               (SELECT COALESCE(SUM(CAST(distribution.value AS FLOAT)) / 100, 0)
+                  FROM jsonb_each_text(%(distribution)s) AS distribution(key, value)
+                 WHERE EXISTS (
+                          SELECT 1
+                            FROM regexp_split_to_table(distribution.key, ',') AS accounts
+                            JOIN account_analytic_account ON account_analytic_account.id = CAST(accounts AS INTEGER)
+                           WHERE account_analytic_account.plan_id = %(plan_id)s
+               ))
+            """,
+            distribution=self._field_to_sql(alias, "analytic_distribution", query),
+            plan_id=plan_id,
+        )
 
     @api.depends("analytic_distribution", "distribution_analytic_account_ids")
     @_debug.perf.timed

@@ -1349,20 +1349,23 @@ class AccountMoveLine(models.Model):
         line2discounted_amount = self._prepare_discount_allocation_amounts()
 
         distribution_totals = defaultdict(lambda: defaultdict(float))
+        amount_totals = defaultdict(float)
         for line, discounted_amounts in line2discounted_amount.items():
             for account, _amount_currency, amount in discounted_amounts:
+                key = frozendict(
+                    {
+                        "move_id": line.move_id.id,
+                        "account_id": account.id,
+                        "currency_rate": line.currency_rate,
+                    }
+                )
+                amount_totals[key] += amount
                 for analytic_account_id, percentage in (
                     line.analytic_distribution or {}
                 ).items():
-                    distribution_totals[
-                        frozendict(
-                            {
-                                "move_id": line.move_id.id,
-                                "account_id": account.id,
-                                "currency_rate": line.currency_rate,
-                            }
-                        )
-                    ][analytic_account_id] += amount * percentage / 100
+                    distribution_totals[key][analytic_account_id] += (
+                        amount * percentage / 100
+                    )
         _debug.pipeline(
             "discount_allocation_amounts",
             lines=self,
@@ -1386,7 +1389,7 @@ class AccountMoveLine(models.Model):
                     }
                 )
                 dist = distribution_totals[key]
-                total = sum(dist.values()) or 1
+                total = amount_totals[key] or 1
                 discount_allocation_needed[key] = frozendict(
                     {
                         "display_type": "discount",
@@ -3552,12 +3555,7 @@ class AccountMoveLine(models.Model):
         exchange_index_per_partial_index = {}
         all_plan_results = []
         for plan in plan_list:
-            plan_results = self.with_context(
-                no_exchange_difference=self.env.context.get("no_exchange_difference"),
-                no_exchange_difference_no_recursive=self.env.context.get(
-                    "no_exchange_difference_no_recursive", False
-                ),
-            )._prepare_reconciliation_plan(plan, aml_values_map)
+            plan_results = self._prepare_reconciliation_plan(plan, aml_values_map)
             all_plan_results.append(plan_results)
             for results in plan_results:
                 if (
@@ -3598,6 +3596,7 @@ class AccountMoveLine(models.Model):
         ):
             _debug.logic("_create_reconciliation_cash_basis_moves_skipped_context")
             return
+        partials = self.env["account.partial.reconcile"]
         for plan in plan_list:
             amls = plan["amls"]
             needed = any(
@@ -3608,10 +3607,12 @@ class AccountMoveLine(models.Model):
             )
             _debug.logic("cash_basis_moves", needed=needed, amls=amls)
             if needed:
-                plan["partials"].with_context(
-                    no_exchange_difference_no_recursive=False
-                )._create_tax_cash_basis_moves()
-                plan["partials"]._set_draft_caba_move_vals()
+                partials |= plan["partials"]
+        if partials:
+            partials.with_context(
+                no_exchange_difference_no_recursive=False
+            )._create_tax_cash_basis_moves()
+            partials._set_draft_caba_move_vals()
 
     @_debug.perf.timed
     def _create_full_reconciles(self, plan_list, all_amls, aml_values_map):
@@ -3677,14 +3678,6 @@ class AccountMoveLine(models.Model):
         self.env["account.full.reconcile"].create(full_reconcile_values_list)
         return all_amls
 
-    def _get_exchange_journal(self, company):
-        return company.account_config_id.currency_exchange_journal_id
-
-    def _get_exchange_account(self, company, amount):
-        if amount > 0.0:
-            return company.account_config_id.expense_currency_exchange_account_id
-        return company.account_config_id.income_currency_exchange_account_id
-
     @_debug.perf.timed
     def _prepare_exchange_difference_move_vals(
         self, amounts_list, company=None, exchange_date=None, **kwargs
@@ -3699,7 +3692,7 @@ class AccountMoveLine(models.Model):
             _debug.logic("exchange_move_skipped", reason="no_company", lines=self)
             return None
 
-        journal = self._get_exchange_journal(company)
+        journal = company.account_config_id.currency_exchange_journal_id
         _debug.logic(
             "exchange_journal_resolved",
             company=company,
@@ -3720,7 +3713,6 @@ class AccountMoveLine(models.Model):
             "line_ids": [],
             "always_tax_exigible": True,
         }
-        to_reconcile = []
         for line, amounts in zip(self, amounts_list, strict=True):
             move_vals["date"] = max(move_vals["date"], line.date)
 
@@ -3751,16 +3743,14 @@ class AccountMoveLine(models.Model):
                 kwargs.get("exchange_analytic_distribution"),
             )
             move_vals["line_ids"] += [Command.create(vals) for vals in line_vals]
-            to_reconcile.append((line, sequence))
 
         _debug.pipeline(
             "exchange_move_vals_prepared",
             lines=self,
             line_vals=len(move_vals["line_ids"]),
-            to_reconcile=len(to_reconcile),
             date=move_vals["date"],
         )
-        return {"move_values": move_vals, "to_reconcile": to_reconcile}
+        return {"move_values": move_vals}
 
     @_debug.perf.timed
     def _prepare_exchange_difference_line_vals(
@@ -3773,8 +3763,10 @@ class AccountMoveLine(models.Model):
         analytic_distribution=None,
     ):
         self.check_singleton()
-        counterpart_account = self._get_exchange_account(
-            company, amount_residual_to_fix
+        counterpart_account = (
+            company.account_config_id.expense_currency_exchange_account_id
+            if amount_residual_to_fix > 0.0
+            else company.account_config_id.income_currency_exchange_account_id
         )
         _debug.logic(
             "exchange_counterpart_chosen",
@@ -3891,12 +3883,8 @@ class AccountMoveLine(models.Model):
     @_debug.perf.timed
     def action_unreconcile_match_entries(self):
         _debug.lifecycle("action_unreconcile_match_entries", records=self)
-        active_ids = self.env.context.get("active_ids")
-        if active_ids:
-            move_lines = (
-                self.env["account.move.line"].browse(active_ids)._all_reconciled_lines()
-            )
-            move_lines.remove_move_reconcile()
+        lines = self or self.browse(self.env.context.get("active_ids") or [])
+        lines._all_reconciled_lines().remove_move_reconcile()
 
     @_debug.perf.timed
     def _reconcile_marked(self):
@@ -3908,23 +3896,27 @@ class AccountMoveLine(models.Model):
             }
         )
         _debug.logic("marked_matching_numbers", lines=self, numbers=len(temp_numbers))
-        if temp_numbers:
-            for _matching_number, account, lines in self._read_group(
-                domain=[("matching_number", "in", temp_numbers)],
-                groupby=["matching_number", "account_id"],
-                aggregates=["id:recordset"],
-            ):
-                if all(move.state == "posted" for move in lines.move_id):
-                    if not account.reconcile:
-                        _debug.logic("account_reconcile_forced_on", account=account)
-                        _logger.info(
-                            "%s has reconciled lines, changing the config",
-                            account.display_name,
-                        )
-                        account.reconcile = True
-                    lines.with_context(
-                        no_exchange_difference=True, no_cash_basis=True
-                    ).reconcile()
+        if not temp_numbers:
+            return
+        plan_list = []
+        for _matching_number, account, lines in self._read_group(
+            domain=[("matching_number", "in", temp_numbers)],
+            groupby=["matching_number", "account_id"],
+            aggregates=["id:recordset"],
+        ):
+            if all(move.state == "posted" for move in lines.move_id):
+                if not account.reconcile:
+                    _debug.logic("account_reconcile_forced_on", account=account)
+                    _logger.info(
+                        "%s has reconciled lines, changing the config",
+                        account.display_name,
+                    )
+                    account.reconcile = True
+                plan_list.append(lines)
+        if plan_list:
+            self.with_context(
+                no_exchange_difference=True, no_cash_basis=True
+            )._reconcile_plan(plan_list)
 
     def _get_matched_move_ids(self):
         return self.matched_debit_ids | self.matched_credit_ids
