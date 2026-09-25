@@ -130,8 +130,10 @@ class MixinCompanyConfig(models.AbstractModel):
         # branches are written as the writer: one who cannot reach a branch is
         # refused rather than leaving it behind
         delegated = set(vals) & set(self._get_field_names_delegated_to_root())
+        if not delegated:
+            return
         roots = self.filtered(lambda config: not config.company_id.parent_id)
-        if not delegated or not roots:
+        if not roots:
             return
         branches = (
             self.env["res.company"]
