@@ -728,7 +728,6 @@ class AccessLinkUse(models.Model):
         required=True,
     )
     user_id = fields.Integer(
-        string="User",
         readonly=True,
         required=True,
         help="The signed-in user who used the link, 0 for an anonymous visitor.",

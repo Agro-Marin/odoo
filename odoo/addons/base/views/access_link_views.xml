@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
     <record id="access_link_view_list" model="ir.ui.view">
@@ -23,9 +23,9 @@
                     name="action_revoke"
                     type="object"
                     string="Revoke"
+                    confirm="Whoever holds this link loses access at once."
                     icon="fa-ban"
-                    invisible="state == 'revoked'"
-                    confirm="Whoever holds this link loses access at once." />
+                    invisible="state == 'revoked'" />
             </list>
         </field>
     </record>
@@ -40,8 +40,8 @@
                         name="action_revoke"
                         type="object"
                         string="Revoke"
-                        invisible="state == 'revoked'"
-                        confirm="Whoever holds this link loses access at once." />
+                        confirm="Whoever holds this link loses access at once."
+                        invisible="state == 'revoked'" />
                     <field name="state" widget="statusbar" />
                 </header>
                 <sheet>
@@ -116,8 +116,14 @@
                     string="Never expires"
                     domain="[('date_to', '=', False)]" />
                 <separator />
-                <filter name="revoked" string="Revoked" domain="[('state', '=', 'revoked')]" />
-                <filter name="expired" string="Expired" domain="[('state', '=', 'expired')]" />
+                <filter
+                    name="revoked"
+                    string="Revoked"
+                    domain="[('state', '=', 'revoked')]" />
+                <filter
+                    name="expired"
+                    string="Expired"
+                    domain="[('state', '=', 'expired')]" />
                 <group>
                     <filter
                         name="group_by_model"
@@ -140,7 +146,8 @@
         <field name="name">External Links</field>
         <field name="res_model">access.link</field>
         <field name="view_mode">list,form</field>
-        <field name="context">{'search_default_live': 1, 'search_default_anyone': 1}</field>
+        <field
+            name="context">{'search_default_live': 1, 'search_default_anyone': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">No live external link</p>
             <p>Links shared with people outside the company appear here, with their
