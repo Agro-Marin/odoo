@@ -89,3 +89,12 @@ class SpeechDictation(models.Model):
 
     def _media_retention_days(self) -> int:
         return DICTATION_RETENTION_DAYS
+
+    # the words were copied into what was dictated into; after the audio's
+    # retention a dictation is only a second, searchable copy of them
+    @api.autovacuum
+    def _gc_finished_dictations(self) -> None:
+        cutoff = fields.Datetime.subtract(
+            fields.Datetime.now(), days=DICTATION_RETENTION_DAYS
+        )
+        self.search([("create_date", "<", cutoff), ("is_live", "=", False)]).unlink()

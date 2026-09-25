@@ -1,6 +1,7 @@
 from unittest.mock import Mock, patch
 
-from odoo.tests import TransactionCase, tagged
+from odoo.exceptions import AccessError
+from odoo.tests import TransactionCase, new_test_user, tagged
 
 from odoo.addons.gateway_ml.tests.common import connect
 from odoo.addons.gateway_ml.tools import MlRequest, MlRouter
@@ -260,3 +261,33 @@ class TestTranscriptionVocabulary(TransactionCase):
         ) as post:
             client.transcribe(b"AUDIO", "a.ogg", vocabulary=("tarima", "romana"))
         self.assertEqual(post.call_args.kwargs["data"]["prompt"], "tarima, romana")
+
+
+@tagged("post_install", "-at_install")
+class TestRouterForAnyUser(TransactionCase):
+    def test_a_user_without_the_ai_group_is_served_by_the_policy(self):
+        openai = self.env.ref("gateway_ml.ai_provider_openai")
+        connect(self.env, openai)
+        user = new_test_user(self.env, "router_plain_user", groups="base.group_user")
+        self.assertFalse(user.has_group("gateway_ml.group_ai_user"))
+        router = MlRouter(self.env(user=user))
+        model = router.select_model(
+            "chat", company_id=self.env.company.id, purpose="test.router.any_user"
+        )
+        self.assertTrue(model)
+        client = Mock(complete=Mock(return_value="hola"))
+        with patch.object(MlRouter, "_get_client", return_value=client):
+            result = router.run(
+                "chat",
+                MlRequest(purpose="test.router.any_user", prompt="q"),
+                company_id=self.env.company.id,
+            )
+        self.assertEqual(result.text, "hola")
+
+    def test_the_keys_and_endpoints_stay_out_of_a_plain_users_reach(self):
+        openai = self.env.ref("gateway_ml.ai_provider_openai")
+        connect(self.env, openai)
+        user = new_test_user(self.env, "router_plain_user", groups="base.group_user")
+        for model_name in ("credential.credential", "gateway.ml.provider"):
+            with self.subTest(model_name=model_name), self.assertRaises(AccessError):
+                self.env[model_name].with_user(user).search([])

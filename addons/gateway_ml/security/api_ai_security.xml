@@ -26,6 +26,13 @@
         <field name="implied_ids" eval="[Command.link(ref('group_ai_user'))]" />
     </record>
 
+    <record id="privilege_route_ml" model="res.groups">
+        <field name="name">Route Machine-Learning Requests</field>
+        <field
+            name="comment">The router reads the models, providers and keys a request may be routed to, whoever asked; the policy for the purpose decides, and the key itself never reaches the caller.</field>
+        <field name="is_privilege" eval="True" />
+    </record>
+
     <record id="credential.group_integration_user" model="res.groups">
         <field name="implied_ids" eval="[Command.link(ref('group_ai_user'))]" />
     </record>

@@ -90,7 +90,7 @@ class MlRouter:
                 f"Unknown optimization strategy {optimize_for!r}; expected one of "
                 f"{', '.join(STRATEGIES)}",
             )
-        AIModel = self.env["gateway.ml.model"]
+        AIModel = self._catalogue("gateway.ml.model")
         domain = [
             ("kind", "in", _as_list(kind)),
             ("provider_id.active", "=", True),
@@ -327,7 +327,7 @@ class MlRouter:
         hops = (
             primary_model.fallback_model_ids
             if fallback_chain is None
-            else self.env["gateway.ml.model"].union(*fallback_chain)
+            else self._catalogue("gateway.ml.model").union(*fallback_chain)
         )
         hops = hops.filtered(
             lambda m: (
@@ -352,7 +352,7 @@ class MlRouter:
             company_id, purpose, providers
         )
         now = fields.Datetime.now()
-        Credential = self.env["credential.credential"]
+        Credential = self._catalogue("credential.credential")
         keyless = providers.filtered(lambda p: p.auth_type == "none")
         credential_of = {
             provider: Credential._get_for_endpoint(
@@ -363,7 +363,7 @@ class MlRouter:
         # One read for every credential; each came from its own search, so reading
         # the field record by record would issue one query per provider.
         Credential.union(*credential_of.values()).mapped("date_expiration")
-        return keyless | self.env["gateway.ml.provider"].union(
+        return keyless | self._catalogue("gateway.ml.provider").union(
             *(
                 provider
                 for provider, credential in credential_of.items()
@@ -399,6 +399,14 @@ class MlRouter:
             return quality / max(0.1, cost_of(ai_model) / typical)
 
         return ai_models.sorted(balanced_score, reverse=True)
+
+    def _catalogue(self, model_name):
+        # which model, provider and key serve a request is configuration, read
+        # for whoever asks; the policy for the purpose is what decides
+        return self.env[model_name].with_privilege(
+            "gateway_ml.privilege_route_ml",
+            reason="route a request to the provider its purpose may reach",
+        )
 
     def _get_client(self, provider, company_id):
         return provider._get_ai_client(company_id)

@@ -24,3 +24,9 @@ access_gateway_ml_policy_user,gateway.ml.policy user,model_gateway_ml_policy,gro
 access_gateway_ml_policy_admin,gateway.ml.policy admin,model_gateway_ml_policy,group_ai_admin,permission,cud,
 access_gateway_ml_policy_system,gateway.ml.policy system,model_gateway_ml_policy,base.group_system,permission,crud,
 gateway_ml_policy_rule_company,gateway.ml.policy: the reader's companies,model_gateway_ml_policy,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids)]"
+gateway_ml_privilege_route_model,The router picks the model a purpose may use,model_gateway_ml_model,privilege_route_ml,permission,r,
+gateway_ml_privilege_route_provider,The router picks the provider that model is served by,model_gateway_ml_provider,privilege_route_ml,permission,r,
+gateway_ml_privilege_route_fallback,The router walks the fallback chain an administrator set,model_gateway_ml_model_fallback,privilege_route_ml,permission,r,
+gateway_ml_privilege_route_service,The router reads the endpoint a provider is reached on,integration.model_integration_service,privilege_route_ml,permission,r,
+gateway_ml_privilege_route_connection,The router finds the connection a key is held on,integration.model_integration_connection,privilege_route_ml,permission,r,
+gateway_ml_privilege_route_credential,The router finds the key a provider is dialled with,credential.model_credential_credential,privilege_route_ml,permission,r,

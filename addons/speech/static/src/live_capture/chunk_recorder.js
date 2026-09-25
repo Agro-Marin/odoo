@@ -6,7 +6,7 @@ export const MIN_CHUNK_S = 5;
 export const MAX_CHUNK_S = 10;
 export const TARGET_RATE = 16000;
 const PAUSE_S = 0.3;
-const SILENCE_RMS = 0.01;
+export const SILENCE_RMS = 0.01;
 
 /** @param {Float32Array} samples */
 export function rms(samples) {

@@ -1,6 +1,7 @@
 import base64
 from unittest.mock import patch
 
+from odoo import fields
 from odoo.exceptions import AccessError, UserError
 from odoo.tests import new_test_user, tagged
 
@@ -27,6 +28,27 @@ class TestDictation(SpeechCase):
     def _start(self, **kwargs):
         started = self.Dictation.start_dictation(language="es", **kwargs)
         return self.Dictation.browse(started["id"]), started
+
+    def test_a_finished_dictation_goes_with_its_words_after_the_retention(self):
+        old, _started = self._start()
+        attachment = self.env["media.segment"].browse(old.push_chunk(WAV, 0.0, 6.0))
+        attachment = attachment.attachment_id
+        old.action_stop_live()
+        live, _started = self._start()
+        recent, _started = self._start()
+        recent.action_stop_live()
+        long_ago = fields.Datetime.subtract(fields.Datetime.now(), days=8)
+        self.env.cr.execute(
+            "UPDATE speech_dictation SET create_date = %s WHERE id = ANY(%s)",
+            (long_ago, [old.id, live.id]),
+        )
+        self.env["speech.dictation"].invalidate_model(["create_date"])
+        cron = self.env(user=self.env.ref("base.user_root"), su=False)
+        cron["speech.dictation"]._gc_finished_dictations()
+        self.assertFalse(old.exists())
+        self.assertFalse(attachment.exists())
+        self.assertTrue(live.exists(), "a dictation still being spoken stays")
+        self.assertTrue(recent.exists())
 
     def test_a_dictation_is_a_live_timeline_named_on_its_channel(self):
         dictation, started = self._start(prompt="Proxity, Asanit")
