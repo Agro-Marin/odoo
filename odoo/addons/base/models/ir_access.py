@@ -366,27 +366,27 @@ class IrAccess(models.Model):
     )
     for_read = fields.Boolean(
         string="Read",
-        compute="_compute_for_operations",
+        compute="_compute_for_read",
         inverse="_inverse_for_operations",
-        store=True,
+        search="_search_for_read",
     )
     for_write = fields.Boolean(
         string="Update",
-        compute="_compute_for_operations",
+        compute="_compute_for_write",
         inverse="_inverse_for_operations",
-        store=True,
+        search="_search_for_write",
     )
     for_create = fields.Boolean(
         string="Create",
-        compute="_compute_for_operations",
+        compute="_compute_for_create",
         inverse="_inverse_for_operations",
-        store=True,
+        search="_search_for_create",
     )
     for_unlink = fields.Boolean(
         string="Delete",
-        compute="_compute_for_operations",
+        compute="_compute_for_unlink",
         inverse="_inverse_for_operations",
-        store=True,
+        search="_search_for_unlink",
     )
     is_standard = fields.Boolean(
         compute="_compute_is_standard",
@@ -401,16 +401,60 @@ class IrAccess(models.Model):
         "An access applies to an operation, a verb, or both.",
     )
 
+    # one compute per flag: ticking one protects only that one, so the inverse
+    # reads the other three from the operation
     @api.depends("operation")
-    def _compute_for_operations(self) -> None:
+    def _compute_for_read(self) -> None:
+        self._compute_for_operation("read")
+
+    @api.depends("operation")
+    def _compute_for_write(self) -> None:
+        self._compute_for_operation("write")
+
+    @api.depends("operation")
+    def _compute_for_create(self) -> None:
+        self._compute_for_operation("create")
+
+    @api.depends("operation")
+    def _compute_for_unlink(self) -> None:
+        self._compute_for_operation("unlink")
+
+    def _compute_for_operation(self, operation: str) -> None:
+        letter = OPERATION_LETTER[operation]
         for access in self:
-            letters = access.operation or ""
-            for operation, letter in OPERATION_LETTER.items():
-                access[f"for_{operation}"] = letter in letters
+            access[f"for_{operation}"] = letter in (access.operation or "")
 
     def _inverse_for_operations(self) -> None:
         for access in self:
             access.operation = self._operation_of(access) or "r"
+
+    def _search_for_read(self, operator: str, value: Any) -> Domain:
+        return self._search_for_letter("r", operator, value)
+
+    def _search_for_write(self, operator: str, value: Any) -> Domain:
+        return self._search_for_letter("u", operator, value)
+
+    def _search_for_create(self, operator: str, value: Any) -> Domain:
+        return self._search_for_letter("c", operator, value)
+
+    def _search_for_unlink(self, operator: str, value: Any) -> Domain:
+        return self._search_for_letter("d", operator, value)
+
+    @staticmethod
+    def _search_for_letter(letter: str, operator: str, value: Any) -> Domain:
+        # the flags are read from the operation, never stored beside it, so
+        # a migration that rewrites the operation cannot leave them behind
+        if operator not in ("in", "not in"):
+            return NotImplemented
+        values = {bool(item) for item in value}
+        if operator == "not in":
+            values = {True, False} - values
+        if values == {True, False}:
+            return Domain.TRUE
+        if not values:
+            return Domain.FALSE
+        holds = Domain("operation", "like", letter)
+        return holds if True in values else ~holds
 
     @staticmethod
     def _operation_of(values: Any) -> str:
