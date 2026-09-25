@@ -244,6 +244,7 @@ class AccessMixin(_ModelStubs):
             domain = policy.record_domain(env, self._name, operation)
             admitted: Collection = unknown
             if domain:
+                self._flush_access_facts(domain, cache)
                 admitted = set(
                     unknown_self.sudo()
                     .with_context(active_test=False)
@@ -272,6 +273,29 @@ class AccessMixin(_ModelStubs):
             )
 
         return None
+
+    def _flush_access_facts(self, domain: Domain, cached: bool) -> None:
+        # the rule is judged against the cache, and a stored field that depends
+        # on context caches a pending write under the context that made it: a
+        # principal reading from another context would see the flushed row.
+        # Only those fields are flushed; any other pending write is visible
+        # from every context already.
+        env = self.env
+        facts = (
+            env.transaction.access_memo.read_facts(env, self._name)
+            if cached
+            else env.transaction.access_memo.domain_facts(env[self._name], domain)
+        )
+        if not facts:
+            return
+        by_context = env.registry.field_depends_context
+        by_model: dict[str, list[str]] = {}
+        for model_name, fname in facts:
+            field = env[model_name]._fields[fname]
+            if field.store and by_context.get(field):
+                by_model.setdefault(model_name, []).append(fname)
+        for model_name, fnames in by_model.items():
+            env[model_name].flush_model(fnames)
 
     @api.model
     def _access_allowed(self, operation: str) -> bool:

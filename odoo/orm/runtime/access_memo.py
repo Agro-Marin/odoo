@@ -200,6 +200,10 @@ class AccessMemo:
         for field, env, everything in rewatch:
             self.watch_x2many(env, field, everything)
 
+    @staticmethod
+    def domain_facts(model: BaseModel, domain: Domain) -> Facts:
+        return domain_read_facts(model, domain)
+
     def read_facts(self, env: Environment, model_name: str) -> Facts:
         key = (env._read_access_key, model_name)
         try:
