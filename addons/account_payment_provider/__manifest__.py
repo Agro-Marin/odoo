@@ -11,6 +11,7 @@
     ],
     "data": [
         "data/ir_config_parameter.xml",
+        "security/res_groups.xml",
         "security/ir.access.csv",
         "views/account_payment_menus.xml",
         "views/account_portal_templates.xml",

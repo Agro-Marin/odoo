@@ -68,6 +68,38 @@ def redundant_labels(model_cls) -> list[str]:
     return found
 
 
+def is_constraint(func) -> bool:
+    return callable(func) and hasattr(func, "_constrains")
+
+
+# Mirrors the predicate in odoo/orm/models/mixins/_constraints.py
+# (_constraint_methods), which only logs: keep the two in step.
+def is_writeable_by_constraint(field) -> bool:
+    return bool(field.store or field.inverse or field.inherited or field.related)
+
+
+def constrains_finding(model_name, attr_name, name, reason) -> str:
+    return f"{model_name}.{attr_name} @api.constrains({name!r}): {reason}"
+
+
+def constrains_findings(model_name, fields, members, model) -> list[str]:
+    found = []
+    for attr_name, func in members:
+        names = func._constrains
+        if callable(names):
+            names = names(model.sudo())
+        for name in names:
+            field = fields.get(name)
+            if field is None:
+                reason = "not a field name"
+            elif not is_writeable_by_constraint(field):
+                reason = "not writeable"
+            else:
+                continue
+            found.append(constrains_finding(model_name, attr_name, name, reason))
+    return found
+
+
 @tagged("-at_install", "post_install")
 class TestFieldDeclarations(LintCase):
     @classmethod
@@ -101,31 +133,98 @@ class TestFieldDeclarations(LintCase):
             "contract with a method that raises NotImplementedError.",
         )
 
-    def test_every_onchange_and_constrains_names_a_field(self):
+    def test_every_onchange_names_a_field(self):
         unknown = []
         checked = 0
         for model_name, model_cls in self.registry.items():
             if model_cls._abstract:
                 continue
             for attr_name, func in inspect.getmembers(model_cls, callable):
-                for decorator in ("_onchange", "_constrains"):
-                    names = getattr(func, decorator, None)
-                    if not names or callable(names):
-                        continue
-                    checked += 1
-                    unknown.extend(
-                        f"{model_name}.{attr_name} @api.{decorator[1:]}({name!r})"
-                        for name in names
-                        if name not in model_cls._fields
-                    )
-        self.assertGreater(checked, 100, "the scan reached almost no decorators")
+                names = getattr(func, "_onchange", None)
+                if not names or callable(names):
+                    continue
+                checked += 1
+                unknown.extend(
+                    f"{model_name}.{attr_name} @api.onchange({name!r})"
+                    for name in names
+                    if name not in model_cls._fields
+                )
+        self.assertGreater(checked, 20, "the scan reached almost no onchanges")
         self.assert_ratchet(
             unknown,
             "lint_field_trigger_unknown",
-            "@api.onchange / @api.constrains parameter(s) naming no field",
+            "@api.onchange parameter(s) naming no field",
             "The ORM logs a warning the first time the model's hooks are read and "
-            "then never fires the method for that name: the constraint enforces "
-            "nothing and the onchange never runs. Name the field.",
+            "then never fires the method for that name: the onchange never runs. "
+            "Name the field.",
+        )
+
+    def test_every_constrains_parameter_is_a_writeable_field(self):
+        invalid = []
+        checked = 0
+        with self.superuser_env() as env:
+            for model_name, model_cls in self.registry.items():
+                if model_cls._abstract:
+                    continue
+                members = inspect.getmembers(model_cls, is_constraint)
+                checked += len(members)
+                invalid.extend(
+                    constrains_findings(
+                        model_name, model_cls._fields, members, env[model_name]
+                    )
+                )
+        self.assertGreater(checked, 50, "the scan reached almost no constraints")
+        self.assert_ratchet(
+            invalid,
+            "lint_constrains_parameter_invalid",
+            "@api.constrains parameter(s) naming no field or a field no write reaches",
+            "The ORM logs one warning and registers the method anyway, but "
+            "_check_fields runs it only for the written field names it declares: "
+            "a dotted path or a missing name never matches, and a non-stored "
+            "compute without inverse is never written. Constrain the field on the "
+            "model that stores it.",
+        )
+
+    def test_constrains_gate_reads_a_planted_fault(self):
+        partner = self.registry["res.partner"]
+        unwriteable = next(
+            name
+            for name, field in partner._fields.items()
+            if not is_writeable_by_constraint(field)
+        )
+
+        def planted(*names):
+            def check(self):
+                pass
+
+            check._constrains = names
+            return check
+
+        dynamic = planted()
+        dynamic._constrains = lambda model: ("name", "no_such_field")
+        members = [
+            ("_check_clean", planted("name")),
+            ("_check_dotted", planted("parent_id.name")),
+            ("_check_unwriteable", planted(unwriteable)),
+            ("_check_dynamic", dynamic),
+        ]
+        with self.superuser_env() as env:
+            found = constrains_findings(
+                "res.partner", partner._fields, members, env["res.partner"]
+            )
+        self.assertEqual(
+            sorted(found),
+            [
+                constrains_finding(
+                    "res.partner", "_check_dotted", "parent_id.name", "not a field name"
+                ),
+                constrains_finding(
+                    "res.partner", "_check_dynamic", "no_such_field", "not a field name"
+                ),
+                constrains_finding(
+                    "res.partner", "_check_unwriteable", unwriteable, "not writeable"
+                ),
+            ],
         )
 
     def test_no_declaration_restates_the_label_the_field_would_get_anyway(self):

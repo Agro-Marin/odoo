@@ -1,8 +1,4 @@
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
-from odoo.fields import Domain
-
-from ..tools import debug_log as dbg
 
 
 class ResCompany(models.Model):
@@ -59,51 +55,3 @@ class ResCompany(models.Model):
             "point_of_sale_ticket_unique_code",
             "point_of_sale_ticket_portal_url_display_mode",
         ]
-
-    @api.constrains(
-        "account_config_id.fiscalyear_lock_date",
-        "account_config_id.tax_lock_date",
-        "account_config_id.sale_lock_date",
-        "account_config_id.hard_lock_date",
-    )
-    def check_lock_dates(self):
-        pos_session_model = self.env["pos.session"].sudo()
-        for record in self:
-            record = record.with_context(ignore_exceptions=True)
-            fiscal_lock_date = max(
-                record.account_config_id.user_fiscalyear_lock_date,
-                record.account_config_id.user_hard_lock_date,
-            )
-            sessions_in_period = pos_session_model.search(
-                Domain("company_id", "child_of", record.id)
-                & Domain("state", "!=", "closed")
-                & Domain.OR(
-                    (
-                        Domain("start_at", "<=", fiscal_lock_date),
-                        Domain(
-                            "start_at",
-                            "<=",
-                            record.account_config_id.user_tax_lock_date,
-                        ),
-                        Domain("config_id.journal_id.type", "=", "sale")
-                        & Domain(
-                            "start_at",
-                            "<=",
-                            record.account_config_id.user_sale_lock_date,
-                        ),
-                    )
-                )
-            )
-            if sessions_in_period:
-                dbg.logic.debug(
-                    "lock date on company %s refused by open sessions %s",
-                    record.id,
-                    dbg.rec(sessions_in_period),
-                )
-                sessions_str = ", ".join(sessions_in_period.mapped("name"))
-                raise ValidationError(
-                    self.env._(
-                        "Please close all the point of sale sessions in this period before closing it. Open sessions are: %s ",
-                        sessions_str,
-                    )
-                )

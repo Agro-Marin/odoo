@@ -3,3 +3,4 @@ payment_token_billing_rule,Access every token,payment.model_payment_token,accoun
 payment_link_wizard,payment.link.wizard,payment.model_payment_link_wizard,account.group_account_invoice,permission,cru,
 payment_refund_wizard,payment.refund.wizard,model_payment_refund_wizard,account.group_account_invoice,permission,cru,
 payment_transaction_user,payment.transaction.user,model_payment_transaction,account.group_account_invoice,permission,cru,
+privilege_read_own_invoice_transactions_transactions,payment.transaction: the transactions of the customer's own invoices,payment.model_payment_transaction,privilege_read_own_invoice_transactions,permission,r,"[('invoice_ids', 'any', [('partner_id', 'child_of', [user.commercial_partner_id.id])])]"

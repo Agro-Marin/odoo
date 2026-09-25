@@ -5,3 +5,4 @@ from . import test_payment_provider
 from . import test_payment_provider_setup
 from . import test_payment_refund_wizard
 from . import test_res_config_settings
+from . import test_portal_access

@@ -225,9 +225,16 @@ registry** (post-install): whether the method a hook names exists at all
 (`lint_field_hook_missing`; `resolve_mro` finds nothing at setup and the first
 read raises `AttributeError`, which is how three fork-made mixins declared
 seventeen computed fields whose computes only their hosts supply), whether an
-`@api.onchange` or `@api.constrains` parameter is a field of a concrete model
+`@api.onchange` parameter is a field of a concrete model
 (`lint_field_trigger_unknown`; the ORM logs one warning and never fires the
-method for that name), and whether a `string=` restates the label
+method for that name), whether an `@api.constrains` parameter is a field a
+write reaches (`lint_constrains_parameter_invalid`: no such field, a dotted
+path, or a non-stored compute with no inverse; the ORM logs one warning, keeps
+the method, and `_check_fields` never matches the name, so the constraint
+enforces nothing -- point_of_sale's lock-date guard sat dead that way on four
+`account_config_id.*` paths; the parameter list may be a callable, which the
+gate evaluates as the ORM does, and `test_constrains_gate_reads_a_planted_fault`
+keeps it from going blind), and whether a `string=` restates the label
 `Field._setup_attrs__` derives from the name -- strip `_id`/`_ids`, `_` to a
 space, title-case -- with no lower definition in the MRO saying otherwise
 (`lint_field_string_restates_label`). That last one is MRO-aware on purpose: an

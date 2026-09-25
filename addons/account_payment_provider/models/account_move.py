@@ -85,7 +85,10 @@ class AccountMove(models.Model):
         :rtype: tuple(recordset, recordset, bool)
         """
         self.check_singleton()
-        transactions = self.transaction_ids.filtered(
+        transactions = self.with_privilege(
+            "account_payment_provider.privilege_read_own_invoice_transactions",
+            reason="a customer checks whether their invoice can be paid online",
+        ).transaction_ids.filtered(
             lambda tx: tx.state in ("pending", "authorized", "done")
         )
         pending_transactions = transactions.filtered(

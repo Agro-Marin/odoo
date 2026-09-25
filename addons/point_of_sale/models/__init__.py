@@ -1,4 +1,5 @@
 from . import account_bank_statement
+from . import account_config
 from . import mixin_pos_load
 from . import account_account
 from . import account_cash_rounding

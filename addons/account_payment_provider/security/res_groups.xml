@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="privilege_read_own_invoice_transactions" model="res.groups">
+        <field
+            name="name">Privilege: a customer reads the payment transactions of their own invoices</field>
+        <field name="is_privilege" eval="True" />
+    </record>
+
+</odoo>
