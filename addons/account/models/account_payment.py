@@ -257,6 +257,10 @@ class AccountPayment(models.Model):
         index="btree_not_null",
         check_company=True,
     )
+    is_entry_required = fields.Boolean(
+        copy=False,
+        readonly=True,
+    )
     destination_account_id = fields.Many2one(
         comodel_name="account.account",
         compute="_compute_destination_account_id",
@@ -889,15 +893,17 @@ class AccountPayment(models.Model):
 
     def _outstanding_account_is_mandatory(self):
         return (
-            bool(self.env.context.get("force_payment_move"))
+            self.is_entry_required
             or not self.env["account.move"]._has_full_accounting()
         )
 
-    @api.depends("payment_channel_id", "payment_type", "company_id")
+    @api.depends(
+        "payment_channel_id", "payment_type", "company_id", "is_entry_required"
+    )
     def _compute_outstanding_account_id(self):
-        mandatory = self._outstanding_account_is_mandatory()
         fallback = {}
         for pay in self:
+            mandatory = pay._outstanding_account_is_mandatory()
             account = pay.payment_channel_id.payment_account_id
             if not account and mandatory:
                 key = (pay.company_id, pay.payment_type)
@@ -1235,13 +1241,11 @@ class AccountPayment(models.Model):
     @_debug.perf.timed
     def _check_move_id(self):
         for payment in self:
+            if payment.state in ("draft", "canceled") or payment.move_id:
+                continue
             if (
-                payment.state not in ("draft", "canceled")
-                and not payment.move_id
-                and (
-                    payment.outstanding_account_id
-                    or payment._outstanding_account_is_mandatory()
-                )
+                payment.outstanding_account_id
+                or payment._outstanding_account_is_mandatory()
             ):
                 raise ValidationError(
                     self.env._(
@@ -1259,6 +1263,9 @@ class AccountPayment(models.Model):
                 count=len(vals_list),
                 fields=sorted({key for vals in vals_list for key in vals}),
             )
+        if self.env.context.get("force_payment_move"):
+            for vals in vals_list:
+                vals.setdefault("is_entry_required", True)
         entry_vals_list = [
             (
                 vals.pop("write_off_line_vals", None),

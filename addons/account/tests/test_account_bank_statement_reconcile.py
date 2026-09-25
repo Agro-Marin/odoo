@@ -6835,10 +6835,13 @@ class TestAccountBankStatement(TestBankRecWidgetCommon):
         )
         st_line.set_line_bank_statement_line([inv_line_with_epd.id])
         self.assertEqual(inv_line_with_epd.move_id.payment_state, "paid")
-        self.assertTrue(
-            payment.move_id,
-            "'paid' below is only correct while the payment carries a journal entry",
-        )
+        if self.env["account.move"]._has_full_accounting():
+            self.assertFalse(payment.move_id)
+            self.assertTrue(inv_line_with_epd.reconciled)
+            self.assertEqual(st_line.line_ids.reconciled_lines_ids, inv_line_with_epd)
+            self.assertTrue(payment.is_bank_matched)
+        else:
+            self.assertTrue(payment.move_id)
         self.assertEqual(payment.state, "paid")
 
     def test_credit_warning_excludes_unreconciled_bank_statement_line(self):

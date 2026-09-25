@@ -112,7 +112,6 @@ class AccountPayment(models.Model):
                         currency_id=payment.currency_id.id,
                         amount_currency=amount,
                         reconciled_lines_ids=[Command.set(line.ids)],
-                        payment_lines_ids=[Command.set(payment.ids)],
                     )
                 else:
                     line_to_create = {
@@ -122,10 +121,13 @@ class AccountPayment(models.Model):
                         "currency_id": payment.currency_id.id,
                         "amount_currency": amount,
                         "balance": balance,
-                        "payment_lines_ids": [Command.set(payment.ids)],
                     }
+                payment._add_payment_link(line_to_create)
                 lines_to_create.append(line_to_create)
         return lines_to_create
+
+    def _add_payment_link(self, line_vals):
+        pass
 
     def _get_aml_amount_in_payment_currency(self, aml):
         self.check_singleton()
@@ -195,7 +197,8 @@ class AccountPayment(models.Model):
 
         amls_to_create = []
         has_exchange_diff = False
-        payments_with_move = self.filtered(lambda payment: payment.move_id)
+        payments = self.sorted(lambda payment: (payment.date, payment.id))
+        payments_with_move = payments.filtered(lambda payment: payment.move_id)
         (
             _transaction_amount,
             transaction_currency,
@@ -223,16 +226,15 @@ class AccountPayment(models.Model):
                     has_exchange_diff
                     or not payment_move_line.currency_id.is_zero(exchange_diff_balance)
                 )
-                amls_to_create.append(
-                    payment_move_line._prepare_aml_values(
-                        balance=-(
-                            payment_move_line.amount_residual + exchange_diff_balance
-                        ),
-                        amount_currency=-payment_move_line.amount_residual_currency,
-                        reconciled_lines_ids=[Command.set(payment_move_line.ids)],
-                        payment_lines_ids=[Command.set(payment.ids)],
+                line_vals = payment_move_line._prepare_aml_values(
+                    balance=-(
+                        payment_move_line.amount_residual + exchange_diff_balance
                     ),
+                    amount_currency=-payment_move_line.amount_residual_currency,
+                    reconciled_lines_ids=[Command.set(payment_move_line.ids)],
                 )
+                payment._add_payment_link(line_vals)
+                amls_to_create.append(line_vals)
 
         valid_payment_states = ["draft", *self._valid_payment_states()]
         _debug.pipeline(
@@ -243,7 +245,7 @@ class AccountPayment(models.Model):
             amls=len(amls_to_create),
             has_exchange_diff=has_exchange_diff,
         )
-        for payment in self - payments_with_move:
+        for payment in payments - payments_with_move:
             if _debug.logic.enabled and payment.state not in valid_payment_states:
                 _debug.logic(
                     "moveless_payment_state_skipped",
@@ -269,21 +271,20 @@ class AccountPayment(models.Model):
                         line.amount_residual_currency,
                     )
                 )
-                amls_to_add = [
-                    line._prepare_aml_values(
-                        name=line.name,
-                        balance=payment.currency_id._convert(
-                            from_amount=-current_amount,
-                            to_currency=company_currency,
-                            company=st_line.company_id,
-                            date=st_line.date,
-                        ),
-                        currency_id=payment.currency_id.id,
-                        amount_currency=-current_amount,
-                        reconciled_lines_ids=[Command.set(line.ids)],
-                        payment_lines_ids=[Command.set(payment.ids)],
-                    )
-                ]
+                line_vals = line._prepare_aml_values(
+                    name=line.name,
+                    balance=payment.currency_id._convert(
+                        from_amount=-current_amount,
+                        to_currency=company_currency,
+                        company=st_line.company_id,
+                        date=st_line.date,
+                    ),
+                    currency_id=payment.currency_id.id,
+                    amount_currency=-current_amount,
+                    reconciled_lines_ids=[Command.set(line.ids)],
+                )
+                payment._add_payment_link(line_vals)
+                amls_to_add = [line_vals]
 
                 if line.currency_id == payment.currency_id:
                     lines_with_epd, _total_amount, total_amount_currency = (
@@ -299,9 +300,7 @@ class AccountPayment(models.Model):
                     if len(lines_with_epd) == 1:
                         payment._supersede_with_payment_move(line, current_amount)
                     elif lines_with_epd:
-                        lines_with_epd[0]["payment_lines_ids"] = [
-                            Command.set(payment.ids)
-                        ]
+                        payment._add_payment_link(lines_with_epd[0])
 
                 remaining -= current_amount
                 amls_to_create.extend(amls_to_add)
@@ -316,22 +315,21 @@ class AccountPayment(models.Model):
                     to_partner_account=not payment.currency_id.is_zero(remaining),
                 )
             if not payment.currency_id.is_zero(remaining):
-                amls_to_create.append(
-                    {
-                        "name": payment.name,
-                        "partner_id": payment.partner_id.id,
-                        "account_id": payment.destination_account_id.id,
-                        "currency_id": payment.currency_id.id,
-                        "amount_currency": -remaining,
-                        "balance": payment.currency_id._convert(
-                            from_amount=-remaining,
-                            to_currency=company_currency,
-                            company=st_line.company_id,
-                            date=st_line.date,
-                        ),
-                        "payment_lines_ids": [Command.set(payment.ids)],
-                    }
-                )
+                leftover_vals = {
+                    "name": payment.name,
+                    "partner_id": payment.partner_id.id,
+                    "account_id": payment.destination_account_id.id,
+                    "currency_id": payment.currency_id.id,
+                    "amount_currency": -remaining,
+                    "balance": payment.currency_id._convert(
+                        from_amount=-remaining,
+                        to_currency=company_currency,
+                        company=st_line.company_id,
+                        date=st_line.date,
+                    ),
+                }
+                payment._add_payment_link(leftover_vals)
+                amls_to_create.append(leftover_vals)
         _debug.pipeline(
             "payment_reconciliation_amls_built",
             stline=st_line,

@@ -11,6 +11,8 @@ from odoo.tools.misc import clean_context
 
 _debug = DebugLog(__name__)
 
+_PAYMENT_JOURNALS_CACHE_KEY = "account.payment.register.payment_journals"
+
 
 class AccountPaymentRegister(models.TransientModel):
     _name = "account.payment.register"
@@ -286,15 +288,25 @@ class AccountPaymentRegister(models.TransientModel):
         return self.company_id.get_next_batch_payment_communication()
 
     @api.model
-    def _get_batch_available_journals(self, batch_result, company=None):
-        payment_type = batch_result["payment_values"]["payment_type"]
-        company = company or self._get_payment_company(batch_result["lines"])
+    def _get_payment_journals(self, company):
+        memo = self.env.cr.cache.get(_PAYMENT_JOURNALS_CACHE_KEY)
+        if memo is not None and company in memo:
+            return memo[company]
         journals = self.env["account.journal"].search(
             [
                 *self.env["account.journal"]._check_company_domain(company),
                 ("type", "in", ("bank", "cash", "credit")),
             ]
         )
+        if memo is not None:
+            memo[company] = journals
+        return journals
+
+    @api.model
+    def _get_batch_available_journals(self, batch_result, company=None):
+        payment_type = batch_result["payment_values"]["payment_type"]
+        company = company or self._get_payment_company(batch_result["lines"])
+        journals = self._get_payment_journals(company)
         if payment_type == "inbound":
             return journals.filtered("inbound_payment_channel_ids")
         else:
@@ -666,13 +678,21 @@ class AccountPaymentRegister(models.TransientModel):
 
     @api.depends("payment_type", "company_id", "can_edit_wizard")
     def _compute_available_journal_ids(self):
-        for wizard in self:
-            available_journals = self.env["account.journal"]
-            for batch in wizard.batches:
-                available_journals |= wizard._get_batch_available_journals(
-                    batch, company=wizard.company_id
-                )
-            wizard.available_journal_ids = [Command.set(available_journals.ids)]
+        cache = self.env.cr.cache
+        owns_memo = _PAYMENT_JOURNALS_CACHE_KEY not in cache
+        if owns_memo:
+            cache[_PAYMENT_JOURNALS_CACHE_KEY] = {}
+        try:
+            for wizard in self:
+                available_journals = self.env["account.journal"]
+                for batch in wizard.batches:
+                    available_journals |= wizard._get_batch_available_journals(
+                        batch, company=wizard.company_id
+                    )
+                wizard.available_journal_ids = [Command.set(available_journals.ids)]
+        finally:
+            if owns_memo:
+                cache.pop(_PAYMENT_JOURNALS_CACHE_KEY, None)
 
     @api.depends("available_journal_ids")
     @_debug.perf.timed

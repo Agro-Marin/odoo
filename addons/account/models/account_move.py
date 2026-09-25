@@ -199,8 +199,7 @@ _SQL_PAYMENT_RECONCILIATION = """
                         source_line.move_id AS source_move_id,
                         account.account_type AS source_line_account_type,
                         ARRAY_AGG(counterpart_move.move_type) AS counterpart_move_types,
-                        COALESCE(BOOL_AND(COALESCE(pay.is_bank_matched, FALSE))
-                            FILTER (WHERE pay.id IS NOT NULL), TRUE) AS all_payments_matched,
+                        ARRAY_AGG(pay.id) FILTER (WHERE pay.id IS NOT NULL) AS payment_ids,
                         BOOL_OR(COALESCE(BOOL(pay.id), FALSE)) as has_payment,
                         BOOL_OR(COALESCE(BOOL(counterpart_move.statement_line_id), FALSE)) as has_st_line
                     FROM account_partial_reconcile part
@@ -1797,7 +1796,8 @@ class AccountMove(models.Model):
         if not stored_ids:
             return {}
         self.env["account.partial.reconcile"].flush_model()
-        self.env["account.payment"].flush_model(["is_bank_matched"])
+        payments = self.env["account.payment"]
+        payments.flush_model(["move_id"])
 
         queries = [
             SQL(
@@ -1811,12 +1811,25 @@ class AccountMove(models.Model):
                 ("credit_move_id", "debit_move_id"),
             )
         ]
+        rows = self.env.execute_query_dict(SQL(" UNION ALL ").join(queries))
+        # read through the ORM, not the column: a flush would compute is_bank_matched
+        # for every pending payment, including those whose state is being computed
+        matched = {
+            payment.id
+            for payment in payments.browse(
+                list({pid for row in rows for pid in row["payment_ids"] or ()})
+            )
+            if payment.is_bank_matched
+        }
         payment_data = defaultdict(list)
-        for row in self.env.execute_query_dict(SQL(" UNION ALL ").join(queries)):
+        for row in rows:
+            row["all_payments_matched"] = all(
+                pid in matched for pid in row.pop("payment_ids") or ()
+            )
             payment_data[row["source_move_id"]].append(row)
         _debug.perf.count(
             "payment_reconciliation_rows_fetched",
-            rows=self.env.cr.rowcount,
+            rows=len(rows),
             moves=len(payment_data),
         )
         return payment_data

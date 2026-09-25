@@ -162,3 +162,4 @@ from . import test_account_coa
 from . import test_account_copy_and_name
 from . import test_split_code_name
 from . import test_marin_merge_batch2
+from . import test_marin_payment_reconcile_fixes
