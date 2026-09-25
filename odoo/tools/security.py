@@ -19,7 +19,17 @@ if typing.TYPE_CHECKING:
 
 _debug = DebugLog(__name__)
 
-consteq = hmac_lib.compare_digest
+
+def consteq(presented: object, expected: object) -> bool:
+    # hmac.compare_digest raises TypeError on a non-ASCII str, and a token
+    # comes from the client: compare bytes, and refuse what is not a string.
+    if isinstance(presented, str):
+        presented = presented.encode()
+    if isinstance(expected, str):
+        expected = expected.encode()
+    if not isinstance(presented, bytes) or not isinstance(expected, bytes):
+        return False
+    return hmac_lib.compare_digest(presented, expected)
 
 
 def hmac(
