@@ -2,6 +2,8 @@ from odoo import Command
 from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase
 
+from odoo.addons.base.models.ir_access import filter_reads_user
+
 MODEL = "test_ir_access.reached"
 
 
@@ -184,3 +186,22 @@ class TestReach(TransactionCase):
         self.assertEqual(anchors["approver"].kind, "owner")
         self.assertEqual(anchors["creator"].path, "create_uid")
         self.assertEqual(self.env[MODEL]._access_company_anchor(), "company_id")
+
+    def test_a_filter_on_a_field_that_reads_the_user_is_no_fixed_filter(self):
+        registry = self.env.registry
+        self.assertTrue(filter_reads_user(registry, MODEL, "[('is_mine', '=', True)]"))
+        self.assertFalse(filter_reads_user(registry, MODEL, "[('name', '=', 'x')]"))
+        with self.assertRaises(ValidationError):
+            self.row("all", domain="[('is_mine', '=', True)]")
+        # what an earlier conversion left in a database: the reach all beside it
+        row = self.row("all", domain="[('name', '!=', False)]")
+        self.env.cr.execute(
+            "UPDATE ir_access SET domain = %s WHERE id = %s",
+            ["[('is_mine', '=', True)]", row.id],
+        )
+        row.invalidate_recordset()
+        self.env["ir.access"]._clear_access_caches()
+        self.assertEqual(self.reached(), self.mine)
+        row._rows_to_reach()
+        self.assertFalse(row.reach)
+        self.assertEqual(self.reached(), self.mine)

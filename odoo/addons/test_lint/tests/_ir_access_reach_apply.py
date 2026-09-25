@@ -118,7 +118,11 @@ def xml_rewrite(path: Path, rows: dict[str, dict]) -> int:
             body,
             flags=re.DOTALL,
         )
-        added = f'\n{indent}<field name="reach">{part["reach"]}</field>'
+        added = (
+            f'\n{indent}<field name="reach">{part["reach"]}</field>'
+            if part["reach"]
+            else f'\n{indent}<field name="reach" eval="False" />'
+        )
         if part["reach"] == "predicate":
             added += (
                 f'\n{indent}<field name="predicate_id" '

@@ -48,7 +48,16 @@ PREDICATE_FIELDS = {
     "is_member": "base.is_member",
     "message_partner_ids": "mail.follows",
 }
-PRINCIPAL_FIELDS = {*PREDICATE_FIELDS, "is_self", "message_is_follower"}
+PRINCIPAL_FIELDS = {
+    *PREDICATE_FIELDS,
+    "is_self",
+    "message_is_follower",
+    "is_member_invited",
+    "user_permission",
+    "user_has_write_access",
+    "has_department_manager_access",
+    "is_manager",
+}
 PRINCIPAL_NAMES = (
     "user",
     "uid",

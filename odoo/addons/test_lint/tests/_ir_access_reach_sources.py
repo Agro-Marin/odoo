@@ -10,7 +10,6 @@ A row converts only when `ir_access_reach.proves` finds the proposed rows equal
 to its domain; anything else keeps its domain and counts against the floor.
 """
 
-import ast
 import csv
 import io
 import json
@@ -26,7 +25,7 @@ from odoo.orm.models.anchors import (
     infer_company_variant,
 )
 
-from odoo.addons.base.models.ir_access import REACH_ANCHOR
+from odoo.addons.base.models.ir_access import REACH_ANCHOR, filter_reads_user
 from odoo.addons.base.models.ir_access_reach import Part, propose, proves
 
 ROOTS = [
@@ -202,28 +201,6 @@ def declaration(anchor: Anchor, key: str, model: str) -> str:
     return f"models.Anchor({', '.join(args)})"
 
 
-def static_reads_search(model, static: str) -> bool:
-    # a fixed filter naming a field that is not stored and has a search reads
-    # something the recognizer cannot see: the user, perhaps
-    if not static:
-        return False
-    registry = env_().registry
-    for leaf in ast.literal_eval(static):
-        if not isinstance(leaf, (list, tuple)) or len(leaf) != 3:
-            continue
-        current = model
-        for name in str(leaf[0]).split("."):
-            field = current._fields.get(name)
-            if field is None:
-                break
-            if not field.store and field.search:
-                return True
-            if not field.comodel_name or field.comodel_name not in registry:
-                break
-            current = registry[field.comodel_name]
-    return False
-
-
 def plan():
     registry = env_().registry
     rows = []
@@ -235,6 +212,24 @@ def plan():
             continue
         model = model_name(module.name, values["model"])
         proposal = propose(values["domain"], values["kind"] or "")
+        if values["reach"] == "all" and (
+            proposal is None or filter_reads_user(registry, model, values["domain"])
+        ):
+            # beside the reach all, a filter reading the user is no fixed
+            # filter: the row says it as the domain it is
+            plain = {**_part(Part("")), "static": values["domain"], "anchor": ""}
+            rows.append(
+                {
+                    "module": module.name,
+                    "file": str(path),
+                    "xmlid": xmlid,
+                    "model": model,
+                    "kind": values["kind"],
+                    "domain": values["domain"],
+                    "parts": [plain],
+                }
+            )
+            continue
         if (
             proposal
             and values["reach"] == "all"
@@ -242,12 +237,8 @@ def plan():
         ):
             continue
         proven = bool(proposal) and proves(values["domain"], proposal)
-        if (
-            proven
-            and model in registry
-            and any(
-                static_reads_search(registry[model], p.static) for p in proposal.parts
-            )
+        if proven and any(
+            filter_reads_user(registry, model, p.static) for p in proposal.parts
         ):
             proven = False
         if proven and any(
@@ -278,9 +269,14 @@ def plan():
         if not row["parts"] or row["model"] not in registry:
             continue
         for p in row["parts"]:
-            part = Part(**{**p, "args": tuple(map(tuple, p.get("args", ())))})
-            if part.reach in ("all", "none", "predicate"):
+            if p["reach"] in ("", "all", "none", "predicate"):
                 continue
+            part = Part(
+                **{
+                    **{k: v for k, v in p.items() if k != "anchor"},
+                    "args": tuple(map(tuple, p.get("args", ()))),
+                }
+            )
             needs[row["model"]].append(wanted(part))
     keys: dict[str, dict[tuple, str]] = {}
     declarations: dict[str, dict[str, str]] = defaultdict(dict)
@@ -342,12 +338,12 @@ def plan():
         if not row["parts"] or (
             row["model"] not in keys
             and any(
-                p["reach"] not in ("all", "none", "predicate") for p in row["parts"]
+                p["reach"] not in ("", "all", "none", "predicate") for p in row["parts"]
             )
         ):
             continue
         for p in row["parts"]:
-            if p["reach"] in ("all", "none", "predicate"):
+            if p["reach"] in ("", "all", "none", "predicate"):
                 p["anchor"] = ""
                 continue
             anchor = wanted(

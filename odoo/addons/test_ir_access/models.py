@@ -121,6 +121,18 @@ class TestIrAccessReached(models.Model):
     approver_ids = fields.Many2many(comodel_name="res.users")
     partner_id = fields.Many2one(comodel_name="res.partner")
     company_id = fields.Many2one(comodel_name="res.company")
+    is_mine = fields.Boolean(compute="_compute_is_mine", search="_search_is_mine")
+
+    @api.depends_context("uid")
+    def _compute_is_mine(self):
+        for record in self:
+            record.is_mine = record.user_id == self.env.user
+
+    def _search_is_mine(self, operator, value):
+        if operator != "in":
+            return NotImplemented
+        mine = Domain("user_id", "=", self.env.uid)
+        return mine if True in value else ~mine
 
     def _access_predicate_named(self, bind, args):
         return Domain("name", "=", args["name"])

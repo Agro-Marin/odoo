@@ -33,7 +33,7 @@ hr_leave_allocation_rule_responsible_update_2,Allocations: Responsible: create/w
 hr_leav_allocation_rule_employee_unlink,Allocations base.group_user unlink,model_hr_leave_allocation,base.group_user,permission,d,own,employee,"[('state', '=', 'confirm')]"
 access_hr_holidays_status_manager,hr.holidays.status manager,model_hr_leave_type,group_hr_holidays_manager,permission,cud,,,
 access_hr_holidays_status_employee,hr.holidays.status employee,model_hr_leave_type,base.group_user,permission,r,,,
-hr_leave_report_rule_group_user,Time Off Summary / Report: Internal User,model_hr_leave_report,base.group_user,permission,r,all,,"[('has_department_manager_access', '=', True)]"
+hr_leave_report_rule_group_user,Time Off Summary / Report: Internal User,model_hr_leave_report,base.group_user,permission,r,,,"[('has_department_manager_access', '=', True)]"
 hr_leave_report_rule_group_holiday_user,Time Off Summary / Report: All Approver,model_hr_leave_report,group_hr_holidays_user,permission,r,,,
 resource_schedule_exception_rule_group_user_create_group_hr_holidays_user,resource.schedule.exception: employee reads own or global,resource.model_resource_schedule_exception,group_hr_holidays_user,permission,r,all,,"[('resource_id', '=', False)]"
 resource_schedule_exception_rule_group_user_create_group_hr_holidays_user_2,resource.schedule.exception: employee reads own or global (2),resource.model_resource_schedule_exception,group_hr_holidays_user,permission,r,own,owner_or_unset,

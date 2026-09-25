@@ -362,6 +362,40 @@ KIND_OF_RUNG = {
 }
 
 
+def filter_reads_user(registry: Any, model_name: str, text: str | None) -> bool:
+    # a filter naming a field whose value depends on the user (its compute
+    # depends on the uid context, and a method searches it; a related field
+    # depends on it only through access rights, and its search is its path):
+    # such a filter is not fixed, whatever its text says
+    if not text or model_name not in registry:
+        return False
+    try:
+        leaves = ast.literal_eval(text)
+    except ValueError, SyntaxError:
+        return True
+    if not isinstance(leaves, (list, tuple)):
+        return False
+    for leaf in leaves:
+        if not isinstance(leaf, (list, tuple)) or len(leaf) != 3:
+            continue
+        current = registry[model_name]
+        for name in str(leaf[0]).split("."):
+            field = current._fields.get(name)
+            if field is None:
+                break
+            if (
+                not field.store
+                and not field.related
+                and field.search
+                and "uid" in registry.field_depends_context.get(field, ())
+            ):
+                return True
+            if not field.comodel_name or field.comodel_name not in registry:
+                break
+            current = registry[field.comodel_name]
+    return False
+
+
 def reach_values(
     anchors: Mapping[str, Any], predicates: Mapping[str, int], part: Part
 ) -> dict[str, Any] | None:
@@ -852,8 +886,9 @@ class IrAccess(models.Model):
                         reach=access.reach,
                     )
                 )
-            if access.domain and not isinstance(
-                parse_access_domain(access.domain), Domain
+            if access.domain and (
+                not isinstance(parse_access_domain(access.domain), Domain)
+                or filter_reads_user(self.env.registry, model_name, access.domain)
             ):
                 raise ValidationError(
                     self.env._(
@@ -887,7 +922,10 @@ class IrAccess(models.Model):
             if model_name not in env.registry:
                 continue
             proposal = propose(access.domain, access.kind)
-            if proposal is None and access.reach == "all":
+            if access.reach == "all" and (
+                proposal is None
+                or filter_reads_user(env.registry, model_name, access.domain)
+            ):
                 # beside the reach all, a filter that reads the user is no
                 # fixed filter: the row says it as the domain it is
                 access.reach = False
@@ -898,7 +936,10 @@ class IrAccess(models.Model):
                 and [part.reach for part in proposal.parts] == ["all"]
             ):
                 continue
-            if not proves(access.domain, proposal):
+            if not proves(access.domain, proposal) or any(
+                filter_reads_user(env.registry, model_name, part.static)
+                for part in proposal.parts
+            ):
                 counts["unproven"] += 1
                 continue
             values = [
