@@ -646,19 +646,22 @@ def measure(light_css, dark_css):
 
     served = {(s, p): v for _, s, p, v in light}
     origin = {(s, p): f for f, s, p, _ in light}
+    # a rule restated for a selector list restates each selector in it, as
+    # the cascade applies it; later rules win, as they do in the cascade
     scoped = {}
     for _, selector, prop, value in light:
         parts = split_selector(selector)
         stripped = [unscoped(part) for part in parts]
         if parts and all(a != b for a, b in zip(parts, stripped, strict=True)):
-            scoped[(",".join(stripped), prop)] = value
+            for key in (",".join(stripped), *stripped):
+                scoped[(key, prop)] = value
 
     dark_scoped = set()
     for _, selector, prop, _value in dark:
         parts = split_selector(selector)
         stripped = [unscoped(part) for part in parts]
         if parts and all(a != b for a, b in zip(parts, stripped, strict=True)):
-            dark_scoped.add((",".join(stripped), prop))
+            dark_scoped.update((key, prop) for key in (",".join(stripped), *stripped))
 
     gap = []
     answered = 0
@@ -762,6 +765,17 @@ class TestSchemeDuplication(lint_case.LintCase):
             f"backend-only scheme rules (coding_guidelines §5.5):\n  "
             + "\n  ".join(offenders),
         )
+
+    def test_a_restatement_for_a_selector_list_answers_each_selector(self):
+        light = (
+            "/* /a/x.scss */.a{--c:#fff}.b{--c:#fff}"
+            ':root[data-color-scheme="dark"] .a,:root[data-color-scheme="dark"] .b'
+            "{--c:#000}"
+        )
+        dark = "/* /a/x.scss */.a{--c:#000}.b{--c:#000}"
+        gap, answered, _light, _dark = measure(light, dark)
+        self.assertEqual(gap, [])
+        self.assertEqual(answered, 2)
 
     def test_the_measurement_survives_a_brace_in_a_string(self):
         css = (
