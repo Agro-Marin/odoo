@@ -213,7 +213,9 @@ class TestAclParity(common.TransactionCase):
         accesses = self.env["ir.access"].browse(xmlids.mapped("res_id"))
         granting = accesses.filtered(
             lambda access: (
-                access.kind == "permission" and access.domain != "[(0, '=', 1)]"
+                access.kind == "permission"
+                and access.reach != "none"
+                and access.domain != "[(0, '=', 1)]"
             )
         )
         own = set(

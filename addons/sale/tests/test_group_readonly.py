@@ -256,6 +256,7 @@ class TestSaleGroupReadonly(TransactionCase):
                     ("group_id", "=", group_user.id),
                     ("kind", "=", "permission"),
                     ("for_read", "=", True),
+                    ("reach", "!=", "none"),
                     ("domain", "!=", "[(0, '=', 1)]"),
                 ]
             )
