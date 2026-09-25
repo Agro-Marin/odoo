@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 from PIL import Image
 
 from odoo import fields
-from odoo.tests.common import TransactionCase, tagged
+from odoo.tests.common import TransactionCase, new_test_user, tagged
 
 from .test_document_common import TEXT, TransactionCaseDocuments
 from odoo.addons.base.models.ir_cron import IrCron
@@ -88,6 +88,26 @@ class TestDocumentsAccessGc(TransactionCase):
         self.assertFalse(access.role, "the expired membership must be revoked")
         self.assertFalse(access.expiration_date)
         self.assertTrue(access.last_access_date, "the visit must still be recorded")
+
+    def test_an_expired_member_who_visited_keeps_nothing_through_the_link(self):
+        user = new_test_user(self.env, "gc_expired_visitor", groups="base.group_user")
+        document = self.env["document.document"].create(
+            {"name": "Shared by link", "type": "binary", "access_via_link": "view"}
+        )
+        self.env["document.access"].create(
+            {
+                "document_id": document.id,
+                "partner_id": user.partner_id.id,
+                "role": "view",
+                "last_access_date": fields.Datetime.now(),
+                "expiration_date": fields.Datetime.subtract(
+                    fields.Datetime.now(), days=1
+                ),
+            }
+        )
+        self.env["document.access"]._gc_expired()
+        document.invalidate_recordset()
+        self.assertEqual(document.with_user(user).user_permission, "none")
 
     def test_gc_expired_runs_in_the_autovacuum_environment(self):
         other_company = self.env["res.company"].create({"name": "Round4 Other Co"})

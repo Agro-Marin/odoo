@@ -130,16 +130,24 @@ class TestDocumentAccessRequest(HttpCase):
         page = self.url_open(f"/documents/request_access/{token}")
         self.assertIn("Your request to edit it is waiting", page.text)
 
-    def test_a_portal_user_following_the_link_is_offered_a_request(self):
+    def test_a_portal_user_asks_nothing_by_an_address_alone(self):
+        # a colleague asks by the address; anyone else holds a link, and a
+        # live link opens the document rather than a request
         self.authenticate("doc_access_portal", "doc_access_portal")
         token = self.folder.access_token
 
         response = self.url_open(f"/documents/{token}", allow_redirects=False)
+        self.assertEqual(response.status_code, 404)
+        response = self.url_open(f"/documents/request_access/{token}")
+        self.assertEqual(response.status_code, 404)
 
-        self.assertEqual(
-            urlparse(response.headers["Location"]).path,
-            f"/documents/request_access/{token}",
+        self.folder.sudo().access_via_link = "view"
+        self.folder.invalidate_recordset(["access_token"])
+        response = self.url_open(
+            f"/documents/{self.folder.sudo().access_token}", allow_redirects=False
         )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(self.folder.sudo().approval_request_ids)
 
     def test_someone_who_can_open_it_is_not_offered_a_request(self):
         self.authenticate("doc_access_owner", "doc_access_owner")
@@ -153,11 +161,14 @@ class TestDocumentAccessRequest(HttpCase):
             urlparse(response.headers["Location"]).path, f"/documents/{token}"
         )
 
-    def test_a_wrong_token_offers_nothing(self):
+    def test_an_unknown_document_offers_nothing(self):
         self.authenticate("doc_access_asker", "doc_access_asker")
-        token = self.folder.access_token
+        missing = (
+            self.env["document.document"].sudo().search([], order="id desc", limit=1)
+        )
+        token = f"o{missing.id + 1000:x}"
 
-        response = self.url_open(f"/documents/request_access/x{token}")
+        response = self.url_open(f"/documents/request_access/{token}")
 
         self.assertEqual(response.status_code, 404)
         self.assertFalse(self.folder.sudo().approval_request_ids)

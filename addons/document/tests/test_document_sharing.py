@@ -743,7 +743,7 @@ class TestDocumentsSharing(TransactionCaseDocuments, MockEmail):
     def test_an_editor_rotates_the_link_from_the_sharing_dialog(self):
         self.set_documents_env_user_to_current()
         self.user_doc.access_via_link = "view"
-        old_token = self.user_doc.document_token
+        old_token = self.user_doc.access_token
         doc_sharing = self.create_documents_sharing(self.user_doc)
         arch = doc_sharing.get_views([(False, "form")])["views"]["form"]["arch"]
         self.assertIn('name="action_rotate_links"', arch)
@@ -751,15 +751,16 @@ class TestDocumentsSharing(TransactionCaseDocuments, MockEmail):
         action = doc_sharing.action_rotate_links()
 
         self.assert_open_wizard(action, self.user_doc)
-        self.assertNotEqual(self.user_doc.document_token, old_token)
+        self.user_doc.invalidate_recordset(["access_token"])
+        self.assertNotEqual(self.user_doc.access_token, old_token)
 
     @users("documents@example.com")
     def test_a_viewer_cannot_rotate_the_link_from_the_sharing_dialog(self):
         self.set_documents_env_user_to_current()
-        old_token = self.manager_doc.sudo().document_token
+        old_token = self.manager_doc.sudo().access_token
         doc_sharing = self.create_documents_sharing(self.manager_doc)
         self.assertTrue(doc_sharing.is_readonly)
 
         with self.assertRaises(AccessError):
             doc_sharing.action_rotate_links()
-        self.assertEqual(self.manager_doc.sudo().document_token, old_token)
+        self.assertEqual(self.manager_doc.sudo().access_token, old_token)

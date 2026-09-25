@@ -6,11 +6,11 @@ from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import request, route
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import consteq
 
 from odoo.addons.approval_document.models.document_document import (
     DOCUMENT_ACCESS_ROLES,
 )
+from odoo.addons.base.models.access_link import LinkLoginRequired, LinkRefused
 from odoo.addons.document.controllers import document as document_controller
 from odoo.addons.document.controllers import home as document_home
 
@@ -22,25 +22,31 @@ def _request_access_url(access_token):
 
 
 def _requestable_document(access_token):
-    document_token, document_id = document_controller.ShareRoute._split_access_token(
+    link_token, document_id = document_controller.ShareRoute._split_access_token(
         access_token
     )
+    Document = request.env["document.document"]
     if not document_id:
         _debug.logic("not_requestable", reason="malformed_token")
-        return request.env["document.document"]
-    document_sudo = request.env["document.document"].sudo().browse(document_id).exists()
-    if not (
-        document_sudo
-        and document_sudo.document_token
-        and document_token.isascii()
-        and consteq(document_token, document_sudo.document_token)
-    ):
-        _debug.logic("not_requestable", reason="token_mismatch", document=document_id)
-        return request.env["document.document"]
+        return Document
+    document_sudo = Document.sudo().browse(document_id).exists()
+    if not document_sudo:
+        _debug.logic("not_requestable", reason="missing", document=document_id)
+        return Document
+    # a colleague asks for a document by its address, as in any drive; anyone
+    # else asks only through a link that opens it
+    if not request.env.user._is_internal():
+        try:
+            request.env["access.link"]._resolve(
+                link_token, model=Document._name, res_id=document_id
+            )
+        except LinkRefused, LinkLoginRequired:
+            _debug.logic("not_requestable", reason="no_link", document=document_id)
+            return Document
     target_sudo = document_sudo.shortcut_document_id or document_sudo
     if not target_sudo.active:
         _debug.logic("not_requestable", reason="archived", document=target_sudo)
-        return request.env["document.document"]
+        return Document
     return target_sudo
 
 

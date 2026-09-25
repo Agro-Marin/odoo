@@ -1177,7 +1177,16 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
             self.assertEqual(reszip.read("internal-file.png"), self.doc_icon)
             self.assertEqual(reszip.read("public-file.png"), self.doc_icon)
 
+        portal_zip = "/documents/zip?" + urlencode(
+            {"zip_name": "file.zip", "file_ids": f"{self.public_file.id}"}
+        )
         self.authenticate("portal_test", "portal_test")
+        with self.assertLogs("odoo.http", "WARNING"):
+            # the portal user only visited the link: that opens nothing here
+            self.assertEqual(
+                self.url_open(portal_zip).status_code, HTTPStatus.FORBIDDEN
+            )
+        self._make_portal_a_viewer(self.public_file)
         with self.assertLogs("odoo.http", "WARNING"):
             res = self.url_open(
                 "/documents/zip?"
@@ -1208,6 +1217,11 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
             self.assertEqual(reszip.namelist(), ["public-file.png"])
             self.assertEqual(reszip.read("public-file.png"), self.doc_icon)
 
+    def _make_portal_a_viewer(self, document):
+        document.access_ids.filtered(
+            lambda access: access.partner_id == self.user_portal.partner_id
+        ).role = "view"
+
     def test_web_ctrl_documents(self):
         public_url = f"/web/content/document.document/{self.public_file.id}/raw"
         internal_url = f"/web/content/document.document/{self.internal_file.id}/raw"
@@ -1219,6 +1233,8 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
 
         with self.subTest(user="portal_test"):
             self.authenticate("portal_test", "portal_test")
+            self.assertEqual(self.url_open(public_url).status_code, 404)
+            self._make_portal_a_viewer(self.public_file)
 
             res = self.url_open(public_url)
             res.raise_for_status()
@@ -1356,7 +1372,8 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
             ),
             (restricted_manager, self.user_manager, "SHARED", restricted_manager.id),
             (shared_via_link, self.user_portal, False, shared_via_link.id),
-            (shared_via_link, self.user_manager, "SHARED", shared_via_link.id),
+            # a visit through the link shares nothing with the visitor
+            (shared_via_link, self.user_manager, False, shared_via_link.id),
             (archived_doc, self.user_demo, "TRASH", archived_doc.id),
             (archived_folder, self.user_demo, "TRASH", archived_folder.id),
             (archived_doc_shortcut, self.user_demo, "MY", archived_doc_shortcut.id),
@@ -1414,16 +1431,23 @@ class TestDocumentsControllers(HttpCaseWithUserDemo, MockEmail):
         self.env["document.access"].search(domain).unlink()
 
         self.authenticate("demo", "demo")
-        res = self.url_open(
-            f"/documents/touch/{document.access_token}",
-            data=json.dumps({}),
-            headers={"Content-Type": "application/json"},
+        touch = f"/documents/touch/{document.access_token}"
+        headers = {"Content-Type": "application/json"}
+        res = self.url_open(touch, data=json.dumps({}), headers=headers)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(
+            self.env["document.access"].search(domain),
+            "a visit through the link is the link's use, not a row of the visitor's",
         )
 
+        self.env["document.access"].create(
+            {"document_id": document.id, "partner_id": partner.id, "role": "view"}
+        )
+        res = self.url_open(touch, data=json.dumps({}), headers=headers)
         self.assertEqual(res.status_code, 200)
         self.assertTrue(
-            self.env["document.access"].search(domain),
-            "touching an archived document must log the access",
+            self.env["document.access"].search(domain).last_access_date,
+            "touching an archived document a member reads must log the access",
         )
 
     def test_non_ascii_access_token_is_not_a_500(self):

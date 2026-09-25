@@ -227,6 +227,22 @@
                                 <div
                                     class="row mb-2"
                                     groups="base.group_user"
+                                    invisible="is_readonly or access_via_link in ('none', 'write_none')">
+                                    <div class="col-12 col-md-9 d-flex flex-column">
+                                        <label for="link_date_to" class="mb-0" />
+                                        <span class="fs-6 text-muted">After this date the link
+                                            opens nothing; empty, it lasts 30 days.</span>
+                                    </div>
+                                    <div class="col-12 col-md-3 d-flex">
+                                        <field
+                                            name="link_date_to"
+                                            nolabel="1"
+                                            class="oe_inline ms-auto" />
+                                    </div>
+                                </div>
+                                <div
+                                    class="row mb-2"
+                                    groups="base.group_user"
                                     invisible="is_readonly or is_access_modified or access_via_link in ('none', 'write_none')">
                                     <div class="col-12 col-md-9 d-flex flex-column">
                                         <span class="fs-6 text-muted">Replace the link: whoever

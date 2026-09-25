@@ -129,9 +129,26 @@ class TestShareUserAccessSettingsOverHttp(HttpCase):
     def test_portal_editor_cannot_choose_the_share_token(self):
         self.file.sudo().access_via_link = "edit"
         self.authenticate("hardening_portal", "hardening_portal")
-        self._assert_refused(self.file, "write", {"document_token": CHOSEN_TOKEN})
-        self.file.invalidate_recordset()
-        self.assertNotEqual(self.file.document_token, CHOSEN_TOKEN)
+        with (
+            mute_logger("odoo.http"),
+            self.assertRaises(JsonRpcException) as caught,
+        ):
+            self.call_jsonrpc(
+                "/web/dataset/call_kw/access.link/create",
+                {
+                    "model": "access.link",
+                    "method": "create",
+                    "args": [
+                        {
+                            "res_model": "document.document",
+                            "res_id": self.file.id,
+                            "token_hash": CHOSEN_TOKEN,
+                        }
+                    ],
+                    "kwargs": {},
+                },
+            )
+        self.assertEqual(str(caught.exception), "odoo.exceptions.AccessError")
         self.assertEqual(
             self._anonymous_content_status(f"{CHOSEN_TOKEN}o{self.file.id:x}"), 404
         )
@@ -139,9 +156,6 @@ class TestShareUserAccessSettingsOverHttp(HttpCase):
     def test_internal_editor_rotates_the_link_but_cannot_choose_it(self):
         self.file.sudo().access_via_link = "view"
         old_token = self.file.access_token
-        self.authenticate("hardening_owner", "hardening_owner")
-        self._assert_refused(self.file, "write", {"document_token": CHOSEN_TOKEN})
-
         self.authenticate("hardening_owner", "hardening_owner")
         self._call(self.file, "action_rotate_document_token")
         self.file.invalidate_recordset()
@@ -151,29 +165,44 @@ class TestShareUserAccessSettingsOverHttp(HttpCase):
         self.assertEqual(self._anonymous_content_status(new_token), 200)
 
     def test_portal_editor_cannot_rotate_the_link(self):
-        old_token = self.file.document_token
+        self.file.sudo().access_via_link = "view"
+        old_token = self.file.access_token
         self.authenticate("hardening_portal", "hardening_portal")
         self._assert_refused(self.file, "action_rotate_document_token")
         self.file.invalidate_recordset()
-        self.assertEqual(self.file.document_token, old_token)
+        self.assertEqual(self.file.access_token, old_token)
 
 
 @tagged("post_install", "-at_install")
 class TestDocumentTokenIsServerGenerated(TransactionCaseDocuments):
-    def test_create_refuses_a_chosen_token(self):
+    def test_a_document_stores_no_token(self):
+        self.assertNotIn("document_token", self.env["document.document"]._fields)
         with self.assertRaises(AccessError):
-            self.env["document.document"].with_user(self.doc_user).create(
+            self.env["access.link"].with_user(self.doc_user).create(
                 {
-                    "name": "chosen.txt",
-                    "folder_id": self.folder_a.id,
-                    "document_token": CHOSEN_TOKEN,
+                    "res_model": "document.document",
+                    "res_id": self.folder_a.id,
+                    "token_hash": CHOSEN_TOKEN,
                 }
             )
 
-    def test_server_code_still_sets_a_token(self):
-        document = self.env["document.document"].sudo().create({"name": "sudo.txt"})
-        document.document_token = CHOSEN_TOKEN
-        self.assertEqual(document.document_token, CHOSEN_TOKEN)
+    def test_the_link_is_a_hashed_row(self):
+        document = (
+            self.env["document.document"]
+            .sudo()
+            .create({"name": "shared.txt", "access_via_link": "view"})
+        )
+        token = document.access_token.rpartition("o")[0]
+        link = (
+            self.env["access.link"]
+            ._resolve(token, model=document._name, res_id=document.id)
+            .link
+        )
+        self.assertEqual(link.role, "view")
+        self.env.cr.execute(
+            "SELECT count(*) FROM access_link WHERE token_hash = %s", [token]
+        )
+        self.assertEqual(self.env.cr.fetchone()[0], 0)
 
 
 @tagged("post_install", "-at_install")

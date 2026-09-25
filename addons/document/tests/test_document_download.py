@@ -497,11 +497,11 @@ class TestDocumentsDownloadAudit(HttpCase, TransactionCaseDocuments):
         self.assertTrue(self._downloaded(self.audit_folder))
         self.assertEqual(
             ShareRoute._split_access_token(self.audit_folder.access_token),
-            (self.audit_folder.document_token, self.audit_folder.id),
+            (self.audit_folder.access_token.rpartition("o")[0], self.audit_folder.id),
         )
 
     def test_split_access_token_refuses_junk(self):
-        for junk in ("", "no-separator", "oFF", "abco0", "abco-1", None):
+        for junk in ("", "no-separator", "abco0", "abco-1", None):
             with self.subTest(token=junk):
                 from odoo.addons.document.controllers.document import ShareRoute
 

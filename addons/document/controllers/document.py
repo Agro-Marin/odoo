@@ -17,10 +17,11 @@ from odoo.exceptions import MissingError
 from odoo.fields import Domain
 from odoo.http import prepare_content_disposition_header, request
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL, consteq, replace_exceptions, str2bool
+from odoo.tools import SQL, replace_exceptions, str2bool
 from odoo.tools.image import base64_to_image
 from odoo.tools.urls import keep_query
 
+from odoo.addons.base.models.access_link import LinkLoginRequired, LinkRefused
 from odoo.addons.document.tools import (
     UserFolder,
     is_mimetype_textual,
@@ -182,12 +183,14 @@ class ShareRoute(http.Controller):
 
     @staticmethod
     def _split_access_token(access_token: str) -> tuple[str, int]:
+        # "<link token>o<hex id>"; a document without a link is "o<hex id>",
+        # which only its readers can open
         try:
             document_token, __, encoded_id = (access_token or "").rpartition("o")
             document_id = int(encoded_id, 16)
         except ValueError:
             return "", 0
-        if not document_token or document_id < 1:
+        if document_id < 1:
             return "", 0
         return document_token, document_id
 
@@ -201,51 +204,52 @@ class ShareRoute(http.Controller):
         if not document_id:
             _debug.logic("token_refused", reason="malformed")
             return Doc
-        document_sudo = Doc.browse(document_id).sudo()
-        try:
-            if not document_sudo.document_token:
-                _debug.logic("token_refused", reason="no_token", document=document_id)
-                return Doc
-        except MissingError:
+        document_sudo = Doc.browse(document_id).sudo().exists()
+        if not document_sudo:
             _debug.logic("token_refused", reason="missing", document=document_id)
             return Doc
 
-        if not (
-            document_token.isascii()
-            and consteq(document_token, document_sudo.document_token)
-            and (
-                document_sudo.user_permission != "none"
-                or document_sudo.access_via_link != "none"
+        by_session = (
+            not request.env.user._is_public()
+            and document_sudo.with_env(request.env).user_permission != "none"
+        )
+        if not by_session:
+            try:
+                resolution = request.env["access.link"]._resolve(
+                    document_token, model=Doc._name, res_id=document_id
+                )
+            except LinkRefused, LinkLoginRequired:
+                _debug.logic("token_refused", reason="link", document=document_id)
+                return Doc
+            document_sudo = resolution.record.with_context(
+                document_access_link=resolution.link.id
             )
-        ):
-            _debug.logic("token_refused", reason="mismatch", document=document_id)
-            return Doc
         if not request.env.user._is_internal() and not document_sudo.active:
             _debug.logic("token_refused", reason="archived", document=document_id)
             return Doc
 
-        skip_log = skip_log or request.env.user._is_public()
-        if not skip_log:
+        # the session's own documents are recent; a link's visit is the
+        # link's use, and grants nothing
+        if by_session and not skip_log and not request.env.user._is_public():
             for doc_sudo in filter(
                 bool, (document_sudo, document_sudo.shortcut_document_id)
             ):
-                new_access = cls._upsert_last_access_date(request.env, doc_sudo)
-                if new_access and doc_sudo._get_permission_without_token() == "none":
-                    _debug.lifecycle("newly_accessible_via_link", document=doc_sudo)
-                    document_sudo = document_sudo.with_context(
-                        document_newly_accessible=True
-                    )
+                cls._upsert_last_access_date(request.env, doc_sudo)
 
         if follow_shortcut:
             if target_sudo := document_sudo.shortcut_document_id:
-                if target_sudo.user_permission != "none" or (
+                if target_sudo.with_env(request.env).user_permission != "none" or (
                     target_sudo.access_via_link != "none"
                     and not target_sudo.is_access_via_link_hidden
                 ):
                     _debug.pipeline(
                         "shortcut_followed", shortcut=document_sudo, target=target_sudo
                     )
-                    document_sudo = target_sudo
+                    document_sudo = target_sudo.with_context(
+                        document_access_link=document_sudo.env.context.get(
+                            "document_access_link"
+                        )
+                    )
                 else:
                     _debug.logic("token_refused", reason="shortcut_target_hidden")
                     document_sudo = Doc
@@ -262,7 +266,7 @@ class ShareRoute(http.Controller):
         _debug.logic(
             "token_resolved",
             document=document_sudo,
-            permission=document_sudo.user_permission,
+            by_session=by_session,
             via_link=document_sudo.access_via_link,
         )
         return document_sudo
@@ -546,9 +550,12 @@ class ShareRoute(http.Controller):
         with replace_exceptions(ValueError, by=BadRequest):
             member_id = int(member_id or "0")
 
-        if request.env.user._is_public():
-            _debug.pipeline("home", audience="public", document=document_sudo)
-            if not document_sudo:
+        via_link = bool(document_sudo.env.context.get("document_access_link"))
+        if request.env.user._is_public() or via_link or not document_sudo:
+            _debug.pipeline(
+                "home", audience="public", via_link=via_link, document=document_sudo
+            )
+            if not document_sudo and request.env.user._is_public():
                 redirect_url = (
                     f"/documents/{quote(access_token, safe='')}?{keep_query('*')}"
                 )
@@ -789,9 +796,7 @@ class ShareRoute(http.Controller):
 
     @http.route("/documents/touch/<access_token>", type="jsonrpc", auth="user")
     def documents_touch(self, access_token: str) -> dict:
-        doc = self._from_access_token(access_token)
-        if doc.env.context.get("document_newly_accessible"):
-            return {"reload": True}
+        self._from_access_token(access_token)
         return {}
 
     @http.route(

@@ -257,28 +257,22 @@ class DocumentsDocument(models.Model):
             "any_except_disabled_and_archived"
         ]
 
+        # a row without a role records a visit, and a visit grants nothing:
+        # only a member's role counts, which an edit link can raise to edit
         if searched_roles == ["view"]:
             access_level_domain = Domain("role", "=", "view") & (
                 Domain.TRUE
                 if ignore_link
                 else Domain("document_id.access_via_link", "in", ("none", "view"))
             )
-            if not ignore_link:
-                access_level_domain |= Domain("role", "=", False) & Domain(
-                    "document_id.access_via_link", "=", "view"
-                )
         elif searched_roles == ["edit"]:
             access_level_domain = Domain("role", "=", "edit")
             if not ignore_link:
-                access_level_domain |= Domain(
+                access_level_domain |= Domain("role", "=", "view") & Domain(
                     "document_id.access_via_link", "=", "edit"
                 )
         else:
             access_level_domain = Domain("role", "in", ("view", "edit"))
-            if not ignore_link:
-                access_level_domain |= Domain(
-                    "document_id.access_via_link", "!=", "none"
-                )
         access_domain = Domain(
             "access_ids",
             "any",
@@ -657,6 +651,18 @@ class DocumentsDocument(models.Model):
                 "is_download_blocked",
             ]
         )
+        if link_changed := [
+            document_id
+            for document_id, changes in changes_by_document_dict.items()
+            if "access_via_link" in changes
+        ]:
+            # the SQL above reached the whole subtree, readable by the writer
+            # or not, once the writer's right on the roots was checked: its
+            # links follow as the link machinery's, named
+            self.browse(link_changed).with_privilege(
+                "base.privilege_manage_links",
+                reason="a folder's link setting reached its subtree",
+            )._sync_document_links(roles=dict.fromkeys(link_changed, access_via_link))
 
         return changes_by_document_dict
 

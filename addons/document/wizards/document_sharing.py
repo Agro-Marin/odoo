@@ -39,6 +39,11 @@ class DocumentsSharing(models.TransientModel):
         string="Discoverable",
         required=True,
     )
+    link_date_to = fields.Datetime(
+        string="Link expires",
+        help="The link anyone can use stops working at this date. Empty: 30 days "
+        "after it is turned on.",
+    )
     viewer_download_mode = fields.Selection(
         selection="_selection_viewer_download_mode",
         string="Viewers can download",
@@ -160,6 +165,7 @@ class DocumentsSharing(models.TransientModel):
         "access_via_link",
         "access_via_link_mode",
         "viewer_download_mode",
+        "link_date_to",
         "share_access_ids",
         "share_access_ids.role",
         "share_access_ids.original_expiration_date",
@@ -168,7 +174,11 @@ class DocumentsSharing(models.TransientModel):
     )
     def _compute_is_access_modified(self) -> None:
         for record in self:
-            record.is_access_modified = bool(record._get_update_rights_params())
+            record.is_access_modified = bool(record._get_update_rights_params()) or (
+                bool(record.link_date_to)
+                and len(record.document_ids) == 1
+                and record.link_date_to != record.document_ids.link_date_to
+            )
 
     def action_update_rights(self) -> dict:
         """Apply the edited access rights and reopen the sharing wizard."""
@@ -181,6 +191,9 @@ class DocumentsSharing(models.TransientModel):
         self.document_ids.action_update_access_rights(
             **self._get_update_rights_params(), no_propagation=not self.is_folder_only
         )
+        if self.link_date_to:
+            linked = self.document_ids.filtered(lambda d: d.access_via_link != "none")
+            linked._sync_document_links(date_to=self.link_date_to)
         # The confirmed change may have removed the current user's own access
         # (advisory `has_warning_self_access_loss`). Reopening the wizard on a
         # now-inaccessible document would raise AccessError while building its
@@ -358,6 +371,8 @@ class DocumentsSharing(models.TransientModel):
         else:
             values["access_via_link_mode"] = "discoverable"
 
+        if len(documents) == 1:
+            values["link_date_to"] = documents.link_date_to
         if len(set(documents.mapped("is_download_blocked"))) != 1:
             values["viewer_download_mode"] = "mixed"
         elif document0.is_download_blocked:

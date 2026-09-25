@@ -53,6 +53,14 @@ class Home(web_home.Home):
         document_sudo = ShareRoute._from_access_token(
             access_token, follow_shortcut=False
         )
+        if document_sudo.env.context.get("document_access_link"):
+            # the link opens the shared page, not the app: a visit grants
+            # nothing the app could read the document with
+            _debug.pipeline("web_client", by="link_to_share", document=document_sudo)
+            return request.redirect(
+                f"/documents/{quote(access_token, safe='')}?{keep_query('*')}",
+                HTTPStatus.TEMPORARY_REDIRECT,
+            )
 
         _debug.pipeline("web_client", by="internal_deep_link", document=document_sudo)
         query = {}

@@ -200,7 +200,7 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         folder_a_as_portal.check_access("write")
 
     @mute_logger("odoo.addons.base.models.ir_access")
-    def test_access_from_past_access(self):
+    def test_a_past_visit_grants_nothing(self):
         self.folder_a.access_via_link = "view"
         self.folder_a.access_internal = "none"
         self.folder_a_a.access_via_link = "view"
@@ -211,28 +211,26 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
 
         folder_a_as_portal = self.folder_a.with_user(self.portal_user)
         folder_a_a_as_portal = self.folder_a_a.with_user(self.portal_user)
-        folder_a_as_internal = self.folder_a.with_user(self.internal_user)
-        self.assertEqual(self.folder_a.access_ids.partner_id, self.doc_user.partner_id)
         self._assert_raises_check_access_rule(folder_a_as_portal)
-        self.env["document.access"].create(
+        visit = self.env["document.access"].create(
             {
                 "document_id": self.folder_a.id,
                 "partner_id": self.portal_user.partner_id.id,
                 "last_access_date": fields.Datetime.now(),
             }
         )
-        self._assert_raises_check_access_rule(folder_a_as_internal)
-        folder_a_as_portal.check_access("read")
-        folder_a_a_as_portal.check_access("read")
-        self.assertEqual(folder_a_as_portal.user_permission, "view")
-        self._assert_raises_check_access_rule(folder_a_as_portal, "write")
-        self.folder_a.access_via_link = "edit"
-        folder_a_as_portal.check_access("write")
-        self._assert_raises_check_access_rule(folder_a_a_as_portal, "write")
-
-        self.folder_a.access_via_link = "none"
+        # having opened the link once is a visit, not a membership
         self._assert_raises_check_access_rule(folder_a_as_portal)
         self._assert_raises_check_access_rule(folder_a_a_as_portal)
+        self.folder_a.access_via_link = "edit"
+        self._assert_raises_check_access_rule(folder_a_as_portal, "write")
+
+        # a member's role is what an edit link raises
+        visit.role = "view"
+        folder_a_as_portal.check_access("write")
+        self.folder_a.access_via_link = "none"
+        folder_a_as_portal.check_access("read")
+        self._assert_raises_check_access_rule(folder_a_as_portal, "write")
 
     def test_access_rights_inherited_on_create(self):
         (self.folder_a + self.folder_b).write(
@@ -1241,19 +1239,24 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
             "document_id": self.folder_b.id,
             "partner_id": self.internal_user.partner_id.id,
         }
+        # a visit to the folder's link is not a way into it any more
+        self.folder_b.write(
+            {
+                "access_via_link": "view",
+                "access_ids": [
+                    Command.create(
+                        access_values | {"last_access_date": fields.Datetime.now()}
+                    )
+                ],
+            }
+        )
+        self._assert_raises_check_access_rule(txt_as_internal, "read")
+        self.assertFalse(txt_as_internal.search([("folder_id", "=", self.folder_b.id)]))
+        self.folder_b.write({"access_internal": "none", "access_via_link": "none"})
+        self.folder_b.access_ids.unlink()
+
         folder_accesses_values = [
             ("internal user access", {"access_internal": "view"}),
-            (
-                "link accessed",
-                {
-                    "access_via_link": "view",
-                    "access_ids": [
-                        Command.create(
-                            access_values | {"last_access_date": fields.Datetime.now()}
-                        )
-                    ],
-                },
-            ),
             (
                 "member",
                 {"access_ids": [Command.create(access_values | {"role": "view"})]},
@@ -1589,8 +1592,10 @@ class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
         self.assertEqual(
             self.document_txt.with_user(self.internal_user).user_permission, "view"
         )
-        self.assertEqual(shortcut.with_user(self.internal_user).user_permission, "edit")
-        self.assertTrue(
+        # the target is reached through its folder, not through the visit
+        # recorded on it: the owner's shortcut is only as open as that
+        self.assertEqual(shortcut.with_user(self.internal_user).user_permission, "view")
+        self.assertFalse(
             Doc_as_internal_sudo.search(
                 [("id", "=", shortcut.id), ("user_permission", "=", "edit")]
             )
