@@ -450,6 +450,18 @@ registry.category("web_tour.tours").add("test_self_order_table_sharing-meal_mode
             Utils.clickBtn("Order Now"),
             Utils.clickBtn("Checkout"),
             CartPage.checkProduct("Coca-Cola", "2.20", "1"),
+            {
+                content: "a refresh keeps the order this device shares",
+                trigger: "body",
+                run: async () => {
+                    const shared = posmodel.currentOrder.uuid;
+                    await posmodel.getUserDataFromServer();
+                    if (posmodel.currentOrder.uuid !== shared) {
+                        throw new Error("a refresh swapped the table's shared order");
+                    }
+                },
+            },
+            CartPage.checkProduct("Coca-Cola", "2.20", "1"),
         ].flat(),
 });
 

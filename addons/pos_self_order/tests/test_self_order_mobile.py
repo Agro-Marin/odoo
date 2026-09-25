@@ -3,7 +3,7 @@ from unittest.mock import patch
 from urllib.parse import urlparse
 
 import odoo.tests
-from odoo import http
+from odoo import Command, fields, http
 
 from odoo.addons.pos_self_order.controllers.orders import PosSelfOrderController
 from odoo.addons.pos_self_order.tests.self_order_common_test import SelfOrderCommonTest
@@ -429,6 +429,30 @@ class TestSelfOrderMobile(SelfOrderCommonTest):
         self.pos_config.write(
             {
                 "self_ordering_pay_after": "meal",
+            }
+        )
+        # a second open order at the table, older than the shared one: every
+        # refresh returns it, and it must not take the device's order over
+        self.env["pos.order"].create(
+            {
+                "session_id": self.pos_config.current_session_id.id,
+                "table_id": table.id,
+                "date_order": fields.Datetime.subtract(fields.Datetime.now(), hours=1),
+                "amount_total": self.fanta.lst_price,
+                "amount_tax": 0.0,
+                "amount_return": 0.0,
+                "amount_paid": 0.0,
+                "lines": [
+                    Command.create(
+                        {
+                            "qty": 1,
+                            "product_id": self.fanta.id,
+                            "price_unit": self.fanta.lst_price,
+                            "price_subtotal": self.fanta.lst_price,
+                            "price_subtotal_incl": self.fanta.lst_price,
+                        }
+                    )
+                ],
             }
         )
 

@@ -805,7 +805,17 @@ export class SelfOrder extends SignalStore {
                 table_identifier: tableIdentifier,
             });
             const result = this.models.connectNewData(data);
-            const openOrder = result["pos.order"]?.find((o) => o.state === "draft");
+            // A device keeps the open order it already shares. Another open
+            // order of the table, dropped locally when this one was adopted,
+            // comes back on the next refresh; adopting it would swap the
+            // customer's order for another one on every state change.
+            const selected = this.models["pos.order"].getBy(
+                "uuid",
+                this.selectedOrderUuid,
+            );
+            const keepsSelected = selected?.state === "draft" && selected.isSynced;
+            const openOrder =
+                !keepsSelected && result["pos.order"]?.find((o) => o.state === "draft");
             if (openOrder && this.router.activeSlot !== "confirmation") {
                 this.selectedOrderUuid = openOrder.uuid;
 
