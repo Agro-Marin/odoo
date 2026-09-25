@@ -77,7 +77,9 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
             )
         selection = field._args__["selection"]
         if isinstance(selection, (list, tuple)):
-            if values is not None and list(values) != [kv[0] for kv in selection]:
+            keys = [kv[0] for kv in selection]
+            if values is not None and list(values) != keys:
+                narrowing = set(keys) <= set(values)
                 _debug.logic(
                     "field.selection.overridden",
                     model=self.model_name,
@@ -85,12 +87,14 @@ class Selection[T = str | typing.Literal[False]](Field[T]):
                     module=field._module,
                     previous=len(values),
                     values=len(selection),
+                    narrowing=narrowing,
                 )
-                _logger.warning(
-                    "%s: selection=%r overrides existing selection; use selection_add instead",
-                    self,
-                    selection,
-                )
+                if not narrowing:
+                    _logger.warning(
+                        "%s: selection=%r overrides existing selection; use selection_add instead",
+                        self,
+                        selection,
+                    )
             values = dict(selection)
             self.ondelete = {}
         elif callable(selection) or isinstance(selection, str):

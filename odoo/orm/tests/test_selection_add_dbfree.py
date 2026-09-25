@@ -118,3 +118,37 @@ class AddOnDynamic(models.Model):
 def test_a_wrong_selection_add_is_refused_at_setup(extension, error, message):
     with pytest.raises(error, match=message), model_test_env(Doc, extension):
         pass
+
+
+class NarrowedLevel(models.Model):
+    _inherit = "sela.doc"
+    _module = f"{_EXT}_narrowed"
+
+    state = fields.Selection([("draft", "Draft"), ("done", "Done")])
+
+
+class ReplacedLevel(models.Model):
+    _inherit = "sela.doc"
+    _module = f"{_EXT}_replaced"
+
+    level = fields.Selection([("lo", "Lo"), ("mid", "Mid")])
+
+
+def test_a_narrowing_redefinition_restricts_the_values_without_a_warning(caplog):
+    with (
+        caplog.at_level("WARNING", logger="odoo.fields"),
+        model_test_env(Doc, DocExtension, NarrowedLevel) as env,
+    ):
+        state = env["sela.doc"]._fields["state"]
+        assert state.selection == [("draft", "Draft"), ("done", "Done")]
+    assert "overrides existing selection" not in caplog.text
+
+
+def test_a_redefinition_that_adds_a_value_still_warns_to_use_selection_add(caplog):
+    with (
+        caplog.at_level("WARNING", logger="odoo.fields"),
+        model_test_env(Doc, ReplacedLevel) as env,
+    ):
+        level = env["sela.doc"]._fields["level"]
+        assert level.selection == [("lo", "Lo"), ("mid", "Mid")]
+    assert "overrides existing selection" in caplog.text
