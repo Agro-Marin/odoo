@@ -3,7 +3,7 @@ from collections import defaultdict
 from odoo import Command, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL, float_is_zero, float_round
+from odoo.tools import SQL, float_is_zero
 
 _debug = DebugLog(__name__)
 
@@ -210,21 +210,17 @@ class MrpRoutingWorkcenter(models.Model):
             total_duration = 0
             cycle_number = 0
             for item in history[operation.id]:
-                capacity, setup, cleanup = item.workcenter_id._get_capacity(
-                    item.product_id,
-                    item.product_uom_id,
-                    operation.bom_id.product_qty or 1,
+                cycles, working_minutes = (
+                    item.workcenter_id._get_cycles_and_working_minutes(
+                        item.product_id,
+                        item.product_uom_id,
+                        item.qty_produced,
+                        item.duration,
+                        operation.bom_id,
+                    )
                 )
-                total_duration += (
-                    max(item.duration - setup - cleanup, 0.0)
-                    * (item.workcenter_id.time_efficiency or 100.0)
-                    / 100.0
-                )
-                cycle_number += float_round(
-                    item.qty_produced / capacity,
-                    precision_digits=0,
-                    rounding_method="UP",
-                )
+                total_duration += working_minutes
+                cycle_number += cycles
             if cycle_number:
                 operation.time_cycle = total_duration / cycle_number
             else:
@@ -251,26 +247,12 @@ class MrpRoutingWorkcenter(models.Model):
                 "quantity", operation.bom_id.product_qty or 1
             )
             unit = self.env.context.get("unit", operation.bom_id.product_uom_id)
-            if workcenter:
-                (capacity, setup, cleanup) = workcenter._get_capacity(
-                    product, unit, operation.bom_id.product_qty or 1
-                )
-            else:
-                capacity = operation.bom_id.product_qty or 1
-                setup = cleanup = 0.0
-            operation.cycle_number = float_round(
-                quantity / capacity, precision_digits=0, rounding_method="UP"
+            cycles, overhead, operation.time_total = workcenter._get_duration_breakdown(
+                product, unit, quantity, operation.time_cycle, operation.bom_id
             )
-            operation.time_total = (
-                setup
-                + cleanup
-                + operation.cycle_number
-                * operation.time_cycle
-                * 100.0
-                / (workcenter.time_efficiency or 100.0)
-            )
+            operation.cycle_number = cycles
             operation.show_time_total = operation.cycle_number > 1 or not float_is_zero(
-                setup + cleanup, precision_digits=0
+                overhead, precision_digits=0
             )
 
     def _compute_workorder_count(self):

@@ -6,7 +6,6 @@ class MrpProduction(models.Model):
 
     team_id = fields.Many2one(
         comodel_name="team.team",
-        string="Team",
         compute="_compute_team_id",
         precompute=True,
         store=True,

@@ -143,7 +143,12 @@ class TestMoOverviewReport(TestMrpCommon):
             )
         ]
         after = report._get_report_data(self.production.id)["summary"]["bom_cost"]
-        cycles = math.ceil(self.production.product_qty / self.bom_1.product_qty)
+        cycles = math.ceil(
+            self.production.product_uom_id._get_quantity_in_unit(
+                self.production.product_qty, self.bom_1.product_uom_id, round=False
+            )
+            / self.bom_1.product_qty
+        )
         self.assertAlmostEqual(after - before, cycles * 100)
 
     def test_a_component_added_after_confirmation_is_costed_in_the_bom_unit(self):

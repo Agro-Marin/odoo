@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from odoo import Command, fields
 from odoo.exceptions import UserError
@@ -54,6 +54,9 @@ class TestWorkorderAudit(TransactionCase):
 
     def test_replanning_an_unconflicted_workorder_keeps_its_slot(self):
         mo = self._mo(tag="R")
+        # A slot starting now is in the past a second later, and replanning
+        # anchors on the clock: plan in the future to measure conflicts only.
+        mo.date_start = fields.Datetime.now() + timedelta(days=7)
         mo.button_plan()
         self.env.flush_all()
         wo = mo.workorder_ids

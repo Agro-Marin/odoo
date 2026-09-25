@@ -36,10 +36,7 @@ class MrpWorkcenter(models.Model):
         default=100,
         readonly=False,
     )
-    active = fields.Boolean(
-        string="Active",
-        default=True,
-    )
+    active = fields.Boolean(default=True)
 
     code = fields.Char(copy=False)
     note = fields.Html(string="Description")
@@ -794,13 +791,49 @@ class MrpWorkcenter(models.Model):
             }
         return res
 
+    @api.model
+    def _get_bom_capacity(self, bom, unit):
+        if not bom.product_qty:
+            return 1.0
+        if not unit:
+            return bom.product_qty
+        return bom.product_uom_id._get_quantity_estimate(
+            bom.product_qty, unit, round=False
+        )
+
+    def _get_duration_breakdown(self, product, unit, quantity, time_cycle, bom):
+        if not self:
+            capacity, setup, cleanup = self._get_bom_capacity(bom, unit), 0.0, 0.0
+            efficiency = 100.0
+        else:
+            capacity, setup, cleanup = self._get_capacity(
+                product, unit, self._get_bom_capacity(bom, unit)
+            )
+            efficiency = self.time_efficiency
+        cycles = float_round(
+            quantity / capacity, precision_digits=0, rounding_method="UP"
+        )
+        overhead = setup + cleanup
+        return cycles, overhead, overhead + cycles * time_cycle * 100.0 / efficiency
+
+    def _get_cycles_and_working_minutes(self, product, unit, quantity, duration, bom):
+        capacity, setup, cleanup = self._get_capacity(
+            product, unit, self._get_bom_capacity(bom, unit)
+        )
+        cycles = float_round(
+            quantity / capacity, precision_digits=0, rounding_method="UP"
+        )
+        return cycles, max(
+            duration - setup - cleanup, 0.0
+        ) * self.time_efficiency / 100.0
+
     def _get_capacity(self, product, unit, default_capacity=1):
         self.check_singleton()
         ranked = [
             (product, product.uom_id),
+            (product, unit),
             (self.env["product.product"], unit),
             (self.env["product.product"], product.uom_id),
-            (product, unit),
         ]
         rank = -1  # debuglog
         for wanted_product, wanted_unit in ranked:
@@ -1097,7 +1130,11 @@ class MrpWorkcenterProductivity(models.Model):
         self.date_end = now
         for timer in self:
             wo = timer.workorder_id
-            if wo.duration <= wo.duration_expected:
+            if (
+                timer.loss_type != "productive"
+                or not wo.duration_expected
+                or wo.duration <= wo.duration_expected
+            ):
                 continue
             productive_date_end = timer.date_end - timedelta(
                 minutes=wo.duration - wo.duration_expected

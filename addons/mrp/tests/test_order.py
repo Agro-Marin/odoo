@@ -5327,7 +5327,7 @@ class TestMrpOrder(TestMrpCommon):
         )
 
     def test_multi_edit_start_date_wo(self):
-        self.env.company.resource_calendar_id.tz = "Europe/Brussels"
+        (self.workcenter_1 | self.workcenter_2).tz = "Europe/Brussels"
         mo = self.env["mrp.production"].create(
             {
                 "product_id": self.product.id,

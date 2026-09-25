@@ -9,8 +9,8 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
 from odoo.libs.intervals import Intervals
-from odoo.tools import float_round, format_datetime
-from odoo.tools.date_utils import get_intervals_hours
+from odoo.tools import format_datetime
+from odoo.tools.date_utils import get_intervals_hours, localized
 
 _debug = DebugLog(__name__)
 
@@ -72,9 +72,9 @@ class MrpWorkorder(models.Model):
     )
     sequence = fields.Integer(
         compute="_compute_sequence",
+        precompute=True,
         store=True,
         readonly=False,
-        precompute=True,
     )
     barcode = fields.Char(
         compute="_compute_barcode",
@@ -403,7 +403,7 @@ class MrpWorkorder(models.Model):
             if wo.state == state or "done" in (wo.state, wo.production_state):
                 continue
             if wo.state == "progress":
-                wo.button_pending()
+                wo.end_all()
             elif wo.state == "cancel" and state == "progress":
                 wo.write({"state": "ready"})
             ids_to_update.append(wo.id)
@@ -842,6 +842,7 @@ class MrpWorkorder(models.Model):
             date_start or self.date_start,
             compute_leaves=True,
             domain=[("time_type_id", "!=", False)],
+            resource=workcenter.resource_id,
         )
 
     @api.onchange("date_end")
@@ -857,16 +858,19 @@ class MrpWorkorder(models.Model):
             )
 
     def _get_duration_expected_from_dates(self, date_start=False, date_end=False):
-        if not self.workcenter_id.resource_calendar_id:
-            return (
-                (date_end or self.date_end) - (date_start or self.date_start)
-            ).total_seconds() / 60
-        interval = self.workcenter_id.resource_calendar_id.get_work_duration_data(
-            date_start or self.date_start,
-            date_end or self.date_end,
+        date_start = date_start or self.date_start
+        date_end = date_end or self.date_end
+        workcenter = self.workcenter_id
+        if not workcenter.resource_calendar_id:
+            return (date_end - date_start).total_seconds() / 60
+        resource = workcenter.resource_id
+        worked = workcenter.resource_calendar_id._work_intervals_batch(
+            localized(date_start),
+            localized(date_end),
+            resources=resource,
             domain=[("time_type_id", "!=", False)],
-        )
-        return interval["hours"] * 60
+        )[resource.id]
+        return get_intervals_hours(worked) * 60
 
     @api.onchange("finished_lot_ids")
     def _onchange_finished_lot_ids(self):
@@ -885,6 +889,7 @@ class MrpWorkorder(models.Model):
             values, new_workcenter
         )
         res = self._write_grouped_by_derived_vals(values, derived_vals)
+        self._update_production_dates(values)
         _debug.lifecycle(
             "write",
             workorders=self,
@@ -893,7 +898,7 @@ class MrpWorkorder(models.Model):
             derived=len(derived_vals),
         )
         self._post_write_qty_produced(values)
-        self._post_write_workcenter(previous_workcenter_by_id, new_workcenter)
+        self._post_write_workcenter(previous_workcenter_by_id, new_workcenter, values)
         return res
 
     def _check_write_qty_produced(self, values):
@@ -933,7 +938,6 @@ class MrpWorkorder(models.Model):
                         "You cannot change the workcenter of a work order that is done."
                     )
                 )
-            workorder.reservation_id.resource_id = new_workcenter.resource_id
             if workorder.state != "progress":
                 previous_workcenter_by_id[workorder.id] = workorder.workcenter_id
             else:
@@ -964,7 +968,6 @@ class MrpWorkorder(models.Model):
             )
             if derived:
                 derived_vals[workorder.id] = derived
-            workorder._update_production_dates(values, derived)
         return derived_vals
 
     def _prepare_derived_date_vals(self, values, date_start, date_end, new_workcenter):
@@ -993,19 +996,30 @@ class MrpWorkorder(models.Model):
             }
         return {}
 
-    def _update_production_dates(self, values, derived):
-        self.check_singleton()
-        workorders = self.production_id.workorder_ids
-        if self == workorders[:1] and values.get("date_start"):
-            self.production_id.with_context(force_date=True).write(
-                {"date_start": fields.Datetime.to_datetime(values["date_start"])}
+    def _update_production_dates(self, values):
+        if not (values.get("date_start") or values.get("date_end")):
+            return
+        for production in self.production_id:
+            workorders = production.workorder_ids.filtered(
+                lambda wo: wo.state != "cancel"
             )
-        if self == workorders[-1:] and "date_end" in values:
-            propagated_end = derived.get("date_end", values["date_end"])
-            if propagated_end:
-                self.production_id.with_context(force_date=True).write(
-                    {"date_end": fields.Datetime.to_datetime(propagated_end)}
+            dates = {
+                "date_end": max(
+                    (wo.date_end for wo in workorders if wo.date_end), default=None
                 )
+            }
+            if values.get("date_start"):
+                dates["date_start"] = min(
+                    (wo.date_start for wo in workorders if wo.date_start),
+                    default=None,
+                )
+            dates = {
+                name: date
+                for name, date in dates.items()
+                if date and date != production[name]
+            }
+            if dates:
+                production.with_context(force_date=True).write(dates)
 
     def _write_grouped_by_derived_vals(self, values, derived_vals):
         if not derived_vals:
@@ -1038,12 +1052,13 @@ class MrpWorkorder(models.Model):
                 ).qty_producing = min_workorder_qty
         self._update_production_qty_producing()
 
-    def _post_write_workcenter(self, previous_workcenter_by_id, new_workcenter):
+    def _post_write_workcenter(self, previous_workcenter_by_id, new_workcenter, values):
         for workorder in self.browse(previous_workcenter_by_id):
-            workorder.duration_expected = workorder._get_duration_expected(
-                previous_workcenter=previous_workcenter_by_id[workorder.id]
-            )
-            if workorder.date_start:
+            if "duration_expected" not in values:
+                workorder.duration_expected = workorder._get_duration_expected(
+                    previous_workcenter=previous_workcenter_by_id[workorder.id]
+                )
+            if workorder.date_start and "date_end" not in values:
                 workorder.date_end = workorder._get_date_end(
                     new_workcenter=new_workcenter
                 )
@@ -1233,10 +1248,9 @@ class MrpWorkorder(models.Model):
                 )
                 wo.with_context(bypass_duration_calculation=True).write(vals)
             else:
-                if not wo.date_start or wo.date_start > date_start:
-                    vals["date_end"] = wo._get_date_end(date_start)
-                if wo.date_end and wo.date_end < date_start:
-                    vals["date_end"] = date_start
+                vals["date_end"] = max(
+                    wo._get_date_end(date_start) or date_start, date_start
+                )
                 wo.with_context(bypass_duration_calculation=True).write(vals)
 
     def button_finish(self):
@@ -1306,8 +1320,8 @@ class MrpWorkorder(models.Model):
         self.end_previous()
 
     def button_unblock(self):
-        for order in self:
-            order.workcenter_id.action_unblock()
+        for workcenter in self.workcenter_id:
+            workcenter.action_unblock()
         return True
 
     def action_cancel(self):
@@ -1388,18 +1402,16 @@ class MrpWorkorder(models.Model):
         self.check_singleton()
         if not self.workcenter_id:
             return self.duration_expected
-        capacity, setup, cleanup = self.workcenter_id._get_capacity(
-            self.product_id,
-            self.product_uom_id,
-            self.production_bom_id.product_qty or 1,
-        )
+        workcenter = alternative_workcenter or self.workcenter_id
         if not self.operation_id:
             previous_record = self._origin if self._origin.workcenter_id else self
-            previous = previous_workcenter or previous_record.workcenter_id
+            previous = (
+                self.workcenter_id
+                if alternative_workcenter
+                else previous_workcenter or previous_record.workcenter_id
+            )
             _capacity, old_setup, old_cleanup = previous._get_capacity(
-                previous_record.product_id,
-                previous_record.product_uom_id,
-                previous_record.production_bom_id.product_qty or 1,
+                previous_record.product_id, previous_record.product_uom_id
             )
             working_minutes = max(
                 (self.duration_expected - old_setup - old_cleanup)
@@ -1417,6 +1429,9 @@ class MrpWorkorder(models.Model):
                 )
             else:
                 qty_ratio = 1
+            _capacity, setup, cleanup = workcenter._get_capacity(
+                self.product_id, self.product_uom_id
+            )
             return (
                 setup
                 + cleanup
@@ -1424,41 +1439,26 @@ class MrpWorkorder(models.Model):
                 * qty_ratio
                 * ratio
                 * 100.0
-                / self.workcenter_id.time_efficiency
+                / workcenter.time_efficiency
             )
-        qty_production = self.qty_producing or self.qty_production
-        cycle_number = float_round(
-            qty_production / capacity, precision_digits=0, rounding_method="UP"
+        product, unit, bom = (
+            self.product_id,
+            self.product_uom_id,
+            self.production_bom_id,
         )
-        if alternative_workcenter:
-            duration_expected_working = (
-                (self.duration_expected - setup - cleanup)
-                * self.workcenter_id.time_efficiency
-                / (100.0 * cycle_number)
-            )
-            duration_expected_working = max(duration_expected_working, 0)
-            capacity, setup, cleanup = alternative_workcenter._get_capacity(
-                self.product_id,
-                self.product_uom_id,
-                self.production_bom_id.product_qty or 1,
-            )
-            cycle_number = float_round(
-                qty_production / capacity, precision_digits=0, rounding_method="UP"
-            )
-            return (
-                setup
-                + cleanup
-                + cycle_number
-                * duration_expected_working
-                * 100.0
-                / alternative_workcenter.time_efficiency
-            )
+        quantity = self.qty_producing or self.qty_production
         time_cycle = self.operation_id.time_cycle
-        return (
-            setup
-            + cleanup
-            + cycle_number * time_cycle * 100.0 / self.workcenter_id.time_efficiency
+        if alternative_workcenter:
+            cycles, working_minutes = (
+                self.workcenter_id._get_cycles_and_working_minutes(
+                    product, unit, quantity, self.duration_expected, bom
+                )
+            )
+            time_cycle = working_minutes / cycles if cycles else 0.0
+        _cycles, _overhead, duration = workcenter._get_duration_breakdown(
+            product, unit, quantity, time_cycle, bom
         )
+        return duration
 
     def _get_conflicted_workorder_ids(self):
         self.flush_model(["state", "date_start", "date_end", "workcenter_id"])
@@ -1583,14 +1583,15 @@ class MrpWorkorder(models.Model):
         return self._get_duration(until=fields.Datetime.now())
 
     def action_mark_as_done(self):
+        if any(wo.working_state == "blocked" for wo in self):
+            _debug.logic(
+                "workorder_refused", reason="workcenter_blocked", workorders=self
+            )
+            raise UserError(
+                self.env._("Please unblock the work center to validate the work order")
+            )
+        self.button_finish()
         for wo in self:
-            if wo.working_state == "blocked":
-                raise UserError(
-                    self.env._(
-                        "Please unblock the work center to validate the work order"
-                    )
-                )
-            wo.button_finish()
             if not wo.duration:
                 wo.duration = wo.duration_expected
                 wo.duration_percent = 100
