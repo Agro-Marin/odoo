@@ -1178,14 +1178,7 @@ class MrpWorkorder(models.Model):
             if workorder._is_cost_estimate_required():
                 duration = workorder.duration_expected / 60
             else:
-                intervals = Intervals(
-                    [
-                        [t.date_start, t.date_end, t]
-                        for t in workorder.time_ids
-                        if t.date_end and (not date or t.date_end <= date)
-                    ]
-                )
-                duration = get_intervals_hours(intervals)
+                duration = workorder._get_occupied_minutes(closed_by=date) / 60
             total += duration * workorder._get_costs_hour()
         return total
 
@@ -1535,52 +1528,66 @@ class MrpWorkorder(models.Model):
         if self.qty_producing:
             self.qty_producing = quantity
 
-    def _get_duration_of_intervals(self, intervals):
-        """Measure `(date_start, date_end, timer)` triples, overlaps counted once.
+    def _get_occupied_minutes(self, until=None, closed_by=None):
+        """How long the work order occupied its work centers, in minutes.
 
-        A timer may span several intervals; that is not a problem, because what
-        the split is for is telling employee time from blocking time.
-
-        Overlapping timers merge into one span carrying all of their rows, so
-        the caller passes timers sharing one loss type and one work center, and
-        the span's first row speaks for the rest.
-        """
-        if not intervals:
-            return 0.0
-        spans = [
-            (timer.loss_id[:1], timer.workcenter_id[:1], date_start, date_stop)
-            for date_start, date_stop, timer in Intervals(intervals)
-        ]
-        return sum(
-            self.env["mrp.workcenter.productivity.loss"]._get_durations_batch(spans)
-        )
-
-    def _get_duration(self, until=None):
-        """Measure the timer lines against the work center's working calendar.
-
-        `until` closes off a timer that is still running. With no bound a
-        running timer contributes nothing, which is what the stored `duration`
-        wants: a value that is a function of the timer rows and of nothing
-        else. `duration_live` passes the wall clock -- the same clock
-        `button_start` stamped `date_start` with. Never the cursor's clock:
-        `cr.now()` is PostgreSQL's `now()`, the transaction's start, so a timer
-        opened a second into the transaction spans backwards and `Intervals`
-        drops it.
+        Timers of one work center merge, so two operators or a blockage during
+        work count once. Productive and performance time counts as it
+        happened; blocked and quality time counts only inside the work
+        center's working calendar, so a blockage left open overnight costs
+        nothing. `until` closes off a running timer (with no bound it counts
+        for nothing: the stored `duration` is a function of the timer rows
+        alone); `closed_by` keeps only timers closed by then.
         """
         self.check_singleton()
-        times_by_kind = self.time_ids.grouped(
-            lambda time: (time.loss_id.loss_type, time.workcenter_id)
-        )
-        duration = 0
-        for times in times_by_kind.values():
-            duration += self._get_duration_of_intervals(
+        Attendance = self.env["resource.calendar.attendance"]
+        minutes = 0.0
+        for workcenter, timers in self.time_ids.grouped("workcenter_id").items():
+            spans = [
+                (timer, timer.date_start, timer.date_end or until)
+                for timer in timers
+                if timer.date_start
+                and (timer.date_end or until)
+                and (not closed_by or (timer.date_end and timer.date_end <= closed_by))
+            ]
+            on_calendar = [
+                span for span in spans if span[0].loss_id._is_measured_on_working_time()
+            ]
+            occupied = Intervals(
                 [
-                    (time.date_start, time.date_end or until, time)
-                    for time in times
-                    if time.date_start and (time.date_end or until)
+                    (localized(start), localized(stop), Attendance)
+                    for timer, start, stop in spans
+                    if not timer.loss_id._is_measured_on_working_time()
                 ]
             )
-        return duration
+            if on_calendar:
+                blocked = Intervals(
+                    [
+                        (localized(start), localized(stop), Attendance)
+                        for _timer, start, stop in on_calendar
+                    ]
+                )
+                if workcenter.resource_calendar_id:
+                    blocked &= workcenter._get_working_intervals(
+                        min(start for _timer, start, _stop in on_calendar),
+                        max(stop for _timer, _start, stop in on_calendar),
+                    )
+                occupied |= blocked
+            minutes += sum(
+                (stop - start).total_seconds() for start, stop, _records in occupied
+            )
+        return minutes / 60.0
+
+    def _get_duration(self, until=None):
+        """The stored `duration` is the occupied time of `_get_occupied_minutes`.
+
+        `duration_live` passes the wall clock -- the same clock `button_start`
+        stamped `date_start` with. Never the cursor's clock: `cr.now()` is
+        PostgreSQL's `now()`, the transaction's start, so a timer opened a
+        second into the transaction spans backwards and `Intervals` drops it.
+        """
+        self.check_singleton()
+        return round(self._get_occupied_minutes(until=until), 2)
 
     def get_duration(self):
         return self._get_duration(until=fields.Datetime.now())

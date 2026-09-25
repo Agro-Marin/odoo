@@ -472,19 +472,24 @@ class MrpWorkcenter(models.Model):
         ]
         return action
 
+    def _get_working_intervals(self, start, stop):
+        self.check_singleton()
+        resource = self.resource_id
+        return self.resource_calendar_id._work_intervals_batch(
+            localized(start), localized(stop), resources=resource
+        ).get(resource.id, Intervals())
+
     def _get_working_minutes_batch(self, spans):
         self.check_singleton()
         if not spans:
             return []
-        resource = self.resource_id
         _debug.perf.count(
             "workcenter_working_minutes", workcenter=self.id, spans=len(spans)
         )
-        work_intervals = self.resource_calendar_id._work_intervals_batch(
-            localized(min(start for start, _stop in spans)),
-            localized(max(stop for _start, stop in spans)),
-            resources=resource,
-        ).get(resource.id, Intervals())
+        work_intervals = self._get_working_intervals(
+            min(start for start, _stop in spans),
+            max(stop for _start, stop in spans),
+        )
         minutes = []
         for start, stop in spans:
             worked = work_intervals & Intervals(

@@ -308,3 +308,98 @@ class TestWorkorderLifecycle(TestMrpCommon):
             [0, 1, kit_bom.operation_ids.sequence],
         )
         self.assertEqual(kit_workorder.move_raw_ids.product_id, kit_component)
+
+    def _local(self, workorder, day, hour, minute=0):
+        zone = ZoneInfo(workorder.workcenter_id.resource_id.tz or "UTC")
+        return (
+            datetime(2026, 9, day, hour, minute, tzinfo=zone)
+            .astimezone(UTC)
+            .replace(tzinfo=None)
+        )
+
+    def _rows(self, workorder, *rows):
+        self.env["mrp.workcenter.productivity"].create(
+            [
+                {
+                    "workorder_id": workorder.id,
+                    "workcenter_id": workorder.workcenter_id.id,
+                    "loss_id": self.env.ref(loss).id,
+                    "user_id": user.id,
+                    "date_start": start,
+                    "date_end": stop,
+                }
+                for loss, user, start, stop in rows
+            ]
+        )
+        self.env.flush_all()
+        workorder.invalidate_recordset()
+
+    def test_a_blocked_night_costs_no_machine_time(self):
+        workorder = self._confirmed().workorder_ids[0]
+        workorder.workcenter_id.costs_hour = 60
+        other = self.user_mrp_user
+        self._rows(
+            workorder,
+            (
+                "mrp.block_reason7",
+                self.env.user,
+                self._local(workorder, 21, 8),
+                self._local(workorder, 21, 9),
+            ),
+            (
+                "mrp.block_reason7",
+                other,
+                self._local(workorder, 21, 8),
+                self._local(workorder, 21, 9),
+            ),
+            (
+                "mrp.block_reason0",
+                self.env.user,
+                self._local(workorder, 21, 17),
+                self._local(workorder, 22, 8),
+            ),
+        )
+        self.assertEqual(workorder.duration, 60)
+        self.assertEqual(workorder._get_cost(), 60)
+
+    def test_work_and_a_blockage_at_once_occupy_the_machine_once(self):
+        workorder = self._confirmed().workorder_ids[0]
+        workorder.workcenter_id.costs_hour = 60
+        self._rows(
+            workorder,
+            (
+                "mrp.block_reason7",
+                self.env.user,
+                self._local(workorder, 21, 10),
+                self._local(workorder, 21, 11),
+            ),
+            (
+                "mrp.block_reason0",
+                self.env.user,
+                self._local(workorder, 21, 10, 30),
+                self._local(workorder, 21, 11, 30),
+            ),
+        )
+        self.assertEqual(workorder.duration, 90)
+        self.assertEqual(workorder._get_cost(), 90)
+
+    def test_the_wip_cutoff_counts_timers_closed_by_the_date(self):
+        workorder = self._confirmed().workorder_ids[0]
+        workorder.workcenter_id.costs_hour = 60
+        self._rows(
+            workorder,
+            (
+                "mrp.block_reason7",
+                self.env.user,
+                self._local(workorder, 21, 8),
+                self._local(workorder, 21, 9),
+            ),
+            (
+                "mrp.block_reason7",
+                self.env.user,
+                self._local(workorder, 21, 10),
+                self._local(workorder, 21, 11),
+            ),
+        )
+        self.assertEqual(workorder._get_cost(self._local(workorder, 21, 9, 30)), 60)
+        self.assertEqual(workorder._get_cost(), 120)
