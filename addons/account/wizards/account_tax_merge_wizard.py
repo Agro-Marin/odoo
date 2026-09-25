@@ -279,29 +279,20 @@ class AccountTaxMergeWizardLine(models.TransientModel):
     @api.depends("tax_id")
     @_debug.perf.timed
     def _compute_tax_has_hashed_entries(self):
-        query = self.env["account.move.line"]._search(
-            [
-                "|",
-                ("tax_ids", "in", self.tax_id.ids),
-                ("tax_line_id", "in", self.tax_id.ids),
-                ("move_id.inalterable_hash", "!=", False),
-            ],
-            bypass_access=True,
-        )
-        hashed = {
-            row[0]
-            for row in self.env.execute_query(
-                query.select(
-                    SQL(
-                        "DISTINCT %s",
-                        self.env["account.move.line"]._field_to_sql(
-                            "account_move_line", "tax_line_id", query
-                        ),
-                    )
-                )
+        hashed_lines = (
+            self.env["account.move.line"]
+            .sudo()
+            ._read_group(
+                [
+                    ("move_id.inalterable_hash", "!=", False),
+                    "|",
+                    ("tax_line_id", "in", self.tax_id.ids),
+                    ("tax_ids", "in", self.tax_id.ids),
+                ],
+                ["tax_line_id", "tax_ids"],
             )
-            if row[0]
-        }
+        )
+        hashed = {tax.id for taxes in hashed_lines for tax in taxes}
         _debug.perf.count("hashed_taxes_fetched", rows=len(hashed))
         for line in self:
             line.tax_has_hashed_entries = line.tax_id.id in hashed

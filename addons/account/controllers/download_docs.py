@@ -6,6 +6,7 @@ from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import prepare_content_disposition_header, request
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import str2bool
 
 _debug = DebugLog(__name__)
 
@@ -76,6 +77,7 @@ class AccountDocumentDownloadController(http.Controller):
         )
         invoices.check_access("read")
         invoices.line_ids.check_access("read")
+        allow_fallback = str2bool(allow_fallback, default=True)
         docs_data = []
         for invoice in invoices:
             if filetype == "all" and (

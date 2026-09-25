@@ -2,7 +2,7 @@ import ast
 import json
 import random
 from collections import Counter, defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import NamedTuple
 
 from babel.dates import format_date, format_datetime
@@ -539,10 +539,16 @@ class AccountJournal(models.Model):
         )
         return dict(self.env.cr.fetchall())
 
+    def _get_closed_period_end(self):
+        lock_date = self.company_id._get_user_fiscal_lock_date(
+            self, ignore_exceptions=True
+        )
+        return lock_date if lock_date > date.min else False
+
     def _get_misc_operations_date_limits(self):
         return {
             journal.id: journal.last_statement_id.date
-            or journal.company_id.account_config_id.fiscalyear_lock_date
+            or journal._get_closed_period_end()
             for journal in self
         }
 
@@ -660,13 +666,10 @@ class AccountJournal(models.Model):
                 else "/web/static/img/rfq.svg",
                 "text": self.env._("Drop to import transactions"),
             }
-            last_statement_visible = (
-                not journal.company_id.account_config_id.fiscalyear_lock_date
-                or (
-                    journal.last_statement_id.date
-                    and journal.company_id.account_config_id.fiscalyear_lock_date
-                    < journal.last_statement_id.date
-                )
+            closed_period_end = journal._get_closed_period_end()
+            last_statement_visible = not closed_period_end or (
+                journal.last_statement_id.date
+                and closed_period_end < journal.last_statement_id.date
             )
             _debug.logic(
                 "bank_cash_card_flags",
@@ -1312,7 +1315,7 @@ class AccountJournal(models.Model):
         _debug.lifecycle("action_post_all_entries", records=self)
         ctx = dict(self.env.context, active_model="account.journal", active_id=self.id)
         moves_to_validate = self.env["account.move"].search(
-            [("journal_id", "=", self.id)]
+            [("journal_id", "=", self.id), ("state", "=", "draft")]
         )
         return moves_to_validate.with_context(ctx).action_post_moves_with_confirmation()
 
@@ -1366,10 +1369,7 @@ class AccountJournal(models.Model):
             "search_default_no_st_line_id": True,
             "search_default_posted": False,
         }
-        date_from = (
-            self.last_statement_id.date
-            or self.company_id.account_config_id.fiscalyear_lock_date
-        )
+        date_from = self.last_statement_id.date or self._get_closed_period_end()
         if date_from:
             action["context"] |= {
                 "date_from": date_from,

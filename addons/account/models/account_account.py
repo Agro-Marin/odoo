@@ -1168,7 +1168,7 @@ class AccountAccount(models.Model):
         domain = domain or []
         partner = self.env.context.get("partner_id")
         suggested_accounts = (
-            self._order_accounts_by_frequency_for_partner(
+            self._get_most_frequent_accounts_for_partner(
                 self.env.company.id,
                 partner,
                 move_type,
@@ -1422,7 +1422,14 @@ class AccountAccount(models.Model):
             record.opening_credit = res["credit"]
             record.opening_balance = res["balance"]
 
-    @api.depends_context("company", "formatted_display_name", "uid")
+    @api.depends_context(
+        "company",
+        "formatted_display_name",
+        "uid",
+        "move_type",
+        "partner_id",
+        "preferred_account_ids",
+    )
     @api.depends("code")
     @_debug.perf.timed
     def _compute_display_name(self):
@@ -1441,11 +1448,12 @@ class AccountAccount(models.Model):
             preferred_in_context=bool(preferred_account_ids),
         )
         if (
-            (move_type := self.env.context.get("move_type"))
+            formatted_display_name
+            and (move_type := self.env.context.get("move_type"))
             and (partner := self.env.context.get("partner_id"))
             and not preferred_account_ids
         ):
-            preferred_account_ids = self._order_accounts_by_frequency_for_partner(
+            preferred_account_ids = self._get_most_frequent_accounts_for_partner(
                 self.env.company.id,
                 partner,
                 move_type,
@@ -1641,7 +1649,6 @@ class AccountAccount(models.Model):
         company_id,
         partner_id,
         move_type,
-        filter_never_used_accounts=False,
         limit=None,
     ):
         domain = [
@@ -1657,38 +1664,21 @@ class AccountAccount(models.Model):
                 ),
             ),
         ]
-        if move_type in self.env["account.move"].get_inbound_types(
-            include_receipts=True,
-        ):
-            domain.append(("account_id.internal_group", "=", "income"))
-        elif move_type in self.env["account.move"].get_outbound_types(
-            include_receipts=True,
-        ):
-            domain.append(("account_id.internal_group", "=", "expense"))
+        suggestion_domain = self._get_suggestion_account_domain(move_type)
+        if not suggestion_domain.is_true():
+            domain.append(("account_id", "any", suggestion_domain))
 
         query = self.env["account.move.line"]._search(
             domain,
             bypass_access=True,
         )
-        if not filter_never_used_accounts:
-            _kind, rhs_table, condition = query._joins["account_move_line__account_id"]
-            query._joins["account_move_line__account_id"] = (
-                SQL("RIGHT JOIN"),
-                rhs_table,
-                condition,
-            )
         if _debug.logic.enabled:
             _debug.logic(
                 "frequency_query_shaped",
                 company=company_id,
                 partner=partner_id,
                 move_type=move_type,
-                internal_group=(
-                    domain[-1][2]
-                    if domain[-1][0] == "account_id.internal_group"
-                    else None
-                ),
-                right_join=not filter_never_used_accounts,
+                suggestion_domain=str(suggestion_domain),
                 limit=limit,
             )
 
@@ -1735,25 +1725,11 @@ class AccountAccount(models.Model):
                 company_id,
                 partner_id,
                 move_type,
-                filter_never_used_accounts=True,
                 limit=1,
             )
             cache[key] = most_frequent_account[0] if most_frequent_account else False
 
         return cache[key]
-
-    @api.model
-    def _order_accounts_by_frequency_for_partner(
-        self,
-        company_id,
-        partner_id,
-        move_type=None,
-    ):
-        return self._get_most_frequent_accounts_for_partner(
-            company_id,
-            partner_id,
-            move_type,
-        )
 
     @_debug.perf.timed
     def _order_to_sql(
@@ -1805,12 +1781,22 @@ class AccountAccount(models.Model):
             )
         return sql_order
 
+    def _get_suggestion_account_domain(self, move_type):
+        side = (move_type or "").split("_")[0]
+        if side == "out":
+            return Domain("internal_group", "=", "income")
+        if side == "in":
+            return Domain("internal_group", "=", "expense") | Domain(
+                "account_type", "=", "asset_fixed"
+            )
+        return Domain.TRUE
+
     def _get_name_search_account_types(self, move_type):
         move_type_accounts = {
             "out": ["income"],
             "in": ["expense", "asset_fixed", "expense_direct_cost"],
         }
-        return move_type_accounts.get(move_type.split("_")[0])
+        return move_type_accounts.get((move_type or "").split("_")[0])
 
     @_debug.perf.timed
     def action_view_related_taxes(self):

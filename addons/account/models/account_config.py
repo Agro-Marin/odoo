@@ -798,18 +798,25 @@ class AccountConfig(models.Model):
                 )
 
     def _sync_returns_after_write(self, vals):
-        companies = self.company_id
+        opened = self.filtered("account_opening_date")
+        _debug.logic(
+            "returns_sync_after_write",
+            configs=self,
+            opened=opened,
+            opening_date_written="account_opening_date" in vals,
+        )
+        if not opened:
+            return
+        roots = opened.company_id.root_id
         if "account_opening_date" in vals:
             self.env["account.return.type"].with_context(
                 # 2 years to make sure we cover all cases, such as yearly returns with a deadline of more than 1 year.
-                forced_date_from=self.account_opening_date - relativedelta(years=2),
+                forced_date_from=min(opened.mapped("account_opening_date"))
+                - relativedelta(years=2),
                 forced_date_to=datetime.date.today() + relativedelta(years=1),
-            )._sync_all_returns(companies.root_id)
-        elif (
-            set(vals) & {"account_return_periodicity", "account_return_reminder_day"}
-            and self.account_opening_date
-        ):
-            self.env["account.return.type"]._sync_all_returns(companies.root_id)
+            )._sync_all_returns(roots)
+        elif set(vals) & {"account_return_periodicity", "account_return_reminder_day"}:
+            self.env["account.return.type"]._sync_all_returns(roots)
 
     def _check_locks(self, values):
         new_locks = {

@@ -36,6 +36,7 @@ ANY_ACCOUNT_TYPES = (
     "income",
     "income_other",
     "expense",
+    "expense_other",
     "expense_depreciation",
     "expense_direct_cost",
     "off_balance",
@@ -51,7 +52,12 @@ JOURNAL_TYPES = {
     },
     "purchase": {
         "code_prefix": "BILL",
-        "account_types": ("expense", "expense_depreciation", "expense_direct_cost"),
+        "account_types": (
+            "expense",
+            "expense_other",
+            "expense_depreciation",
+            "expense_direct_cost",
+        ),
         "alias_move_type": "in_invoice",
         "family": "document",
         "label": _lt("Vendor Bills"),

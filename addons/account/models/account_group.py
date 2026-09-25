@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
@@ -153,7 +155,11 @@ class AccountGroup(models.Model):
         if operator == "in":
             return [
                 "|",
-                ("code", "in", [(name or "").split(" ")[0] for name in value]),
+                (
+                    "code_prefix_start",
+                    "in",
+                    [(name or "").split(" ")[0] for name in value],
+                ),
                 ("name", "in", value),
             ]
         if operator == "ilike" and isinstance(value, str):
@@ -191,32 +197,36 @@ class AccountGroup(models.Model):
             "company_id"
         )
         for groups in groups_by_company.values():
-            candidates = [
-                group
-                for group in groups
-                if group.code_prefix_start and group.code_prefix_end
-            ]
+            candidates = sorted(
+                (
+                    (group.code_prefix_start, group.code_prefix_end, group.id)
+                    for group in groups
+                    if group.code_prefix_start and group.code_prefix_end
+                ),
+                key=lambda candidate: (-len(candidate[0]), candidate[2]),
+            )
+            child_ids_by_parent_id = defaultdict(list)
             for child in groups:
                 start, end = child.code_prefix_start, child.code_prefix_end
-                enclosing = [
-                    parent
-                    for parent in candidates
-                    if parent != child
-                    and start
-                    and end
-                    and len(parent.code_prefix_start) < len(start)
-                    and parent.code_prefix_start
-                    <= start[: len(parent.code_prefix_start)]
-                    and parent.code_prefix_end >= end[: len(parent.code_prefix_end)]
-                ]
-                parent = (
-                    max(enclosing, key=lambda p: (len(p.code_prefix_start), -p.id))
-                    if enclosing
-                    else Group.browse()
+                parent_id = (
+                    next(
+                        (
+                            parent_id
+                            for parent_start, parent_end, parent_id in candidates
+                            if len(parent_start) < len(start)
+                            and parent_start <= start[: len(parent_start)]
+                            and parent_end >= end[: len(parent_end)]
+                        ),
+                        False,
+                    )
+                    if start and end
+                    else False
                 )
-                if child.parent_id != parent:
-                    child.parent_id = parent
-                    updated += 1
+                if child.parent_id.id != parent_id:
+                    child_ids_by_parent_id[parent_id].append(child.id)
+            for parent_id, child_ids in child_ids_by_parent_id.items():
+                Group.browse(child_ids).parent_id = parent_id
+                updated += len(child_ids)
         _debug.perf.count("group_parents_relinked", rows=updated)
 
     def _normalize_vals(self, vals):

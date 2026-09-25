@@ -90,7 +90,8 @@ class PortalAccount(CustomerPortal):
             "move_type", "in", move_type
         )
 
-    def _get_domain_overdue_invoices(self, partner_id=None):
+    def _get_domain_overdue_invoices(self):
+        user = request.env.user
         return [
             ("state", "not in", ("cancel", "draft")),
             ("move_type", "in", ("out_invoice", "out_receipt")),
@@ -99,8 +100,8 @@ class PortalAccount(CustomerPortal):
                 "not in",
                 ("in_payment", "paid", "reversed", "blocked", "invoicing_legacy"),
             ),
-            ("invoice_date_due", "<", fields.Date.today()),
-            ("partner_id", "=", partner_id or request.env.user.partner_id.id),
+            ("invoice_date_due", "<", fields.Date.context_today(user)),
+            ("partner_id", "=", user.partner_id.id),
         ]
 
     def _get_account_searchbar_sortings(self):
@@ -369,7 +370,9 @@ class PortalAccount(CustomerPortal):
             {
                 "invoice_sending_methods": {"email": request.env._("by Email")},
                 "invoice_edi_formats": dict(
-                    request.env["res.partner"]._fields["invoice_edi_format"].selection
+                    request.env["res.partner"]
+                    ._fields["invoice_edi_format"]
+                    ._description_selection(request.env)
                 ),
             }
         )

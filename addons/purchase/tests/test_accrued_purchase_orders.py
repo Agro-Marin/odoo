@@ -203,6 +203,49 @@ class TestAccruedPurchaseOrders(AccountTestInvoicingCommon):
             ],
         )
 
+    def test_multi_currency_accrual_uses_the_rate_of_its_date(self):
+        purchase_order = (
+            self.env["purchase.order"]
+            .with_context(tracking_disable=True)
+            .create(
+                {
+                    "partner_id": self.partner_a.id,
+                    "currency_id": self.other_currency.id,
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "name": self.product_a.name,
+                                "product_id": self.product_a.id,
+                                "product_qty": 10.0,
+                                "product_uom_id": self.product_a.uom_id.id,
+                                "price_unit": 600.0,
+                                "tax_ids": False,
+                            }
+                        ),
+                    ],
+                }
+            )
+        )
+        purchase_order.action_confirm()
+        purchase_order.line_ids.qty_transferred = 5
+        wizard = (
+            self.env["account.accrued.orders.wizard"]
+            .with_context(
+                {"active_model": "purchase.order", "active_ids": purchase_order.ids}
+            )
+            .create({"account_id": self.account_revenue.id, "date": "2016-06-30"})
+        )
+
+        moves = self.env["account.move"].search(wizard.create_entries()["domain"])
+
+        accrual = moves.filtered(lambda move: str(move.date) == "2016-06-30")
+        expense_line = accrual.line_ids.filtered(
+            lambda line: line.account_id == self.account_expense
+        )
+        self.assertRecordValues(
+            expense_line, [{"amount_currency": 3000.0, "debit": 1000.0}]
+        )
+
     def test_analytic_account_accrued_order(self):
         self.purchase_order.line_ids.qty_transferred = 10
 

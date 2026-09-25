@@ -111,11 +111,11 @@ class ResCompany(models.Model):
     def _compute_account_config_id(self):
         self._compute_config_link("account_config_id")
 
-    def get_next_batch_payment_communication(self):
+    def _get_batch_payment_sequence(self):
         self.check_singleton()
-        company_sudo = self.sudo()
-        if not company_sudo.account_config_id.batch_payment_sequence_id:
-            company_sudo.account_config_id.batch_payment_sequence_id = (
+        config_sudo = self.sudo().account_config_id
+        if not config_sudo.batch_payment_sequence_id:
+            config_sudo.batch_payment_sequence_id = (
                 self.env["ir.sequence"]
                 .sudo()
                 .create(
@@ -129,13 +129,14 @@ class ResCompany(models.Model):
                     }
                 )
             )
-        return company_sudo.account_config_id.batch_payment_sequence_id.next_by_id()
+        return config_sudo.batch_payment_sequence_id
 
-    @api.depends(
-        "tax_config_id.account_fiscal_country_id",
-        "tax_config_id.fiscal_position_ids.foreign_vat",
-        "tax_config_id.fiscal_position_ids.country_id",
-    )
+    def get_next_batch_payment_communication(self):
+        return self._get_batch_payment_sequence().next_by_id()
+
+    def preview_next_batch_payment_communication(self):
+        return self._get_batch_payment_sequence().preview_next()
+
     def _initiate_account_onboardings(self):
         account_onboarding_routes = [
             "account_dashboard",

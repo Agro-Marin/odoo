@@ -1261,7 +1261,7 @@ class AccountChartTemplate(models.AbstractModel):
                 all_records_vals_count=len(all_records_vals),
             ):
                 created_records[model] = (
-                    self.with_context(lang="en_US")
+                    self.with_context(lang="en_US", foreign_record_to_create=True)
                     .env[model]
                     ._load_records(all_records_vals)
                 )

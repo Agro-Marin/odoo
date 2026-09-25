@@ -309,6 +309,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             amount_currency,
             self.company_id.currency_id,
             self.company_id,
+            self.date,
         )
         label = self.env._(
             "%(order)s - %(order_line)s; %(quantity_billed)s Billed, %(quantity_received)s Received at %(unit_price)s each",
@@ -338,6 +339,7 @@ class AccountAccruedOrdersWizard(models.TransientModel):
             amount_currency,
             self.company_id.currency_id,
             self.company_id,
+            self.date,
         )
         label = self.env._(
             "%(order)s - %(order_line)s; %(quantity_invoiced)s Invoiced, %(quantity_delivered)s Delivered at %(unit_price)s each",
