@@ -1,5 +1,3 @@
-// !!!!!!!!! use globalThis.pdfjsLib and not pdfjsLib
-
 globalThis.PDFSlidesViewer = (function(){
     function PDFSlidesViewer(pdf_url, $canvas) {
         // pdf variables
@@ -18,9 +16,10 @@ globalThis.PDFSlidesViewer = (function(){
 
     /**
      * Load the PDF document
+     * @param pdfjsLib : the namespace of the "pdfjs-dist" ES module, as import() returned it
      */
-    PDFSlidesViewer.prototype.loadDocument = async function() {
-        const file_content = await globalThis.pdfjsLib.getDocument({ url: this.pdf_url }).promise;
+    PDFSlidesViewer.prototype.loadDocument = async function(pdfjsLib) {
+        const file_content = await pdfjsLib.getDocument({ url: this.pdf_url }).promise;
         this.pdf = file_content;
         this.pdf_page_total = file_content.numPages;
         return file_content;

@@ -38,7 +38,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 .then(function (pdfjsLib) {
                     pdfjsLib.GlobalWorkerOptions.workerSrc =
                         "/web/static/lib/pdfjs/build/pdf.worker.js";
-                    return self.pdf_viewer.loadDocument();
+                    return self.pdf_viewer.loadDocument(pdfjsLib);
                 })
                 .then(function () {
                     self.on_loaded_file();

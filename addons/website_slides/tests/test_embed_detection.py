@@ -1,5 +1,10 @@
+import base64
+import io
+
+from reportlab.pdfgen import canvas
+
 from odoo.exceptions import AccessError
-from odoo.tests import HttpCase
+from odoo.tests import HttpCase, tagged
 
 from odoo.addons.website_slides.tests import common
 
@@ -112,4 +117,32 @@ class TestEmbedDetection(HttpCase, common.SlidesCase):
         res.raise_for_status()
         self.assertFalse(
             bool(self.env["slide.embed"].search([("slide_id", "=", self.slide.id)]))
+        )
+
+
+@tagged("post_install", "-at_install")
+class TestEmbeddedPdfViewer(HttpCase, common.SlidesCase):
+    def _one_page_pdf(self):
+        buffer = io.BytesIO()
+        pdf = canvas.Canvas(buffer)
+        pdf.drawString(72, 720, "embedded slide")
+        pdf.save()
+        return base64.b64encode(buffer.getvalue())
+
+    def test_the_embed_renders_a_pdf_through_the_pdfjs_module(self):
+        # the viewer receives the "pdfjs-dist" namespace from import(); it no
+        # longer relies on the build publishing globalThis.pdfjsLib
+        self.channel.website_id = self.env["website"].get_current_website().id
+        self.slide.write(
+            {
+                "slide_category": "document",
+                "binary_content": self._one_page_pdf(),
+                "is_preview": True,
+            }
+        )
+        self.browser_js(
+            f"/slides/embed/{self.slide.id}",
+            "console.log('test successful')",
+            "document.querySelector('#page_count')?.textContent.trim() === '1'",
+            login="admin",
         )
