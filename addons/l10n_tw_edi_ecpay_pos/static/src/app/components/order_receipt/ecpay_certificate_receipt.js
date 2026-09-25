@@ -1,4 +1,5 @@
 import { OrderReceipt } from "@point_of_sale/app/screens/receipt_screen/receipt/order_receipt";
+import { BrowserQRCodeSvgWriter } from "zxing-library";
 
 export class EcpayCertificateReceipt extends OrderReceipt {
     static template = "l10n_tw_edi_ecpay_pos.EcpayCertificateReceipt";
@@ -20,7 +21,7 @@ export class EcpayCertificateReceipt extends OrderReceipt {
     }
 
     getEcpayQrcode(data) {
-        const codeWriter = new window.ZXing.BrowserQRCodeSvgWriter();
+        const codeWriter = new BrowserQRCodeSvgWriter();
         const qrCodeSvg = new XMLSerializer().serializeToString(
             codeWriter.write(data, 250, 250),
         );
