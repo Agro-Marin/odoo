@@ -341,6 +341,12 @@ msgstr "%(user_name)s 將一個訊息置頂固定在此頻道上。"
 #. module: mail
 #. odoo-python
 #: code:addons/mail/models/ir_mail_server.py:0
+msgid "%s (Dedicated Outgoing Mail Server):"
+msgstr "%s （專用外寄郵件伺服器）："
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
 msgid "%s (Email Template)"
 msgstr "%s (電郵範本)"
 
@@ -632,6 +638,11 @@ msgid ""
 "<span class=\"o_form_label fw-bold\" invisible=\"not "
 "has_external_mail_server\">Outgoing Mail Server</span>"
 msgstr ""
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "<span class=\"o_form_label\">MB</span>"
+msgstr "<span class=\"o_form_label\">MB</span>"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_view_form_popup
@@ -1491,6 +1502,16 @@ msgstr "所有訊息"
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SMTP exception occurred. Check port number and connection security type.\n"
+" %s"
+msgstr ""
+"發生 SMTP 異常. 檢查埠位址號和連接安全類型.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 msgid ""
 "An SSL exception occurred. Check SSL/TLS configuration on server port.\n"
@@ -1498,6 +1519,26 @@ msgid ""
 msgstr ""
 "發生 SSL 異常。檢查服務器端口上的 SSL/TLS 配置。\n"
 " %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" %s"
+msgstr ""
+"發生 SSL 異常. 檢查連接安全類型.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" CertificateError: %s"
+msgstr ""
+"發生 SSL 異常。請檢查連線的保安類型。\n"
+" CertificateError：%s"
 
 #. module: mail
 #. odoo-python
@@ -1528,6 +1569,16 @@ msgstr "使用以下記錄發送電子郵件時，發生錯誤：「%(record_nam
 #: code:addons/mail/static/src/core/common/thread.xml:0
 msgid "An error occurred while fetching messages."
 msgstr "讀取訊息時發生錯誤。"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An option is not supported by the server:\n"
+" %s"
+msgstr ""
+"伺服器不支持以下選項: \n"
+" %s"
 
 #. module: mail
 #. odoo-javascript
@@ -1726,6 +1777,22 @@ msgid "Audio player:"
 msgstr "音訊播放器："
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Authenticate by using SSL certificates, belonging to your domain name. \n"
+"SSL certificates allow you to authenticate your mail server for the entire "
+"domain name."
+msgstr ""
+"使用屬於您域名的 SSL 證書進行驗證。\n"
+"SSL 證書允許您對整個域名的郵件服務器進行驗證。"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication
+msgid "Authenticate with"
+msgstr "認證以"
+
+#. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_alias__alias_contact__partners
 msgid "Authenticated Partners"
 msgstr "驗證的業務夥伴"
@@ -1734,6 +1801,11 @@ msgstr "驗證的業務夥伴"
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_form
 msgid "Authentication"
 msgstr "驗證"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication_info
+msgid "Authentication Info"
+msgstr "驗證資訊"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_compose_message__author_id
@@ -2427,6 +2499,11 @@ msgid "Cc"
 msgstr "抄送"
 
 #. module: mail
+#: model:ir.model.constraint,message:mail.constraint_ir_mail_server_certificate_requires_tls
+msgid "Certificate-based authentication requires a TLS transport"
+msgstr "證書身份驗證需要以 TLS 傳輸"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_activity__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_schedule__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_type__chaining_type
@@ -2717,6 +2794,16 @@ msgid ""
 msgstr "逗號分隔的收件人合作夥伴的ID（可以使用佔位符）"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__from_filter
+msgid ""
+"Comma-separated list of addresses or domains for which this server can be "
+"used.\n"
+"e.g.: \"notification@odoo.com\" or \"odoo.com\""
+msgstr ""
+"以逗號分隔的地址或域列表，該服務器可用於這些地址或域。\n"
+"例如 notification@odoo.com 或 odoo.com"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__email_to
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
 msgid "Comma-separated recipient addresses"
@@ -2726,6 +2813,11 @@ msgstr "逗號分隔的收件人地址"
 #: model:ir.model.fields,help:mail.field_mail_template__email_to
 msgid "Comma-separated recipient addresses (placeholders may be used here)"
 msgstr "逗號分隔的收件人地址（可以在這裡使用佔位符）"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__cli
+msgid "Command Line Interface"
+msgstr "指令行介面"
 
 #. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_compose_message__message_type__comment
@@ -2843,6 +2935,38 @@ msgstr "恭喜，您的收件箱是空的"
 #: code:addons/mail/static/src/core/web/discuss_patch.js:0
 msgid "Congratulations, your inbox is empty!"
 msgstr "恭喜，您的收件箱是空的！"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connect to your server through your usual username and password. \n"
+"This is the most basic SMTP authentication process and may not be accepted "
+"by all providers. \n"
+msgstr ""
+"通過常用的用戶名和密碼連接到服務器。\n"
+"這是最基本的 SMTP 驗證過程，並非所有提供商都接受。 \n"
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Connection"
+msgstr "連接"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_fetchmail_server__encryption
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_encryption
+msgid "Connection Encryption"
+msgstr "連線加密"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connection Test Failed! Here is what we got instead:\n"
+" %s"
+msgstr ""
+"連接測試失敗!這是我們得到的結果:\n"
+"%s"
 
 #. module: mail
 #. odoo-python
@@ -2973,6 +3097,11 @@ msgid "Conversations"
 msgstr ""
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Convert attachments to links for emails over"
+msgstr "將附件轉換為連結，若電郵超過"
+
+#. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/core/common/message_actions.js:0
 msgid "Copy Link"
@@ -2991,6 +3120,16 @@ msgid ""
 "Could not contact the mail server, please check your outgoing email server "
 "configuration."
 msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Could not load your certificate / private key. \n"
+"%s"
+msgstr ""
+"未能載入你的憑證/私鑰。\n"
+"%s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_thread_blacklist__message_bounce
@@ -3381,6 +3520,11 @@ msgstr "發件人你好"
 #: model_terms:ir.ui.view,arch_db:mail.message_notification_limit_email
 msgid "Dear Sender,"
 msgstr "發件人你好，"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_debug
+msgid "Debugging"
+msgstr "除錯"
 
 #. module: mail
 #. odoo-python
@@ -4230,6 +4374,12 @@ msgid "Email domain e.g. 'example.com' in 'odoo@example.com'"
 msgstr "電子郵件網域，例如 odoo@example.com 之內的「example.com」"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Email maximum size updated (%(details)s)."
+msgstr "電子郵件大小上限已更新（%(details)s）。"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_form
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_message_subtype_form
 msgid "Email message"
@@ -4461,6 +4611,11 @@ msgstr "額外留言⋯"
 #: model_terms:ir.ui.view,arch_db:mail.discuss_channel_view_form
 msgid "Extra info"
 msgstr "額外資訊"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__from_filter
+msgid "FROM Filtering"
+msgstr "FROM 過濾"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_config_settings__fail_counter
@@ -5203,6 +5358,11 @@ msgstr "對公共/網站登入會員使用者隱藏，獨立於子類型設定."
 #: code:addons/mail/static/src/core/web/thread_patch.xml:0
 msgid "History"
 msgstr "歷史"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_host
+msgid "Hostname or IP of SMTP server"
+msgstr "主機名稱或SMTP伺服器IP地址"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_fetchmail_server__server
@@ -6632,6 +6792,12 @@ msgid "Mail Composer Mixin"
 msgstr "郵件編輯器 Mixin"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Mail Delivery Failed"
+msgstr "郵件投遞失敗"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_notification__mail_email_address
 msgid "Mail Email Address"
 msgstr ""
@@ -6715,6 +6881,16 @@ msgid ""
 msgstr ""
 "註釋模式下的郵件編輯器應在至少一筆記錄上運作。找不到記錄（類型 %"
 "(model_name)s）。"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Mail delivery failed via SMTP server '%(server)s'.\n"
+"%(exception_name)s: %(message)s"
+msgstr ""
+"透過 SMTP 伺服器「%(server)s」發送郵件失敗。\n"
+"%(exception_name)s：%(message)s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_mail__is_notification
@@ -6852,6 +7028,11 @@ msgstr "標記為未讀"
 #: code:addons/mail/static/src/core/web/activity_list_popover_item.xml:0
 msgid "Mark as done"
 msgstr "標記為完成"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__max_email_size
+msgid "Max Email Size"
+msgstr "電郵大小上限"
 
 #. module: mail
 #. odoo-javascript
@@ -7618,6 +7799,16 @@ msgstr "沒有找到收件人。"
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"No response received. Check server address and port number.\n"
+" %s"
+msgstr ""
+"沒有收到回應. 檢查伺服器地址和埠位址.\n"
+"  %s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 msgid ""
 "No response received. Check server information.\n"
@@ -8260,6 +8451,11 @@ msgid "Optional mail_mail ID. Used mainly to optimize searches."
 msgstr "可選的 mail_mail ID。主要用於優化搜索。"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_pass
+msgid "Optional password for SMTP authentication"
+msgstr "SMTP身份驗證的可選密碼"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template__mail_server_id
 msgid ""
 "Optional preferred server for outgoing mails. If not set, the highest "
@@ -8280,6 +8476,11 @@ msgstr ""
 "發送電子郵件時使用的翻譯語言（ISO 代碼），可選填。若未有設定，會使用合作夥伴"
 "的主要語言。通常，這會是佔位表達式，指示適當的語言，例如："
 "{{ object.partner_id.lang }}。"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_user
+msgid "Optional username for SMTP authentication"
+msgstr "SMTP身份驗證的可選使用者名"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
@@ -8384,6 +8585,15 @@ msgstr "外發郵件伺服器"
 #: model:ir.model.fields,field_description:mail.field_res_users__outgoing_mail_server_type
 msgid "Outgoing Mail Server Type"
 msgstr ""
+
+#. module: mail
+#: model:ir.actions.act_window,name:mail.action_ir_mail_server_list
+#: model:ir.ui.menu,name:mail.menu_mail_servers
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_list
+#: model_terms:ir.ui.view,arch_db:mail.view_ir_mail_server_search
+msgid "Outgoing Mail Servers"
+msgstr "外發郵件伺服器"
 
 #. module: mail
 #: model:ir.model,name:mail.model_mail_mail
@@ -8802,6 +9012,14 @@ msgstr "規劃"
 #: code:addons/mail/static/src/discuss/voice_message/common/voice_player.xml:0
 msgid "Play"
 msgstr "播放"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Please configure an email on the current user to simulate sending an email "
+"message via this outgoing server"
+msgstr "請在目前使用者上設定電子郵件，以模擬通過該發送方伺服器發送電子郵件訊息"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_bounce_catchall
@@ -9643,6 +9861,16 @@ msgid "SFU Server key"
 msgstr "SFU 伺服器密鑰"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port"
+msgstr "SMTP 埠位址"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port. Usually 465 for SSL, and 25 or 587 for other cases."
+msgstr "SMTP 埠位址. 通常為 465 用於 SSL, 其它情況為 25 或 587 ."
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_email_template_search
 msgid "SMTP Server"
 msgstr "SMTP 伺服器"
@@ -9653,9 +9881,54 @@ msgid "SSL"
 msgstr "SSL"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_certificate
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__certificate
+msgid "SSL Certificate"
+msgstr "SSL 證書"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL Private Key"
+msgstr "SSL 私密金鑰"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL certificate is missing for %s."
+msgstr "%s 缺少 SSL 證書."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_certificate
+msgid "SSL certificate used for authentication"
+msgstr "用於身份驗證的 SSL 證書"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL private key is missing for %s."
+msgstr "%s 缺少 SSL 私鑰."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL private key used for authentication"
+msgstr "用於身份驗證的 SSL 私鑰"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__is_ssl
 msgid "SSL/TLS"
 msgstr "SSL/TLS"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl_strict
+msgid "SSL/TLS, encryption and validation"
+msgstr "SSL/TLS，加密及驗證"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl
+msgid "SSL/TLS, encryption only"
+msgstr "SSL/TLS，只限加密"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
@@ -10812,6 +11085,18 @@ msgid "System notification"
 msgstr "系統通知"
 
 #. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls_strict
+msgid "TLS (STARTTLS), encryption and validation"
+msgstr "TLS（STARTTLS），加密及驗證"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls
+msgid "TLS (STARTTLS), encryption only"
+msgstr "TLS（STARTTLS），只限加密"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
 msgid "TURN"
 msgstr ""
@@ -11205,6 +11490,16 @@ msgid ""
 msgstr "用整數表示的工作優先級:0表示高優先級，10表示低優先級."
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The private key or the certificate is not a valid file. \n"
+"%s"
+msgstr ""
+"私鑰或證書不是有效文件。\n"
+"%s"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__scheduled_date
 msgid "The queue manager will send the email after the date"
 msgstr "隊列管理器將在日期之後發送電子郵件"
@@ -11236,6 +11531,12 @@ msgstr ""
 #. module: mail
 #. odoo-python
 #: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server \"%(server_name)s\" doesn't return the maximum email size."
+msgstr "伺服器「%(server_name)s」未有傳回最大電郵大小。"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
 msgid ""
 "The server \"%s\" cannot be forced as it belongs to a user and is archived."
 msgstr ""
@@ -11258,6 +11559,37 @@ msgstr ""
 #: code:addons/mail/models/fetchmail.py:0
 msgid "The server \"%s\" cannot be used because it is archived."
 msgstr "伺服器「%s」無法使用，因為它已封存。"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server has closed the connection unexpectedly. Check configuration "
+"served on this port number.\n"
+" %s"
+msgstr ""
+"伺服器意外關閉了連接. 檢查此埠位址上提供的設定.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the sender address (%(email_from)s) with error %(repl)s"
+msgstr "伺服器拒絕發送地址 (%(email_from)s)，錯誤 (%(repl)s)"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server refused the test connection with error %(repl)s"
+msgstr "伺服器拒絕測試連接，錯誤 %(repl)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the test recipient (%(email_to)s) with error %(repl)s"
+msgstr "伺服器拒絕測試收件人 (%(email_to)s)，錯誤 (%(repl)s)"
 
 #. module: mail
 #. odoo-javascript
@@ -12280,6 +12612,13 @@ msgid "Use template"
 msgstr "使用模版"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Use the SMTP configuration set in the \"Command Line Interface\" arguments."
+msgstr "使用指令行界面引數中設置的 SMTP 配置。"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_users_settings__use_push_to_talk
 msgid "Use the push to talk feature"
 msgstr "使用按鍵通話功能"
@@ -12771,6 +13110,15 @@ msgid "What's your name?"
 msgstr "請輸入名稱"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__sequence
+msgid ""
+"When no specific mail server is requested for a mail, the highest priority "
+"one is used. Default priority is 10 (smaller number = higher priority)"
+msgstr ""
+"若郵件沒有特地的郵件伺服器被要求，最高優先級的伺服器將被使用. 預設優先級是"
+"10(數字越小，優先級越高)"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_activity__user_tz
 msgid ""
 "When printing documents and exporting/importing data, time values are "
@@ -12984,6 +13332,30 @@ msgstr "您只能與擁有專用用戶的合作夥伴聊天。"
 #: code:addons/mail/static/src/discuss/call/common/call_permission_dialog.js:0
 msgid "You can still turn off your %s anytime."
 msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive these Outgoing Mail Servers (%(server_usage)s) because "
+"they are still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"你不可封存這些外寄郵件伺服器（%(server_usage)s），因為它們在以下情況仍在使"
+"用：\n"
+"%(usage_details)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive this Outgoing Mail Server (%(server_usage)s) because it "
+"is still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"你不可封存這個外寄郵件伺服器（%(server_usage)s），因為它在以下情況仍在使"
+"用：\n"
+"%(usage_details)s"
 
 #. module: mail
 #. odoo-python
@@ -13415,6 +13787,11 @@ msgid "e.g. Log a note"
 msgstr "例：記錄備註"
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. My Outgoing Server"
+msgstr "例如：我的外寄伺服器"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_plan_view_form
 msgid "e.g. Onboarding"
 msgstr "例如到職"
@@ -13428,6 +13805,11 @@ msgstr "例如:安排會議"
 #: model_terms:ir.ui.view,arch_db:mail.email_compose_message_wizard_form
 msgid "e.g. Welcome to MyCompany!"
 msgstr ""
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. email@domain.com, domain.com"
+msgstr "例如：email@domain.com、domain.com"
 
 #. module: mail
 #. odoo-javascript

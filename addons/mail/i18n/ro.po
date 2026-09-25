@@ -358,6 +358,12 @@ msgstr "%(user_name)s a ancorat un mesaj pe acest canal."
 #. module: mail
 #. odoo-python
 #: code:addons/mail/models/ir_mail_server.py:0
+msgid "%s (Dedicated Outgoing Mail Server):"
+msgstr "%s (Dedicated Outgoing Mail Server):"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
 msgid "%s (Email Template)"
 msgstr "%s (Șablon de e-mail)"
 
@@ -656,6 +662,11 @@ msgid ""
 "<span class=\"o_form_label fw-bold\" invisible=\"not "
 "has_external_mail_server\">Outgoing Mail Server</span>"
 msgstr ""
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "<span class=\"o_form_label\">MB</span>"
+msgstr "<span class=\"o_form_label\">MB</span>"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_view_form_popup
@@ -1541,6 +1552,16 @@ msgstr "Toate mesajele"
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SMTP exception occurred. Check port number and connection security type.\n"
+" %s"
+msgstr ""
+"An SMTP exception occurred. Check port number and connection security type.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 msgid ""
 "An SSL exception occurred. Check SSL/TLS configuration on server port.\n"
@@ -1549,6 +1570,26 @@ msgstr ""
 "A apărut o excepție SSL. Verificați configurația SSL / TLS pe portul "
 "serverului.\n"
 " %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" %s"
+msgstr ""
+"An SSL exception occurred. Check connection security type.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" CertificateError: %s"
+msgstr ""
+"A apărut o excepție SSL. Verificați tipul de securitate a conexiunii.\n"
+" CertificateError: %s"
 
 #. module: mail
 #. odoo-python
@@ -1579,6 +1620,16 @@ msgstr "A apărut o eroare la trimiterea unui e-mail pe „%(record_name)s”"
 #: code:addons/mail/static/src/core/common/thread.xml:0
 msgid "An error occurred while fetching messages."
 msgstr "A apărut o eroare la preluarea mesajelor."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An option is not supported by the server:\n"
+" %s"
+msgstr ""
+"An option is not supported by the server:\n"
+" %s"
 
 #. module: mail
 #. odoo-javascript
@@ -1779,6 +1830,23 @@ msgid "Audio player:"
 msgstr "Player audio:"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Authenticate by using SSL certificates, belonging to your domain name. \n"
+"SSL certificates allow you to authenticate your mail server for the entire "
+"domain name."
+msgstr ""
+"Authenticate by using SSL certificates, belonging to your domain name. \n"
+"SSL certificates allow you to authenticate your mail server for the entire "
+"domain name."
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication
+msgid "Authenticate with"
+msgstr "Autentificare cu"
+
+#. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_alias__alias_contact__partners
 msgid "Authenticated Partners"
 msgstr "Parteneri autentificați"
@@ -1787,6 +1855,11 @@ msgstr "Parteneri autentificați"
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_form
 msgid "Authentication"
 msgstr "Autentificare"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication_info
+msgid "Authentication Info"
+msgstr "Authentication Info"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_compose_message__author_id
@@ -2496,6 +2569,11 @@ msgid "Cc"
 msgstr "Cc"
 
 #. module: mail
+#: model:ir.model.constraint,message:mail.constraint_ir_mail_server_certificate_requires_tls
+msgid "Certificate-based authentication requires a TLS transport"
+msgstr "Autentificarea pe bază de certificat necesită un transport TLS"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_activity__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_schedule__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_type__chaining_type
@@ -2789,6 +2867,17 @@ msgstr ""
 "folositi înlocuitori)"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__from_filter
+msgid ""
+"Comma-separated list of addresses or domains for which this server can be "
+"used.\n"
+"e.g.: \"notification@odoo.com\" or \"odoo.com\""
+msgstr ""
+"Comma-separated list of addresses or domains for which this server can be "
+"used.\n"
+"e.g.: \"notification@odoo.com\" or \"odoo.com\""
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__email_to
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
 msgid "Comma-separated recipient addresses"
@@ -2799,6 +2888,11 @@ msgstr "Adrese destinatar separat de virgulă"
 msgid "Comma-separated recipient addresses (placeholders may be used here)"
 msgstr ""
 "Adrese destinatari despărțite prin virgula (aici pot fi folosiți înlocuitori)"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__cli
+msgid "Command Line Interface"
+msgstr "Interfață de Linie de Comandă"
 
 #. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_compose_message__message_type__comment
@@ -2918,6 +3012,40 @@ msgstr "Felicitări, căsuța de mesaje este goală."
 #: code:addons/mail/static/src/core/web/discuss_patch.js:0
 msgid "Congratulations, your inbox is empty!"
 msgstr "Felicitări, căsuța de mesaje este goală!"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connect to your server through your usual username and password. \n"
+"This is the most basic SMTP authentication process and may not be accepted "
+"by all providers. \n"
+msgstr ""
+"Conectează-te la serverul tău prin intermediul numelui de utilizator și "
+"parolei tale obișnuite.\n"
+"Aceasta este cea mai simplă metodă de autentificare SMTP și poate să nu fie "
+"acceptată de toți furnizorii. \n"
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Connection"
+msgstr "Conexiune"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_fetchmail_server__encryption
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_encryption
+msgid "Connection Encryption"
+msgstr "Criptaare conexiune"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connection Test Failed! Here is what we got instead:\n"
+" %s"
+msgstr ""
+"Test eșuat! Iată ce am obținut:\n"
+" %s"
 
 #. module: mail
 #. odoo-python
@@ -3054,6 +3182,11 @@ msgid "Conversations"
 msgstr "Conversații"
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Convert attachments to links for emails over"
+msgstr "Convertește atașamentele în linkuri pentru emailuri peste"
+
+#. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/core/common/message_actions.js:0
 msgid "Copy Link"
@@ -3074,6 +3207,16 @@ msgid ""
 msgstr ""
 "Nu s-a putut contacta serverul de e-mail, vă rugăm să verificați "
 "configurația serverului dvs. de e-mail de ieșire."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Could not load your certificate / private key. \n"
+"%s"
+msgstr ""
+"Nu s-a putut încărca certificatul / cheia privată. \n"
+"%s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_thread_blacklist__message_bounce
@@ -3467,6 +3610,11 @@ msgstr "Dragă expeditor"
 #: model_terms:ir.ui.view,arch_db:mail.message_notification_limit_email
 msgid "Dear Sender,"
 msgstr "Dragă expeditor,"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_debug
+msgid "Debugging"
+msgstr "Depanare"
 
 #. module: mail
 #. odoo-python
@@ -4332,6 +4480,12 @@ msgid "Email domain e.g. 'example.com' in 'odoo@example.com'"
 msgstr "Domeniu e-mail ex. 'example.com' în 'odoo@example.com'"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Email maximum size updated (%(details)s)."
+msgstr "Dimensiunea maximă a emailului a fost actualizată (%(details)s)."
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_form
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_message_subtype_form
 msgid "Email message"
@@ -4567,6 +4721,11 @@ msgstr "Comentarii suplimentare ..."
 #: model_terms:ir.ui.view,arch_db:mail.discuss_channel_view_form
 msgid "Extra info"
 msgstr "Informații suplimentare"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__from_filter
+msgid "FROM Filtering"
+msgstr "FROM Filtering"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_config_settings__fail_counter
@@ -5320,6 +5479,11 @@ msgstr ""
 #: code:addons/mail/static/src/core/web/thread_patch.xml:0
 msgid "History"
 msgstr "Istoric"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_host
+msgid "Hostname or IP of SMTP server"
+msgstr "Numele sau IP-ul serverului SMTP"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_fetchmail_server__server
@@ -6787,6 +6951,12 @@ msgid "Mail Composer Mixin"
 msgstr "Mail Mixin Compozitor"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Mail Delivery Failed"
+msgstr "Livrare email eșuată"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_notification__mail_email_address
 msgid "Mail Email Address"
 msgstr ""
@@ -6870,6 +7040,16 @@ msgid ""
 msgstr ""
 "Compunerea mesajelor în modul observații trebuie să funcționeze pe cel puțin "
 "o înregistrare. Nu s-au găsit înregistrări (model %(model_name)s)."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Mail delivery failed via SMTP server '%(server)s'.\n"
+"%(exception_name)s: %(message)s"
+msgstr ""
+"Nu a reușit livrarea e-mail-urilor prin serverul SMTP '%(server)s'.\n"
+"%(exception_name)s: %(message)s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_mail__is_notification
@@ -7015,6 +7195,11 @@ msgstr "Marchează ca necitit"
 #: code:addons/mail/static/src/core/web/activity_list_popover_item.xml:0
 msgid "Mark as done"
 msgstr "Marchează ca efectuat"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__max_email_size
+msgid "Max Email Size"
+msgstr "Dimensiune maximă email"
 
 #. module: mail
 #. odoo-javascript
@@ -7797,6 +7982,17 @@ msgstr "Nu a fost găsit niciun destinatar."
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"No response received. Check server address and port number.\n"
+" %s"
+msgstr ""
+"Nu s-a primit niciun răspuns. Verificați adresa serverului și numărul "
+"portului.\n"
+"%s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 msgid ""
 "No response received. Check server information.\n"
@@ -8463,6 +8659,11 @@ msgstr ""
 "ID opțional mail_mail. Folosit în principal pentru optimizarea căutărilor."
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_pass
+msgid "Optional password for SMTP authentication"
+msgstr "Parolă opțională pentru autentificarea SMTP"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template__mail_server_id
 msgid ""
 "Optional preferred server for outgoing mails. If not set, the highest "
@@ -8486,6 +8687,11 @@ msgstr ""
 "Dacă nu este setată, se va folosi limba principală a partenerului. De "
 "obicei, aceasta ar trebui să fie o expresie substituent care furnizează "
 "limba potrivită, de exemplu {{ object.partner_id.lang }}."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_user
+msgid "Optional username for SMTP authentication"
+msgstr "Nume opțional pentru autentificarea SMTP"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
@@ -8591,6 +8797,15 @@ msgstr "Outgoing Mail Server"
 #: model:ir.model.fields,field_description:mail.field_res_users__outgoing_mail_server_type
 msgid "Outgoing Mail Server Type"
 msgstr ""
+
+#. module: mail
+#: model:ir.actions.act_window,name:mail.action_ir_mail_server_list
+#: model:ir.ui.menu,name:mail.menu_mail_servers
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_list
+#: model_terms:ir.ui.view,arch_db:mail.view_ir_mail_server_search
+msgid "Outgoing Mail Servers"
+msgstr "Servere Ieșire E-mail-uri"
 
 #. module: mail
 #: model:ir.model,name:mail.model_mail_mail
@@ -9011,6 +9226,16 @@ msgstr "Planificare"
 #: code:addons/mail/static/src/discuss/voice_message/common/voice_player.xml:0
 msgid "Play"
 msgstr "Play"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Please configure an email on the current user to simulate sending an email "
+"message via this outgoing server"
+msgstr ""
+"Vă rugăm să configurați un e-mail pe utilizatorul actual pentru a simula "
+"trimiterea unui mesaj de e-mail prin intermediul acestui server de ieșire"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_bounce_catchall
@@ -9880,6 +10105,17 @@ msgid "SFU Server key"
 msgstr "SFU Server cheie"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port"
+msgstr "SMTP Port"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port. Usually 465 for SSL, and 25 or 587 for other cases."
+msgstr ""
+"Port SMTP. De obicei 465 pentru SSL, și 25 sau 587 în celelalte cazuri."
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_email_template_search
 msgid "SMTP Server"
 msgstr "SMTP Server"
@@ -9890,9 +10126,54 @@ msgid "SSL"
 msgstr "SSL"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_certificate
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__certificate
+msgid "SSL Certificate"
+msgstr "Certificat SSL"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL Private Key"
+msgstr "Cheie privată SSL"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL certificate is missing for %s."
+msgstr "Certificatul SSL lipsește pentru %s."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_certificate
+msgid "SSL certificate used for authentication"
+msgstr "Certificatul SSL folosit pentru autentificare"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL private key is missing for %s."
+msgstr "Cheia privată SSL lipsește pentru %s."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL private key used for authentication"
+msgstr "Cheia privată SSL folosită pentru autentificare"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__is_ssl
 msgid "SSL/TLS"
 msgstr "SSL/TLS"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl_strict
+msgid "SSL/TLS, encryption and validation"
+msgstr "SSL/TLS, criptare și validare"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl
+msgid "SSL/TLS, encryption only"
+msgstr "SSL/TLS, numai criptare"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
@@ -11065,6 +11346,18 @@ msgid "System notification"
 msgstr "Sistem de înștiințare"
 
 #. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls_strict
+msgid "TLS (STARTTLS), encryption and validation"
+msgstr "TLS (STARTTLS), criptare și validare"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls
+msgid "TLS (STARTTLS), encryption only"
+msgstr "TLS (STARTTLS), numai criptare"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
 msgid "TURN"
 msgstr "SCHIMBĂ"
@@ -11476,6 +11769,16 @@ msgstr ""
 "înseamnă o prioritate mai mică."
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The private key or the certificate is not a valid file. \n"
+"%s"
+msgstr ""
+"Cheia privată sau certificatul nu este un fișier valid. \n"
+"%s"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__scheduled_date
 msgid "The queue manager will send the email after the date"
 msgstr "Managerul de coadă va trimite e-mailul după dată"
@@ -11508,6 +11811,13 @@ msgstr ""
 #. module: mail
 #. odoo-python
 #: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server \"%(server_name)s\" doesn't return the maximum email size."
+msgstr ""
+"Serverul \"%(server_name)s\" nu returnează dimensiunea maximă a emailului."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
 msgid ""
 "The server \"%s\" cannot be forced as it belongs to a user and is archived."
 msgstr ""
@@ -11533,6 +11843,40 @@ msgstr ""
 #: code:addons/mail/models/fetchmail.py:0
 msgid "The server \"%s\" cannot be used because it is archived."
 msgstr "Serverul \"%s\" nu poate fi folosit deoarece este arhivat."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server has closed the connection unexpectedly. Check configuration "
+"served on this port number.\n"
+" %s"
+msgstr ""
+"The server has closed the connection unexpectedly. Check configuration "
+"served on this port number.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the sender address (%(email_from)s) with error %(repl)s"
+msgstr ""
+"Serverul a refuzat adresa expeditorului (%(email_from)s) cu o eroare %(repl)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server refused the test connection with error %(repl)s"
+msgstr "Serverul a refuzat conexiunea de testare cu eroare %(repl)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the test recipient (%(email_to)s) with error %(repl)s"
+msgstr ""
+"Serverul a refuzat destinatarul testului (%(email_to)s) cu eroare %(repl)s"
 
 #. module: mail
 #. odoo-javascript
@@ -12579,6 +12923,14 @@ msgid "Use template"
 msgstr "Utilizați șablon"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Use the SMTP configuration set in the \"Command Line Interface\" arguments."
+msgstr ""
+"Use the SMTP configuration set in the \"Command Line Interface\" arguments."
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_users_settings__use_push_to_talk
 msgid "Use the push to talk feature"
 msgstr "Utilizați funcția de apăsare pentru a vorbi"
@@ -13084,6 +13436,16 @@ msgid "What's your name?"
 msgstr "Cum te cheamă?"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__sequence
+msgid ""
+"When no specific mail server is requested for a mail, the highest priority "
+"one is used. Default priority is 10 (smaller number = higher priority)"
+msgstr ""
+"Atunci cand nu este solicitat niciun server specific de mail pentru un e-"
+"mail, este folosit cel cu prioritatea cea mai mare. Prioritatea implicita "
+"este 10 (un numar mai mic = prioritate mai mare)"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_activity__user_tz
 msgid ""
 "When printing documents and exporting/importing data, time values are "
@@ -13308,6 +13670,30 @@ msgstr "Puteți discuta numai cu parteneri care au un utilizator dedicat."
 #: code:addons/mail/static/src/discuss/call/common/call_permission_dialog.js:0
 msgid "You can still turn off your %s anytime."
 msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive these Outgoing Mail Servers (%(server_usage)s) because "
+"they are still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"Nu puteți arhiva aceste servere de e-mail de ieșire (%(server_usage)s) "
+"deoarece sunt încă utilizate în următoarele cazuri:\n"
+"%(usage_details)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive this Outgoing Mail Server (%(server_usage)s) because it "
+"is still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"Nu puteți arhiva acest server de e-mail de ieșire (%(server_usage)s) "
+"deoarece este încă utilizat în următoarele cazuri:\n"
+"%(usage_details)s"
 
 #. module: mail
 #. odoo-python
@@ -13757,6 +14143,11 @@ msgid "e.g. Log a note"
 msgstr "de exemplu, Loghează o notă"
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. My Outgoing Server"
+msgstr "e.g. My Outgoing Server"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_plan_view_form
 msgid "e.g. Onboarding"
 msgstr "ex. Onboarding"
@@ -13770,6 +14161,11 @@ msgstr "de exemplu, Programează o întâlnire"
 #: model_terms:ir.ui.view,arch_db:mail.email_compose_message_wizard_form
 msgid "e.g. Welcome to MyCompany!"
 msgstr ""
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. email@domain.com, domain.com"
+msgstr "e.g. email@domain.com, domain.com"
 
 #. module: mail
 #. odoo-javascript

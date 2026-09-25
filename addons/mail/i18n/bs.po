@@ -3293,6 +3293,11 @@ msgid "Dear Sender,"
 msgstr ""
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_debug
+msgid "Debugging"
+msgstr "Otklanjanje grešaka"
+
+#. module: mail
 #. odoo-python
 #: code:addons/mail/models/discuss/discuss_channel_member.py:0
 msgid "Decline"
@@ -5098,6 +5103,11 @@ msgid "History"
 msgstr ""
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_host
+msgid "Hostname or IP of SMTP server"
+msgstr "Naziv servera ili IP za SMTP server"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_fetchmail_server__server
 msgid "Hostname or IP of the mail server"
 msgstr ""
@@ -6506,6 +6516,12 @@ msgid "Mail Composer Mixin"
 msgstr ""
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Mail Delivery Failed"
+msgstr "Isporuka mail-a neuspješna"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_notification__mail_email_address
 msgid "Mail Email Address"
 msgstr ""
@@ -7577,7 +7593,7 @@ msgstr ""
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
 #: model_terms:ir.ui.view,arch_db:mail.mail_notification_layout
 msgid "None"
-msgstr ""
+msgstr "Ništa"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_users_form_mail
@@ -8139,6 +8155,11 @@ msgid "Optional mail_mail ID. Used mainly to optimize searches."
 msgstr ""
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_pass
+msgid "Optional password for SMTP authentication"
+msgstr "Opcionalna šifra za SMTP prijavu"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template__mail_server_id
 msgid ""
 "Optional preferred server for outgoing mails. If not set, the highest "
@@ -8158,6 +8179,11 @@ msgid ""
 "usually be a placeholder expression that provides the appropriate language, "
 "e.g. {{ object.partner_id.lang }}."
 msgstr ""
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_user
+msgid "Optional username for SMTP authentication"
+msgstr "Opcionalno korisničko ime za SMTP prijavu"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
@@ -8258,6 +8284,15 @@ msgstr "Odlazni E-mail server"
 #: model:ir.model.fields,field_description:mail.field_res_users__outgoing_mail_server_type
 msgid "Outgoing Mail Server Type"
 msgstr ""
+
+#. module: mail
+#: model:ir.actions.act_window,name:mail.action_ir_mail_server_list
+#: model:ir.ui.menu,name:mail.menu_mail_servers
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_list
+#: model_terms:ir.ui.view,arch_db:mail.view_ir_mail_server_search
+msgid "Outgoing Mail Servers"
+msgstr "Odlazni mail serveri"
 
 #. module: mail
 #: model:ir.model,name:mail.model_mail_mail
@@ -8465,7 +8500,7 @@ msgstr "Partnere sa potrebnom akcijom"
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__password
 msgid "Password"
-msgstr ""
+msgstr "Šifra"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.res_config_settings_view_form
@@ -8839,7 +8874,7 @@ msgstr "Tip prethodne aktivnosti"
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_ir_cron__priority
 msgid "Priority"
-msgstr ""
+msgstr "Prioritet"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.discuss_channel_view_form
@@ -9504,6 +9539,16 @@ msgstr ""
 #: model:ir.model.fields,field_description:mail.field_res_config_settings__sfu_server_key
 msgid "SFU Server key"
 msgstr ""
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port"
+msgstr "SMTP port"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port. Usually 465 for SSL, and 25 or 587 for other cases."
+msgstr "SMTP Port. Obično 465 za SSL, i 25 ili 587 u ostalim slučajevima."
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_email_template_search
@@ -10810,7 +10855,7 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/mail/static/src/views/fields/mail_server_configurator_selection/mail_server_configurator_selection.xml:0
 msgid "Test Connection"
-msgstr ""
+msgstr "Testiraj vezu"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_template_preview_view_form
@@ -12239,7 +12284,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__user
 #: model:ir.model.fields,field_description:mail.field_mail_ice_server__username
 msgid "Username"
-msgstr ""
+msgstr "Korisničko ime"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_presence__user_id
@@ -12562,6 +12607,16 @@ msgstr ""
 #: code:addons/mail/static/src/discuss/core/public/welcome_page.xml:0
 msgid "What's your name?"
 msgstr ""
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__sequence
+msgid ""
+"When no specific mail server is requested for a mail, the highest priority "
+"one is used. Default priority is 10 (smaller number = higher priority)"
+msgstr ""
+"Kada nije određen mail server zahtjevan za mail, onaj sa najvećim "
+"prioritetom će se koristiti. Zadani prioritet je 10 (manji broj = veći "
+"prioritet)"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_activity__user_tz

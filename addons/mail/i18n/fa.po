@@ -1715,6 +1715,11 @@ msgid "Audio player:"
 msgstr "پخش کننده صوتی:"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication
+msgid "Authenticate with"
+msgstr "با استفاده از <b>پذیرش اعتبار</b>"
+
+#. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_alias__alias_contact__partners
 msgid "Authenticated Partners"
 msgstr "شریکان تایید شده"
@@ -3379,6 +3384,11 @@ msgstr "فرستنده عزیز"
 #: model_terms:ir.ui.view,arch_db:mail.message_notification_limit_email
 msgid "Dear Sender,"
 msgstr "فرستنده عزیز,"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_debug
+msgid "Debugging"
+msgstr "اشکال‌زدایی"
 
 #. module: mail
 #. odoo-python
@@ -6668,6 +6678,12 @@ msgid "Mail Composer Mixin"
 msgstr "ترکیب‌گر ایمیل میکسین"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Mail Delivery Failed"
+msgstr "ارسال پست الکترونیک موفق نبود"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_notification__mail_email_address
 msgid "Mail Email Address"
 msgstr ""
@@ -8448,6 +8464,15 @@ msgid "Outgoing Mail Server Type"
 msgstr ""
 
 #. module: mail
+#: model:ir.actions.act_window,name:mail.action_ir_mail_server_list
+#: model:ir.ui.menu,name:mail.menu_mail_servers
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_list
+#: model_terms:ir.ui.view,arch_db:mail.view_ir_mail_server_search
+msgid "Outgoing Mail Servers"
+msgstr "سرورهای ایمیل Outgoing"
+
+#. module: mail
 #: model:ir.model,name:mail.model_mail_mail
 msgid "Outgoing Mails"
 msgstr "ایمیل‌های خروجی"
@@ -9710,6 +9735,11 @@ msgstr "آدرس سرور SFU"
 #: model:ir.model.fields,field_description:mail.field_res_config_settings__sfu_server_key
 msgid "SFU Server key"
 msgstr "کلید سرور SFU"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port"
+msgstr "پورت SMTP"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_email_template_search
@@ -11281,6 +11311,16 @@ msgstr ""
 "اولویت کمتر است."
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The private key or the certificate is not a valid file. \n"
+"%s"
+msgstr ""
+"کلید خصوصی یا گواهی یک فایل معتبر نیست.\n"
+"%s"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__scheduled_date
 msgid "The queue manager will send the email after the date"
 msgstr "مدیر صف پس از تاریخ، ایمیل را ارسال خواهد کرد."
@@ -11329,6 +11369,38 @@ msgstr ""
 #: code:addons/mail/models/fetchmail.py:0
 msgid "The server \"%s\" cannot be used because it is archived."
 msgstr "سرور \"%s\" نمی تواند استفاده شود زیرا بایگانی شده است."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server has closed the connection unexpectedly. Check configuration "
+"served on this port number.\n"
+" %s"
+msgstr ""
+"سرور به طور غیرمنتظره ای اتصال را بسته است. پیکربندی ارائه شده در این شماره "
+"پورت را بررسی کنید.\n"
+"  %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the sender address (%(email_from)s) with error %(repl)s"
+msgstr "سرور آدرس فرستنده (%(email_from)s) را با خطا رد کرد%(repl)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server refused the test connection with error %(repl)s"
+msgstr "سرور اتصال آزمایشی را با خطا رد کرد%(repl)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the test recipient (%(email_to)s) with error %(repl)s"
+msgstr "سرور با خطا، گیرنده آزمایشی (%(email_to)s) را رد کرد%(repl)s"
 
 #. module: mail
 #. odoo-javascript
@@ -12346,6 +12418,14 @@ msgid "Use template"
 msgstr "استفاده از قالب"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Use the SMTP configuration set in the \"Command Line Interface\" arguments."
+msgstr ""
+"از پیکربندی SMTP در آرگومان های \"Command Line Interface\" استفاده کنید."
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_users_settings__use_push_to_talk
 msgid "Use the push to talk feature"
 msgstr "از ویژگی فشار برای صحبت استفاده کنید"
@@ -12849,6 +12929,15 @@ msgid "What's your name?"
 msgstr "نام شما چیست؟"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__sequence
+msgid ""
+"When no specific mail server is requested for a mail, the highest priority "
+"one is used. Default priority is 10 (smaller number = higher priority)"
+msgstr ""
+"هنگامی که هیچ سرور ایمیل خاصی برای ایمیل درخواست نمی شود، از بالاترین اولویت "
+"استفاده می شود. اولویت پیش فرض 10 است (تعداد کوچکتر = اولویت بیشتر)"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_activity__user_tz
 msgid ""
 "When printing documents and exporting/importing data, time values are "
@@ -13069,6 +13158,30 @@ msgstr "شما فقط می‌توانید با شریک‌هایی که کارب
 #: code:addons/mail/static/src/discuss/call/common/call_permission_dialog.js:0
 msgid "You can still turn off your %s anytime."
 msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive these Outgoing Mail Servers (%(server_usage)s) because "
+"they are still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"شما نمی توانید این سرورهای ایمیل خروجی (%(server_usage)s) را بایگانی کنید "
+"زیرا هنوز در موارد زیر استفاده می شوند(s):\n"
+"%(usage_details)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive this Outgoing Mail Server (%(server_usage)s) because it "
+"is still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"شما نمی توانید این سرور ایمیل خروجی (%(server_usage)s) را بایگانی کنید زیرا "
+"هنوز در موارد زیر استفاده می شود(s):\n"
+"%(usage_details)s"
 
 #. module: mail
 #. odoo-python
@@ -13513,6 +13626,11 @@ msgid "e.g. Log a note"
 msgstr ""
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. My Outgoing Server"
+msgstr "به عنوان مثال، سرور خروجی من"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_plan_view_form
 msgid "e.g. Onboarding"
 msgstr "به‌عنوان مثال، شروع به کار"
@@ -13526,6 +13644,11 @@ msgstr "به عنوان مثال، برنامه‌ریزی یک جلسه"
 #: model_terms:ir.ui.view,arch_db:mail.email_compose_message_wizard_form
 msgid "e.g. Welcome to MyCompany!"
 msgstr ""
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. email@domain.com, domain.com"
+msgstr "e.g. email@domain.com, domain.com"
 
 #. module: mail
 #. odoo-javascript

@@ -1,4 +1,5 @@
 import argparse
+import io
 import logging
 import sys
 import textwrap
@@ -11,7 +12,10 @@ from odoo.modules import get_module_path
 from odoo.tools import OrderedSet
 from odoo.tools.translate import (
     TranslationImporter,
+    get_lang_iso_codes,
+    get_po_file_path,
     load_language,
+    merge_po_template,
     trans_export,
 )
 
@@ -56,11 +60,13 @@ class I18n(DatabaseCommand):
         self.import_parser = self._add_import_parser(subparsers)
         self.export_parser = self._add_export_parser(subparsers)
         self.loadlang_parser = self._add_loadlang_parser(subparsers)
+        self.merge_parser = self._add_merge_parser(subparsers)
 
         for parser in (
             self.import_parser,
             self.export_parser,
             self.loadlang_parser,
+            self.merge_parser,
         ):
             self.add_config_arguments(parser, on_subparser=True)
             parser.epilog = self._EPILOG
@@ -118,7 +124,14 @@ class I18n(DatabaseCommand):
             subparsers,
             "export",
             "Export i18n files",
-            "Exports language files into the i18n folder of each module",
+            "Exports language files into the i18n folder of each module.\n"
+            "A language is written to the file the module already loads it\n"
+            "from (de.po for de_DE, es_CL.po for es_CL), and a new file is\n"
+            "named after the language, or after its base when the language\n"
+            "is that base's main one (ca.po for ca_ES, pt_BR.po for pt_BR).\n"
+            "Translations come from that file, plus database values no other\n"
+            "file could have written; an existing file keeps its header and\n"
+            "turns the translations of vanished terms obsolete (#~).",
         )
         parser.set_defaults(func=self._export_translations)
         parser.add_argument(
@@ -167,9 +180,40 @@ class I18n(DatabaseCommand):
         )
         return parser
 
+    def _add_merge_parser(self, subparsers: _SubParsers) -> argparse.ArgumentParser:
+        parser = self._add_subparser(
+            subparsers,
+            "merge",
+            "Merge .po files with their template",
+            "Brings .po files in line with their module's template without a\n"
+            "database: every template term is written with the template's\n"
+            "occurrences, the file's translations are kept, and the\n"
+            "translations of terms the template lost turn obsolete (#~).",
+        )
+        parser.set_defaults(func=self._merge_translations)
+        parser.add_argument(
+            "files",
+            nargs="+",
+            metavar="FILE",
+            type=Path,
+            help=".po files to merge in place",
+        )
+        parser.add_argument(
+            "-t",
+            "--template",
+            metavar="POT",
+            type=Path,
+            help="template to merge with; defaults to <module>/i18n/<module>.pot",
+        )
+        return parser
+
     def run(self, cmdargs: list[str]) -> None:
         parsed_args, unknown = self.parse_args(cmdargs)
-        self.bootstrap_config(parsed_args, extra_args=unknown)
+        self.bootstrap_config(
+            parsed_args,
+            allow_none=parsed_args.subcommand == "merge",
+            extra_args=unknown,
+        )
         subcommand = getattr(parsed_args.func, "__name__", None)
         _debug.lifecycle("cli.i18n", subcommand=subcommand, db=parsed_args.db_name)
         parsed_args.func(parsed_args)
@@ -445,13 +489,16 @@ class I18n(DatabaseCommand):
             pot=export_pot,
             files=len(module_names) * (len(languages) + export_pot),
         )
+        iso_codes = get_lang_iso_codes(env)
         for module_name in module_names:
             i18n_path = Path(module_paths[module_name], "i18n")
             if export_pot:
                 path = i18n_path / f"{module_name}.pot"
                 self._export_translations_to_path(env, [module_name], None, path)
             for language in languages:
-                path = i18n_path / f"{language.iso_code}.po"
+                path = get_po_file_path(
+                    module_paths[module_name], language.code, iso_codes
+                )
                 self._export_translations_to_path(
                     env, [module_name], language.code, path
                 )
@@ -491,21 +538,44 @@ class I18n(DatabaseCommand):
         export_format = path.suffix.removeprefix(".")
         if export_format == "pot":
             export_format = "po"
-        with path.open("wb") as outfile:
-            with _debug.perf(
-                "cli.i18n.export_file",
-                cr=env.cr,
-                source=source,
-                lang=lang_code or "pot",
-                format=export_format,
-                to=str(path),
-            ) as span:
-                exported = trans_export(
-                    lang_code, module_names, outfile, export_format, env
-                )
-                span.set(terms_found=bool(exported), bytes=outfile.tell())
-            if not exported:
-                _logger.warning("No translatable terms were found in %s.", module_names)
+        # the export reads the file it replaces, so it is written only after
+        buffer = io.BytesIO()
+        with _debug.perf(
+            "cli.i18n.export_file",
+            cr=env.cr,
+            source=source,
+            lang=lang_code or "pot",
+            format=export_format,
+            to=str(path),
+        ) as span:
+            exported = trans_export(lang_code, module_names, buffer, export_format, env)
+            span.set(terms_found=bool(exported), bytes=buffer.tell())
+        if not exported:
+            _logger.warning("No translatable terms were found in %s.", module_names)
+            return
+        path.write_bytes(buffer.getvalue())
+
+    def _merge_translations(self, parsed_args: argparse.Namespace) -> None:
+        merges = []
+        for path in parsed_args.files:
+            template = parsed_args.template or path.with_name(
+                f"{path.resolve().parent.parent.name}.pot"
+            )
+            if path.suffix != ".po" or not path.is_file():
+                self.merge_parser.error(f"{path} is not a .po file")
+            if not template.is_file():
+                self.merge_parser.error(f"template {template} not found")
+            merges.append((path, template))
+        for path, template in merges:
+            _logger.info("Merging %s with %s", path, template)
+            path.write_text(
+                merge_po_template(
+                    path.read_text(encoding="utf-8"),
+                    template.read_text(encoding="utf-8"),
+                    path.stem,
+                ),
+                encoding="utf-8",
+            )
 
     def _load_languages(self, parsed_args: argparse.Namespace) -> None:
         with open_environment(parsed_args.db_name) as env:

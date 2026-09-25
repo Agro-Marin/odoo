@@ -1441,6 +1441,16 @@ msgid "An error occurred while fetching messages."
 msgstr ""
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An option is not supported by the server:\n"
+" %s"
+msgstr ""
+"بژاردەیەک لەلایەن سێرڤەرەوە پشتگیری ناکرێت:\n"
+"%s"
+
+#. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/core/common/store_service.js:0
 msgid "An unexpected error occurred during the creation of the chat."
@@ -2738,6 +2748,11 @@ msgstr ""
 #: code:addons/mail/static/src/core/web/discuss_patch.js:0
 msgid "Congratulations, your inbox is empty!"
 msgstr ""
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Connection"
+msgstr "پەیوەندی"
 
 #. module: mail
 #. odoo-python

@@ -358,6 +358,12 @@ msgstr "%(user_name)s hat eine Nachricht an diesen Kanal angeheftet."
 #. module: mail
 #. odoo-python
 #: code:addons/mail/models/ir_mail_server.py:0
+msgid "%s (Dedicated Outgoing Mail Server):"
+msgstr "%s (Dedizierter Postausgangsserver):"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
 msgid "%s (Email Template)"
 msgstr "%s(E-Mail-Vorlage)"
 
@@ -660,6 +666,11 @@ msgid ""
 msgstr ""
 "<span class=\"o_form_label fw-bold\" invisible=\"not "
 "has_external_mail_server\">Postausgangsserver</span>"
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "<span class=\"o_form_label\">MB</span>"
+msgstr "<span class=\"o_form_label\">MB</span>"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_view_form_popup
@@ -1560,6 +1571,17 @@ msgstr "Alle Nachrichten"
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SMTP exception occurred. Check port number and connection security type.\n"
+" %s"
+msgstr ""
+"Eine SMTP-Ausnahme ist aufgetreten. Überprüfen Sie die Portnummer und den "
+"Sicherheitstyp der Verbindung.\n"
+"%s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 msgid ""
 "An SSL exception occurred. Check SSL/TLS configuration on server port.\n"
@@ -1568,6 +1590,28 @@ msgstr ""
 "Eine SSL-Ausnahme ist aufgetreten. Prüfen Sie die SSL/TLS-Konfiguration am "
 "Server-Port.\n"
 " %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" %s"
+msgstr ""
+"Eine SSL-Ausnahme ist aufgetreten. Überprüfen Sie den Sicherheitstyp der "
+"Verbindung.\n"
+"%s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" CertificateError: %s"
+msgstr ""
+"Eine SSL-Ausnahme ist aufgetreten. Überprüfen Sie den Sicherheitstyp der "
+"Verbindung.\n"
+" CertificateError: %s"
 
 #. module: mail
 #. odoo-python
@@ -1599,6 +1643,16 @@ msgstr ""
 #: code:addons/mail/static/src/core/common/thread.xml:0
 msgid "An error occurred while fetching messages."
 msgstr "Beim Abrufen der Nachrichten ist ein Fehler aufgetreten."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An option is not supported by the server:\n"
+" %s"
+msgstr ""
+"Eine Option wird vom Server nicht unterstützt:\n"
+"%s"
 
 #. module: mail
 #. odoo-javascript
@@ -1806,6 +1860,24 @@ msgid "Audio player:"
 msgstr "Audio-Player:"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Authenticate by using SSL certificates, belonging to your domain name. \n"
+"SSL certificates allow you to authenticate your mail server for the entire "
+"domain name."
+msgstr ""
+"Authentifizieren Sie sich per SSL-Zertifikaten, die zu Ihrem Domainnamen "
+"gehören. \n"
+"SSL-Zertifikate ermöglichen es Ihnen, Ihren E-Mail-Server für den gesamten "
+"Domainnamen zu authentifizieren."
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication
+msgid "Authenticate with"
+msgstr "Authentifizieren mit"
+
+#. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_alias__alias_contact__partners
 msgid "Authenticated Partners"
 msgstr "Authentifizierten Partnern"
@@ -1814,6 +1886,11 @@ msgstr "Authentifizierten Partnern"
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_form
 msgid "Authentication"
 msgstr "Authentifizierung"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication_info
+msgid "Authentication Info"
+msgstr "Authentifizierungsinfo"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_compose_message__author_id
@@ -2532,6 +2609,11 @@ msgid "Cc"
 msgstr "CC"
 
 #. module: mail
+#: model:ir.model.constraint,message:mail.constraint_ir_mail_server_certificate_requires_tls
+msgid "Certificate-based authentication requires a TLS transport"
+msgstr "Zertifikatsbasierte Authentifizierung erfordert einen TLS-Transport"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_activity__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_schedule__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_type__chaining_type
@@ -2828,6 +2910,17 @@ msgstr ""
 "verwendet werden)"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__from_filter
+msgid ""
+"Comma-separated list of addresses or domains for which this server can be "
+"used.\n"
+"e.g.: \"notification@odoo.com\" or \"odoo.com\""
+msgstr ""
+"Durch Kommata getrennte Liste von Adressen oder Domains, für die dieser "
+"Server verwendet werden kann.\n"
+"z. B.: „notification@odoo.com“ oder „odoo.com“"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__email_to
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
 msgid "Comma-separated recipient addresses"
@@ -2839,6 +2932,11 @@ msgid "Comma-separated recipient addresses (placeholders may be used here)"
 msgstr ""
 "Durch Komma getrennte E-Mail-Adresse der Empfänger (Platzhalter können "
 "verwendet werden)"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__cli
+msgid "Command Line Interface"
+msgstr "Schnittstelle für Befehlszeile"
 
 #. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_compose_message__message_type__comment
@@ -2958,6 +3056,41 @@ msgstr "Herzlichen Glückwunsch. Ihr Posteingang ist leer."
 #: code:addons/mail/static/src/core/web/discuss_patch.js:0
 msgid "Congratulations, your inbox is empty!"
 msgstr "Herzlichen Glückwunsch. Ihr Posteingang ist leer."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connect to your server through your usual username and password. \n"
+"This is the most basic SMTP authentication process and may not be accepted "
+"by all providers. \n"
+msgstr ""
+"Verbinden Sie sich mit Ihrem üblichen Benutzernamen und Passwort mit Ihrem "
+"Server. \n"
+"Dies ist das einfachste SMTP-Authentifizierungsverfahren und wird "
+"möglicherweise nicht von allen Anbietern akzeptiert. \n"
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Connection"
+msgstr "Verbindung"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_fetchmail_server__encryption
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_encryption
+msgid "Connection Encryption"
+msgstr "Verschlüsselung der Verbindung"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connection Test Failed! Here is what we got instead:\n"
+" %s"
+msgstr ""
+"Verbindungstest fehlgeschlagen! Hier sehen Sie, was wir an Stelle dessen "
+"bekommen haben:\n"
+" %s"
 
 #. module: mail
 #. odoo-python
@@ -3099,6 +3232,11 @@ msgid "Conversations"
 msgstr "Unterhaltungen"
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Convert attachments to links for emails over"
+msgstr "Anhänge in Links umwandeln für E-Mails über"
+
+#. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/core/common/message_actions.js:0
 msgid "Copy Link"
@@ -3119,6 +3257,16 @@ msgid ""
 msgstr ""
 "Der Mailserver konnte nicht kontaktiert werden, bitte überprüfen Sie die "
 "Konfiguration Ihres Postausgangsservers."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Could not load your certificate / private key. \n"
+"%s"
+msgstr ""
+"Ihr Zertifikat/privater Schlüssel konnte nicht geladen werden.\n"
+"%s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_thread_blacklist__message_bounce
@@ -3509,6 +3657,11 @@ msgstr "Lieber Absender, liebe Absenderin,"
 #: model_terms:ir.ui.view,arch_db:mail.message_notification_limit_email
 msgid "Dear Sender,"
 msgstr "Lieber Absender, liebe Absenderin,"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_debug
+msgid "Debugging"
+msgstr "Fehlerbeseitigung"
 
 #. module: mail
 #. odoo-python
@@ -4378,6 +4531,12 @@ msgid "Email domain e.g. 'example.com' in 'odoo@example.com'"
 msgstr "E-Mail-Domain z. B. 'beispiel.com' in 'odoo@beispiel.com'"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Email maximum size updated (%(details)s)."
+msgstr "E-Mail-Maximalgröße aktualisiert (%(details)s)"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_form
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_message_subtype_form
 msgid "Email message"
@@ -4615,6 +4774,11 @@ msgstr "Zusatzkommentare ..."
 #: model_terms:ir.ui.view,arch_db:mail.discuss_channel_view_form
 msgid "Extra info"
 msgstr "Weitere Informationen"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__from_filter
+msgid "FROM Filtering"
+msgstr "VON-Filterung"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_config_settings__fail_counter
@@ -5376,6 +5540,11 @@ msgstr ""
 #: code:addons/mail/static/src/core/web/thread_patch.xml:0
 msgid "History"
 msgstr "Historie"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_host
+msgid "Hostname or IP of SMTP server"
+msgstr "Hostname oder IP-Adresse des SMTP-Servers"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_fetchmail_server__server
@@ -6853,6 +7022,12 @@ msgid "Mail Composer Mixin"
 msgstr "Mixin für Mail-Editor"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Mail Delivery Failed"
+msgstr "Mail-Zustellung fehlgeschlagen"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_notification__mail_email_address
 msgid "Mail Email Address"
 msgstr "An E-Mail-Adresse senden"
@@ -6936,6 +7111,16 @@ msgid ""
 msgstr ""
 "E-Mail-Editor im Kommentarmodus sollte auf mindestens einem Datensatz "
 "laufen. Keine Datensätze gefunden (Modell %(model_name)s)."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Mail delivery failed via SMTP server '%(server)s'.\n"
+"%(exception_name)s: %(message)s"
+msgstr ""
+"E-Mail-Zustellung via SMTP-Server „%(server)s“ fehlgeschlagen.\n"
+"%(exception_name)s: %(message)s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_mail__is_notification
@@ -7079,6 +7264,11 @@ msgstr "Als ungelesen markieren"
 #: code:addons/mail/static/src/core/web/activity_list_popover_item.xml:0
 msgid "Mark as done"
 msgstr "Als erledigt markieren"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__max_email_size
+msgid "Max Email Size"
+msgstr "Max. E-Mail-Größe"
 
 #. module: mail
 #. odoo-javascript
@@ -7863,6 +8053,17 @@ msgstr "Kein Empfänger gefunden."
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"No response received. Check server address and port number.\n"
+" %s"
+msgstr ""
+"Keine Antwort erhalten. Überprüfen Sie die Serveradresse und die "
+"Portnummer. \n"
+"%s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 msgid ""
 "No response received. Check server information.\n"
@@ -8539,6 +8740,11 @@ msgstr ""
 "verwendet."
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_pass
+msgid "Optional password for SMTP authentication"
+msgstr "Optionales Passwort für SMTP-Authentifizierung"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template__mail_server_id
 msgid ""
 "Optional preferred server for outgoing mails. If not set, the highest "
@@ -8563,6 +8769,11 @@ msgstr ""
 "Hauptsprache des Partners verwendet. In der Regel sollte dies ein "
 "Platzhalterausdruck sein, der die entsprechende Sprache angibt, z. B. "
 "{{ object.partner_id.lang }}."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_user
+msgid "Optional username for SMTP authentication"
+msgstr "Optionaler Benutzername für SMTP-Authentifizierung"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
@@ -8669,6 +8880,15 @@ msgstr "Postausgangsserver"
 #: model:ir.model.fields,field_description:mail.field_res_users__outgoing_mail_server_type
 msgid "Outgoing Mail Server Type"
 msgstr "Art des Postausgangsservers"
+
+#. module: mail
+#: model:ir.actions.act_window,name:mail.action_ir_mail_server_list
+#: model:ir.ui.menu,name:mail.menu_mail_servers
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_list
+#: model_terms:ir.ui.view,arch_db:mail.view_ir_mail_server_search
+msgid "Outgoing Mail Servers"
+msgstr "Postausgangsserver"
 
 #. module: mail
 #: model:ir.model,name:mail.model_mail_mail
@@ -9089,6 +9309,16 @@ msgstr "Planung"
 #: code:addons/mail/static/src/discuss/voice_message/common/voice_player.xml:0
 msgid "Play"
 msgstr "Abspielen"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Please configure an email on the current user to simulate sending an email "
+"message via this outgoing server"
+msgstr ""
+"Konfigurieren Sie eine E-Mail für den aktuellen Benutzer, um das Senden "
+"einer E-Mail-Nachricht über diesen Ausgangsserver zu simulieren"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_bounce_catchall
@@ -9963,6 +10193,18 @@ msgid "SFU Server key"
 msgstr "SFU-Server-Schlüssel"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port"
+msgstr "SMTP-Port"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port. Usually 465 for SSL, and 25 or 587 for other cases."
+msgstr ""
+"SMTP-Port. Normalerweise 465 für SSL, und 25 oder 587 in allen anderen "
+"Fällen."
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_email_template_search
 msgid "SMTP Server"
 msgstr "SMTP-Server"
@@ -9973,9 +10215,54 @@ msgid "SSL"
 msgstr "SSL"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_certificate
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__certificate
+msgid "SSL Certificate"
+msgstr "SSL-Zertifikat"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL Private Key"
+msgstr "Privater SSL-Schlüssel"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL certificate is missing for %s."
+msgstr "SSL-Zertifikat fehlt für %s."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_certificate
+msgid "SSL certificate used for authentication"
+msgstr "Für die Authentifizierung verwendetes SSL-Zertifikat"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL private key is missing for %s."
+msgstr "Privater SSL-Schlüssel fehlt für %s."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL private key used for authentication"
+msgstr "Privater SSL-Schlüssel, der für die Authentifizierung verwendet wird"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__is_ssl
 msgid "SSL/TLS"
 msgstr "SSL/TLS"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl_strict
+msgid "SSL/TLS, encryption and validation"
+msgstr "SSL/TLS, Verschlüsselung und Validierung"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl
+msgid "SSL/TLS, encryption only"
+msgstr "SSL/TLS, nur Verschlüsselung"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
@@ -11164,6 +11451,18 @@ msgid "System notification"
 msgstr "Systembenachrichtigung"
 
 #. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls_strict
+msgid "TLS (STARTTLS), encryption and validation"
+msgstr "TLS (STARTTLS), Verschlüsselung und Validierung"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls
+msgid "TLS (STARTTLS), encryption only"
+msgstr "TLS (STARTTLS), nur Verschlüsselung"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
 msgid "TURN"
 msgstr "TURN"
@@ -11586,6 +11885,16 @@ msgstr ""
 "niedrigere"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The private key or the certificate is not a valid file. \n"
+"%s"
+msgstr ""
+"Der private Schlüssel oder das Zertifikat ist keine gültige Datei. \n"
+"%s"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__scheduled_date
 msgid "The queue manager will send the email after the date"
 msgstr "Der Warteschlangenmanager sendet die E-Mail nach dem Datum"
@@ -11618,6 +11927,13 @@ msgstr ""
 #. module: mail
 #. odoo-python
 #: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server \"%(server_name)s\" doesn't return the maximum email size."
+msgstr ""
+"Der Server „%(server_name)s“ gibt nicht die maximale E-Mail-Größe zurück."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
 msgid ""
 "The server \"%s\" cannot be forced as it belongs to a user and is archived."
 msgstr ""
@@ -11645,6 +11961,42 @@ msgstr ""
 #: code:addons/mail/models/fetchmail.py:0
 msgid "The server \"%s\" cannot be used because it is archived."
 msgstr "Der Server „%s“ kann nicht verwendet werden, da er archiviert ist."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server has closed the connection unexpectedly. Check configuration "
+"served on this port number.\n"
+" %s"
+msgstr ""
+"Der Server hat die Verbindung unerwartet geschlossen. Überprüfen Sie die "
+"Konfiguration für diese Portnummer.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the sender address (%(email_from)s) with error %(repl)s"
+msgstr ""
+"Der Server hat die Absenderadresse (%(email_from)s) mit dem Fehler %(repl)s "
+"abgelehnt"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server refused the test connection with error %(repl)s"
+msgstr "Der Server hat die Testverbindung mit Fehler %(repl)s abgelehnt"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the test recipient (%(email_to)s) with error %(repl)s"
+msgstr ""
+"Der Server hat den Testempfänger (%(email_to)s) mit dem Fehler %(repl)s "
+"abgelehnt"
 
 #. module: mail
 #. odoo-javascript
@@ -12707,6 +13059,15 @@ msgid "Use template"
 msgstr "Vorlage verwenden"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Use the SMTP configuration set in the \"Command Line Interface\" arguments."
+msgstr ""
+"Verwenden Sie die SMTP-Konfigurationseinstellung in den Argumenten "
+"„Schnittstelle für Befehlszeile“."
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_users_settings__use_push_to_talk
 msgid "Use the push to talk feature"
 msgstr "Verwenden Sie die Push-to-talk-Funktion"
@@ -13220,6 +13581,16 @@ msgid "What's your name?"
 msgstr "Wie lautet Ihr Name?"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__sequence
+msgid ""
+"When no specific mail server is requested for a mail, the highest priority "
+"one is used. Default priority is 10 (smaller number = higher priority)"
+msgstr ""
+"Wenn kein spezifischer Mailserver für die Mail ausgewählt ist, wird der "
+"Server mit der höchsten Priorität genutzt. Standardmäßige Priorität ist 10 "
+"(kleinere Nummer = höhere Priorität)"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_activity__user_tz
 msgid ""
 "When printing documents and exporting/importing data, time values are "
@@ -13448,6 +13819,30 @@ msgstr "Sie können nur mit Partnern chatten, die einen eigenen Benutzer haben."
 #: code:addons/mail/static/src/discuss/call/common/call_permission_dialog.js:0
 msgid "You can still turn off your %s anytime."
 msgstr "Sie können Ihr(e) %s jederzeit deaktivieren."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive these Outgoing Mail Servers (%(server_usage)s) because "
+"they are still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"Sie können diese Ausgangsmailserver (%(server_usage)s) nicht archivieren, "
+"weil sie immer noch in folgenden Fällen verwendet werden:\n"
+"%(usage_details)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive this Outgoing Mail Server (%(server_usage)s) because it "
+"is still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"Sie können diesen Ausgangsmailserver (%(server_usage)s) nicht archivieren, "
+"weil er immer noch in folgenden Fällen verwendet wird:\n"
+"%(usage_details)s"
 
 #. module: mail
 #. odoo-python
@@ -13898,6 +14293,11 @@ msgid "e.g. Log a note"
 msgstr "z. B. Eine Notiz erfassen"
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. My Outgoing Server"
+msgstr "z. B. Mein Ausgangsmailserver"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_plan_view_form
 msgid "e.g. Onboarding"
 msgstr "z. B. Einführung"
@@ -13911,6 +14311,11 @@ msgstr "z. B. Ein Meeting planen"
 #: model_terms:ir.ui.view,arch_db:mail.email_compose_message_wizard_form
 msgid "e.g. Welcome to MyCompany!"
 msgstr "z. B. Willkommen bei MeinUnternehmen!"
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. email@domain.com, domain.com"
+msgstr "z. B. email@domain.com, domain.com"
 
 #. module: mail
 #. odoo-javascript

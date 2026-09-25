@@ -1,19 +1,25 @@
+import argparse
 import io
 import logging
 import re
+import tempfile
 import time
 from hashlib import sha256
+from pathlib import Path
 from unittest.mock import patch
 
 from psycopg.types.json import Json
 
+from odoo.cli.i18n import I18n
 from odoo.exceptions import UserError
 from odoo.libs import sql
 from odoo.tests.common import BaseCase, TransactionCase, tagged
+from odoo.tools.files import file_open_temporary_directory
 from odoo.tools.translate import (
     PoFileReader,
     TranslationImporter,
     TranslationModuleReader,
+    code_translations,
     html_translate,
     xml_translate,
 )
@@ -2418,3 +2424,262 @@ msgstr "SPECTATEUR INNOCENT"
             "<t><p>SPECTATEUR INNOCENT</p></t>",
             "the guard must not cost a correctly-referenced translation",
         )
+
+
+@tagged("post_install", "-at_install")
+class TestTranslationImportSourceCheck(TransactionCase):
+    def setUp(self):
+        super().setUp()
+        self.env["res.lang"]._activate_lang("fr_FR")
+        self.tag = self.env["res.partner.tag"].create({"name": "Effective Views"})
+        self.env["ir.model.data"].create(
+            {
+                "module": "base",
+                "name": "test_source_check_tag",
+                "model": "res.partner.tag",
+                "res_id": self.tag.id,
+            }
+        )
+        self.env.flush_all()
+
+    def _po(self, source, translation):
+        return (
+            "#. module: base\n"
+            "#: model:res.partner.tag,name:base.test_source_check_tag\n"
+            f'msgid "{source}"\n'
+            f'msgstr "{translation}"\n'
+        )
+
+    def _import(self, *po_strings):
+        importer = TranslationImporter(self.env.cr, verbose=False)
+        for po_string in po_strings:
+            with io.BytesIO(po_string.encode()) as f:
+                f.name = "dummy"
+                importer.load(f, "po", "fr_FR")
+        importer.save(overwrite=True)
+        self.env.invalidate_all()
+        return self.tag.with_context(lang="fr_FR").name
+
+    def test_translation_of_an_older_source_is_not_applied(self):
+        self.assertEqual(self._import(self._po("Views", "Vues")), "Effective Views")
+
+    def test_translation_of_the_current_source_is_applied(self):
+        self.assertEqual(
+            self._import(self._po("Effective Views", "Vues effectives")),
+            "Vues effectives",
+        )
+
+    def test_a_later_file_with_an_older_source_does_not_mask_the_current_one(self):
+        self.assertEqual(
+            self._import(
+                self._po("Effective Views", "Vues effectives"),
+                self._po("Views", "Vues"),
+            ),
+            "Vues effectives",
+        )
+
+
+_ES_PO = """\
+msgid ""
+msgstr ""
+"Language: es\\n"
+
+#. module: base
+#: model:res.partner.tag,name:base.test_export_nice
+msgid "Nice Tag"
+msgstr "Etiqueta bonita"
+
+#. module: base
+#: code:addons/base/nice.py:0
+msgid "Nice Code"
+msgstr "Código bonito"
+"""
+
+_ES_CL_PO = """\
+# Translators:
+# Ana Traductora <ana@example.com>, 2025
+msgid ""
+msgstr ""
+"Language: es_CL\\n"
+
+#. module: base
+#: model:res.partner.tag,name:base.test_export_own
+msgid "Own Tag"
+msgstr "Etiqueta propia"
+
+#. module: base
+#: model:res.partner.tag,name:base.test_export_ok
+msgid "OK"
+msgstr "OK"
+
+#. module: base
+#: code:addons/base/nice.py:0
+msgid "Own Code"
+msgstr "Código propio"
+"""
+
+
+@tagged("post_install", "-at_install")
+class TestTranslationModuleExport(TransactionCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.env["res.lang"]._activate_lang("es_CL")
+        stored = {
+            "test_export_nice": ("Nice Tag", "Etiqueta bonita"),
+            "test_export_own": ("Own Tag", "Etiqueta propia"),
+            "test_export_edited": ("Edited Tag", "Etiqueta editada"),
+            "test_export_ok": ("OK", "OK"),
+            "test_export_shared": ("Shared Tag", "Etiqueta ajena"),
+        }
+        for name, (source, value) in stored.items():
+            tag = cls.env["res.partner.tag"].create({"name": source})
+            tag.with_context(lang="es_CL").name = value
+            cls.env["ir.model.data"].create(
+                {
+                    "module": "base",
+                    "name": name,
+                    "model": "res.partner.tag",
+                    "res_id": tag.id,
+                }
+            )
+        cls.env["ir.model.data"].create(
+            {
+                "module": "other_module",
+                "name": "test_export_shared",
+                "model": "res.partner.tag",
+                "res_id": cls.env.ref("base.test_export_shared").id,
+            }
+        )
+        cls.env.flush_all()
+
+    def setUp(self):
+        super().setUp()
+        self.root = Path(self.enterContext(file_open_temporary_directory(self.env)))
+        i18n = self.root / "base" / "i18n"
+        i18n.mkdir(parents=True)
+        (i18n / "es.po").write_text(_ES_PO, encoding="utf-8")
+        (i18n / "es_CL.po").write_text(_ES_CL_PO, encoding="utf-8")
+        (self.root / "base" / "nice.py").write_text(
+            '_("Nice Code")\n_("Own Code")\n', encoding="utf-8"
+        )
+        self.addCleanup(code_translations.clear, "base")
+
+    def _export(self):
+        root = self.root
+        po_paths = [str(root / "base/i18n/es.po"), str(root / "base/i18n/es_CL.po")]
+        with (
+            patch(
+                "odoo.modules.get_module_path",
+                lambda module, display_warning=True: str(root / module),
+            ),
+            patch("odoo.tools.translate.get_po_paths", lambda m, lang: iter(po_paths)),
+            patch.object(TranslationModuleReader, "_export_translatable_resources"),
+        ):
+            reader = TranslationModuleReader(self.env.cr, ["base"], "es_CL")
+            reader._path_list = [(str(root), True, True)]
+            reader._babel_extract_terms("nice.py", str(root), str(root / "base"))
+        return reader
+
+    def test_sub_language_holds_only_its_own_translations(self):
+        values = {row[4]: row[5] for row in self._export()}
+        self.assertEqual(
+            {
+                source: values[source]
+                for source in ("Nice Tag", "Own Tag", "OK", "Nice Code", "Own Code")
+            },
+            {
+                "Nice Tag": "",
+                "Own Tag": "Etiqueta propia",
+                "OK": "OK",
+                "Nice Code": "",
+                "Own Code": "Código propio",
+            },
+        )
+
+    def test_database_value_is_exported_only_when_no_other_file_could_write_it(self):
+        values = {row[4]: row[5] for row in self._export()}
+        self.assertEqual(values["Edited Tag"], "Etiqueta editada")
+        self.assertEqual(values["Shared Tag"], "")
+
+    def test_the_replaced_file_is_the_writers_previous_file(self):
+        self.assertEqual(self._export().previous, _ES_CL_PO)
+
+
+@tagged("post_install", "-at_install")
+class TestI18nExportCommand(TransactionCase):
+    def test_languages_are_written_to_the_module_file_stems(self):
+        languages = (
+            self.env["res.lang"]
+            .with_context(active_test=False)
+            .search(
+                [("code", "in", ["ca_ES", "de_DE", "de_CH", "es_CL", "ko_KR", "pt_BR"])]
+            )
+        )
+        written = []
+        with tempfile.TemporaryDirectory() as tmp:
+            i18n = Path(tmp, "i18n")
+            i18n.mkdir()
+            for stem in ("ca", "de", "es_CL", "ko"):
+                (i18n / f"{stem}.po").write_text("", encoding="utf-8")
+            with (
+                patch("odoo.cli.i18n.get_module_path", return_value=tmp),
+                patch.object(
+                    I18n,
+                    "_export_translations_to_path",
+                    lambda self, env, modules, lang, path: written.append(
+                        Path(path).name
+                    ),
+                ),
+            ):
+                I18n()._export_translations_to_modules(
+                    self.env, ["base"], languages, export_pot=False
+                )
+        self.assertEqual(
+            sorted(written),
+            ["ca.po", "de.po", "de_CH.po", "es_CL.po", "ko.po", "pt_BR.po"],
+        )
+
+    def test_the_replaced_file_is_read_before_it_is_written(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, "es_CL.po")
+            path.write_text(_ES_CL_PO, encoding="utf-8")
+
+            def export_what_is_on_disk(lang, modules, buffer, format, env):
+                buffer.write(path.read_bytes())
+                return True
+
+            with patch("odoo.cli.i18n.trans_export", export_what_is_on_disk):
+                I18n()._export_translations_to_path(self.env, ["base"], "es_CL", path)
+            self.assertEqual(path.read_text(encoding="utf-8"), _ES_CL_PO)
+
+
+class TestI18nMergeCommand(BaseCase):
+    def test_a_file_is_merged_with_its_module_template(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            i18n = Path(tmp, "base", "i18n")
+            i18n.mkdir(parents=True)
+            (i18n / "base.pot").write_text(
+                "#. module: base\n"
+                "#: model:res.partner.tag,name:base.test_export_ok\n"
+                'msgid "OK"\n'
+                'msgstr ""\n\n'
+                "#. module: base\n"
+                "#: code:addons/base/new.py:0\n"
+                'msgid "New Code"\n'
+                'msgstr ""\n',
+                encoding="utf-8",
+            )
+            po = i18n / "es_CL.po"
+            po.write_text(_ES_CL_PO, encoding="utf-8")
+            I18n()._merge_translations(argparse.Namespace(files=[po], template=None))
+            merged = PoFileReader(str(po)).pofile
+        self.assertEqual(
+            {entry.msgid: entry.msgstr for entry in merged if not entry.obsolete},
+            {"OK": "OK", "New Code": ""},
+        )
+        self.assertEqual(
+            {entry.msgid for entry in merged if entry.obsolete},
+            {"Own Tag", "Own Code"},
+        )
+        self.assertEqual(merged.metadata["Language"], "es_CL")

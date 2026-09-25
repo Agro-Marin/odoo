@@ -376,6 +376,12 @@ msgstr "%(user_name)s bu kanala bir mesaj sabitledi."
 #. module: mail
 #. odoo-python
 #: code:addons/mail/models/ir_mail_server.py:0
+msgid "%s (Dedicated Outgoing Mail Server):"
+msgstr "%s (Özel Giden Posta Sunucusu):"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
 msgid "%s (Email Template)"
 msgstr "%s (E-posta Şablonu)"
 
@@ -677,6 +683,11 @@ msgid ""
 msgstr ""
 "<span class=\"o_form_label fw-bold\" invisible=\"not "
 "has_external_mail_server\">Giden Posta Sunucusu</span>"
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "<span class=\"o_form_label\">MB</span>"
+msgstr "<span class=\"o_form_label\">MB</span>"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_view_form_popup
@@ -1558,6 +1569,17 @@ msgstr "Tüm Mesajlar"
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SMTP exception occurred. Check port number and connection security type.\n"
+" %s"
+msgstr ""
+"SMTP özel durumu oluştu. Bağlantı noktası numarasını ve bağlantı güvenliği "
+"türünü kontrol edin.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 msgid ""
 "An SSL exception occurred. Check SSL/TLS configuration on server port.\n"
@@ -1566,6 +1588,26 @@ msgstr ""
 "Bir SSL özel durumu oluştu. Sunucu bağlantı noktasındaki SSL/TLS "
 "yapılandırmasını kontrol edin.\n"
 " %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" %s"
+msgstr ""
+"Bir SSL özel durumu oluştu. Bağlantı güvenliği türünü kontrol edin.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" CertificateError: %s"
+msgstr ""
+"Bir SSL istisnası oluştu. Bağlantı güvenlik türünü kontrol edin.\n"
+" CertificateError: %s"
 
 #. module: mail
 #. odoo-python
@@ -1596,6 +1638,16 @@ msgstr "“%(record_name)s” için e-posta gönderilirken bir hata oluştu"
 #: code:addons/mail/static/src/core/common/thread.xml:0
 msgid "An error occurred while fetching messages."
 msgstr "İletiler alınırken bir hata oluştu."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An option is not supported by the server:\n"
+" %s"
+msgstr ""
+"Bir seçenek sunucu tarafından desteklenmiyor:\n"
+" %s"
 
 #. module: mail
 #. odoo-javascript
@@ -1798,6 +1850,23 @@ msgid "Audio player:"
 msgstr "Ses oynatıcı:"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Authenticate by using SSL certificates, belonging to your domain name. \n"
+"SSL certificates allow you to authenticate your mail server for the entire "
+"domain name."
+msgstr ""
+"Alan adınıza ait SSL sertifikalarını kullanarak kimlik doğrulaması yapın. \n"
+"SSL sertifikaları, posta sunucunuzun tüm alan adı için kimlik doğrulamasını "
+"yapmanızı sağlar."
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication
+msgid "Authenticate with"
+msgstr "İle kimlik doğrulaması yapın"
+
+#. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_alias__alias_contact__partners
 msgid "Authenticated Partners"
 msgstr "Kimliği Doğrulanmış İş Ortakları"
@@ -1806,6 +1875,11 @@ msgstr "Kimliği Doğrulanmış İş Ortakları"
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_form
 msgid "Authentication"
 msgstr "Kimlik Doğrulama"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication_info
+msgid "Authentication Info"
+msgstr "Kimlik Doğrulama Bilgileri"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_compose_message__author_id
@@ -2514,6 +2588,11 @@ msgid "Cc"
 msgstr "İlgili Kopyası (CC)"
 
 #. module: mail
+#: model:ir.model.constraint,message:mail.constraint_ir_mail_server_certificate_requires_tls
+msgid "Certificate-based authentication requires a TLS transport"
+msgstr "Sertifikalı kimlik doğrulama TLS taşımayı gerektirir"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_activity__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_schedule__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_type__chaining_type
@@ -2809,6 +2888,16 @@ msgstr ""
 "kullanılabilir)"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__from_filter
+msgid ""
+"Comma-separated list of addresses or domains for which this server can be "
+"used.\n"
+"e.g.: \"notification@odoo.com\" or \"odoo.com\""
+msgstr ""
+"Bu sunucunun kullanılabileceği adres veya alan adlarının virgülle ayrılmış "
+"listesi.Örn: \"notification@odoo.com\" veya \"odoo.com\""
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__email_to
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
 msgid "Comma-separated recipient addresses"
@@ -2818,6 +2907,11 @@ msgstr "Virgülle ayrılmış alıcı adresleri"
 #: model:ir.model.fields,help:mail.field_mail_template__email_to
 msgid "Comma-separated recipient addresses (placeholders may be used here)"
 msgstr "Virgülle ayrılmış alıcı adresleri (burada yertutucular kullanılır)"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__cli
+msgid "Command Line Interface"
+msgstr "Komut Satırı Arayüzü"
 
 #. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_compose_message__message_type__comment
@@ -2936,6 +3030,39 @@ msgstr "Tebrikler, gelen kutunuz boş"
 #: code:addons/mail/static/src/core/web/discuss_patch.js:0
 msgid "Congratulations, your inbox is empty!"
 msgstr "Tebrikler, gelen kutunuz boş!"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connect to your server through your usual username and password. \n"
+"This is the most basic SMTP authentication process and may not be accepted "
+"by all providers. \n"
+msgstr ""
+"Her zamanki kullanıcı adınız ve şifrenizle sunucunuza bağlanın. \n"
+"Bu, en temel SMTP kimlik doğrulama işlemidir ve tüm sağlayıcılar tarafından "
+"kabul edilmeyebilir. \n"
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Connection"
+msgstr "Bağlantı"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_fetchmail_server__encryption
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_encryption
+msgid "Connection Encryption"
+msgstr "Bağlantı Şifreleme"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connection Test Failed! Here is what we got instead:\n"
+" %s"
+msgstr ""
+"Bağlantı Testi Başarısız! : Onun yerine buna sahibiz:\n"
+" %s"
 
 #. module: mail
 #. odoo-python
@@ -3075,6 +3202,11 @@ msgid "Conversations"
 msgstr "Konuşmalar"
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Convert attachments to links for emails over"
+msgstr "E-postalar için ekleri bağlantılara dönüştür"
+
+#. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/core/common/message_actions.js:0
 msgid "Copy Link"
@@ -3095,6 +3227,16 @@ msgid ""
 msgstr ""
 "Posta sunucusuyla bağlantı kurulamadı, lütfen giden e-posta sunucusu "
 "yapılandırmanızı kontrol edin."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Could not load your certificate / private key. \n"
+"%s"
+msgstr ""
+"Sertifikanız / özel anahtarınız yüklenemedi. \n"
+"%s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_thread_blacklist__message_bounce
@@ -3486,6 +3628,11 @@ msgstr "Sayın Gönderen"
 #: model_terms:ir.ui.view,arch_db:mail.message_notification_limit_email
 msgid "Dear Sender,"
 msgstr "Sayın Gönderici,"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_debug
+msgid "Debugging"
+msgstr "Hata Ayıklama"
 
 #. module: mail
 #. odoo-python
@@ -4350,6 +4497,12 @@ msgid "Email domain e.g. 'example.com' in 'odoo@example.com'"
 msgstr "E-posta alan adı, örneğin 'odoo@example.com' adresindeki 'example.com'"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Email maximum size updated (%(details)s)."
+msgstr "E-posta azami boyutu güncellendi (%(details)s)."
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_form
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_message_subtype_form
 msgid "Email message"
@@ -4585,6 +4738,11 @@ msgstr "Ek Yorumlar ..."
 #: model_terms:ir.ui.view,arch_db:mail.discuss_channel_view_form
 msgid "Extra info"
 msgstr "Ek bilgi"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__from_filter
+msgid "FROM Filtering"
+msgstr "Filtrelemeden"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_config_settings__fail_counter
@@ -5339,6 +5497,11 @@ msgstr ""
 #: code:addons/mail/static/src/core/web/thread_patch.xml:0
 msgid "History"
 msgstr "Geçmiş"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_host
+msgid "Hostname or IP of SMTP server"
+msgstr "SMTP sunucunun IP adresi ya da alan adı"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_fetchmail_server__server
@@ -6805,6 +6968,12 @@ msgid "Mail Composer Mixin"
 msgstr "Posta Oluşturucu Karışımı"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Mail Delivery Failed"
+msgstr "Posta Teslim Başarısız"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_notification__mail_email_address
 msgid "Mail Email Address"
 msgstr "Posta E-posta Adresi"
@@ -6888,6 +7057,16 @@ msgid ""
 msgstr ""
 "Yorum modundaki e-posta düzenleyici en az bir kayıt üzerinde çalışmalıdır. "
 "Hiçbir kayıt bulunamadı (model %(model_name)s)."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Mail delivery failed via SMTP server '%(server)s'.\n"
+"%(exception_name)s: %(message)s"
+msgstr ""
+"SMTP sunucudan posta gönderimi yapılamadı '%(server)s'.\n"
+"%(exception_name)s: %(message)s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_mail__is_notification
@@ -7029,6 +7208,11 @@ msgstr "Okunmadı Olarak İşaretle"
 #: code:addons/mail/static/src/core/web/activity_list_popover_item.xml:0
 msgid "Mark as done"
 msgstr "Yapıldı olarak işaretle"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__max_email_size
+msgid "Max Email Size"
+msgstr "Azami E-posta Boyutu"
 
 #. module: mail
 #. odoo-javascript
@@ -7806,6 +7990,17 @@ msgstr "Alıcı bulunamadı."
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"No response received. Check server address and port number.\n"
+" %s"
+msgstr ""
+"Yanıt alınmadı. Sunucu adresini ve bağlantı noktası numarasını kontrol "
+"edin.\n"
+"  %s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 msgid ""
 "No response received. Check server information.\n"
@@ -8473,6 +8668,11 @@ msgstr ""
 "kullanılır."
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_pass
+msgid "Optional password for SMTP authentication"
+msgstr "SMTP kimlik doğrulaması için seçmeli parola"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template__mail_server_id
 msgid ""
 "Optional preferred server for outgoing mails. If not set, the highest "
@@ -8496,6 +8696,11 @@ msgstr ""
 "Ayarlanmazsa, ana ortağın dili kullanılacaktır. Bu genellikle uygun dili "
 "sağlayan bir yer tutucu ifade olmalıdır, örneğin "
 "{{ object.partner_id.lang }}."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_user
+msgid "Optional username for SMTP authentication"
+msgstr "SMTP kimlik doğrulaması için kullanıcı adı (opsiyonel)"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
@@ -8600,6 +8805,15 @@ msgstr "Giden Mail Server"
 #: model:ir.model.fields,field_description:mail.field_res_users__outgoing_mail_server_type
 msgid "Outgoing Mail Server Type"
 msgstr "Giden Posta Sunucusu Türü"
+
+#. module: mail
+#: model:ir.actions.act_window,name:mail.action_ir_mail_server_list
+#: model:ir.ui.menu,name:mail.menu_mail_servers
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_list
+#: model_terms:ir.ui.view,arch_db:mail.view_ir_mail_server_search
+msgid "Outgoing Mail Servers"
+msgstr "Giden Posta Sunucuları"
 
 #. module: mail
 #: model:ir.model,name:mail.model_mail_mail
@@ -9020,6 +9234,16 @@ msgstr "Planlama"
 #: code:addons/mail/static/src/discuss/voice_message/common/voice_player.xml:0
 msgid "Play"
 msgstr "Oynat"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Please configure an email on the current user to simulate sending an email "
+"message via this outgoing server"
+msgstr ""
+"Lütfen bu giden sunucu üzerinden bir e-posta mesajı göndermeyi simüle etmek "
+"için mevcut kullanıcı üzerinde bir e-posta yapılandırın"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_bounce_catchall
@@ -9879,6 +10103,18 @@ msgid "SFU Server key"
 msgstr "SFU Sunucu anahtarı"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port"
+msgstr "SMTP Port"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port. Usually 465 for SSL, and 25 or 587 for other cases."
+msgstr ""
+"SMTP Bağlantı Noktası. Genellikle SSL için 465, ve 25 veya diğer durumlar "
+"için 587."
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_email_template_search
 msgid "SMTP Server"
 msgstr "SMTP Sunucusu"
@@ -9889,9 +10125,54 @@ msgid "SSL"
 msgstr "SSL"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_certificate
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__certificate
+msgid "SSL Certificate"
+msgstr "SSL Sertifikası"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL Private Key"
+msgstr "SSL Özel Anahtar"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL certificate is missing for %s."
+msgstr "SSL sertifikası %s için eksik."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_certificate
+msgid "SSL certificate used for authentication"
+msgstr "Kimlik doğrulaması için kullanılan SSL sertifikası"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL private key is missing for %s."
+msgstr "SSL özel anahtarı %s için eksik."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL private key used for authentication"
+msgstr "Kimlik doğrulaması için kullanılan SSL özel anahtarı"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__is_ssl
 msgid "SSL/TLS"
 msgstr "SSL / TLS"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl_strict
+msgid "SSL/TLS, encryption and validation"
+msgstr "SSL/TLS, şifreleme ve doğrulama"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl
+msgid "SSL/TLS, encryption only"
+msgstr "SSL/TLS, yalnızca şifreleme"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
@@ -11064,6 +11345,18 @@ msgid "System notification"
 msgstr "Sistem bildirimi"
 
 #. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls_strict
+msgid "TLS (STARTTLS), encryption and validation"
+msgstr "TLS (STARTTLS), şifreleme ve doğrulama"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls
+msgid "TLS (STARTTLS), encryption only"
+msgstr "TLS (STARTTLS), yalnızca şifreleme"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
 msgid "TURN"
 msgstr "DÖNÜŞ"
@@ -11473,6 +11766,16 @@ msgstr ""
 "düşük öncelik anlamına gelir."
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The private key or the certificate is not a valid file. \n"
+"%s"
+msgstr ""
+"Özel anahtar veya sertifika geçerli bir dosya değil. \n"
+"%s"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__scheduled_date
 msgid "The queue manager will send the email after the date"
 msgstr "Kuyruk yöneticisi, tarihten sonra e-postayı gönderecektir"
@@ -11505,6 +11808,12 @@ msgstr ""
 #. module: mail
 #. odoo-python
 #: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server \"%(server_name)s\" doesn't return the maximum email size."
+msgstr "\"%(server_name)s\" sunucusu, azami e-posta boyutunu geri döndürmüyor."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
 msgid ""
 "The server \"%s\" cannot be forced as it belongs to a user and is archived."
 msgstr ""
@@ -11528,6 +11837,38 @@ msgstr "\"%s\" sunucusu, sahibi artık kullanmadığı için zorlanamaz."
 #: code:addons/mail/models/fetchmail.py:0
 msgid "The server \"%s\" cannot be used because it is archived."
 msgstr "\"%s\" sunucusu arşivlendiği için kullanılamıyor."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server has closed the connection unexpectedly. Check configuration "
+"served on this port number.\n"
+" %s"
+msgstr ""
+"Sunucu bağlantıyı beklenmedik şekilde kapattı. Bu bağlantı noktası "
+"numarasında sunulan yapılandırmayı kontrol edin.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the sender address (%(email_from)s) with error %(repl)s"
+msgstr "Sunucu, gönderen adresini(%(email_from)s)  %(repl)shatasıyla reddetti"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server refused the test connection with error %(repl)s"
+msgstr "Sunucu %(repl)shatasıyla test bağlantısını reddetti"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the test recipient (%(email_to)s) with error %(repl)s"
+msgstr "Sunucu, test alıcısını (%(email_to)s) %(repl)shatasıyla reddetti"
 
 #. module: mail
 #. odoo-javascript
@@ -12572,6 +12913,15 @@ msgid "Use template"
 msgstr "Şablonu Kullan"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Use the SMTP configuration set in the \"Command Line Interface\" arguments."
+msgstr ""
+"\"Komut Satırı Arayüzü\" argümanlarında ayarlanan SMTP yapılandırmasını "
+"kullan."
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_users_settings__use_push_to_talk
 msgid "Use the push to talk feature"
 msgstr "Bas-konuş özelliğini kullan"
@@ -13083,6 +13433,15 @@ msgid "What's your name?"
 msgstr "Adınız ne?"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__sequence
+msgid ""
+"When no specific mail server is requested for a mail, the highest priority "
+"one is used. Default priority is 10 (smaller number = higher priority)"
+msgstr ""
+"Posta için belirli bir posta sunucusu talep edilmediğinde, en yüksek öncelik "
+"kullanılır. Varsayılan öncelik 10'dur (daha küçük sayı = daha yüksek öncelik)"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_activity__user_tz
 msgid ""
 "When printing documents and exporting/importing data, time values are "
@@ -13306,6 +13665,30 @@ msgstr ""
 #: code:addons/mail/static/src/discuss/call/common/call_permission_dialog.js:0
 msgid "You can still turn off your %s anytime."
 msgstr "%s adresinizi istediğiniz zaman kapatabilirsiniz."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive these Outgoing Mail Servers (%(server_usage)s) because "
+"they are still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"Bu Giden Posta Sunucularını (%(server_usage)s) arşivleyemezsiniz, çünkü "
+"bunlar aşağıdaki durumlarda hala kullanılmaktadır:\n"
+"%(usage_details)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive this Outgoing Mail Server (%(server_usage)s) because it "
+"is still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"Bu Giden Posta Sunucusunu (%(server_usage)s) arşivleyemezsiniz çünkü "
+"aşağıdaki durum(lar)da hala kullanılmaktadır:\n"
+"%(usage_details)s"
 
 #. module: mail
 #. odoo-python
@@ -13756,6 +14139,11 @@ msgid "e.g. Log a note"
 msgstr "örn. Not kaydet"
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. My Outgoing Server"
+msgstr "örn. Giden Sunucum"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_plan_view_form
 msgid "e.g. Onboarding"
 msgstr "örn. İlk Katılım"
@@ -13769,6 +14157,11 @@ msgstr "örn. Toplantı planlama"
 #: model_terms:ir.ui.view,arch_db:mail.email_compose_message_wizard_form
 msgid "e.g. Welcome to MyCompany!"
 msgstr "ör. MyCompany'e Hoş Geldiniz!"
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. email@domain.com, domain.com"
+msgstr "örn. email@domain.com, domain.com"
 
 #. module: mail
 #. odoo-javascript

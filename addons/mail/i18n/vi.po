@@ -357,6 +357,12 @@ msgstr "%(user_name)s đã ghim một tin nhắn vào kênh này."
 #. module: mail
 #. odoo-python
 #: code:addons/mail/models/ir_mail_server.py:0
+msgid "%s (Dedicated Outgoing Mail Server):"
+msgstr "%s (Máy chủ Gửi Thư Đi Chuyên dụng):"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
 msgid "%s (Email Template)"
 msgstr "%s (Mẫu email)"
 
@@ -654,6 +660,11 @@ msgid ""
 "<span class=\"o_form_label fw-bold\" invisible=\"not "
 "has_external_mail_server\">Outgoing Mail Server</span>"
 msgstr ""
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "<span class=\"o_form_label\">MB</span>"
+msgstr "<span class=\"o_form_label\">MB</span>"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_view_form_popup
@@ -1536,6 +1547,16 @@ msgstr "Tất cả tin nhắn"
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SMTP exception occurred. Check port number and connection security type.\n"
+" %s"
+msgstr ""
+"Đã xảy ra ngoại lệ SMTP. Kiểm tra số port và loại bảo mật kết nối.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 msgid ""
 "An SSL exception occurred. Check SSL/TLS configuration on server port.\n"
@@ -1543,6 +1564,26 @@ msgid ""
 msgstr ""
 "Xuất hiện ngoại lệ SSL. Kiểm tra cấu hình SSL/TLS trong cổng máy chủ.\n"
 " %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" %s"
+msgstr ""
+"Đã xảy ra ngoại lệ SSL. Kiểm tra loại bảo mật kết nối.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" CertificateError: %s"
+msgstr ""
+"Đã xảy ra ngoại lệ SSL. Kiểm tra loại bảo mật kết nối.\n"
+" CertificateError: %s"
 
 #. module: mail
 #. odoo-python
@@ -1573,6 +1614,16 @@ msgstr "Có lỗi khi gửi email trên “%(record_name)s”"
 #: code:addons/mail/static/src/core/common/thread.xml:0
 msgid "An error occurred while fetching messages."
 msgstr "Đã xảy ra lỗi khi tìm nạp tin nhắn."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An option is not supported by the server:\n"
+" %s"
+msgstr ""
+"Một tùy chọn không được máy chủ hỗ trợ:\n"
+" %s"
 
 #. module: mail
 #. odoo-javascript
@@ -1775,6 +1826,22 @@ msgid "Audio player:"
 msgstr "Trình phát âm thanh:"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Authenticate by using SSL certificates, belonging to your domain name. \n"
+"SSL certificates allow you to authenticate your mail server for the entire "
+"domain name."
+msgstr ""
+"Xác thực bằng cách sử dụng chứng chỉ SSL, thuộc về tên miền của bạn.\n"
+"Chứng chỉ SSL cho phép bạn xác thực máy chủ email cho toàn bộ tên miền."
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication
+msgid "Authenticate with"
+msgstr "Xác thực với"
+
+#. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_alias__alias_contact__partners
 msgid "Authenticated Partners"
 msgstr "Đối tác đã xác thực"
@@ -1783,6 +1850,11 @@ msgstr "Đối tác đã xác thực"
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_form
 msgid "Authentication"
 msgstr "Xác thực"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication_info
+msgid "Authentication Info"
+msgstr "Thông tin Xác thực"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_compose_message__author_id
@@ -2485,6 +2557,11 @@ msgid "Cc"
 msgstr "Cc"
 
 #. module: mail
+#: model:ir.model.constraint,message:mail.constraint_ir_mail_server_certificate_requires_tls
+msgid "Certificate-based authentication requires a TLS transport"
+msgstr "Xác thực dựa trên chứng chỉ yêu cầu truyền tải TLS"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_activity__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_schedule__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_type__chaining_type
@@ -2778,6 +2855,17 @@ msgstr ""
 "ID của đối tác nhận cách nhau bằng dấu phảy (có thể dùng phần giữ chỗ ở đây)"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__from_filter
+msgid ""
+"Comma-separated list of addresses or domains for which this server can be "
+"used.\n"
+"e.g.: \"notification@odoo.com\" or \"odoo.com\""
+msgstr ""
+"Danh sách các địa chỉ hoặc tên miền được phân tách bằng dấu phẩy mà máy chủ "
+"này có thể được sử dụng.\n"
+"VD: \"notification@odoo.com\" hoặc \"odoo.com\""
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__email_to
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
 msgid "Comma-separated recipient addresses"
@@ -2788,6 +2876,11 @@ msgstr "Các địa chỉ người nhận cách nhau bằng dấu phảy"
 msgid "Comma-separated recipient addresses (placeholders may be used here)"
 msgstr ""
 "Địa chỉ người nhận cách nhau bằng dấu phảy (có thể dùng phần giữ chỗ ở đây)"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__cli
+msgid "Command Line Interface"
+msgstr "Giao diện dòng lệnh"
 
 #. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_compose_message__message_type__comment
@@ -2905,6 +2998,40 @@ msgstr "Thật tuyệt vời, hộp thư đến của bạn đã không còn mai
 #: code:addons/mail/static/src/core/web/discuss_patch.js:0
 msgid "Congratulations, your inbox is empty!"
 msgstr "Thật tuyệt vời, hộp thư đến của bạn đã không còn mail nào để xử lý!"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connect to your server through your usual username and password. \n"
+"This is the most basic SMTP authentication process and may not be accepted "
+"by all providers. \n"
+msgstr ""
+"Kết nối với máy chủ thông qua tên người dùng và mật khẩu thông thường của "
+"bạn.\n"
+"Đây là quy trình xác thực SMTP cơ bản nhất và có thể không được tất cả các "
+"nhà cung cấp chấp nhận. \n"
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Connection"
+msgstr "Kết nối"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_fetchmail_server__encryption
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_encryption
+msgid "Connection Encryption"
+msgstr "Mã hóa Kết nối"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connection Test Failed! Here is what we got instead:\n"
+" %s"
+msgstr ""
+"Kiểm thử kết nối không thành công! Đây là những gì chúng ta có được:\n"
+" %s"
 
 #. module: mail
 #. odoo-python
@@ -3042,6 +3169,11 @@ msgid "Conversations"
 msgstr ""
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Convert attachments to links for emails over"
+msgstr "Chuyển đổi tệp đính kèm thành liên kết cho email qua"
+
+#. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/core/common/message_actions.js:0
 msgid "Copy Link"
@@ -3060,6 +3192,16 @@ msgid ""
 "Could not contact the mail server, please check your outgoing email server "
 "configuration."
 msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Could not load your certificate / private key. \n"
+"%s"
+msgstr ""
+"Không thể tải chứng chỉ / khóa cá nhân của bạn. \n"
+"%s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_thread_blacklist__message_bounce
@@ -3452,6 +3594,11 @@ msgstr "Xin chào Người gửi"
 #: model_terms:ir.ui.view,arch_db:mail.message_notification_limit_email
 msgid "Dear Sender,"
 msgstr "Xin chào Người gửi,"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_debug
+msgid "Debugging"
+msgstr "Gỡ lỗi"
 
 #. module: mail
 #. odoo-python
@@ -4314,6 +4461,12 @@ msgid "Email domain e.g. 'example.com' in 'odoo@example.com'"
 msgstr "Ví dụ miền email 'example.com' trong 'odoo@example.com'"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Email maximum size updated (%(details)s)."
+msgstr "Kích thước tối đa của email đã được cập nhật (%(details)s)."
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_form
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_message_subtype_form
 msgid "Email message"
@@ -4548,6 +4701,11 @@ msgstr "Bình luận bổ sung..."
 #: model_terms:ir.ui.view,arch_db:mail.discuss_channel_view_form
 msgid "Extra info"
 msgstr "Thông tin bổ sung"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__from_filter
+msgid "FROM Filtering"
+msgstr "Bộ lọc TỪ"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_config_settings__fail_counter
@@ -5296,6 +5454,11 @@ msgstr "Ẩn người dùng chung / cổng thông tin, độc lập với cấu 
 #: code:addons/mail/static/src/core/web/thread_patch.xml:0
 msgid "History"
 msgstr "Lịch sử"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_host
+msgid "Hostname or IP of SMTP server"
+msgstr "Tên máy chủ hoặc IP của máy chủ SMTP"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_fetchmail_server__server
@@ -6762,6 +6925,12 @@ msgid "Mail Composer Mixin"
 msgstr "Mixin trình soạn thảo email"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Mail Delivery Failed"
+msgstr "Lỗi gửi mail"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_notification__mail_email_address
 msgid "Mail Email Address"
 msgstr ""
@@ -6845,6 +7014,16 @@ msgid ""
 msgstr ""
 "Trình soạn thảo email ở chế độ bình luận phải chạy trên ít nhất một bản ghi. "
 "Không tìm thấy bản ghi nào (mô hình %(model_name)s)."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Mail delivery failed via SMTP server '%(server)s'.\n"
+"%(exception_name)s: %(message)s"
+msgstr ""
+"Gửi email gửi thất bại qua máy chủ SMTP '%(server)s'.\n"
+"%(exception_name)s: %(message)s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_mail__is_notification
@@ -6986,6 +7165,11 @@ msgstr "Đánh dấu là chưa đọc"
 #: code:addons/mail/static/src/core/web/activity_list_popover_item.xml:0
 msgid "Mark as done"
 msgstr "Đánh dấu xong"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__max_email_size
+msgid "Max Email Size"
+msgstr "Kích thước email tối đa"
 
 #. module: mail
 #. odoo-javascript
@@ -7767,6 +7951,16 @@ msgstr "Không tìm thấy người nhận."
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"No response received. Check server address and port number.\n"
+" %s"
+msgstr ""
+"Không nhận được phản hồi. Kiểm tra địa chỉ server và số port.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 msgid ""
 "No response received. Check server information.\n"
@@ -8432,6 +8626,11 @@ msgid "Optional mail_mail ID. Used mainly to optimize searches."
 msgstr "ID mail_mail tuỳ chỉnh. Được sử dụng chủ yếu để tối ưu hoá tìm kiếm."
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_pass
+msgid "Optional password for SMTP authentication"
+msgstr "Mật khẩu (nếu có) để xác thực SMTP"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template__mail_server_id
 msgid ""
 "Optional preferred server for outgoing mails. If not set, the highest "
@@ -8455,6 +8654,11 @@ msgstr ""
 "thiết lập, ngôn ngữ của đối tác chính sẽ được sử dụng. Đây thường là một "
 "biểu thức giữ chỗ cung cấp ngôn ngữ phù hợp, ví dụ: "
 "{{ object.partner_id.lang }}."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_user
+msgid "Optional username for SMTP authentication"
+msgstr "Tên đăng nhập (nếu có) để xác thực SMTP"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
@@ -8559,6 +8763,15 @@ msgstr "Máy chủ gửi email"
 #: model:ir.model.fields,field_description:mail.field_res_users__outgoing_mail_server_type
 msgid "Outgoing Mail Server Type"
 msgstr ""
+
+#. module: mail
+#: model:ir.actions.act_window,name:mail.action_ir_mail_server_list
+#: model:ir.ui.menu,name:mail.menu_mail_servers
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_list
+#: model_terms:ir.ui.view,arch_db:mail.view_ir_mail_server_search
+msgid "Outgoing Mail Servers"
+msgstr "Máy chủ gửi email"
 
 #. module: mail
 #: model:ir.model,name:mail.model_mail_mail
@@ -8979,6 +9192,16 @@ msgstr "Kế hoạch"
 #: code:addons/mail/static/src/discuss/voice_message/common/voice_player.xml:0
 msgid "Play"
 msgstr "Mở"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Please configure an email on the current user to simulate sending an email "
+"message via this outgoing server"
+msgstr ""
+"Vui lòng định cấu hình email trên người dùng hiện tại để mô phỏng gửi email "
+"qua máy chủ gửi đi này"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_bounce_catchall
@@ -9839,6 +10062,18 @@ msgid "SFU Server key"
 msgstr "Khoá máy chủ SFU"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port"
+msgstr "Cổng SMTP"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port. Usually 465 for SSL, and 25 or 587 for other cases."
+msgstr ""
+"Cổng SMTP. Thường dùng 465 cho SSL, và 25 hoặc 587 đối với các trường hợp "
+"khác."
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_email_template_search
 msgid "SMTP Server"
 msgstr "Máy chủ SMTP"
@@ -9849,9 +10084,54 @@ msgid "SSL"
 msgstr "SSL"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_certificate
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__certificate
+msgid "SSL Certificate"
+msgstr "Chứng chỉ SSL"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL Private Key"
+msgstr "Khóa SSL bí mật"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL certificate is missing for %s."
+msgstr "Chứng chỉ SSL bị thiếu đối với %s."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_certificate
+msgid "SSL certificate used for authentication"
+msgstr "Chứng chỉ SSL được sử dụng để xác thực"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL private key is missing for %s."
+msgstr "Khóa cá nhân SSL bị thiếu cho %s."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL private key used for authentication"
+msgstr "Khóa cá nhân SSL được sử dụng để xác thực"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__is_ssl
 msgid "SSL/TLS"
 msgstr "SSL/TLS"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl_strict
+msgid "SSL/TLS, encryption and validation"
+msgstr "SSL/TLS, mã hóa và xác thực"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl
+msgid "SSL/TLS, encryption only"
+msgstr "SSL/TLS, chỉ mã hóa"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
@@ -11019,6 +11299,18 @@ msgid "System notification"
 msgstr "Thông báo của hệ thống"
 
 #. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls_strict
+msgid "TLS (STARTTLS), encryption and validation"
+msgstr "TLS (STARTTLS), mã hóa và xác thực"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls
+msgid "TLS (STARTTLS), encryption only"
+msgstr "TLS (STARTTLS), chỉ mã hóa"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
 msgid "TURN"
 msgstr ""
@@ -11430,6 +11722,16 @@ msgstr ""
 "có nghĩa là ưu tiên thấp hơn."
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The private key or the certificate is not a valid file. \n"
+"%s"
+msgstr ""
+"Khóa cá nhân hoặc chứng chỉ không phải là tệp hợp lệ. \n"
+"%s"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__scheduled_date
 msgid "The queue manager will send the email after the date"
 msgstr "Quản lý hàng đợi sẽ gửi email sau ngày"
@@ -11462,6 +11764,12 @@ msgstr ""
 #. module: mail
 #. odoo-python
 #: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server \"%(server_name)s\" doesn't return the maximum email size."
+msgstr "Máy chủ \"%(server_name)s\" không trả về kích thước email tối đa."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
 msgid ""
 "The server \"%s\" cannot be forced as it belongs to a user and is archived."
 msgstr ""
@@ -11484,6 +11792,38 @@ msgstr ""
 #: code:addons/mail/models/fetchmail.py:0
 msgid "The server \"%s\" cannot be used because it is archived."
 msgstr "Không thể sử dụng máy chủ \"%s\" vì nó đã được lưu trữ."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server has closed the connection unexpectedly. Check configuration "
+"served on this port number.\n"
+" %s"
+msgstr ""
+"Máy chủ đã đóng kết nối đột ngột. Kiểm tra cấu hình được cung cấp trên số "
+"port này.\n"
+" %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the sender address (%(email_from)s) with error %(repl)s"
+msgstr "Máy chủ từ chối địa chỉ người gửi (%(email_from)s) với lỗi %(repl)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server refused the test connection with error %(repl)s"
+msgstr "Máy chủ từ chối kết nối kiểm thử với lỗi %(repl)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the test recipient (%(email_to)s) with error %(repl)s"
+msgstr "Máy chủ từ chối nhận kiểm thử (%(email_to)s) với lỗi %(repl)s"
 
 #. module: mail
 #. odoo-javascript
@@ -12528,6 +12868,15 @@ msgid "Use template"
 msgstr "Sử dụng mẫu"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Use the SMTP configuration set in the \"Command Line Interface\" arguments."
+msgstr ""
+"Sử dụng cấu hình SMTP được thiết lập trong các đối số \"Giao diện dòng "
+"lệnh\"."
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_users_settings__use_push_to_talk
 msgid "Use the push to talk feature"
 msgstr "Sử dụng tính năng push to talk"
@@ -13036,6 +13385,16 @@ msgid "What's your name?"
 msgstr "Bạn tên là gì?"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__sequence
+msgid ""
+"When no specific mail server is requested for a mail, the highest priority "
+"one is used. Default priority is 10 (smaller number = higher priority)"
+msgstr ""
+"Khi thư không yêu cầu máy chủ thư cụ thể nào, máy chủ có mức ưu tiên cao "
+"nhất sẽ được sử dụng. Mức độ ưu tiên mặc định là 10 (số nhỏ hơn = mức độ ưu "
+"tiên cao hơn)"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_activity__user_tz
 msgid ""
 "When printing documents and exporting/importing data, time values are "
@@ -13261,6 +13620,30 @@ msgstr "Bạn chỉ có thể chat với đối tác có tài khoản người d
 #: code:addons/mail/static/src/discuss/call/common/call_permission_dialog.js:0
 msgid "You can still turn off your %s anytime."
 msgstr ""
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive these Outgoing Mail Servers (%(server_usage)s) because "
+"they are still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"Bạn không thể lưu trữ các Máy chủ thư đi này (%(server_usage)s) bởi vì chúng "
+"vẫn được sử dụng trong (các) trường hợp sau:\n"
+"%(usage_details)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive this Outgoing Mail Server (%(server_usage)s) because it "
+"is still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"Bạn không thể lưu trữ Máy chủ thư đi này (%(server_usage)s) bởi vì nó vẫn "
+"được sử dụng trong (các) trường hợp sau:\n"
+"%(usage_details)s"
 
 #. module: mail
 #. odoo-python
@@ -13709,6 +14092,11 @@ msgid "e.g. Log a note"
 msgstr "VD: Lưu ghi chú"
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. My Outgoing Server"
+msgstr "ví dụ: Máy chủ gửi đi của tôi"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_plan_view_form
 msgid "e.g. Onboarding"
 msgstr "VD: Onboarding"
@@ -13722,6 +14110,11 @@ msgstr "VD: Lên lịch một cuộc họp"
 #: model_terms:ir.ui.view,arch_db:mail.email_compose_message_wizard_form
 msgid "e.g. Welcome to MyCompany!"
 msgstr ""
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. email@domain.com, domain.com"
+msgstr "VD: email@domain.com, domain.com"
 
 #. module: mail
 #. odoo-javascript

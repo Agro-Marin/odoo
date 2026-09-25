@@ -2517,6 +2517,11 @@ msgid "Dear Sender,"
 msgstr ""
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_debug
+msgid "Debugging"
+msgstr "ડિબગીંગ"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_activity__activity_decoration
 #: model:ir.model.fields,field_description:mail.field_mail_activity_type__decoration_type
 msgid "Decoration Type"
@@ -6360,7 +6365,7 @@ msgstr ""
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__password
 msgid "Password"
-msgstr ""
+msgstr "પાસવર્ડ"
 
 #. module: mail
 #. odoo-javascript
@@ -6591,6 +6596,12 @@ msgstr ""
 #: code:addons/mail/static/src/attachments/attachment_viewer.xml:0
 msgid "Print"
 msgstr "છાપો"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_cron__priority
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__sequence
+msgid "Priority"
+msgstr "પ્રાથમિકતા"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.discuss_channel_view_form
@@ -8848,7 +8859,7 @@ msgstr ""
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__user
 #: model:ir.model.fields,field_description:mail.field_mail_ice_server__username
 msgid "Username"
-msgstr ""
+msgstr "વપરાશકર્તા નામ"
 
 #. module: mail
 #. odoo-python

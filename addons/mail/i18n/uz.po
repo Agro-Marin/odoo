@@ -384,6 +384,12 @@ msgstr "%(user_name)s ushbu kanalga xabar qadadi."
 #. module: mail
 #. odoo-python
 #: code:addons/mail/models/ir_mail_server.py:0
+msgid "%s (Dedicated Outgoing Mail Server):"
+msgstr "%s (Maxsus chiquvchi pochta serveri):"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
 #, fuzzy
 msgid "%s (Email Template)"
 msgstr "%s (Elektron pochta andozasi)"
@@ -725,6 +731,11 @@ msgid ""
 msgstr ""
 "<span class=\"o_form_label fw-bold\" invisible=\"not "
 "has_external_mail_server\">Chiquvchi pochta serveri</span>"
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "<span class=\"o_form_label\">MB</span>"
+msgstr "<span class=\"o_form_label\">MB</span>"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_view_form_popup
@@ -1704,6 +1715,16 @@ msgstr "Barcha xabarlar"
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SMTP exception occurred. Check port number and connection security type.\n"
+" %s"
+msgstr ""
+"SMTP xatosi yuz berdi. Port raqami va ulanish xavfsizligi turini "
+"tekshiring.  %s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 #, fuzzy
 msgid ""
@@ -1711,6 +1732,24 @@ msgid ""
 " %s"
 msgstr ""
 "SSL xatosi yuz berdi. Server portidagi SSL/TLS sozlamalarini tekshiring.  %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" %s"
+msgstr "SSL xatosi yuz berdi. Ulanish xavfsizligi turini tekshiring.  %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An SSL exception occurred. Check connection security type.\n"
+" CertificateError: %s"
+msgstr ""
+"SSL xatosi yuz berdi. Ulanish xavfsizligi turini tekshiring.  Sertifikat "
+"xatosi: %s"
 
 #. module: mail
 #. odoo-python
@@ -1746,6 +1785,14 @@ msgstr "\"%(record_name)s\" manziliga xat yuborishda xatolik yuz berdi"
 #, fuzzy
 msgid "An error occurred while fetching messages."
 msgstr "Xabarlarni olishda xatolik yuz berdi."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"An option is not supported by the server:\n"
+" %s"
+msgstr "Server quyidagi parametrni qo‘llab-quvvatlamaydi: %s"
 
 #. module: mail
 #. odoo-javascript
@@ -1975,6 +2022,23 @@ msgid "Audio player:"
 msgstr "Audio pleyer:"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Authenticate by using SSL certificates, belonging to your domain name. \n"
+"SSL certificates allow you to authenticate your mail server for the entire "
+"domain name."
+msgstr ""
+"Domen nomingizga tegishli SSL sertifikatlari yordamida autentifikatsiya "
+"qiling.  SSL sertifikatlari butun domen nomi uchun pochta serveringizni "
+"autentifikatsiya qilish imkonini beradi."
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication
+msgid "Authenticate with"
+msgstr "Bilan autentifikatsiya"
+
+#. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_alias__alias_contact__partners
 #, fuzzy
 msgid "Authenticated Partners"
@@ -1985,6 +2049,11 @@ msgstr "Tasdiqlangan hamkorlar"
 #, fuzzy
 msgid "Authentication"
 msgstr "Autentifikatsiya"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_authentication_info
+msgid "Authentication Info"
+msgstr "Autentifikatsiya ma'lumotlari"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_compose_message__author_id
@@ -2807,6 +2876,11 @@ msgid "Cc"
 msgstr "Nusxa"
 
 #. module: mail
+#: model:ir.model.constraint,message:mail.constraint_ir_mail_server_certificate_requires_tls
+msgid "Certificate-based authentication requires a TLS transport"
+msgstr "Sertifikatga asoslangan autentifikatsiya TLS transportini talab qiladi"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_activity__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_schedule__chaining_type
 #: model:ir.model.fields,field_description:mail.field_mail_activity_type__chaining_type
@@ -3147,6 +3221,17 @@ msgstr ""
 "yerda o‘rin to‘ldiruvchilar ishlatilishi mumkin)"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__from_filter
+msgid ""
+"Comma-separated list of addresses or domains for which this server can be "
+"used.\n"
+"e.g.: \"notification@odoo.com\" or \"odoo.com\""
+msgstr ""
+"Ushbu server foydalanilishi mumkin bo‘lgan manzillar yoki domenlarning "
+"vergul bilan ajratilgan ro‘yxati. Masalan: \"notification@odoo.com\" yoki "
+"\"odoo.com\""
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__email_to
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
 #, fuzzy
@@ -3160,6 +3245,11 @@ msgid "Comma-separated recipient addresses (placeholders may be used here)"
 msgstr ""
 "Qabul qiluvchilarning vergul bilan ajratilgan manzillari (bu yerda o‘rin "
 "to‘ldiruvchilar ishlatilishi mumkin)"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__cli
+msgid "Command Line Interface"
+msgstr "Buyruqlar qatori interfeysi"
 
 #. module: mail
 #: model:ir.model.fields.selection,name:mail.selection__mail_compose_message__message_type__comment
@@ -3297,6 +3387,39 @@ msgstr "Tabriklaymiz, pochtangiz bo‘sh"
 #, fuzzy
 msgid "Congratulations, your inbox is empty!"
 msgstr "Tabriklaymiz, pochtangiz bo‘sh!"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connect to your server through your usual username and password. \n"
+"This is the most basic SMTP authentication process and may not be accepted "
+"by all providers. \n"
+msgstr ""
+"Odatdagi foydalanuvchi nomi va parolingiz orqali serveringizga ulaning.  Bu "
+"eng oddiy SMTP autentifikatsiya jarayoni bo‘lib, barcha provayderlar "
+"tomonidan qabul qilinmasligi mumkin."
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Connection"
+msgstr "Ulanish"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_fetchmail_server__encryption
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_encryption
+msgid "Connection Encryption"
+msgstr "Ulanishni shifrlash"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Connection Test Failed! Here is what we got instead:\n"
+" %s"
+msgstr ""
+"Ulanish testi muvaffaqiyatsiz yakunlandi! Buning o‘rniga quyidagilarni "
+"oldik: %s"
 
 #. module: mail
 #. odoo-python
@@ -3457,6 +3580,11 @@ msgid "Conversations"
 msgstr "Suhbatlar"
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "Convert attachments to links for emails over"
+msgstr "Hajmi katta elektron xatlar uchun ilovalarni havolalarga aylantirish"
+
+#. module: mail
 #. odoo-javascript
 #: code:addons/mail/static/src/core/common/message_actions.js:0
 #, fuzzy
@@ -3480,6 +3608,14 @@ msgid ""
 msgstr ""
 "Pochta serveriga ulanib bo‘lmadi, chiquvchi elektron pochta serveringiz "
 "sozlamalarini tekshiring."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Could not load your certificate / private key. \n"
+"%s"
+msgstr "Sertifikatingiz / maxfiy kalitingizni yuklab bo‘lmadi.  %s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_thread_blacklist__message_bounce
@@ -3933,6 +4069,11 @@ msgstr "Hurmatli yuboruvchi"
 #, fuzzy
 msgid "Dear Sender,"
 msgstr "Hurmatli yuboruvchi,"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_debug
+msgid "Debugging"
+msgstr "Nosozliklarni tuzatish"
 
 #. module: mail
 #. odoo-python
@@ -4917,6 +5058,12 @@ msgid "Email domain e.g. 'example.com' in 'odoo@example.com'"
 msgstr "Elektron pochta domeni, masalan, 'odoo@example.com' dagi 'example.com'"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Email maximum size updated (%(details)s)."
+msgstr "Elektron pochtaning maksimal hajmi yangilandi (%(details)s)."
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_form
 #: model_terms:ir.ui.view,arch_db:mail.view_mail_message_subtype_form
 #, fuzzy
@@ -5181,6 +5328,11 @@ msgstr "Qo‘shimcha izohlar..."
 #, fuzzy
 msgid "Extra info"
 msgstr "Qo‘shimcha ma'lumot"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__from_filter
+msgid "FROM Filtering"
+msgstr "DAN filtrlash"
 
 #. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_config_settings__fail_counter
@@ -6049,6 +6201,11 @@ msgstr ""
 #, fuzzy
 msgid "History"
 msgstr "Tarix"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_host
+msgid "Hostname or IP of SMTP server"
+msgstr "SMTP serverining xost nomi yoki IP manzili"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_fetchmail_server__server
@@ -7722,6 +7879,12 @@ msgid "Mail Composer Mixin"
 msgstr "Xat yozuvchisi aralashmasi"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "Mail Delivery Failed"
+msgstr "Xat yetkazib berilmadi"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_mail_notification__mail_email_address
 #, fuzzy
 msgid "Mail Email Address"
@@ -7820,6 +7983,16 @@ msgid ""
 msgstr ""
 "Izoh rejimidagi xat yozuvchisi kamida bitta yozuvda ishlashi kerak. Hech "
 "qanday yozuv topilmadi (model %(model_name)s)."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Mail delivery failed via SMTP server '%(server)s'.\n"
+"%(exception_name)s: %(message)s"
+msgstr ""
+"'%(server)s' SMTP serveri orqali xat yetkazib berilmadi. %(exception_name)s: "
+"%(message)s"
 
 #. module: mail
 #: model:ir.model.fields,help:mail.field_mail_mail__is_notification
@@ -7984,6 +8157,11 @@ msgstr "O‘qilmagan deb belgilash"
 #, fuzzy
 msgid "Mark as done"
 msgstr "Bajarilgan deb belgilash"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__max_email_size
+msgid "Max Email Size"
+msgstr "Maksimal elektron pochta hajmi"
 
 #. module: mail
 #. odoo-javascript
@@ -8882,6 +9060,14 @@ msgstr "Qabul qiluvchi topilmadi."
 
 #. module: mail
 #. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"No response received. Check server address and port number.\n"
+" %s"
+msgstr "Javob olinmadi. Server manzili va port raqamini tekshiring.  %s"
+
+#. module: mail
+#. odoo-python
 #: code:addons/mail/models/fetchmail.py:0
 #, fuzzy
 msgid ""
@@ -9646,6 +9832,11 @@ msgstr ""
 "ishlatiladi."
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_pass
+msgid "Optional password for SMTP authentication"
+msgstr "SMTP autentifikatsiyasi uchun ixtiyoriy parol"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template__mail_server_id
 #, fuzzy
 msgid ""
@@ -9671,6 +9862,11 @@ msgstr ""
 "belgilanmasa, asosiy hamkorning tili ishlatiladi. Bu odatda tegishli tilni "
 "ta'minlaydigan to‘ldiruvchi ifoda bo‘lishi kerak, masalan "
 "{{ object.partner_id.lang }}."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_user
+msgid "Optional username for SMTP authentication"
+msgstr "SMTP autentifikatsiyasi uchun ixtiyoriy foydalanuvchi nomi"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.email_template_form
@@ -9792,6 +9988,15 @@ msgstr "Chiquvchi pochta serveri"
 #, fuzzy
 msgid "Outgoing Mail Server Type"
 msgstr "Chiquvchi pochta serveri turi"
+
+#. module: mail
+#: model:ir.actions.act_window,name:mail.action_ir_mail_server_list
+#: model:ir.ui.menu,name:mail.menu_mail_servers
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_list
+#: model_terms:ir.ui.view,arch_db:mail.view_ir_mail_server_search
+msgid "Outgoing Mail Servers"
+msgstr "Chiquvchi pochta serverlari"
 
 #. module: mail
 #: model:ir.model,name:mail.model_mail_mail
@@ -10263,6 +10468,16 @@ msgstr "Rejalashtirish"
 #, fuzzy
 msgid "Play"
 msgstr "Ijro etish"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Please configure an email on the current user to simulate sending an email "
+"message via this outgoing server"
+msgstr ""
+"Ushbu chiquvchi server orqali elektron xabar yuborishni simulyatsiya qilish "
+"uchun joriy foydalanuvchida elektron pochtani sozlang"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_bounce_catchall
@@ -11267,6 +11482,16 @@ msgid "SFU Server key"
 msgstr "SFU server kaliti"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port"
+msgstr "SMTP porti"
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_port
+msgid "SMTP Port. Usually 465 for SSL, and 25 or 587 for other cases."
+msgstr "SMTP porti. Odatda SSL uchun 465, boshqa holatlarda 25 yoki 587."
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_email_template_search
 #, fuzzy
 msgid "SMTP Server"
@@ -11279,10 +11504,55 @@ msgid "SSL"
 msgstr "SSL"
 
 #. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_certificate
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_authentication__certificate
+msgid "SSL Certificate"
+msgstr "SSL sertifikati"
+
+#. module: mail
+#: model:ir.model.fields,field_description:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL Private Key"
+msgstr "SSL maxfiy kaliti"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL certificate is missing for %s."
+msgstr "%s uchun SSL sertifikati mavjud emas."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_certificate
+msgid "SSL certificate used for authentication"
+msgstr "Autentifikatsiya uchun foydalaniladigan SSL sertifikati"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "SSL private key is missing for %s."
+msgstr "%s uchun SSL maxfiy kaliti mavjud emas."
+
+#. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__smtp_ssl_private_key
+msgid "SSL private key used for authentication"
+msgstr "Autentifikatsiya uchun foydalaniladigan SSL maxfiy kaliti"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_fetchmail_server__is_ssl
 #, fuzzy
 msgid "SSL/TLS"
 msgstr "SSL/TLS"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl_strict
+msgid "SSL/TLS, encryption and validation"
+msgstr "SSL/TLS, shifrlash va tasdiqlash"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__ssl
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__ssl
+msgid "SSL/TLS, encryption only"
+msgstr "SSL/TLS, faqat shifrlash"
 
 #. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
@@ -12645,6 +12915,18 @@ msgid "System notification"
 msgstr "Tizim xabarnomasi"
 
 #. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls_strict
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls_strict
+msgid "TLS (STARTTLS), encryption and validation"
+msgstr "TLS (STARTTLS), shifrlash va tasdiqlash"
+
+#. module: mail
+#: model:ir.model.fields.selection,name:mail.selection__fetchmail_server__encryption__starttls
+#: model:ir.model.fields.selection,name:mail.selection__ir_mail_server__smtp_encryption__starttls
+msgid "TLS (STARTTLS), encryption only"
+msgstr "TLS (STARTTLS), faqat shifrlash"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.view_ice_server_search
 #, fuzzy
 msgid "TURN"
@@ -13111,6 +13393,14 @@ msgstr ""
 "ustuvorlikni anglatadi."
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The private key or the certificate is not a valid file. \n"
+"%s"
+msgstr "Maxfiy kalit yoki sertifikat yaroqli fayl emas.  %s"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_template_preview__scheduled_date
 #, fuzzy
 msgid "The queue manager will send the email after the date"
@@ -13139,6 +13429,12 @@ msgstr ""
 "Xavfsizlik cheklovlari tufayli so‘ralgan amalni bajarish imkonsiz. Iltimos, "
 "tizim ma'muriga murojaat qiling.  (Hujjat turi: %(type)s, Amal: %"
 "(operation)s) Yozuvlar: %(records)s, Foydalanuvchi: %(user)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server \"%(server_name)s\" doesn't return the maximum email size."
+msgstr "\"%(server_name)s\" serveri maksimal xat hajmini qaytarmayapti."
 
 #. module: mail
 #. odoo-python
@@ -13174,6 +13470,40 @@ msgstr ""
 #, fuzzy
 msgid "The server \"%s\" cannot be used because it is archived."
 msgstr "\"%s\" serveri arxivlangani uchun foydalanib bo‘lmaydi."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server has closed the connection unexpectedly. Check configuration "
+"served on this port number.\n"
+" %s"
+msgstr ""
+"Server kutilmaganda aloqani uzdi. Ushbu port raqamida xizmat "
+"ko‘rsatilayotgan sozlamalarni tekshiring.  %s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the sender address (%(email_from)s) with error %(repl)s"
+msgstr ""
+"Server yuboruvchi manzilini (%(email_from)s) %(repl)s xatolik bilan rad etdi"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid "The server refused the test connection with error %(repl)s"
+msgstr "Server %(repl)s xatolik bilan sinov aloqasini rad etdi"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"The server refused the test recipient (%(email_to)s) with error %(repl)s"
+msgstr ""
+"Server sinov qabul qiluvchisini (%(email_to)s) %(repl)s xatolik bilan rad "
+"etdi"
 
 #. module: mail
 #. odoo-javascript
@@ -14376,6 +14706,15 @@ msgid "Use template"
 msgstr "Shablondan foydalanish"
 
 #. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"Use the SMTP configuration set in the \"Command Line Interface\" arguments."
+msgstr ""
+"\"Buyruqlar satri interfeysi\" argumentlarida o‘rnatilgan SMTP "
+"konfiguratsiyasidan foydalaning"
+
+#. module: mail
 #: model:ir.model.fields,field_description:mail.field_res_users_settings__use_push_to_talk
 #, fuzzy
 msgid "Use the push to talk feature"
@@ -14959,6 +15298,15 @@ msgid "What's your name?"
 msgstr "Ismingiz nima?"
 
 #. module: mail
+#: model:ir.model.fields,help:mail.field_ir_mail_server__sequence
+msgid ""
+"When no specific mail server is requested for a mail, the highest priority "
+"one is used. Default priority is 10 (smaller number = higher priority)"
+msgstr ""
+"Xat uchun maxsus pochta serveri so‘ralmasa, eng yuqori ustuvorlikdagi server "
+"ishlatiladi. Standart ustuvorlik 10 (kichik raqam = yuqori ustuvorlik)"
+
+#. module: mail
 #: model:ir.model.fields,help:mail.field_mail_activity__user_tz
 #, fuzzy
 msgid ""
@@ -15217,6 +15565,28 @@ msgstr ""
 #, fuzzy
 msgid "You can still turn off your %s anytime."
 msgstr "%s qurilmangizni istalgan vaqtda o‘chirishingiz mumkin."
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive these Outgoing Mail Servers (%(server_usage)s) because "
+"they are still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"Bu Chiquvchi pochta serverlarini (%(server_usage)s) arxivlay olmaysiz, "
+"chunki ular hali ham quyidagi holat(lar)da ishlatilmoqda: %(usage_details)s"
+
+#. module: mail
+#. odoo-python
+#: code:addons/mail/models/ir_mail_server.py:0
+msgid ""
+"You cannot archive this Outgoing Mail Server (%(server_usage)s) because it "
+"is still used in the following case(s):\n"
+"%(usage_details)s"
+msgstr ""
+"Bu Chiquvchi pochta serverini (%(server_usage)s) arxivlay olmaysiz, chunki u "
+"hali ham quyidagi holat(lar)da ishlatilmoqda: %(usage_details)s"
 
 #. module: mail
 #. odoo-python
@@ -15734,6 +16104,11 @@ msgid "e.g. Log a note"
 msgstr "masalan, Eslatma yozish"
 
 #. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. My Outgoing Server"
+msgstr "Masalan, Mening chiquvchi serverim"
+
+#. module: mail
 #: model_terms:ir.ui.view,arch_db:mail.mail_activity_plan_view_form
 #, fuzzy
 msgid "e.g. Onboarding"
@@ -15750,6 +16125,11 @@ msgstr "masalan, Uchrashuv belgilash"
 #, fuzzy
 msgid "e.g. Welcome to MyCompany!"
 msgstr "masalan, Kompaniyamizga xush kelibsiz!"
+
+#. module: mail
+#: model_terms:ir.ui.view,arch_db:mail.ir_mail_server_form
+msgid "e.g. email@domain.com, domain.com"
+msgstr "Masalan, email@domain.com, domain.com"
 
 #. module: mail
 #. odoo-javascript

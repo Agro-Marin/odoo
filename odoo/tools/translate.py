@@ -23,6 +23,7 @@ from types import FrameType
 from typing import IO, Any
 
 import polib
+from babel.core import get_global
 from babel.messages import extract
 from lxml import etree, html
 from markupsafe import Markup, escape
@@ -1070,7 +1071,13 @@ class PoFileReader:
             pot_path = get_pot_path(getattr(source, "name", ""))
 
         if pot_path:
+            active = {entry.msgid for entry in self.pofile if not entry.obsolete}
             self.pofile.merge(polib.pofile(pot_path))
+            # the pot refreshes occurrences; a term it lacks is one it has not
+            # caught up with yet, so the .po's own occurrences still stand
+            for entry in self.pofile:
+                if entry.obsolete and entry.msgid in active:
+                    entry.obsolete = False
         _debug.lifecycle(
             "translate.po_read",
             file=source if isinstance(source, str) else getattr(source, "name", None),
@@ -1163,16 +1170,20 @@ class _RowWriter(typing.Protocol):
 
 
 def TranslationFileWriter(
-    target: IO[bytes], fileformat: str = "po", lang: str | None = None
+    target: IO[bytes],
+    fileformat: str = "po",
+    lang: str | None = None,
+    previous: str | None = None,
+    iso_codes: Mapping[str, str] | None = None,
 ) -> _RowWriter:
     if fileformat == "csv":
         return CSVFileWriter(target)
 
     if fileformat == "po":
-        return PoFileWriter(target, lang=lang)
+        return PoFileWriter(target, lang=lang, previous=previous)
 
     if fileformat == "tgz":
-        return TarFileWriter(target, lang=lang)
+        return TarFileWriter(target, lang=lang, iso_codes=iso_codes or {})
 
     raise ValueError(
         f"Unrecognized extension: must be one of .csv, .po, or .tgz "
@@ -1200,11 +1211,91 @@ class CSVFileWriter:
             self.writer.writerow((module, type, name, res_id, src, trad, comments))
 
 
+def _po_header_text(text: str) -> str:
+    head = text.partition("\n\n")[0]
+    lines = [line for line in head.splitlines() if not line.startswith("#")]
+    if lines[:1] == ['msgid ""'] and lines[1:2] and lines[1].startswith("msgstr "):
+        return head + "\n\n"
+    return ""
+
+
+_PO_FIELD_START = re.compile(r'(?:#~ )?(msgid|msgstr) (".*")')
+_PO_FIELD_CONTINUATION = re.compile(r'(?:#~ )?(".*")')
+
+
+def _po_field_layout(text: str) -> dict[tuple[str, str], list[str]]:
+    layout: dict[tuple[str, str], list[str]] = {}
+    field: tuple[str, list[str]] | None = None
+    for line in [*text.splitlines(), ""]:
+        if field and (match := _PO_FIELD_CONTINUATION.fullmatch(line)):
+            field[1].append(match[1])
+            continue
+        if field:
+            name, segments = field
+            value = "".join(polib.unescape(segment[1:-1]) for segment in segments)
+            layout.setdefault((name, value), segments)
+            if segments[0] == '""':
+                start = 1
+                for end, segment in enumerate(segments[1:], 2):
+                    if segment.endswith('\\n"') or end == len(segments):
+                        text = "".join(
+                            polib.unescape(part[1:-1]) for part in segments[start:end]
+                        )
+                        layout.setdefault(("line", text), segments[start:end])
+                        start = end
+        match = _PO_FIELD_START.fullmatch(line)
+        field = (match[1], [match[2]]) if match else None
+    return layout
+
+
+class _LaidOutEntry(polib.POEntry):
+    # a string, or a line of one, that the replaced file already held keeps the
+    # line breaks it had there: a re-export does not re-wrap what translators'
+    # tools wrote
+    layout: Mapping[tuple[str, str], list[str]] = {}
+
+    def _str_field(
+        self,
+        fieldname: str,
+        delflag: str,
+        plural_index: str,
+        field: str,
+        wrapwidth: int = 78,
+    ) -> list[str]:
+        segments = self.layout.get((fieldname, field))
+        lines = field.splitlines(True)
+        if not segments and len(lines) > 1:
+            segments = ['""']
+            for line in lines:
+                segments += self.layout.get(("line", line)) or [
+                    f'"{polib.escape(line)}"'
+                ]
+        if plural_index or not segments:
+            return super()._str_field(
+                fieldname, delflag, plural_index, field, wrapwidth
+            )
+        return [
+            f"{delflag}{fieldname} {segments[0]}",
+            *(f"{delflag}{segment}" for segment in segments[1:]),
+        ]
+
+
 class PoFileWriter:
-    def __init__(self, target: IO[bytes], lang: str | None) -> None:
+    def __init__(
+        self, target: IO[bytes], lang: str | None, previous: str | None = None
+    ) -> None:
         self.buffer = target
         self.lang = lang
         self.po = polib.POFile()
+        self.previous_entries: dict[str, polib.POEntry] = {}
+        self.previous_header = ""
+        self.layout: dict[tuple[str, str], list[str]] = {}
+        if previous:
+            self.layout = _po_field_layout(previous)
+            for entry in polib.pofile(previous):
+                self.previous_entries.setdefault(entry.msgid, entry)
+            if lang:
+                self.previous_header = _po_header_text(previous)
 
     def write_rows(self, rows: Iterable) -> None:
         grouped_rows: dict[str, dict[str, Any]] = {}
@@ -1212,7 +1303,7 @@ class PoFileWriter:
         for module, type, name, res_id, src, trad, comments in rows:
             row = grouped_rows.setdefault(src, {})
             row.setdefault("modules", set()).add(module)
-            if not row.get("translation") and trad != src:
+            if not row.get("translation"):
                 row["translation"] = trad
             row.setdefault("tnrs", []).append((type, name, res_id))
             row.setdefault("comments", set()).update(comments)
@@ -1228,13 +1319,32 @@ class PoFileWriter:
                 row["translation"],
                 sorted(row["comments"]),
             )
+        if self.lang:
+            for entry in self.previous_entries.values():
+                if entry.msgstr and entry.msgid not in grouped_rows:
+                    self.po.append(
+                        self._entry(
+                            msgid=entry.msgid,
+                            msgstr=entry.msgstr,
+                            flags=entry.flags,
+                            obsolete=True,
+                        )
+                    )
         _debug.pipeline(
             "translate.po_written",
             lang=self.lang,
             modules=sorted(modules),
             entries=len(grouped_rows),
             translated=sum(bool(row["translation"]) for row in grouped_rows.values()),
+            header_kept=bool(self.previous_header),
         )
+
+        if self.previous_header:
+            entries = [e for e in self.po if not e.obsolete]
+            entries += self.po.obsolete_entries()
+            body = "\n".join(e.__unicode__(self.po.wrapwidth) for e in entries)
+            self.buffer.write((self.previous_header + body).encode())
+            return
 
         self.po.header = (
             "Translation of %s.\n"
@@ -1262,6 +1372,11 @@ class PoFileWriter:
 
         self.buffer.write(str(self.po).encode())
 
+    def _entry(self, **kwargs: Any) -> _LaidOutEntry:
+        entry = _LaidOutEntry(**kwargs)
+        entry.layout = self.layout
+        return entry
+
     def add_entry(
         self,
         modules: list[str],
@@ -1270,10 +1385,13 @@ class PoFileWriter:
         trad: str,
         comments: list[str] | None = None,
     ) -> None:
-        entry = polib.POEntry(
-            msgid=source,
-            msgstr=trad,
-        )
+        entry = self._entry(msgid=source, msgstr=trad)
+        if previous := self.previous_entries.get(source):
+            entry.flags = [
+                flag
+                for flag in previous.flags
+                if flag != "fuzzy" or previous.msgstr == trad
+            ]
         plural = (len(modules) > 1 and "s") or ""
         entry.comment = "module%s: %s" % (plural, ", ".join(modules))
         if comments:
@@ -1294,9 +1412,15 @@ class PoFileWriter:
 
 
 class TarFileWriter:
-    def __init__(self, target: IO[bytes], lang: str | None) -> None:
+    def __init__(
+        self,
+        target: IO[bytes],
+        lang: str | None,
+        iso_codes: Mapping[str, str] | None = None,
+    ) -> None:
         self.target = target
         self.lang = lang
+        self.iso_codes = iso_codes or {}
 
     def write_rows(self, rows: Iterable) -> None:
         rows_by_module = defaultdict(list)
@@ -1306,15 +1430,24 @@ class TarFileWriter:
 
         with tarfile.open(fileobj=self.target, mode="w|gz") as tar:
             for mod, modrows in rows_by_module.items():
+                path = get_module_po_path(mod, self.lang, self.iso_codes)
+                if path:
+                    name = path.name
+                elif self.lang:
+                    name = f"{get_po_file_stem(self.lang, self.iso_codes, ())}.po"
+                else:
+                    name = f"{mod}.pot"
+                previous = (
+                    path.read_text(encoding="utf-8")
+                    if path and path.is_file()
+                    else None
+                )
                 with io.BytesIO() as buf:
-                    po = PoFileWriter(buf, lang=self.lang)
+                    po = PoFileWriter(buf, lang=self.lang, previous=previous)
                     po.write_rows(modrows)
                     buf.seek(0)
 
-                    ext = "po" if self.lang else "pot"
-                    info = tarfile.TarInfo(
-                        str(Path(mod, "i18n", f"{self.lang or mod}.{ext}"))
-                    )
+                    info = tarfile.TarInfo(str(Path(mod, "i18n", name)))
                     info.size = buf.getbuffer().nbytes
 
                     tar.addfile(info, fileobj=buf)
@@ -1333,7 +1466,13 @@ def _trans_export(
     if not reader:
         _debug.logic("translate.export_empty", lang=lang, format=format)
         return False
-    writer = TranslationFileWriter(buffer, fileformat=format, lang=lang)
+    writer = TranslationFileWriter(
+        buffer,
+        fileformat=format,
+        lang=lang,
+        previous=reader.previous,
+        iso_codes=get_lang_iso_codes(reader.env) if format == "tgz" and lang else None,
+    )
     with _debug.perf(
         "translate.export_write",
         lang=lang,
@@ -1499,6 +1638,7 @@ class TranslationReader:
 
         self.env = api.Environment(cr, api.SUPERUSER_ID, {})
         self._to_translate: list = []
+        self.previous: str | None = None
 
     def __bool__(self) -> bool:
         return bool(self._to_translate)
@@ -1589,7 +1729,6 @@ class TranslationReader:
                     )
                     continue
                 for term_en, term_langs in translation_dictionary.items():
-                    term_lang = term_langs.get(self._lang)
                     self._push_translation(
                         module,
                         trans_type,
@@ -1597,7 +1736,9 @@ class TranslationReader:
                         xml_name,
                         term_en,
                         record_id=imd.res_id,
-                        value=term_lang if term_lang != term_en else "",
+                        value=self._term_value(
+                            imd, term_en, term_langs.get(self._lang) or term_en
+                        ),
                     )
         _debug.pipeline(
             "translate.export_model",
@@ -1606,6 +1747,9 @@ class TranslationReader:
             records=len(records),
             terms=len(self._to_translate) - pushed,
         )
+
+    def _term_value(self, imd: ImdInfo, source: str, stored: str) -> str:
+        return stored if stored != source else ""
 
     def _get_records_translatable(self, imd_records: Collection[ImdInfo]) -> Any:
         model = next(iter(imd_records)).model
@@ -1771,6 +1915,11 @@ class TranslationModuleReader(TranslationReader):
                 [("state", "=", "installed")], fields=["name"]
             )
         ]
+        self._po_lang = lang or None
+        self._iso_codes = get_lang_iso_codes(self.env) if lang else {}
+        self._po_values: dict[str, tuple[dict[str, str], dict[str, set[str]]]] = {}
+        self._shared: set[tuple[str, str, int]] = set()
+        self.previous = self._previous_file()
 
         self._export_translatable_records()
         self._export_translatable_resources()
@@ -1779,6 +1928,46 @@ class TranslationModuleReader(TranslationReader):
         if "all" in self._modules:
             return list(self._installed_modules)
         return list(self._modules)
+
+    def _previous_file(self) -> str | None:
+        if "all" in self._modules or len(self._modules) != 1:
+            return None
+        path = get_module_po_path(self._modules[0], self._po_lang, self._iso_codes)
+        return path.read_text(encoding="utf-8") if path and path.is_file() else None
+
+    def _module_po_values(
+        self, module: str
+    ) -> tuple[dict[str, str], dict[str, set[str]]]:
+        if (values := self._po_values.get(module)) is not None:
+            return values
+        assert self._po_lang
+        own_path = get_module_po_path(module, self._po_lang, self._iso_codes)
+        own = read_po_translations(own_path) if own_path else {}
+        others: defaultdict[str, set[str]] = defaultdict(set)
+        for path in get_po_paths(module, self._po_lang):
+            if (
+                own_path is None
+                or not own_path.is_file()
+                or not own_path.samefile(path)
+            ):
+                for msgid, msgstr in read_po_translations(Path(path)).items():
+                    others[msgid].add(msgstr)
+        values = self._po_values[module] = (own, others)
+        return values
+
+    def _term_value(self, imd: ImdInfo, source: str, stored: str) -> str:
+        if not self._po_lang:
+            return ""
+        own, others = self._module_po_values(imd.module)
+        # the stored value is the module's own only when no other file the
+        # importer applies to this record could have written it
+        if (
+            stored == source
+            or (imd.module, imd.model, imd.res_id) in self._shared
+            or stored in others.get(source, ())
+        ):
+            return own.get(source, "")
+        return stored
 
     def _export_translatable_records(self) -> None:
         modules = self._selected_modules()
@@ -1804,10 +1993,25 @@ class TranslationModuleReader(TranslationReader):
                  ORDER BY module, model, min(name)"""
 
         self._cr.execute(query, (modules,))
+        imd_rows = self._cr.fetchall()
+
+        if self._po_lang:
+            self._cr.execute(
+                """SELECT d.module, d.model, d.res_id
+                     FROM ir_model_data d
+                    WHERE d.module = ANY(%s)
+                      AND EXISTS (SELECT 1
+                                    FROM ir_model_data o
+                                   WHERE o.model = d.model
+                                     AND o.res_id = d.res_id
+                                     AND o.module != d.module)""",
+                (modules,),
+            )
+            self._shared = set(self._cr.fetchall())
 
         records_per_model: defaultdict[str, dict] = defaultdict(dict)
         skipped = 0  # debuglog
-        for imd_name, model, res_id, module in self._cr.fetchall():
+        for imd_name, model, res_id, module in imd_rows:
             if (model, module, imd_name) in xml_defined:
                 skipped += 1  # debuglog
                 continue
@@ -1819,6 +2023,7 @@ class TranslationModuleReader(TranslationReader):
             models=len(records_per_model),
             xml_defined=len(xml_defined),
             skipped=skipped,
+            shared=len(self._shared),
         )
 
         with _debug.perf(
@@ -1879,14 +2084,7 @@ class TranslationModuleReader(TranslationReader):
         options = {}
         if "python" in extract_method:
             options["encoding"] = "UTF-8"
-            translations = code_translations.get_python_translations(module, self._lang)
-        else:
-            web_translations = code_translations.get_web_translations(
-                module, self._lang
-            )
-            translations = {
-                tran["id"]: tran["string"] for tran in web_translations["messages"]
-            }
+        translations = self._module_po_values(module)[0] if self._po_lang else {}
         extracted_count = 0  # debuglog
         try:
             src_file = file_open(fabsolutepath, "rb")
@@ -2046,6 +2244,7 @@ class TranslationImporter:
         self.env = api.Environment(cr, api.SUPERUSER_ID, {})
 
         self.model_translations = DeepDefaultDict()
+        self.model_sources = DeepDefaultDict()
         self.model_terms_translations = DeepDefaultDict()
         self.imported_langs: set[str] = set()
 
@@ -2161,6 +2360,9 @@ class TranslationImporter:
                 self.model_translations[model_name][field_name][xmlid][lang] = row[
                     "value"
                 ]
+                self.model_sources[model_name][field_name][xmlid].setdefault(
+                    lang, []
+                ).append((row["src"], row["value"]))
                 self.imported_langs.add(lang)
                 model += 1  # debuglog
             elif row.get("type") == "model_terms" and callable(field.translate):
@@ -2359,6 +2561,63 @@ class TranslationImporter:
 
         self.model_terms_translations.clear()
 
+    def _source_checked(
+        self,
+        model_name: str,
+        model_table: str,
+        field_name: str,
+        items: Iterable[tuple[str, dict]],
+    ) -> list[tuple[str, dict]]:
+        items = list(items)
+        sources = self.model_sources.get(model_name, {}).get(field_name, {})
+        checked_xmlids = [xmlid for xmlid, _translations in items if xmlid in sources]
+        current_sources: dict[str, str | None] = {}
+        if checked_xmlids:
+            self.cr.execute(
+                SQL(
+                    """
+                    SELECT imd.module || '.' || imd.name, m.%(column)s->>'en_US'
+                    FROM %(table)s m, "ir_model_data" imd
+                    WHERE m.id = imd.res_id AND imd.model = %(model)s AND (%(match)s)
+                    """,
+                    column=SQL.identifier(field_name),
+                    table=SQL.identifier(model_table),
+                    model=model_name,
+                    match=SQL(" OR ").join(
+                        SQL(
+                            "(imd.module = %s AND imd.name = %s)",
+                            *xmlid.split(".", maxsplit=1),
+                        )
+                        for xmlid in checked_xmlids
+                    ),
+                )
+            )
+            current_sources = dict(self.cr.fetchall())
+        checked = []
+        dropped = 0  # debuglog
+        for xmlid, translations in items:
+            translations = dict(translations)
+            for lang, candidates in sources.get(xmlid, {}).items():
+                if translations.get(lang) != candidates[-1][1]:
+                    continue
+                current = current_sources.get(xmlid)
+                matching = [value for src, value in candidates if src == current]
+                if matching:
+                    translations[lang] = matching[-1]
+                else:
+                    del translations[lang]
+                    dropped += 1  # debuglog
+            if translations:
+                checked.append((xmlid, translations))
+        _debug.perf.count(
+            "translate.save_model_source_checked",
+            model=model_name,
+            field=field_name,
+            checked=len(checked_xmlids),
+            dropped=dropped,
+        )
+        return checked
+
     def _save_model_translations(self, overwrite: bool, force_overwrite: bool) -> None:
         env = self.env
         for model_name, model_dictionary in self.model_translations.items():
@@ -2378,6 +2637,11 @@ class TranslationImporter:
                 for sub_field_dictionary in batched(
                     field_dictionary.items(), self.cr.BATCH_SIZE, strict=False
                 ):
+                    checked = self._source_checked(
+                        model_name, model_table, field_name, sub_field_dictionary
+                    )
+                    if not checked:
+                        continue
                     _debug.perf.count(
                         "translate.save_model_batch",
                         model=model_name,
@@ -2408,13 +2672,14 @@ class TranslationImporter:
                                     *xmlid.split(".", maxsplit=1),
                                     Json(translations),
                                 )
-                                for xmlid, translations in sub_field_dictionary
+                                for xmlid, translations in checked
                             ),
                             model=model_name,
                         )
                     )
 
         self.model_translations.clear()
+        self.model_sources.clear()
 
     def save(self, overwrite: bool = False, force_overwrite: bool = False) -> None:
         if not self.model_translations and not self.model_terms_translations:
@@ -2500,6 +2765,95 @@ def get_base_langs(lang: str) -> list[str]:
     if lang != base_lang:
         langs.append(lang)
     return langs
+
+
+def get_lang_iso_codes(env: Environment) -> dict[str, str]:
+    return {
+        lang["code"]: lang["iso_code"] or lang["code"]
+        for lang in env["res.lang"]
+        .with_context(active_test=False)
+        .search_read([], ["code", "iso_code"])
+    }
+
+
+def _base_lang_owner(
+    base: str, iso_codes: Mapping[str, str], existing: Collection[str]
+) -> str | None:
+    if owner := next((code for code, iso in iso_codes.items() if iso == base), None):
+        return owner
+    siblings = [code for code in iso_codes if code.split("_", 1)[0] == base]
+    if len(siblings) == 1:
+        return siblings[0]
+    if base in existing:
+        parts = get_global("likely_subtags").get(base, base).split("_")
+        return f"{parts[0]}_{parts[-1]}" if len(parts) > 1 else None
+    return None
+
+
+def get_po_file_stem(
+    lang: str, iso_codes: Mapping[str, str], existing: Collection[str]
+) -> str:
+    base = lang.split("_", 1)[0]
+    if lang in existing or base == lang:
+        return lang
+    return base if _base_lang_owner(base, iso_codes, existing) == lang else lang
+
+
+def get_po_file_path(module_path: str, lang: str, iso_codes: Mapping[str, str]) -> Path:
+    i18n_path = Path(module_path, "i18n")
+    existing = {path.stem for path in i18n_path.glob("*.po")}
+    return i18n_path / f"{get_po_file_stem(lang, iso_codes, existing)}.po"
+
+
+def get_module_po_path(
+    module: str, lang: str | None, iso_codes: Mapping[str, str]
+) -> Path | None:
+    from odoo.modules import get_module_path
+
+    if not (module_path := get_module_path(module, display_warning=False)):
+        return None
+    if lang is None:
+        return Path(module_path, "i18n", f"{module}.pot")
+    return get_po_file_path(module_path, lang, iso_codes)
+
+
+def _po_translations(pofile: polib.POFile) -> dict[str, str]:
+    translations: dict[str, str] = {}
+    for entry in sorted(pofile, key=lambda e: e.obsolete):
+        if entry.msgstr:
+            translations.setdefault(entry.msgid, entry.msgstr)
+    return translations
+
+
+def read_po_translations(path: Path) -> dict[str, str]:
+    if not path.is_file():
+        return {}
+    return _po_translations(polib.pofile(str(path)))
+
+
+def _template_rows(template: polib.POFile) -> Iterator[tuple]:
+    for entry in template:
+        if entry.obsolete:
+            continue
+        header, *comments = (entry.comment or "").split("\n")
+        for occurrence, _line in entry.occurrences:
+            kind, _, reference = occurrence.partition(":")
+            if kind == "code":
+                name, res_id = reference, 0
+            else:
+                name, _, res_id = reference.rpartition(":")
+            for module in header.partition(": ")[2].split(", "):
+                yield (module, kind, name, res_id, entry.msgid, "", tuple(comments))
+
+
+def merge_po_template(po_text: str, template_text: str, lang: str) -> str:
+    translations = _po_translations(polib.pofile(po_text))
+    buffer = io.BytesIO()
+    PoFileWriter(buffer, lang=lang, previous=po_text).write_rows(
+        (*row[:5], translations.get(row[4], ""), row[6])
+        for row in _template_rows(polib.pofile(template_text))
+    )
+    return buffer.getvalue().decode()
 
 
 def get_po_paths(module_name: str, lang: str) -> Iterator[str]:
