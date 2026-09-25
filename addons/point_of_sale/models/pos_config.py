@@ -1692,7 +1692,9 @@ class PosConfig(models.Model):
     def get_limited_partners_loading(self, offset=0):
         self.check_singleton()
         partner_query = self.env["res.partner"]._search([("is_bank", "=", False)])
-        self.env["res.partner"].flush_model(["active", "name", "company_id"])
+        self.env["res.partner"].flush_model(
+            ["active", "name", "company_id", "is_manufacturer"]
+        )
         self.env["pos.order"].flush_model(["partner_id", "company_id"])
         return self.env.execute_query(
             SQL(
@@ -1709,7 +1711,10 @@ class PosConfig(models.Model):
                  WHERE (partner.company_id = %(company)s OR partner.company_id IS NULL)
                    AND partner.active
                    AND partner.id IN (%(accessible_partners)s)
-              ORDER BY COALESCE(pm.order_count, 0) DESC, partner.name, partner.id
+              ORDER BY COALESCE(pm.order_count, 0) DESC,
+                       partner.is_manufacturer IS TRUE,
+                       partner.name,
+                       partner.id
                  LIMIT %(limit)s OFFSET %(offset)s
                 """,
                 company=self.company_id.id,

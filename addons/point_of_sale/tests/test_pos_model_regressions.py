@@ -660,6 +660,21 @@ class TestPosModelRegressions(CommonPosTest):
         with self.assertRaises(UserError):
             method.write({"name": "Blocked after invalidation"})
 
+    def test_manufacturers_are_preloaded_after_the_other_partners(self):
+        self.env["ir.config_parameter"].sudo().set_param(
+            "point_of_sale.limited_customer_count", "1"
+        )
+        brand = self.env["res.partner"].create(
+            {"name": "000 Brand", "is_manufacturer": True}
+        )
+        customer = self.env["res.partner"].create({"name": "000 Brand Customer"})
+        ranked = [row[0] for row in self.pos_config_usd.get_limited_partners_loading()]
+        self.assertEqual(ranked, customer.ids)
+        searched = self.env["res.partner"].get_new_partner(
+            self.pos_config_usd.id, [("name", "ilike", "000 Brand%")], 0
+        )["res.partner"]
+        self.assertIn(brand.id, [row["id"] for row in searched])
+
     def test_bank_parties_are_not_offered_as_customers(self):
         self.env["ir.config_parameter"].sudo().set_param(
             "point_of_sale.limited_customer_count", "1"
