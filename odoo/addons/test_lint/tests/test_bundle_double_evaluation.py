@@ -117,8 +117,9 @@ class TestBundleDoubleEvaluation(lint_case.LintCase):
             "Declare the providing bundle a secondary parent of this one under "
             "`esm.secondary_import_map_includes`, so the import is stubbed to "
             "the shared loader instead of inlined; or give the module a "
-            "specifier esbuild leaves external. Detail: agromarin-knowledge/"
-            "research/2026-08-27-frontend-bundle-double-evaluation.md.",
+            "specifier esbuild leaves external. Why the floor exists and is "
+            "scoped: web/machine_doc_v1/ESM_BUNDLING.md, section 'Public pages "
+            "evaluate modules twice'.",
             exact=False,
         )
         _logger.info(
