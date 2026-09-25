@@ -15,7 +15,14 @@ _debug = DebugLog(__name__)
 
 
 class OrmCore[F: FieldKey = FieldKey]:
-    __slots__ = ("_cache", "_deferred", "_deleted", "_draining", "_engine")
+    __slots__ = (
+        "_cache",
+        "_deferred",
+        "_deleted",
+        "_draining",
+        "_engine",
+        "_rows_vanished",
+    )
 
     def __init__(
         self,
@@ -30,6 +37,7 @@ class OrmCore[F: FieldKey = FieldKey]:
         )
         self._deferred: list[Callable[[], Any]] = []
         self._deleted: dict[str, set[Any] | None] = {}
+        self._rows_vanished = False
         self._draining = False
 
     def get_value(self, field: F, record_id: Any, default: Any = _MISSING) -> Any:
@@ -201,7 +209,18 @@ class OrmCore[F: FieldKey = FieldKey]:
         if known is not None:
             known.update(ids)
 
+    def note_rows_vanished(self) -> None:
+        # a savepoint rollback un-creates rows no unlink recorded; only a check
+        # already queued can name one, and the next drain clears the mark
+        if not self._deferred:
+            return
+        self._rows_vanished = True
+        if _debug.logic.enabled:
+            _debug.logic("core.rows_vanished", queued=len(self._deferred))
+
     def deleted_ids(self, model_name: str) -> set[Any] | None:
+        if self._rows_vanished:
+            return None
         return self._deleted.get(model_name, set())
 
     def defer_until_unprotected(self, check: Callable[[], Any]) -> None:
@@ -232,6 +251,7 @@ class OrmCore[F: FieldKey = FieldKey]:
             self._draining = False
             self._deferred.clear()
             self._deleted.clear()
+            self._rows_vanished = False
 
     def discard_deferred(self) -> None:
         if self._draining or not self._deferred:
@@ -242,6 +262,7 @@ class OrmCore[F: FieldKey = FieldKey]:
             )
         self._deferred.clear()
         self._deleted.clear()
+        self._rows_vanished = False
 
     def clear_cache(self) -> None:
         self._cache.clear()

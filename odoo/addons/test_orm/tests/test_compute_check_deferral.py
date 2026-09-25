@@ -20,3 +20,15 @@ class TestComputeCheckDeferral(TransactionCase):
         self.assertTrue(host.has_code)
         self.assertTrue(host.lines_made)
         self.assertEqual(len(host.line_ids), 1)
+
+    def test_a_deferred_check_skips_a_record_its_savepoint_rolled_back(self):
+        anchor = self.env["test_orm.compute_check"].create({"name": "a"})
+        self.env.flush_all()
+        field = anchor._fields["label"]
+        with self.env.protecting([anchor._fields["code"]], anchor):
+            with self.env.cr.savepoint(flush=False) as savepoint:
+                record = self.env["test_orm.compute_check"].create({"name": "b"})
+                self.env.flush_all()
+                record._check_computed(field)
+                savepoint.rollback()
+            self.env.invalidate_all()

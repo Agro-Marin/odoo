@@ -62,6 +62,7 @@ _NON_PASSTHROUGH = {
     "run_deferred",
     "discard_deferred",
     "note_deleted",
+    "note_rows_vanished",
     "deleted_ids",
 }
 
@@ -430,6 +431,18 @@ class TestOrmCoreDeferredChecks(unittest.TestCase):
         self.core.note_deleted("res.partner", None)
         self.core.note_deleted("res.partner", [2])
         self.assertIsNone(self.core.deleted_ids("res.partner"))
+
+    def test_a_rollback_under_queued_checks_makes_every_model_unknown(self) -> None:
+        self.core.defer_until_unprotected(lambda: None)
+        self.core.note_rows_vanished()
+        self.assertIsNone(self.core.deleted_ids("res.partner"))
+        self.assertIsNone(self.core.deleted_ids("res.users"))
+        self.core.run_deferred()
+        self.assertEqual(self.core.deleted_ids("res.partner"), set())
+
+    def test_a_rollback_with_no_queued_check_changes_nothing(self) -> None:
+        self.core.note_rows_vanished()
+        self.assertEqual(self.core.deleted_ids("res.partner"), set())
 
 
 class TestOrmCoreDelegationDrift(unittest.TestCase):

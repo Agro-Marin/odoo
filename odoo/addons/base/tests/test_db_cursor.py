@@ -50,6 +50,7 @@ from odoo.db.reaper import get_checked_out_count as reaper_checked_out
 from odoo.db.utils import get_connection_info_for_database
 from odoo.exceptions import ConcurrencyError
 from odoo.modules.registry import Registry
+from odoo.orm.components.core import OrmCore
 from odoo.orm.runtime.backend import COPY_THRESHOLD
 from odoo.service.db import exp_drop
 from odoo.service.transaction import retrying
@@ -3360,6 +3361,7 @@ class TestFlushingSavepointLayering(BaseCase):
                 self.envs = []
                 self.cleared = 0
                 self.was_reset = 0
+                self.core = OrmCore()
 
             def flush(self):
                 pass

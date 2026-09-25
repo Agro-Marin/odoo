@@ -65,6 +65,7 @@ class BaseCursor:
     BATCH_SIZE = 1000
     _MAX_FLUSH_PASSES = 10
 
+    _savepoint_cls: type[Savepoint] = Savepoint
     _flushing_savepoint_cls: type[Savepoint] = _FlushingSavepoint
 
     transaction: Transaction | None
@@ -263,7 +264,7 @@ class BaseCursor:
                     "seam was not installed (import-order bug)."
                 )
             return cls(self)
-        return Savepoint(self)
+        return self._savepoint_cls(self)
 
     def __enter__(self) -> Self:
         return self
