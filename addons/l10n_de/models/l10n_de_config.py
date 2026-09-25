@@ -4,7 +4,7 @@ from odoo import api, fields, models
 class L10nDeConfig(models.Model):
     _name = "l10n_de.config"
     _description = "A company's l10n de configuration"
-    _inherit = ["mixin.company.config"]
+    _inherit = ["mixin.company.config", "mixin.mail.thread"]
 
     l10n_de_stnr = fields.Char(
         string="St.-Nr.",
@@ -17,7 +17,7 @@ class L10nDeConfig(models.Model):
         help="Business identification number.",
     )
 
-    @api.constrains("company_id.state_id", "l10n_de_stnr")
+    @api.constrains("l10n_de_stnr")
     def _check_l10n_de_stnr(self):
         for config in self:
             config.company_id.get_l10n_de_stnr_national()

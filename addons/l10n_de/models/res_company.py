@@ -1,7 +1,7 @@
 import stdnum.de.stnr
 import stdnum.exceptions
 
-from odoo import fields, models
+from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
 
@@ -28,6 +28,11 @@ class ResCompany(models.Model):
 
     def _compute_l10n_de_config_id(self):
         self._compute_config_link("l10n_de_config_id")
+
+    @api.constrains("state_id")
+    def _check_l10n_de_stnr_against_state(self):
+        for company in self:
+            company.get_l10n_de_stnr_national()
 
     def get_l10n_de_stnr_national(self):
         self.check_singleton()

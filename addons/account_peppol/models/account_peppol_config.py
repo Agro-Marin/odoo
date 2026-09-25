@@ -5,7 +5,7 @@ from odoo.exceptions import ValidationError
 class AccountPeppolConfig(models.Model):
     _name = "account_peppol.config"
     _description = "A company's account peppol configuration"
-    _inherit = ["mixin.company.config"]
+    _inherit = ["mixin.company.config", "mixin.mail.thread"]
 
     account_peppol_contact_email = fields.Char(
         string="Primary contact email",

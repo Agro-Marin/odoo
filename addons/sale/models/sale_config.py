@@ -8,7 +8,7 @@ _debug = DebugLog(__name__)
 class SaleConfig(models.Model):
     _name = "sale.config"
     _description = "A company's sale configuration"
-    _inherit = ["mixin.company.config"]
+    _inherit = ["mixin.company.config", "mixin.mail.thread"]
 
     order_lock_so = fields.Selection(
         selection=[
