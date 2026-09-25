@@ -109,6 +109,18 @@ def _ensure_ir_access_table(cr) -> None:
     # the rest (constraints, foreign keys, the other columns)
     cr.execute("SELECT to_regclass('public.ir_access')")
     if cr.fetchone()[0] is not None:
+        # the Read/Update/Create/Delete flags are no longer stored (base 1.111
+        # drops them at the end of the upgrade), but this script and the ones
+        # after it until then still write them
+        cr.execute(
+            """
+            ALTER TABLE ir_access
+                ADD COLUMN IF NOT EXISTS for_read BOOLEAN,
+                ADD COLUMN IF NOT EXISTS for_write BOOLEAN,
+                ADD COLUMN IF NOT EXISTS for_create BOOLEAN,
+                ADD COLUMN IF NOT EXISTS for_unlink BOOLEAN
+            """
+        )
         return
     cr.execute(
         """
