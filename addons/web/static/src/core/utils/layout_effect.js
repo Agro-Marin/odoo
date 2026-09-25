@@ -3,17 +3,13 @@
 import { onMounted, onPatched, onWillUnmount } from "@odoo/owl";
 
 /**
- * @template {unknown[]} T
- * @param {(...dependencies: T) => void | (() => void)} effect
- * @param {() => T} [computeDependencies]
+ * @param {(...dependencies: any[]) => void | (() => void)} effect
+ * @param {() => unknown[]} [computeDependencies]
  */
-export function useLayoutEffect(
-    effect,
-    computeDependencies = () => /** @type {T} */ (/** @type {unknown} */ ([NaN])),
-) {
+export function useLayoutEffect(effect, computeDependencies = () => [NaN]) {
     /** @type {void | (() => void)} */
     let cleanup;
-    /** @type {T} */
+    /** @type {unknown[]} */
     let dependencies;
     onMounted(() => {
         dependencies = computeDependencies();
