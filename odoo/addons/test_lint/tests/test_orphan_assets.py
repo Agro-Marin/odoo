@@ -20,6 +20,8 @@ URL_FETCHED = frozenset(
         "mail/static/src/discuss/voice_message/worklets/processor.js",
         "mail/static/src/service_worker.js",
         "mail/static/src/worklets/audio_processor.js",
+        # injected as a <link> into the PDF.js viewer iframe (sign_request/utils.js)
+        "sign/static/src/css/pdfjs_overrides.css",
         "speech/static/src/worklets/pcm_capture.js",
         # the Telegram mini app page, rendered by its controller outside the web client
         "telegram_bot_project_task/static/src/mini_app/task_form.css",
