@@ -2,20 +2,20 @@ $o-dark-colors-lighten: 12% !default;
 $o-dark-min-contrast-ratio: 4.5 !default;
 
 $o-dark-white: #000 !default;
-$o-dark-black: #e2e8f0 !default;
+$o-dark-black: #f5f5f7 !default;
 
 $o-dark-color-contrast-light: $o-dark-white !default;
 $o-dark-color-contrast-dark: $o-dark-black !default;
 
-$o-dark-gray-100: #0b1120 !default;
-$o-dark-gray-200: #151d2e !default;
-$o-dark-gray-300: #1c2639 !default;
-$o-dark-gray-400: #2d3a4f !default;
-$o-dark-gray-500: #475569 !default;
-$o-dark-gray-600: #64748b !default;
-$o-dark-gray-700: #94a3b8 !default;
-$o-dark-gray-800: #cbd5e1 !default;
-$o-dark-gray-900: #e2e8f0 !default;
+$o-dark-gray-100: #161618 !default;
+$o-dark-gray-200: #1c1c1e !default;
+$o-dark-gray-300: #2c2c2e !default;
+$o-dark-gray-400: #3a3a3c !default;
+$o-dark-gray-500: #48484a !default;
+$o-dark-gray-600: #636366 !default;
+$o-dark-gray-700: #8e8e93 !default;
+$o-dark-gray-800: #aeaeb2 !default;
+$o-dark-gray-900: #f5f5f7 !default;
 
 $o-dark-grays: (
     100: $o-dark-gray-100,
@@ -29,9 +29,9 @@ $o-dark-grays: (
     900: $o-dark-gray-900,
 ) !default;
 
-$o-dark-community-color: #a29bfe !default;
-$o-dark-enterprise-color: #c084fc !default;
-$o-dark-enterprise-action-color: #22d3ee !default;
+$o-dark-community-color: #009aff !default;
+$o-dark-enterprise-color: #009aff !default;
+$o-dark-enterprise-action-color: #009aff !default;
 
 $o-dark-brand-odoo: $o-dark-enterprise-color !default;
 $o-dark-brand-primary: $o-dark-brand-odoo !default;
@@ -41,11 +41,11 @@ $o-dark-brand-primary-filled: $o-dark-brand-primary !default;
 $o-dark-action-text: $o-dark-action !default;
 
 $o-dark-theme-text-colors: (
-    "primary": #c084fc,
-    "success": #34d399,
-    "info": #60a5fa,
-    "warning": #fbbf24,
-    "danger": #f87171,
+    "primary": #409cff,
+    "success": #30d158,
+    "info": #409cff,
+    "warning": #ff9f0a,
+    "danger": #ff453a,
 ) !default;
 
 $o-dark-main-text-color: $o-dark-gray-900 !default;
@@ -55,20 +55,20 @@ $o-dark-main-color-muted: rgba($o-dark-gray-700, 0.9) !default;
 $o-dark-bs-light: $o-dark-gray-300 !default;
 $o-dark-bs-dark: $o-dark-gray-700 !default;
 
-$o-dark-main-favorite-color: #ffd532 !default;
-$o-dark-main-code-color: #c4b5fd !default;
+$o-dark-main-favorite-color: #ffd60a !default;
+$o-dark-main-code-color: #ff7ab2 !default;
 $o-dark-main-link-color: $o-dark-action-text !default;
 $o-dark-link-shade-percentage: 15% !default;
 
 $o-dark-link-hover-color: mix(#fff, $o-dark-action, 30%) !default;
 
-$o-dark-navbar-border-bottom: 1px solid darken($o-dark-brand-odoo, 10%) !default;
+$o-dark-navbar-border-bottom: 1px solid rgba(255, 255, 255, 0.08) !default;
 $o-dark-navbar-entry-color: rgba($o-dark-black, 0.9) !default;
 $o-dark-navbar-entry-color--hover: $o-dark-black !default;
 $o-dark-navbar-entry-bg--hover: rgba($o-dark-black, 0.08) !default;
 $o-dark-navbar-entry-color--active: $o-dark-navbar-entry-color--hover !default;
 $o-dark-navbar-brand-color: $o-dark-navbar-entry-color !default;
-$o-dark-navbar-badge-bg: map-get($o-dark-theme-text-colors, "success") !default;
+$o-dark-navbar-badge-bg: map-get($o-dark-theme-text-colors, "danger") !default;
 $o-dark-navbar-badge-text-shadow: 1px 1px 0 rgba($o-dark-black, 0.3) !default;
 
 $o-dark-brand-lightsecondary: $o-dark-gray-100 !default;
@@ -92,7 +92,7 @@ $o-dark-webclient-background-color: $o-dark-gray-100 !default;
 $o-dark-shadow-color: $o-dark-gray-700 !default;
 
 $o-dark-input-border-required: $o-dark-black !default;
-$o-dark-input-boundary-color: $o-dark-gray-600 !default;
+$o-dark-input-boundary-color: #6e6e73 !default;
 
 $o-dark-form-lightsecondary: $o-dark-gray-300 !default;
 $o-dark-form-separator-color: $o-dark-gray-400 !default;
@@ -258,7 +258,7 @@ $o-dark-table-variants: () !default;
 }
 
 $o-dark-view-background-color: $o-dark-gray-200 !default;
-$o-dark-navbar-background: $o-dark-view-background-color !default;
+$o-dark-navbar-background: $o-dark-gray-300 !default;
 $o-dark-component-active-bg: o-round-color(
     mix($o-dark-action, $o-dark-gray-300, 10%)
 ) !default;

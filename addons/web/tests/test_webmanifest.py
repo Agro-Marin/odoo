@@ -15,8 +15,8 @@ class WebManifestRoutesTest(HttpCaseWithUserDemo):
         self.assertEqual(data["scope"], "/odoo")
         self.assertEqual(data["start_url"], "/odoo")
         self.assertEqual(data["display"], "standalone")
-        self.assertEqual(data["background_color"], "#714B67")
-        self.assertEqual(data["theme_color"], "#714B67")
+        self.assertEqual(data["background_color"], "#f5f5f7")
+        self.assertEqual(data["theme_color"], "#f8f8fc")
         self.assertEqual(data["prefer_related_applications"], False)
         self.assertCountEqual(
             data["icons"],
@@ -49,8 +49,8 @@ class WebManifestRoutesTest(HttpCaseWithUserDemo):
         self.assertEqual(data["scope"], "/odoo")
         self.assertEqual(data["start_url"], "/odoo")
         self.assertEqual(data["display"], "standalone")
-        self.assertEqual(data["background_color"], "#714B67")
-        self.assertEqual(data["theme_color"], "#714B67")
+        self.assertEqual(data["background_color"], "#f5f5f7")
+        self.assertEqual(data["theme_color"], "#f8f8fc")
         self.assertEqual(data["prefer_related_applications"], False)
         self.assertCountEqual(
             data["icons"],
@@ -80,8 +80,8 @@ class WebManifestRoutesTest(HttpCaseWithUserDemo):
         self.assertEqual(data["scope"], "/test")
         self.assertEqual(data["start_url"], "/test")
         self.assertEqual(data["display"], "standalone")
-        self.assertEqual(data["background_color"], "#714B67")
-        self.assertEqual(data["theme_color"], "#714B67")
+        self.assertEqual(data["background_color"], "#f5f5f7")
+        self.assertEqual(data["theme_color"], "#f8f8fc")
         self.assertEqual(data["prefer_related_applications"], False)
         self.assertCountEqual(
             data["icons"],

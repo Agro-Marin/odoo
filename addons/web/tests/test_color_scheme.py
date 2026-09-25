@@ -170,8 +170,8 @@ class TestDarkBundles(TransactionCase):
 @tagged("post_install", "-at_install", "web_color_scheme")
 class TestTokenLayer(TransactionCase):
     EXPECTED = {
-        "--gray-100": ("#f8fafc", "#0B1120"),
-        "--o-bg-view": ("white", "#151D2E"),
+        "--gray-100": ("#f5f5f7", "#161618"),
+        "--o-bg-view": ("white", "#1C1C1E"),
     }
 
     SCHEME_SENSITIVE = ("--o-brand-fill", "--o-action", "--o-action-text")

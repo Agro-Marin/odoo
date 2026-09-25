@@ -26,7 +26,7 @@ $table-striped-bg-factor: $o-dark-table-striped-bg-factor !default;
 $table-hover-bg-factor: $o-dark-table-hover-bg-factor !default;
 $table-active-bg-factor: $o-dark-table-active-bg-factor !default;
 
-$form-check-input-border: var(--border-width) solid #{$o-dark-gray-600} !default;
+$form-check-input-border: var(--border-width) solid #{$o-dark-input-boundary-color} !default;
 $input-placeholder-color: $o-dark-input-placeholder-color !default;
 $input-focus-bg: $o-dark-input-focus-bg !default;
 $form-range-thumb-active-bg: $o-dark-form-range-thumb-active-bg !default;

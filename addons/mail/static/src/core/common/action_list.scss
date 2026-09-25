@@ -167,11 +167,12 @@
             --o-mail-ActionList-dangerNoBgColor: #{lighten($o-dark-bs-danger, 10%)};
 
             .o-hasBtnBg.o-tag-SUCCESS {
-                @include button-variant(
+                @include o-scheme-button-variant(
                     darken($o-dark-bs-success, 10%),
-                    darken($o-dark-bs-success, 10%)
+                    darken($o-dark-bs-success, 10%),
+                    o-dark-scheme(),
+                    $-color: white
                 );
-                --btn-color: white;
                 --btn-active-color: white;
 
                 i {

@@ -296,7 +296,7 @@ window.odoo = {csrf_token: "<t t-out="request.csrf_token(None)" />",debug: "<t t
                     content="width=device-width, initial-scale=1, user-scalable=no" />
                 <meta
                     name="theme-color"
-                    t-att-content="'#242733' if color_scheme == 'dark' else '#714B67'" />
+                    t-att-content="'#2c2c2e' if color_scheme == 'dark' else '#f8f8fc'" />
                 <link
                     rel="manifest"
                     href="/web/manifest.webmanifest"

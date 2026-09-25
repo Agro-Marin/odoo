@@ -11,6 +11,10 @@ from odoo.tools.image import image_process
 
 from ..tools import debug_log as dbg
 
+# The light top bar and page of the web client: the installed app opens on them.
+MANIFEST_THEME_COLOR = "#f8f8fc"
+MANIFEST_BACKGROUND_COLOR = "#f5f5f7"
+
 
 def _get_icon_type(src: str) -> str:
     return mimetypes.guess_type(src)[0] or "image/png"
@@ -84,8 +88,8 @@ class WebManifest(http.Controller):
             "scope": "/odoo",
             "start_url": "/odoo",
             "display": "standalone",
-            "background_color": "#714B67",
-            "theme_color": "#714B67",
+            "background_color": MANIFEST_BACKGROUND_COLOR,
+            "theme_color": MANIFEST_THEME_COLOR,
             "prefer_related_applications": False,
         }
         icon_sizes = ["192x192", "512x512"]
@@ -260,8 +264,8 @@ class WebManifest(http.Controller):
             "scope": path,
             "start_url": path,
             "display": "standalone",
-            "background_color": "#714B67",
-            "theme_color": "#714B67",
+            "background_color": MANIFEST_BACKGROUND_COLOR,
+            "theme_color": MANIFEST_THEME_COLOR,
             "prefer_related_applications": False,
             "shortcuts": self._get_scoped_app_shortcuts(app_id),
         }

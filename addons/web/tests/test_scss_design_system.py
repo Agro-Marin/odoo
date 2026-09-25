@@ -354,24 +354,35 @@ class TestScssDesignSystem(TransactionCase):
         )
 
     def test_focus_ring_is_visible_on_the_navbar(self):
-        navbar = self._rule(".o_main_navbar", declaring="--o-ring-color")
-        declared = _declaration(navbar, "--o-ring-color")
-        ring, ring_alpha = _parse_color(declared)
-        self.assertEqual(ring_alpha, 1.0, "navbar ring colour must be opaque")
-
-        background = _declaration(navbar, "background")
-        self.assertTrue(background, ".o_main_navbar declares no background")
-        surface = re.search(r"#[0-9a-fA-F]{3,6}|rgba?\([^)]*\)", background)
-        self.assertTrue(surface, ".o_main_navbar declares no background colour")
-        surface_rgb, surface_alpha = _parse_color(surface.group())
-        self.assertEqual(surface_alpha, 1.0, "navbar background must be opaque")
-
-        ratio = _contrast_ratio(ring, surface_rgb)
-        self.assertGreaterEqual(
-            ratio,
-            WCAG_NON_TEXT,
-            f"focus ring {declared} on navbar {surface.group()}: {ratio:.2f}:1",
-        )
+        # The light bundle carries both schemes; a translucent bar is judged
+        # where it sits, blended over that scheme's page background.
+        pages = {
+            "light": self._page_background(),
+            "dark": _parse_color(
+                _declaration(self._compiled(DARK_BUNDLE), "--body-bg")
+            )[0],
+        }
+        failures, checked = [], set()
+        for selectors, body in self._matches(".o_main_navbar"):
+            declared = _declaration(body, "--o-ring-color")
+            background = _declaration(body, "background")
+            if not declared or not background:
+                continue
+            dark = re.search(r"data-color-scheme=[\"']?dark", selectors)
+            scheme = "dark" if dark else "light"
+            ring, ring_alpha = _parse_color(declared)
+            self.assertEqual(ring_alpha, 1.0, "navbar ring colour must be opaque")
+            surface = re.search(r"#[0-9a-fA-F]{3,6}|rgba?\([^)]*\)", background)
+            self.assertTrue(surface, ".o_main_navbar declares no background colour")
+            rgb, alpha = _parse_color(surface.group())
+            checked.add(scheme)
+            ratio = _contrast_ratio(ring, _composite(rgb, alpha, pages[scheme]))
+            if ratio < WCAG_NON_TEXT:
+                failures.append(
+                    f"{scheme}: focus ring {declared} on {surface.group()}: {ratio:.2f}:1"
+                )
+        self.assertEqual(checked, {"light", "dark"}, "a scheme's navbar went unchecked")
+        self.assertFalse(failures, "; ".join(failures))
 
     def test_no_cascade_layers(self):
         layers = set(re.findall(r"@layer\s+([\w-]+)", self.css))

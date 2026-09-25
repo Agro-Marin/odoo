@@ -14,9 +14,9 @@
     padding-top: $o-navbar-padding-v;
     padding-bottom: $o-navbar-padding-v;
     border-bottom: $o-navbar-border-bottom;
-    background: $o-navbar-background;
-    backdrop-filter: blur(12px) saturate(1.5);
-    -webkit-backdrop-filter: blur(12px) saturate(1.5);
+    background: rgba($o-navbar-background, 0.72);
+    backdrop-filter: blur(14px) saturate(1.5);
+    -webkit-backdrop-filter: blur(14px) saturate(1.5);
     box-shadow: $o-shadow-sm;
     font-size: $o-navbar-font-size;
 
@@ -338,7 +338,7 @@ body.o_is_superuser .o_menu_systray {
             )};
 
         border-bottom: $o-dark-navbar-border-bottom;
-        background: $o-dark-navbar-background;
+        background: rgba($o-dark-navbar-background, 0.72);
 
         --o-navbar-badge-color: #{$o-dark-black};
         --o-navbar-badge-text-shadow: none;

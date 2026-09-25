@@ -22,7 +22,7 @@ test("boolean_favorite: the two states are visually distinct", async () => {
 
 test("boolean_favorite: the filled star uses the favorite colour", async () => {
     const { on } = mountStars("o_field_widget o_favorite");
-    expect(on.color).toBe("rgb(243, 204, 0)");
+    expect(on.color).toBe("rgb(255, 204, 0)");
 });
 
 test("boolean_favorite: font-size custom property still applies", async () => {

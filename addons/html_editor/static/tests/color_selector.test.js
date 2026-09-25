@@ -88,7 +88,7 @@ test("should add opacity to custom background colors but not to theme colors", a
     const backgroundColor = getComputedStyle(
         el.querySelector("p font"),
     ).backgroundColor;
-    expect(backgroundColor).toBe("rgb(168, 85, 247)");
+    expect(backgroundColor).toBe("rgb(0, 113, 227)");
 });
 
 test("default opacity should get applied when applying background color to icon", async () => {
@@ -1141,7 +1141,7 @@ describe("color preview", () => {
         expect(queryAll("font")).toHaveLength(0);
         await press("Tab");
         await animationFrame();
-        expect("font").toHaveStyle({ color: "rgb(168, 85, 247)" });
+        expect("font").toHaveStyle({ color: "rgb(0, 113, 227)" });
     });
 
     test("should preview when changing custom color", async () => {
