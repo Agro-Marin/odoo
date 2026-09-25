@@ -15,9 +15,11 @@ import { hasTouch, isIosApp } from "@web/core/browser/feature_detection";
 import { makeLogger } from "@web/core/debug/debug_logger";
 import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
+import { user } from "@web/core/user";
 import { useSortable } from "@web/core/utils/dnd";
 import { useService } from "@web/core/utils/hooks";
-import { parseHomeMenuConfig } from "@web/webclient/menus/menu_utils";
+import { imageUrl } from "@web/core/utils/urls";
+import { flattenMenuTree, parseHomeMenuConfig } from "@web/webclient/menus/menu_utils";
 
 import { loadHomeMenuBadges, useHomeMenuBadgeUpdates } from "./badges.js";
 import { ExpirationPanel } from "./expiration_panel.js";
@@ -40,6 +42,9 @@ const log = makeLogger("web.home_menu.grid");
 const APPS_PER_ROW = 6;
 const BADGE_DELAY = 200;
 const DIRECT_JUMP_HOTKEYS = 9;
+const WIDGET_SPANS = [true, true, false, true];
+const WIDGET_LINKS = { wide: 6, narrow: 3 };
+const LAUNCHER_TILE_APPS = 12;
 
 /** @typedef {import("@web/webclient/menus/menu_utils").AppEntry} HomeMenuApp */
 
@@ -124,6 +129,8 @@ export class HomeMenu extends Component {
         this.menus = useService("menu");
         this.homeMenuService = useService("home_menu");
         this.subscription = useService("enterprise_subscription");
+        this.orm = useService("orm");
+        this.action = useService("action");
         this.state = useState({
             isIosApp: isIosApp(),
             editing: false,
@@ -242,6 +249,74 @@ export class HomeMenu extends Component {
     /** @returns {HomeMenuApp[]} */
     get displayedApps() {
         return this.props.apps;
+    }
+
+    /** @returns {boolean} */
+    get showDashboard() {
+        return !this.search.query && !this.state.editing;
+    }
+
+    get profile() {
+        const company = user.activeCompany;
+        return {
+            name: user.name,
+            login: user.login,
+            company: company?.name ?? "",
+            avatarUrl: imageUrl("res.partner", user.partnerId, "avatar_128", {
+                unique: user.writeDate,
+            }),
+        };
+    }
+
+    /**
+     * @returns {{
+     *  app: HomeMenuApp,
+     *  wide: boolean,
+     *  subtitle: string,
+     *  links: import("@web/webclient/menus/menu_utils").MenuEntry[],
+     * }[]}
+     */
+    get widgets() {
+        const shown = this.grid.visibleApps;
+        const featured = [
+            ...new Set([...this.grid.pinnedApps, ...this.grid.recentApps, ...shown]),
+        ].slice(0, WIDGET_SPANS.length);
+        const { menuItems } = flattenMenuTree(
+            this.menus.getMenuAsTree?.("root") ?? { childrenTree: [] },
+        );
+        return featured.map((app, index) => {
+            const wide = WIDGET_SPANS[index];
+            const badge = this.badgeFor(app);
+            return {
+                app,
+                wide,
+                subtitle: badge.count ? badge.label : app.category || _t("Open app"),
+                links: menuItems
+                    .filter((menu) => menu.appID === app.id)
+                    .slice(0, wide ? WIDGET_LINKS.wide : WIDGET_LINKS.narrow),
+            };
+        });
+    }
+
+    /** @param {number} count */
+    launcherSpan(count) {
+        if (count <= LAUNCHER_TILE_APPS) {
+            return "";
+        }
+        return count <= LAUNCHER_TILE_APPS * 2
+            ? "o_home_tile_wide"
+            : "o_home_tile_full";
+    }
+
+    /** @returns {string} */
+    get appsSubtitle() {
+        const count = this.grid.visibleApps.length;
+        return this.search.query ? _t("%s matching", count) : _t("%s installed", count);
+    }
+
+    async openPreferences() {
+        const action = await this.orm.call("res.users", "action_get");
+        return this.action.doAction({ ...action, res_id: user.userId });
     }
 
     /** @returns {boolean} */
@@ -376,22 +451,34 @@ export class HomeMenu extends Component {
     get keyboardRows() {
         return gridRows(
             this.grid.keyboardRows,
-            this.appsPerRow,
+            this.sectionWidths,
             this.grid.menuMatches.length,
         );
     }
 
-    get appsPerRow() {
-        const row = this.rootRef.el?.querySelector(".o_apps.row, .o_pinned_apps .row");
-        const tile = row?.firstElementChild;
-        if (row && tile && tile.getBoundingClientRect().width) {
-            return Math.max(
-                1,
-                Math.round(
-                    row.getBoundingClientRect().width /
-                        tile.getBoundingClientRect().width,
-                ),
+    /** @returns {number[]} tiles per row of the pinned block, then of each section */
+    get sectionWidths() {
+        const root = this.rootRef.el;
+        const rows = [
+            this.grid.pinnedApps.length
+                ? root?.querySelector(".o_pinned_apps .row")
+                : null,
+            ...(root?.querySelectorAll(".o_apps.row") ?? []),
+        ];
+        return this.grid.keyboardRows.map((_, index) =>
+            this._tilesPerRow(rows[index] ?? rows.find(Boolean)),
+        );
+    }
+
+    /** @param {Element | null | undefined} row */
+    _tilesPerRow(row) {
+        const tiles = [...(row?.children ?? [])];
+        const firstTop = tiles[0]?.getBoundingClientRect();
+        if (firstTop?.width) {
+            const onFirstLine = tiles.findIndex(
+                (tile) => Math.abs(tile.getBoundingClientRect().top - firstTop.top) > 1,
             );
+            return onFirstLine === -1 ? tiles.length : onFirstLine;
         }
         return this.ui.isSmall ? (this.state.isIosApp ? 1 : 4) : APPS_PER_ROW;
     }

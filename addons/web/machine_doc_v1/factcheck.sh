@@ -446,7 +446,7 @@ assert_eq "axe-core references" \
 css_decls=$(grep -rh "^\s*--[a-zA-Z]" "$WEB/static/src" --include="*.scss" 2>/dev/null | wc -l)
 assert_range "CSS custom property declarations" "$css_decls" 300 600
 css_uses=$(grep -rh "var(--" "$WEB/static/src" --include="*.scss" 2>/dev/null | wc -l)
-assert_range "var(--*) usages" "$css_uses" 500 650
+assert_range "var(--*) usages" "$css_uses" 500 720
 
 assert_eq "form_controller distinct top-level dirs" \
     "$(grep "^import" "$WEB/static/src/views/form/form_controller.js" \

@@ -26,6 +26,7 @@ export class UserMenu extends Component {
     setup() {
         this.debug = useDebugMode();
         this.userName = user.name;
+        this.userLogin = user.login;
         this.dbName = session.db;
     }
 

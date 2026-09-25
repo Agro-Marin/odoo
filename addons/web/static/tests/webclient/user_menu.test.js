@@ -99,12 +99,14 @@ test("can be rendered", async () => {
     expect(".dropdown-menu .dropdown-item input.form-check-input").toHaveCount(1);
     expect("div.dropdown-divider").toHaveCount(1);
     expect(queryAllProperties(".dropdown-menu > *", "tagName")).toEqual([
+        "DIV",
         "SPAN",
         "SPAN",
         "SPAN",
         "DIV",
         "SPAN",
     ]);
+    expect(".o_user_menu_header .o_user_menu_name").toHaveText(user.name);
     expect(queryAllAttributes(".dropdown-menu .dropdown-item", "data-menu")).toEqual([
         "ring",
         "bad",
@@ -242,5 +244,5 @@ test("a throwing provider does not remove other user menu entries", async () => 
     }));
     await mountWithCleanup(UserMenu);
     await contains(".o_user_menu button").click();
-    expect(".o-dropdown--menu").toHaveText("Healthy");
+    expect(".o-dropdown--menu .dropdown-item").toHaveText("Healthy");
 });

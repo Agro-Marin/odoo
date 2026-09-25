@@ -43,6 +43,44 @@ class ResUsersSettings(models.Model):
         "device does not start blank.",
     )
 
+    # Written only through a method that validates them; the generic
+    # settings writer would otherwise store any shape a client sends.
+    _SETTINGS_WRITTEN_BY_METHOD = frozenset({"homemenu_config"})
+    _HOMEMENU_USAGE_MAX_ENTRIES = 50
+
+    def set_res_users_settings(self, new_settings: dict[str, Any]) -> dict[str, Any]:
+        settings = {
+            key: value
+            for key, value in new_settings.items()
+            if key not in self._SETTINGS_WRITTEN_BY_METHOD
+        }
+        if "homemenu_usage" in settings:
+            settings["homemenu_usage"] = self._normalize_homemenu_usage(
+                settings["homemenu_usage"]
+            )
+        return super().set_res_users_settings(settings)
+
+    @api.model
+    def _normalize_homemenu_usage(self, value: Any) -> dict[str, Any] | None:
+        if not isinstance(value, dict):
+            return None
+        entries = []
+        for xmlid, entry in value.items():
+            if not isinstance(xmlid, str) or not xmlid or not isinstance(entry, dict):
+                continue
+            count, at = entry.get("n"), entry.get("t")
+            if (
+                isinstance(count, (int, float))
+                and not isinstance(count, bool)
+                and count >= 0
+                and isinstance(at, (int, float))
+                and not isinstance(at, bool)
+                and at >= 0
+            ):
+                entries.append((xmlid, {"n": count, "t": at}))
+        entries.sort(key=lambda item: item[1]["t"], reverse=True)
+        return dict(entries[: self._HOMEMENU_USAGE_MAX_ENTRIES]) or None
+
     @api.model
     def _normalize_homemenu_config(self, value: Any) -> dict[str, Any] | None:
         if isinstance(value, str):

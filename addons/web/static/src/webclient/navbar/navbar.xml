@@ -7,6 +7,7 @@
         class="o_main_navbar d-print-none"
         data-command-category="disabled"
       >
+        <span t-if="this.hm.hasHomeMenu and !this.isScopedApp and !this.ui.isSmall" class="o_navbar_home_brand d-flex align-items-center flex-shrink-0">Odoo</span>
         <a t-if="!this.isScopedApp" href="/odoo" class="o_menu_toggle border-0" t-att-class="this.menuToggleClass" t-att-title="this.menuToggleTitle" t-att-aria-label="this.menuToggleTitle" accesskey="h" t-ref="menuApps" t-on-click.prevent="this._onMenuToggleClick" t-on-mouseenter="this._onMenuToggleEnter" t-on-mouseleave="this._onMenuToggleLeave">
             <t t-if="this.ui.isSmall and !this.hm.hasHomeMenu">
                 <t t-call="web.NavBar.AppsMenu.Sidebar"/>

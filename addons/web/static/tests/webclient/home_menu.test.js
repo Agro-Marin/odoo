@@ -15,6 +15,7 @@ import {
     press,
     queryAllAttributes,
     queryAllTexts,
+    queryFirst,
     queryOne,
     runAllTimers,
     test,
@@ -472,7 +473,7 @@ test("no recents row until an app has been opened", async () => {
         props: getDefaultHomeMenuProps(),
     });
     expect(".o_recent_apps").toHaveCount(0);
-    expect(".o_apps_listbox").toHaveClass("mt-5");
+    expect(".o_home_menu_recent").toHaveCount(0);
 });
 
 test("recently opened apps are shown above the grid", async () => {
@@ -512,8 +513,15 @@ test("Tab reaches the tiles and the arrows then move the real focus", async () =
     expect(".o_home_menu_search").toBeFocused();
 
     await press("Tab");
-    expect(".o_home_menu_customize").toBeFocused();
-    await press("Tab");
+    expect(".o_home_profile").toBeFocused();
+    const firstTile = queryFirst(".o_app");
+    for (
+        let presses = 0;
+        presses < 30 && document.activeElement !== firstTile;
+        presses++
+    ) {
+        await press("Tab");
+    }
     await animationFrame();
     expect(".o_app:eq(0)").toBeFocused();
     expect(".o_app:eq(0)").toHaveClass("o_focused");
@@ -703,13 +711,11 @@ test("the company default applies until the user customises, and reset returns t
 });
 
 test("an admin can make the current layout the company default", async () => {
-    patchWithCleanup(user, { isAdmin: true });
+    patchWithCleanup(user, { isSystem: true });
 
-    onRpc("res.company", "write", ({ args }) => {
-        expect.step(
-            `company ${args[0]} ${JSON.stringify(args[1].homemenu_default_config)}`,
-        );
-        return true;
+    onRpc("web.config", "set_homemenu_default", ({ args }) => {
+        expect.step(`company default ${JSON.stringify(args[0])}`);
+        return args[0];
     });
     const props = getLayoutProps();
     props.defaultConfig = parseHomeMenuConfig(null);
@@ -724,7 +730,7 @@ test("an admin can make the current layout the company default", async () => {
     await click(".o_home_menu_company_default");
     await animationFrame();
     expect.verifySteps([
-        `company ${user.activeCompany.id} {"version":2,"order":[],"pinned":[],"hidden":["app.3"]}`,
+        `company default {"version":2,"order":[],"pinned":[],"hidden":["app.3"]}`,
     ]);
     expect(session.homemenu_default_config).toEqual({
         version: 2,
@@ -739,10 +745,23 @@ test("an admin can make the current layout the company default", async () => {
     expect(".o_home_menu_company_default").toHaveCount(0);
 });
 
-test("publishing without a default prop keeps Reset available for the personal copy", async () => {
-    patchWithCleanup(user, { isAdmin: true });
+test("an access-rights manager who cannot write the company layout is not offered to", async () => {
+    patchWithCleanup(user, { isAdmin: true, isSystem: false });
+    const props = getLayoutProps();
+    props.defaultConfig = parseHomeMenuConfig(null);
+    await mountWithCleanup(HomeMenu, { props });
 
-    onRpc("res.company", "write", () => true);
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    await click(".o_app[data-menu-xmlid='app.3'] + .o_app_edit_actions .o_app_hide");
+    await animationFrame();
+    expect(".o_home_menu_company_default").toHaveCount(0);
+});
+
+test("publishing without a default prop keeps Reset available for the personal copy", async () => {
+    patchWithCleanup(user, { isSystem: true });
+
+    onRpc("web.config", "set_homemenu_default", ({ args }) => args[0]);
     const props = getLayoutProps();
     delete props.defaultConfig;
     const homeMenu = await mountWithCleanup(HomeMenu, { props });
@@ -1099,10 +1118,10 @@ function menuTreeOf(xmlids, childrenPerApp = 0) {
 }
 
 test("reset after publishing a company default returns the TILES to it, not only the config", async () => {
-    patchWithCleanup(user, { isAdmin: true, settings: { ...user.settings, id: 1 } });
+    patchWithCleanup(user, { isSystem: true, settings: { ...user.settings, id: 1 } });
     patchWithCleanup(session, { homemenu_default_config: null });
 
-    onRpc("res.company", "write", () => true);
+    onRpc("web.config", "set_homemenu_default", ({ args }) => args[0]);
     const tree = menuTreeOf(["a", "b", "c"]);
     const menus = /** @type {import("services").ServiceFactories["menu"]} */ (
         /** @type {unknown} */ ({
@@ -1505,7 +1524,7 @@ test("the grid takes category headings once it stops fitting on a screen", async
         },
     });
     expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual(
-        ["SALES", "SUPPLY CHAIN"],
+        ["Sales", "Supply Chain"],
         { message: "by ir.module.category.sequence, not by which app comes first" },
     );
     expect(queryAllAttributes(".o_apps_section .o_app", "id").slice(0, 3)).toEqual([
@@ -1570,7 +1589,7 @@ test("category headings follow the sequence, and fall back to the name", async (
         },
     });
     expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual(
-        ["MIKE", "ZULU", "ALPHA"],
+        ["Mike", "Zulu", "Alpha"],
         {
             message:
                 "sequence decides, and two categories sharing one sequence are " +
@@ -1608,7 +1627,7 @@ test("an app whose module names no category sorts after every heading", async ()
         },
     });
     expect(queryAllTexts(".o_apps_section .o_home_menu_section_title")).toEqual(
-        ["HUMAN RESOURCES", "OTHER"],
+        ["Human Resources", "Other"],
         { message: "the unclassified bucket sorts last, not at sequence 0" },
     );
 });
@@ -1665,10 +1684,10 @@ test("the arrows walk the sections in the order they are shown", async () => {
         },
     });
     expect(menu.keyboardRows).toEqual([
-        [0, 1, 2, 3, 4, 5],
-        [6],
-        [7, 8, 9, 10, 11, 12],
-        [13],
+        [0, 1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9, 10],
+        [11, 12, 13],
     ]);
     expect(menu.grid.visibleApps.map((app) => app.label)).toEqual(
         apps.map((app) => app.label),

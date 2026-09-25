@@ -2,30 +2,29 @@
 <templates xml:space="preserve">
 
 <t t-name="web.HomeMenu">
-    <div t-ref="root" class="o_home_menu h-100 overflow-auto" t-att-class="{ o_ios_app: this.state.isIosApp }">
-        <div class="container">
-            <div class="o_home_menu_header d-flex flex-wrap align-items-center gap-2 mt-4">
-              <div class="o_home_menu_search_wrapper position-relative flex-grow-1 mx-auto">
-                <i class="oi oi-search o_home_menu_search_icon position-absolute top-50 translate-middle-y" aria-hidden="true"/>
-                <input t-ref="input" type="search" class="o_home_menu_search form-control form-control-lg" data-allow-hotkeys="true" t-on-input="() => this.search.onInput()" t-on-blur="(ev) => this.search.onBlur(ev)" t-on-compositionstart="() => this.search.onCompositionStart()" t-on-compositionend="() => this.search.onCompositionEnd()"
-                    aria-label="Search apps and menus"
-                    placeholder="Search apps and menus..."
-                    autocomplete="off"
-                />
-              </div>
-              <button t-if="this.canEditLayout and !this.state.editing" type="button" class="o_home_menu_customize btn btn-link px-2" title="Customize" aria-label="Customize" t-on-click="this._toggleEditing">
-                  <i class="oi oi-settings-adjust me-1" aria-hidden="true"/><span>Customize</span>
-              </button>
+    <div t-ref="root" class="o_home_menu h-100 overflow-auto" t-att-class="{ o_ios_app: this.state.isIosApp, o_home_menu_editing_mode: this.state.editing }">
+        <div t-if="this.canEditLayout and this.state.editing" class="o_home_menu_toolbar">
+            <div class="o_home_menu_toolbar_inner d-flex align-items-center gap-2">
+                <button type="button" class="o_home_menu_done btn" t-att-disabled="this.layout.state.status === 'saving'" t-on-click="this._toggleEditing">Done</button>
+                <span class="o_home_menu_edit_hint d-none d-lg-inline ms-2">Drag a tile or use its move buttons</span>
+                <button t-if="this.layout.canReset" type="button" class="o_home_menu_reset o_home_toolbar_action btn ms-auto" t-on-click="this._resetLayout"><i class="fa fa-undo" aria-hidden="true"/>Follow company layout</button>
+                <button t-if="this.canSetCompanyDefault and this.hasCustomLayout" type="button" class="o_home_menu_company_default o_home_toolbar_action btn" t-att-class="{ 'ms-auto': !this.layout.canReset }" title="Every user of the company without a layout of their own will see this one" t-on-click="this._setCompanyDefault"><i class="fa fa-building-o" aria-hidden="true"/>Set as company default</button>
+            </div>
+        </div>
+        <div class="container o_home_menu_container">
+            <div class="o_home_menu_header o_home_banner d-flex align-items-center gap-3 mt-4">
+                <i class="oi oi-search o_home_menu_search_icon o_home_banner_icon flex-shrink-0" aria-hidden="true"/>
+                <div class="o_home_menu_search_wrapper flex-grow-1">
+                    <input t-ref="input" type="search" class="o_home_menu_search d-block w-100" data-allow-hotkeys="true" t-on-input="() => this.search.onInput()" t-on-blur="(ev) => this.search.onBlur(ev)" t-on-compositionstart="() => this.search.onCompositionStart()" t-on-compositionend="() => this.search.onCompositionEnd()"
+                        aria-label="Search apps and menus"
+                        placeholder="Search apps and menus..."
+                        autocomplete="off"
+                    />
+                    <div class="o_home_banner_subtitle text-truncate">Type to jump to any app or menu</div>
+                </div>
+                <i class="oi oi-arrow-right o_home_banner_arrow flex-shrink-0" aria-hidden="true"/>
             </div>
             <div class="o_home_menu_search_status visually-hidden" role="status" aria-live="polite" t-out="this.grid.searchSummary"/>
-            <div t-if="this.canEditLayout and this.state.editing" class="o_home_menu_toolbar d-flex flex-wrap justify-content-center align-items-center gap-2 mt-2">
-                <t>
-                    <span class="o_home_menu_edit_hint text-muted small me-2">Drag a tile or use its move buttons</span>
-                    <button t-if="this.layout.canReset" type="button" class="o_home_menu_reset btn btn-link btn-sm" t-on-click="this._resetLayout">Follow company layout</button>
-                    <button t-if="this.canSetCompanyDefault and this.hasCustomLayout" type="button" class="o_home_menu_company_default btn btn-link btn-sm" title="Every user of the company without a layout of their own will see this one" t-on-click="this._setCompanyDefault">Set as company default</button>
-                    <button type="button" class="o_home_menu_done btn btn-primary btn-sm" t-att-disabled="this.layout.state.status === 'saving'" t-on-click="this._toggleEditing">Done</button>
-                </t>
-            </div>
             <div t-if="this.state.editing or this.layout.state.status === 'error'" class="o_home_menu_save_status text-center small mt-2" role="status">
                 <span t-if="this.layout.state.status === 'saving'">Saving…</span>
                 <t t-elif="this.layout.state.status === 'error'">
@@ -37,72 +36,136 @@
             <div class="visually-hidden" role="status" t-out="this.state.layoutAnnouncement"/>
             <ExpirationPanel t-if="this.subscription.warningType and !this.subscription.isWarningHidden and this.subscription.daysLeft &lt;= 30 and this.subscription.daysLeft > 0 and !this.subscription.sysadmin.replace"/>
             <SysAdminPanel t-if="this.subscription.daysLeft > 0 and this.subscription.sysadmin.message"/>
-            <t t-set="attention" t-value="this.grid.attentionApps"/>
-            <nav t-if="attention.length" class="o_home_menu_attention mt-4 mx-0" aria-label="Apps needing attention">
-                <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Needs attention</div>
-                <div class="o_attention_apps row user-select-none mx-0" role="list">
-                    <div t-foreach="attention" t-as="app" t-key="app.id" class="col-3 col-md-2 mb-3 px-0" role="listitem">
-                        <t t-call="{{ this.constructor.appTemplate }}" tileId="'attention_app_' + app_index"/>
+            <div class="o_home_menu_board">
+                <t t-if="this.showDashboard">
+                    <button type="button" class="o_home_tile o_home_profile" t-att-title="this.profile.name" t-on-click="this.openPreferences">
+                        <span class="o_home_profile_halo" aria-hidden="true"/>
+                        <img class="o_home_profile_avatar" t-att-src="this.profile.avatarUrl" alt=""/>
+                        <span class="o_home_profile_name text-truncate" t-out="this.profile.name"/>
+                        <span class="o_home_profile_login text-truncate" t-out="this.profile.login"/>
+                        <span class="o_home_profile_company text-truncate" t-out="this.profile.company"/>
+                    </button>
+                    <section t-foreach="this.widgets" t-as="widget" t-key="widget.app.id" class="o_home_tile o_home_widget" t-att-class="{ o_home_tile_wide: widget.wide }" t-att-data-app-xmlid="widget.app.xmlid">
+                        <div class="o_home_tile_header">
+                            <a class="o_home_tile_header_link" t-att-href="widget.app.href" t-on-click.prevent="() => this._openMenu(widget.app)">
+                                <t t-call="web.HomeMenu.TileIcon" app="widget.app"/>
+                                <span class="o_home_tile_heading">
+                                    <span class="o_home_tile_title text-truncate" t-out="widget.app.label"/>
+                                    <span class="o_home_tile_subtitle text-truncate"><span class="o_home_tile_badge" aria-hidden="true"><i class="fa fa-bars"/></span><t t-out="widget.subtitle"/></span>
+                                </span>
+                            </a>
+                            <i class="fa fa-pencil-square-o o_home_tile_action" aria-hidden="true"/>
+                        </div>
+                        <div t-if="widget.links.length" class="o_home_tile_body o_home_widget_links">
+                            <a t-foreach="widget.links" t-as="link" t-key="link.id" class="o_home_widget_link" t-att-href="link.href" t-on-click.prevent="() => this._onMenuResultClick(link)">
+                                <span class="o_home_widget_link_label text-truncate" t-out="link.label"/>
+                                <span t-if="link.parents" class="o_home_widget_link_parents text-truncate" t-out="link.parents"/>
+                            </a>
+                        </div>
+                        <a t-else="" class="o_home_tile_body o_home_widget_empty" t-att-href="widget.app.href" t-on-click.prevent="() => this._openMenu(widget.app)">
+                            <i class="fa fa-arrow-circle-right" aria-hidden="true"/>
+                            <span>Open <t t-out="widget.app.label"/></span>
+                        </a>
+                        <span class="o_home_tile_more" aria-hidden="true">•••</span>
+                    </section>
+                </t>
+                <t t-set="attention" t-value="this.grid.attentionApps"/>
+                <nav t-if="attention.length" class="o_home_tile o_home_launcher_tile o_home_menu_attention" aria-label="Apps needing attention">
+                    <div class="o_home_menu_section_title o_home_launcher_title">Needs attention</div>
+                    <div class="o_attention_apps row user-select-none mx-0" role="list">
+                        <div t-foreach="attention" t-as="app" t-key="app.id" class="col-3 px-0" role="listitem">
+                            <t t-call="{{ this.constructor.appTemplate }}" tileId="'attention_app_' + app_index"/>
+                        </div>
                     </div>
-                </div>
-            </nav>
-            <t t-set="recents" t-value="this.grid.recentApps"/>
-            <nav t-if="recents.length and !this.search.query" class="o_home_menu_recent mt-4 mx-0" aria-label="Recent apps">
-                <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Recent</div>
-                <div class="o_recent_apps row user-select-none mx-0" role="list">
-                    <div t-foreach="recents" t-as="app" t-key="app.id" class="col-3 col-md-2 mb-3 px-0" role="listitem">
-                        <t t-call="{{ this.constructor.appTemplate }}" tileId="'recent_app_' + app_index"/>
+                </nav>
+                <t t-set="recents" t-value="this.grid.recentApps"/>
+                <nav t-if="recents.length and !this.search.query" class="o_home_tile o_home_launcher_tile o_home_menu_recent" aria-label="Recent apps">
+                    <div class="o_home_menu_section_title o_home_launcher_title">Recent</div>
+                    <div class="o_recent_apps row user-select-none mx-0" role="list">
+                        <div t-foreach="recents" t-as="app" t-key="app.id" class="col-3 px-0" role="listitem">
+                            <t t-call="{{ this.constructor.appTemplate }}" tileId="'recent_app_' + app_index"/>
+                        </div>
                     </div>
-                </div>
-            </nav>
-            <t t-set="pinned" t-value="this.grid.pinnedApps"/>
-            <t t-set="sections" t-value="this.grid.appSections"/>
-            <t t-set="unpinned" t-value="this.grid.visibleApps.length - pinned.length"/>
-            <t t-set="menuResults" t-value="this.grid.menuMatches"/>
-            <t t-set="menuIndexOffset" t-value="pinned.length + unpinned"/>
-            <div t-if="pinned.length or unpinned" class="o_apps_listbox user-select-none" role="list" aria-label="Apps" t-att-class="{'mt-5': !recents.length, 'mt-3': recents.length, o_home_menu_editing: this.state.editing}">
-                <div t-if="pinned.length" class="o_pinned_apps mb-2">
-                    <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Pinned</div>
-                    <div class="row mx-0">
-                        <div t-foreach="pinned" t-as="app" t-key="app.id" class="col-3 col-md-2 o_draggable mb-3 px-0" role="listitem">
-                            <t t-call="{{ this.constructor.appTemplate }}"
-                                tileId="'result_app_' + app_index"
-                                gridIndex="app_index"/>
+                </nav>
+                <t t-set="pinned" t-value="this.grid.pinnedApps"/>
+                <t t-set="sections" t-value="this.grid.appSections"/>
+                <t t-set="unpinned" t-value="this.grid.visibleApps.length - pinned.length"/>
+                <t t-set="menuResults" t-value="this.grid.menuMatches"/>
+                <t t-set="menuIndexOffset" t-value="pinned.length + unpinned"/>
+                <div t-if="pinned.length or unpinned" class="o_apps_listbox o_home_apps_board user-select-none" role="list" aria-label="Apps" t-att-class="{o_home_menu_editing: this.state.editing}">
+                    <div t-if="pinned.length" class="o_pinned_apps o_home_tile" t-att-class="sections[0]?.category ? 'o_home_launcher_tile ' + this.launcherSpan(pinned.length) : 'o_home_tile_full'">
+                        <div class="o_home_menu_section_title o_home_launcher_title">Pinned</div>
+                        <div class="row mx-0">
+                            <div t-foreach="pinned" t-as="app" t-key="app.id" class="col-3 col-md-2 o_draggable px-0" role="listitem">
+                                <t t-call="{{ this.constructor.appTemplate }}"
+                                    tileId="'result_app_' + app_index"
+                                    gridIndex="app_index"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div t-foreach="sections" t-as="section" t-key="section.category or 'all'" class="o_apps_section o_home_tile" t-att-class="section.category ? 'o_home_launcher_tile ' + this.launcherSpan(section.apps.length) : 'o_home_tile_full'">
+                        <div t-if="section.category" class="o_home_menu_section_title o_home_launcher_title" t-out="section.category"/>
+                        <div t-else="" class="o_home_tile_header o_home_apps_header">
+                            <span class="o_home_tile_header_link">
+                                <span class="o_home_tile_icon o_home_apps_glyph" aria-hidden="true"><i class="oi oi-apps"/></span>
+                                <span class="o_home_tile_heading">
+                                    <span class="o_home_tile_title">Apps</span>
+                                    <span class="o_home_tile_subtitle"><span class="o_home_tile_badge" aria-hidden="true"><i class="oi oi-apps"/></span><t t-out="this.appsSubtitle"/></span>
+                                </span>
+                            </span>
+                        </div>
+                        <div class="o_apps row mx-0" t-att-class="{ o_home_tile_body: !section.category }">
+                            <div t-foreach="section.apps" t-as="app" t-key="app.id" class="col-3 col-md-2 o_draggable px-0" role="listitem">
+                                <t t-call="{{ this.constructor.appTemplate }}"
+                                    tileId="'result_app_' + (section.offset + app_index)"
+                                    gridIndex="section.offset + app_index"/>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div t-foreach="sections" t-as="section" t-key="section.category or 'all'" class="o_apps_section">
-                    <div t-if="section.category" class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1" t-out="section.category"/>
-                    <div class="o_apps row mx-0">
-                        <div t-foreach="section.apps" t-as="app" t-key="app.id" class="col-3 col-md-2 o_draggable mb-3 px-0" role="listitem">
-                            <t t-call="{{ this.constructor.appTemplate }}"
-                                tileId="'result_app_' + (section.offset + app_index)"
-                                gridIndex="section.offset + app_index"/>
-                        </div>
-                    </div>
+                <div t-elif="!this.search.query" class="o_no_result o_home_tile o_home_tile_full o_home_tile_empty">
+                    No apps available
                 </div>
+                <div t-elif="!menuResults.length" class="o_no_result o_home_tile o_home_tile_full o_home_tile_empty text-center">
+                    No apps or menus match
+                </div>
+                <nav t-if="menuResults.length" class="o_home_tile o_home_tile_full o_home_menu_menu_results" aria-label="Matching menus">
+                    <div class="o_home_tile_header">
+                        <span class="o_home_tile_header_link">
+                            <span class="o_home_tile_icon o_home_apps_glyph" aria-hidden="true"><i class="oi oi-search"/></span>
+                            <span class="o_home_tile_heading">
+                                <span class="o_home_menu_section_title o_home_tile_title">Menus</span>
+                            </span>
+                        </span>
+                    </div>
+                    <div class="o_home_tile_body">
+                        <a t-foreach="menuResults" t-as="menu" t-key="menu.id" t-att-id="'result_menu_' + menu_index" class="o_menu_result o_menuitem d-block text-decoration-none" t-att-class="{o_focused: this.keyboard.focusedIndex === menuIndexOffset + menu_index}" t-att-href="menu.href" t-on-click.prevent="() => this._onMenuResultClick(menu)" t-on-focus="() => this._onItemFocus(menuIndexOffset + menu_index)">
+                            <span class="o_menu_result_parents" t-out="menu.parents"/><span class="o_menu_result_parents"> / </span><span t-out="menu.label"/>
+                        </a>
+                        <button t-if="menuResults.length === 8" type="button" class="o_home_menu_all_results btn btn-link btn-sm" t-on-click="this.showAllMenuResults">View all matching menus</button>
+                    </div>
+                </nav>
             </div>
-            <div t-elif="!this.search.query" class="o_no_result">
-                No apps available
+            <div t-if="this.canEditLayout and !this.state.editing and !this.search.query" class="o_home_menu_footer d-flex justify-content-center">
+                <button type="button" class="o_home_menu_customize btn" title="Customize" aria-label="Customize" t-on-click="this._toggleEditing">
+                    <i class="fa fa-sliders me-2" aria-hidden="true"/><span>Customize</span>
+                </button>
             </div>
-            <div t-elif="!menuResults.length" class="o_no_result text-center text-muted mt-5">
-                No apps or menus match
-            </div>
-            <nav t-if="menuResults.length" class="o_home_menu_menu_results mx-auto mt-3" aria-label="Matching menus">
-                <div class="o_home_menu_section_title text-uppercase small fw-bold px-2 mb-1">Menus</div>
-                <a t-foreach="menuResults" t-as="menu" t-key="menu.id" t-att-id="'result_menu_' + menu_index" class="o_menu_result o_menuitem d-block px-2 py-1 rounded text-decoration-none" t-att-class="{o_focused: this.keyboard.focusedIndex === menuIndexOffset + menu_index}" t-att-href="menu.href" t-on-click.prevent="() => this._onMenuResultClick(menu)" t-on-focus="() => this._onItemFocus(menuIndexOffset + menu_index)">
-                    <span class="text-muted" t-out="menu.parents"/><span class="text-muted"> / </span><span t-out="menu.label"/>
-                </a>
-                <button t-if="menuResults.length === 8" type="button" class="o_home_menu_all_results btn btn-link btn-sm" t-on-click="this.showAllMenuResults">View all matching menus</button>
-            </nav>
         </div>
     </div>
+</t>
+
+<t t-name="web.HomeMenu.TileIcon">
+    <img t-if="app.webIconData" class="o_home_tile_icon" alt="" t-att-src="app.webIconData"/>
+    <span t-else="" class="o_home_tile_icon d-inline-flex align-items-center justify-content-center" t-attf-style="background-color: {{app.webIcon.backgroundColor}};">
+        <i t-attf-class="{{app.webIcon.iconClass}}" t-attf-style="color: {{app.webIcon.color}};"/>
+    </span>
 </t>
 
 <t t-name="web.HomeMenu.App">
     <div class="o_home_app_tile position-relative">
     <a t-att-id="tileId"
-        class="o_app o_menuitem position-relative d-flex flex-column rounded-3 justify-content-start align-items-center w-100 p-1 p-md-2"
+        class="o_app o_menuitem position-relative d-flex flex-column rounded-3 justify-content-start align-items-center w-100 p-1"
         t-att-class="{o_focused: gridIndex !== undefined and this.keyboard.focusedIndex === gridIndex, o_app_pinned: this.layout.isPinned(app), o_app_hidden: this.layout.isHidden(app)}"
         t-att-data-menu-xmlid="gridIndex !== undefined ? app.xmlid : undefined"
         t-att-data-hotkey="gridIndex !== undefined and gridIndex &lt; this.directJumpHotkeys ? '' + (gridIndex + 1) : undefined"
@@ -118,20 +181,20 @@
         >
             <i t-attf-class="{{app.webIcon.iconClass}} position-relative w-auto h-auto" t-attf-style="color: {{app.webIcon.color}};"/>
         </div>
-        <div class="o_caption o_line_clamp w-100 text-center mt-2" t-att-title="app.label" t-out="app.label"/>
+        <div class="o_caption o_line_clamp w-100 text-center mt-1" t-att-title="app.label" t-out="app.label"/>
         <t t-set="badge" t-value="this.badgeFor(app)"/>
         <t t-if="!this.state.editing" t-call="web.AppBadge"/>
         <span t-if="this.search.query and this.layout.isHidden(app)" class="small text-muted">Hidden</span>
     </a>
-        <div t-if="this.state.editing and gridIndex !== undefined and app.xmlid" class="o_app_edit_actions d-flex flex-wrap justify-content-center gap-1 p-1">
-            <button type="button" class="o_app_pin btn btn-sm btn-light border" t-att-title="this.pinTitle(app)" t-att-aria-label="this.pinTitle(app)" t-on-click.stop.prevent="() => this._togglePinned(app)">
+        <div t-if="this.state.editing and gridIndex !== undefined and app.xmlid" class="o_app_edit_actions">
+            <button type="button" class="o_app_hide" t-att-title="this.hideTitle(app)" t-att-aria-label="this.hideTitle(app)" t-on-click.stop.prevent="() => this._toggleHidden(app)">
+                <i t-att-class="this.layout.isHidden(app) ? 'fa fa-plus' : 'fa fa-minus'" aria-hidden="true"/>
+            </button>
+            <button type="button" class="o_app_pin" t-att-title="this.pinTitle(app)" t-att-aria-label="this.pinTitle(app)" t-on-click.stop.prevent="() => this._togglePinned(app)">
                 <i class="fa fa-thumb-tack" aria-hidden="true"/>
             </button>
-            <button type="button" class="o_app_hide btn btn-sm btn-light border" t-att-title="this.hideTitle(app)" t-att-aria-label="this.hideTitle(app)" t-on-click.stop.prevent="() => this._toggleHidden(app)">
-                <i t-att-class="this.layout.isHidden(app) ? 'fa fa-eye' : 'fa fa-eye-slash'" aria-hidden="true"/>
-            </button>
-            <button type="button" class="o_app_move_earlier btn btn-sm btn-light border" title="Move earlier" aria-label="Move earlier" t-att-disabled="!this.canMoveApp(app, -1)" t-on-click="() => this.moveApp(app, -1)"><i class="fa fa-arrow-up" aria-hidden="true"/></button>
-            <button type="button" class="o_app_move_later btn btn-sm btn-light border" title="Move later" aria-label="Move later" t-att-disabled="!this.canMoveApp(app, 1)" t-on-click="() => this.moveApp(app, 1)"><i class="fa fa-arrow-down" aria-hidden="true"/></button>
+            <button type="button" class="o_app_move_earlier" title="Move earlier" aria-label="Move earlier" t-att-disabled="!this.canMoveApp(app, -1)" t-on-click="() => this.moveApp(app, -1)"><i class="fa fa-chevron-left" aria-hidden="true"/></button>
+            <button type="button" class="o_app_move_later" title="Move later" aria-label="Move later" t-att-disabled="!this.canMoveApp(app, 1)" t-on-click="() => this.moveApp(app, 1)"><i class="fa fa-chevron-right" aria-hidden="true"/></button>
         </div>
     </div>
 </t>

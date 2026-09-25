@@ -1,9 +1,15 @@
 $o-home-menu-font-size-base: 1rem;
-$o-home-menu-container-size: 850px;
+$o-home-menu-tile-unit: 315px;
+$o-home-menu-tile-gap: 30px;
+$o-home-menu-container-size: $o-home-menu-tile-unit * 3 + $o-home-menu-tile-gap * 2;
 $o-home-menu-search-max-width: 480px;
-$o-home-menu-app-icon-max-width: 70px;
-$o-home-menu-app-icon-padding: 10px;
+$o-home-menu-app-icon-max-width: 3.25rem;
+$o-home-menu-app-icon-padding: 0.4rem;
 $o-home-menu-app-icon-background-color: rgba(#fff, 1);
+$o-home-menu-tile-radius: 11px;
+$o-home-menu-launcher-radius: 16px;
+$o-home-menu-font-family: $o-font-family-sans-serif;
+$o-home-menu-ease: cubic-bezier(0.32, 0.08, 0.24, 1);
 
 $o-home-menu-caption-color: $o-main-text-color !default;
 $o-home-menu-caption-shadow: none !default;

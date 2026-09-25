@@ -143,3 +143,54 @@ test("All apps in the quick launcher opens the home menu", async () => {
     expect(".o_quick_launcher").toHaveCount(0);
     expect(".o_home_menu").toHaveCount(1);
 });
+
+test("the home screen shows the user, and a tile per featured app with its menus", async () => {
+    menuUsage.clear();
+    defineActions(
+        [1001, 1002, 1003, 1004].map((id) => ({
+            id,
+            tag: "__quick_launcher_action__",
+            target: "main",
+            type: "ir.actions.client",
+        })),
+    );
+    defineMenus([
+        { id: 0 },
+        {
+            id: 1,
+            name: "App1",
+            appID: 1,
+            actionID: 1001,
+            xmlid: "menu_1",
+            children: [
+                { id: 11, name: "Orders", appID: 1, actionID: 1004, xmlid: "menu_11" },
+            ],
+        },
+        { id: 2, name: "App2", appID: 2, actionID: 1002, xmlid: "menu_2" },
+        { id: 3, name: "App3", appID: 3, actionID: 1003, xmlid: "menu_3" },
+    ]);
+    await mountWebClient({ WebClient });
+    expect(".o_home_profile_name").toHaveText(user.name);
+    expect(".o_home_widget").toHaveCount(3);
+    expect(queryAllTexts(".o_home_widget .o_home_tile_title")).toEqual([
+        "App1",
+        "App2",
+        "App3",
+    ]);
+    expect(
+        ".o_home_widget[data-app-xmlid=menu_1] .o_home_widget_link_label",
+    ).toHaveText("Orders");
+    expect(".o_home_widget[data-app-xmlid=menu_2] .o_home_widget_empty").toHaveCount(1);
+
+    await click(".o_home_menu_customize");
+    await animationFrame();
+    expect(".o_home_profile").toHaveCount(0);
+    expect(".o_home_widget").toHaveCount(0);
+    await click(".o_home_menu_done");
+    await animationFrame();
+
+    await click(".o_home_widget[data-app-xmlid=menu_1] .o_home_widget_link");
+    await waitFor(".test_client_action");
+    expect(".o_home_menu").toHaveCount(0);
+    await waitFor(".o_menu_brand:contains(App1)");
+});

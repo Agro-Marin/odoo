@@ -171,7 +171,7 @@ export class HomeMenuLayout {
     }
 
     get canSetCompanyDefault() {
-        return user.isAdmin;
+        return user.isSystem;
     }
 
     /** @param {LayoutChange} change */
@@ -273,10 +273,9 @@ export class HomeMenuLayout {
 
     async setCompanyDefault() {
         await this.flush();
-        const config = JSON.parse(serializeHomeMenuConfig(this.config));
-        await this.orm.write("res.company", [user.activeCompany.id], {
-            homemenu_default_config: config,
-        });
+        const config = await this.orm.call("web.config", "set_homemenu_default", [
+            JSON.parse(serializeHomeMenuConfig(this.config)),
+        ]);
         session.homemenu_default_config = config;
         this.defaultConfig = parseHomeMenuConfig(config);
     }

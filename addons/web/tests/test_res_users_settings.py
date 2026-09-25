@@ -311,3 +311,50 @@ class TestResUsersSettings(TransactionCase):
                     [{"operation": "pin", "xmlid": "app.a", "value": True}]
                 )
         self.assertFalse(settings.homemenu_config)
+
+    def test_generic_settings_writer_cannot_store_a_raw_launcher_layout(self):
+        settings = self.user_settings.with_user(self.user)
+        settings.set_res_users_settings(
+            {"homemenu_config": {"pinned": ["app.a"]}, "density": "compact"}
+        )
+        self.assertFalse(settings.homemenu_config)
+        self.assertEqual(settings.density, "compact")
+
+    def test_generic_settings_writer_normalizes_launcher_usage(self):
+        settings = self.user_settings.with_user(self.user)
+        settings.set_res_users_settings(
+            {
+                "homemenu_usage": {
+                    "app.a": {"n": 2, "t": 5},
+                    "": {"n": 1, "t": 1},
+                    "app.b": "bad",
+                    "app.c": {"n": -1, "t": 1},
+                    "app.d": {"n": True, "t": 1},
+                }
+            }
+        )
+        self.assertEqual(settings.homemenu_usage, {"app.a": {"n": 2, "t": 5}})
+
+        settings.set_res_users_settings(
+            {"homemenu_usage": {f"app.{i}": {"n": 1, "t": i} for i in range(60)}}
+        )
+        self.assertEqual(len(settings.homemenu_usage), 50)
+        self.assertNotIn("app.0", settings.homemenu_usage)
+
+        settings.set_res_users_settings({"homemenu_usage": None})
+        self.assertFalse(settings.homemenu_usage)
+
+    def test_company_default_layout_is_written_by_a_system_admin_only(self):
+        admin = self.env.ref("base.user_admin")
+        WebConfig = self.env["web.config"]
+        stored = WebConfig.with_user(admin).set_homemenu_default(
+            {"hidden": ["app.a", "app.a"]}
+        )
+        self.assertEqual(
+            stored, {"version": 2, "order": [], "pinned": [], "hidden": ["app.a"]}
+        )
+        self.assertEqual(self.env.company.web_config_id.homemenu_default_config, stored)
+        with self.assertRaises(ValidationError):
+            WebConfig.with_user(admin).set_homemenu_default({"version": 999})
+        with self.assertRaises(AccessError):
+            WebConfig.with_user(self.user).set_homemenu_default({"hidden": []})

@@ -3,7 +3,7 @@
 
 /**
  * @param {number[]} sectionSizes
- * @param {number} perRow
+ * @param {number | number[]} perRow one width for every section, or one per section
  * @param {number} [singleRows]
  * @returns {number[][]}
  */
@@ -11,10 +11,11 @@ export function gridRows(sectionSizes, perRow, singleRows = 0) {
     /** @type {number[][]} */
     const rows = [];
     let index = 0;
-    for (const size of sectionSizes) {
-        for (let start = 0; start < size; start += perRow) {
+    for (const [section, size] of sectionSizes.entries()) {
+        const width = Math.max(1, Array.isArray(perRow) ? perRow[section] : perRow);
+        for (let start = 0; start < size; start += width) {
             const row = [];
-            for (let i = start; i < Math.min(start + perRow, size); i++) {
+            for (let i = start; i < Math.min(start + width, size); i++) {
                 row.push(index++);
             }
             rows.push(row);
