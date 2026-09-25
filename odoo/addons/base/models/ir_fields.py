@@ -507,13 +507,13 @@ class IrFieldsConverter(models.AbstractModel):
     def _match_choice(value: Any, choices: Sequence[Sequence]) -> Any:
         # a value outranks every label, exactly as the column index orders
         # its tokens, so an item's label can never shadow another item's value
-        token = str(value).strip().lower()
+        word = str(value).strip().lower()
         for position in (0, 1):
             for choice in choices:
                 if value == choice[position]:
                     return choice[0]
             for choice in choices:
-                if str(choice[position]).lower() == token:
+                if str(choice[position]).lower() == word:
                     return choice[0]
         return None
 

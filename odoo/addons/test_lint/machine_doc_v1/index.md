@@ -67,6 +67,7 @@ database, and `test_checkers.py` does exactly that.
 | `_checker_sql.py` | `sql-injection` |
 | `_checker_sql_placeholder.py` | `sql-bound-placeholder` |
 | `_checker_ensure_one.py` | `ensure-one-call` |
+| `_checker_token_compare.py` | `token-compare` |
 | `_checker_gettext.py` | `gettext-variable`, `gettext-placeholders`, `gettext-repr`, `missing-gettext`, `gettext-developer-error` |
 | `_checker_batch.py` | `n-plus-one-query` |
 | `_checker_unlink.py` | `raise-unlink-override` |
@@ -144,6 +145,7 @@ row or a resolver's verifier, never a fourth method -- `mail_plugin`'s `outlook`
 `calendar`'s attendee token were the two that went that way before the rule.
 `hand-rolled-range` (E8532) counts models that declare a numeric `<x>_min`/`<x>_max` (or `min_<x>`/`max_<x>`) pair without `mixin.band` or a `mixin.score.*` scale. A range that classifies a value belongs on the mixin -- half-open, overlap-checked, scoped -- because a pair rolled by hand is inclusive in one model and half-open in the next, and `credit.grade`'s integer pair over a float score proposed no grade between 79 and 80. Ratcheted: a tolerance, a slider or a filter bound is a pair and not a scale, so the floor names the debt and moving a scale onto the mixin lowers it.
 `ensure-one-call` (E8535) counts every call of `ensure_one()`, in production code and tests alike, and cannot be suppressed: the fork's singleton check is `check_singleton()`, so the call raises AttributeError the first time its line runs. S7's gate hook shipped one and refused every receiver route but the device's with a 403 until a calendar suite ran it.
+`token-compare` (E8536) counts a `==` or `!=` whose operand is named like a token (`token`, `*_token`) or computes one (`_generate_*token`, `_sign_token`, `_encode_link*`, `hmac`), outside tests: `==` returns at the first differing character, so the answer time tells a guesser how much of the secret is right. `consteq` compares in constant time and refuses a non-string. A literal or a named constant on the other side is not a secret compare (a lexer's token types). mail_group's group and action tokens, sign's request token and two OAuth states were the ones found.
 `sql-bound-placeholder` (E8534) counts a bound parameter where PostgreSQL parses syntax -- `IN %s`, `INTERVAL %s` -- in a raw `cr.execute`: psycopg 3 binds server-side, so the statement reaches the server as `IN $1` and never parses. `SQL()` expands a tuple and `SQL.literal` inlines; a `timedelta` is adapted as an interval.
 `route-untyped` (E8533) counts a route a program calls -- `type="json2"`, or
 `auth in {"bearer", "receiver"}` -- that does not declare its parameters: no

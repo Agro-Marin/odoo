@@ -5,7 +5,7 @@ from odoo import fields, http, models, tools
 from odoo.exceptions import AccessError
 from odoo.fields import Domain
 from odoo.http import Response, request
-from odoo.tools.misc import get_lang
+from odoo.tools.misc import consteq, get_lang
 from odoo.tools.translate import LazyTranslate
 
 from odoo.addons.portal.controllers.portal import pager as portal_pager
@@ -70,7 +70,7 @@ class PortalMailGroup(http.Controller):
             if not group:
                 raise werkzeug.exceptions.NotFound
 
-            if token != group._generate_group_access_token():
+            if not consteq(token, group._generate_group_access_token()):
                 raise werkzeug.exceptions.NotFound
 
             mail_groups = group
@@ -312,7 +312,7 @@ class PortalMailGroup(http.Controller):
 
         group_sudo = group.sudo()
 
-        if token and token != group_sudo._generate_group_access_token():
+        if token and not consteq(token, group_sudo._generate_group_access_token()):
             raise werkzeug.exceptions.NotFound
 
         if not token:
@@ -380,7 +380,7 @@ class PortalMailGroup(http.Controller):
             raise werkzeug.exceptions.NotFound
 
         excepted_token = group._generate_action_token(email, action)
-        return group if token == excepted_token else False
+        return group if consteq(token, excepted_token) else False
 
     def _generate_attachments_access_token(self, messages):
         for message in messages:

@@ -1,6 +1,7 @@
 from odoo import http
 from odoo.http import request
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import consteq
 
 _debug = DebugLog(__name__)
 
@@ -14,7 +15,7 @@ class WebsiteMailGroup(http.Controller):
 
         token = kw.get("token")
 
-        if token and token != group._generate_group_access_token():
+        if token and not consteq(token, group._generate_group_access_token()):
             _debug.logic("group_membership_bad_token", group=group)
             return None
 

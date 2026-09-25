@@ -24,6 +24,7 @@ from . import (
     _checker_sql,
     _checker_sql_placeholder,
     _checker_tax_company,
+    _checker_token_compare,
     _checker_unlink,
     _pretty_xml,
     _py_scan,
@@ -2517,6 +2518,28 @@ class TestEnsureOneLint(BaseCase):
             "rec.ensure_one()\nrec.check_singleton()\nx = rec.ensure_one\n"
         )
         self.assertEqual([v.lineno for v in _checker_ensure_one.check(tree)], [1])
+
+
+@no_retry
+class TestTokenCompareLint(BaseCase):
+    def test_an_equality_on_a_token_is_flagged(self):
+        tree = ast.parse(
+            "if token != group._generate_group_access_token():\n    pass\n"
+            "ok = record.access_token == token\n"
+            "same = expected == self._sign_token(pid)\n"
+        )
+        self.assertEqual(
+            [v.lineno for v in _checker_token_compare.check(tree)], [1, 2, 3]
+        )
+
+    def test_consteq_and_lexer_tokens_are_not(self):
+        tree = ast.parse(
+            "ok = consteq(record.access_token, token)\n"
+            "if token == STRING:\n    pass\n"
+            "empty = token == ''\n"
+            "same = order.uuid == line.order_uuid\n"
+        )
+        self.assertEqual(list(_checker_token_compare.check(tree)), [])
 
 
 @no_retry

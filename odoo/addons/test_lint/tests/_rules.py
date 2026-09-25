@@ -23,6 +23,7 @@ from . import (
     _checker_sql,
     _checker_sql_placeholder,
     _checker_tax_company,
+    _checker_token_compare,
     _checker_typed_route,
     _checker_unlink,
 )
@@ -278,6 +279,13 @@ RULES: tuple[Rule, ...] = (
         "time the line runs, which a path no test takes hides until production",
     ),
     Rule(
+        "token-compare",
+        "E8536",
+        "compare a token, a signature or a computed HMAC with `consteq`: `==` "
+        "returns at the first differing character, so the answer time tells a "
+        "guesser how much of the secret is right",
+    ),
+    Rule(
         "sql-bound-placeholder",
         "E8534",
         "a bound parameter cannot stand where PostgreSQL parses syntax: psycopg "
@@ -445,6 +453,10 @@ def _ensure_one(unit: Unit) -> Iterable[object]:
     return _checker_ensure_one.check(unit.tree)
 
 
+def _token_compare(unit: Unit) -> Iterable[object]:
+    return _checker_token_compare.check(unit.tree)
+
+
 def _band_range(unit: Unit) -> Iterable[object]:
     if "/addons/base/" in unit.path:
         return ()
@@ -568,6 +580,11 @@ CHECKERS: tuple[Checker, ...] = (
         frozenset({"sql-bound-placeholder"}),
     ),
     Checker(_ensure_one, _anywhere, frozenset({"ensure-one-call"})),
+    Checker(
+        _token_compare,
+        _in_an_addon_outside_tests,
+        frozenset({"token-compare"}),
+    ),
     Checker(
         _route_untyped,
         _in_an_addon_outside_tests,
