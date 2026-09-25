@@ -38,40 +38,6 @@ class AccountTax(models.Model):
     _name = "account.tax"
     _inherit = ["account.tax", "mixin.company.split"]
 
-    fiscal_position_ids = fields.Many2many(
-        comodel_name="account.fiscal.position",
-        relation="account_fiscal_position_account_tax_rel",
-        column1="account_tax_id",
-        column2="account_fiscal_position_id",
-    )
-    original_tax_ids = fields.Many2many(
-        comodel_name="account.tax",
-        relation="account_tax_alternatives",
-        column1="dest_tax_id",
-        column2="src_tax_id",
-        string="Replaces",
-        domain="""[
-            ('type_tax_use', '=', type_tax_use),
-            ('is_domestic', '=', True),
-        ]""",
-        ondelete="cascade",
-        help="List of taxes to replace when applying any of the stipulated fiscal positions.",
-    )
-    replacing_tax_ids = fields.Many2many(
-        comodel_name="account.tax",
-        relation="account_tax_alternatives",
-        column1="src_tax_id",
-        column2="dest_tax_id",
-        string="Replaced by",
-        readonly=True,
-    )
-    display_alternative_taxes_field = fields.Boolean(
-        compute="_compute_display_alternative_taxes_field"
-    )
-    is_domestic = fields.Boolean(
-        compute="_compute_is_domestic",
-        search="_search_is_domestic",
-    )
     analytic = fields.Boolean(
         string="Include in Analytic Cost",
         help="If set, the amount computed by this tax will be assigned to the same analytic account as the invoice line (if any)",
@@ -161,38 +127,6 @@ class AccountTax(models.Model):
         self.hide_tax_exigibility = (
             self._get_settings_company().account_config_id.tax_exigibility
         )
-
-    @api.depends_context("company")
-    @api.depends("fiscal_position_ids")
-    def _compute_is_domestic(self):
-        domestic = (
-            self._get_settings_company().account_config_id.domestic_fiscal_position_id
-        )
-        for tax in self:
-            tax.is_domestic = (
-                not tax.fiscal_position_ids or domestic in tax.fiscal_position_ids
-            )
-
-    @_debug.perf.timed
-    def _search_is_domestic(self, operator, value):
-        if operator not in ("in", "not in"):
-            return NotImplemented
-        domestic = (
-            self._get_settings_company().account_config_id.domestic_fiscal_position_id
-        )
-        matches = Domain("fiscal_position_ids", "=", False) | Domain(
-            "fiscal_position_ids", "in", domestic.ids
-        )
-        return matches if operator == "in" else ~matches
-
-    @api.depends_context("company")
-    @api.depends("fiscal_position_ids", "original_tax_ids")
-    def _compute_display_alternative_taxes_field(self):
-        for tax in self:
-            domestic = tax._get_settings_company().account_config_id.domestic_fiscal_position_id
-            tax.display_alternative_taxes_field = tax.original_tax_ids or (
-                tax.fiscal_position_ids and tax.fiscal_position_ids._origin != domestic
-            )
 
     @_debug.perf.timed
     def _compute_is_used(self):
@@ -743,7 +677,7 @@ class AccountTax(models.Model):
             for company in tax.company_ids:
                 allowed = (
                     company.tax_config_id.account_fiscal_country_id
-                    | company.account_config_id.multi_vat_foreign_country_ids
+                    | company.tax_config_id.multi_vat_foreign_country_ids
                 )
                 if tax.country_id not in allowed:
                     _debug.logic(
@@ -1354,7 +1288,7 @@ class AccountTaxRepartitionLine(models.Model):
             allowed_country_ids = (
                 False,
                 company.tax_config_id.account_fiscal_country_id.id,
-                *company.account_config_id.multi_vat_foreign_country_ids.ids,
+                *company.tax_config_id.multi_vat_foreign_country_ids.ids,
             )
             rep_line.tag_ids_domain = [
                 ("applicability", "=", "taxes"),

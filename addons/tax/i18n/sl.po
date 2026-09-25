@@ -1,0 +1,255 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * account
+#
+# Translators:
+# jl2035 <jaka.luthar@gmail.com>, 2022
+# Simon Gorše <simon@gorse.org>, 2022
+# laznikd <laznik@mentis.si>, 2022
+# Dejan Sraka <dejan.sraka@picolabs.si>, 2022
+# Grega Vavtar <grega@hbs.si>, 2022
+# Nejc G <nejc@luxim.si>, 2022
+# Boris Kodelja <boris@hbs.si>, 2022
+# Vida Potočnik <vida.potocnik@mentis.si>, 2022
+# Jasmina Macur <jasmina@hbs.si>, 2022
+# matjaz k <matjaz@mentis.si>, 2022
+# Tadej Lupšina <tadej@hbs.si>, 2022
+# Matjaz Mozetic <m.mozetic@matmoz.si>, 2022
+# Martin Trigaux, 2023
+# Tomaž Jug <tomaz@editor.si>, 2023
+# "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2025-11-10 15:46+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Slovenian <https://translate.odoo.com/projects/odoo-19/account/sl/>\n"
+"Language: sl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=4; plural=n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3;\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
+msgid "Active"
+msgstr "Aktivno"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_group_id
+msgid "Apply only if delivery country matches the group."
+msgstr "Velja le, če se država dostave ujema s skupino."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_id
+msgid "Apply only if delivery country matches."
+msgstr "Velja samo, če se država dostave ujema."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__vat_required
+msgid "Apply only if partner has a VAT number."
+msgstr "Uporabi le če ima partner DDV številko."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__auto_apply
+msgid ""
+"Apply tax & account mappings on invoices automatically if the matching "
+"criterias (VAT/Country) are met."
+msgstr ""
+"Samodejno uporabi davčne in računske povezave na računih, če so izpolnjeni "
+"ustrezni kriteriji (DDV/država)."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__active
+msgid ""
+"By unchecking the active field, you may hide a fiscal position without "
+"deleting it."
+msgstr ""
+"Če odznačite aktivno polje, lahko skrijete fiskalni položaj, ne da bi ga "
+"izbrisali."
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_id
+msgid "Company"
+msgstr "Podjetje"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_country_id
+msgid "Company Country"
+msgstr "Država podjetja"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__fiscal_country_codes
+msgid "Company Fiscal Country Code"
+msgstr "Davčna koda države podjetja"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_id
+msgid "Country"
+msgstr "Država"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_group_id
+msgid "Country Group"
+msgstr "Skupine držav"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_uid
+msgid "Created by"
+msgstr "Ustvaril"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_date
+msgid "Created on"
+msgstr "Ustvarjeno"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__auto_apply
+msgid "Detect Automatically"
+msgstr "Samodejno zaznaj"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__display_alternative_taxes_field
+msgid "Display Alternative Taxes Field"
+msgstr ""
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__display_name
+msgid "Display Name"
+msgstr "Prikazani naziv"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__state_ids
+msgid "Federal States"
+msgstr "Zvezne države"
+
+#. module: tax
+#: model:ir.model,name:tax.model_account_fiscal_position
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__name
+#: model:ir.model.fields,field_description:tax.field_account_tax__fiscal_position_ids
+#: model:ir.model.fields,field_description:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,field_description:tax.field_res_users__property_account_position_id
+msgid "Fiscal Position"
+msgstr "Davčno območje"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__foreign_vat
+msgid "Foreign Tax ID"
+msgstr "Tuja davčna številka"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__id
+msgid "ID"
+msgstr "ID"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
+#: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
+msgid "Is Domestic"
+msgstr ""
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_uid
+msgid "Last Updated by"
+msgstr "Zadnji posodobil"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_date
+msgid "Last Updated on"
+msgstr "Zadnjič posodobljeno"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__note
+msgid "Legal mentions that have to be printed on the invoices."
+msgstr "Pravne omembe, ki morajo biti natisnjene na računih."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_tax__original_tax_ids
+msgid ""
+"List of taxes to replace when applying any of the stipulated fiscal "
+"positions."
+msgstr ""
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__note
+msgid "Notes"
+msgstr "Beležke"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__replacing_tax_ids
+msgid "Replaced by"
+msgstr ""
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__original_tax_ids
+msgid "Replaces"
+msgstr ""
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__sequence
+msgid "Sequence"
+msgstr "Zaporedje"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__states_count
+msgid "States Count"
+msgstr "Števec regij"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_map
+msgid "Tax Map"
+msgstr "Davčni zemljevid"
+
+#. module: tax
+#. odoo-python
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_ids
+msgid "Taxes"
+msgstr "Davki"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__fiscal_country_codes
+msgid ""
+"The ISO country code in two chars. \n"
+"You can use this field for quick search."
+msgstr ""
+"ISO koda države v dveh znakih. \n"
+"To polje lahko uporabiš za hitro iskanje."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
+msgid "The country to use the tax reports from for this company"
+msgstr "Država, iz katere se bodo uporabljala davčna poročila za to podjetje"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,help:tax.field_res_users__property_account_position_id
+msgid ""
+"The fiscal position determines the taxes/accounts used for this contact."
+msgstr "Davčno območje določa davke / račune, ki se uporabljajo za ta stik."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__foreign_vat
+msgid ""
+"The tax ID of your company in the region mapped by this fiscal position."
+msgstr ""
+"Davčna številka vašega podjetja v regiji, ki jo preslika ta fiskalni "
+"položaj."
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__vat_required
+msgid "VAT required"
+msgstr "DDV zahtevan"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
+msgid "Zip Range From"
+msgstr "P.št. razpon od"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_to
+msgid "Zip Range To"
+msgstr "P.št. razpon do"

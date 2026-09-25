@@ -1,0 +1,254 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * account
+#
+# Translators:
+# as co02 <asco02@163.com>, 2022
+# 智能科技奇客罗方 <alanljj@gmail.com>, 2022
+# liAnGjiA <liangjia@qq.com>, 2022
+# keecome <7017511@qq.com>, 2022
+# 宇洛 李, 2022
+# Ryan Zhang <so_happy_boy@hotmail.com>, 2022
+# lonely落叶 <liu--qiong@hotmail.com>, 2022
+# YIMIN XUAN, 2022
+# Raymond Yu <cl_yu@hotmail.com>, 2022
+# Benson <Benson.Dr@Gmail.com>, 2023
+# Jeffery CHEN <jeffery9@gmail.com>, 2023
+# Martin Trigaux, 2023
+# Emily Jia <eji@odoo.com>, 2023
+# 稀饭~~ <wangwhai@qq.com>, 2023
+# Ryan <ouyang.em@gmail.com>, 2023
+# "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+# "feihu.zhang" <feihu.zhang@live.com>, 2025.
+# 何彬 <vnsoft.he@gmail.com>, 2025.
+# 张飞虎 <feihu.zhang@live.com>, 2025.
+# "Chloe Wang (chwa)" <chwa@odoo.com>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2025-12-05 04:17+0000\n"
+"Last-Translator: \"Chloe Wang (chwa)\" <chwa@odoo.com>\n"
+"Language-Team: Chinese (Simplified Han script) <https://translate.odoo.com/projects/odoo-19/account/zh_Hans/>\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
+msgid "Active"
+msgstr "有效"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_group_id
+msgid "Apply only if delivery country matches the group."
+msgstr "仅当交货国家/地区与组匹配时应用。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_id
+msgid "Apply only if delivery country matches."
+msgstr "仅当交货国家/地区匹配时应用。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__vat_required
+msgid "Apply only if partner has a VAT number."
+msgstr "仅当合作伙伴有增值税编码时应用。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__auto_apply
+msgid ""
+"Apply tax & account mappings on invoices automatically if the matching "
+"criterias (VAT/Country) are met."
+msgstr "如果满足匹配标准（增值税/国家/地区），则自动在发票上应用税项和科目映射。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__active
+msgid ""
+"By unchecking the active field, you may hide a fiscal position without "
+"deleting it."
+msgstr "不勾选该有效的字段，可以隐藏而非删除应税设定。"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_id
+msgid "Company"
+msgstr "公司"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_country_id
+msgid "Company Country"
+msgstr "公司所在国家/地区"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__fiscal_country_codes
+msgid "Company Fiscal Country Code"
+msgstr "公司财务国家代码"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_id
+msgid "Country"
+msgstr "国家/地区"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_group_id
+msgid "Country Group"
+msgstr "国家/地区组"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_uid
+msgid "Created by"
+msgstr "创建人"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_date
+msgid "Created on"
+msgstr "创建日期"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__auto_apply
+msgid "Detect Automatically"
+msgstr "自动检测"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__display_alternative_taxes_field
+msgid "Display Alternative Taxes Field"
+msgstr "显示替代税种字段"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__display_name
+msgid "Display Name"
+msgstr "显示名称"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__state_ids
+msgid "Federal States"
+msgstr "联邦州"
+
+#. module: tax
+#: model:ir.model,name:tax.model_account_fiscal_position
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__name
+#: model:ir.model.fields,field_description:tax.field_account_tax__fiscal_position_ids
+#: model:ir.model.fields,field_description:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,field_description:tax.field_res_users__property_account_position_id
+msgid "Fiscal Position"
+msgstr "应税设定"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__foreign_vat
+msgid "Foreign Tax ID"
+msgstr "外国税务识别码"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__id
+msgid "ID"
+msgstr "ID"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
+#: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
+msgid "Is Domestic"
+msgstr "是本地"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_uid
+msgid "Last Updated by"
+msgstr "最后更新人"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_date
+msgid "Last Updated on"
+msgstr "上次更新日期"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__note
+msgid "Legal mentions that have to be printed on the invoices."
+msgstr "须打印在发票上的法律注释。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_tax__original_tax_ids
+msgid ""
+"List of taxes to replace when applying any of the stipulated fiscal "
+"positions."
+msgstr "套用任何指明的财务规则时，需要取代的税项清单。"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__note
+msgid "Notes"
+msgstr "通知"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__replacing_tax_ids
+msgid "Replaced by"
+msgstr "被替代为"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__original_tax_ids
+msgid "Replaces"
+msgstr "替换"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__sequence
+msgid "Sequence"
+msgstr "序列"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__states_count
+msgid "States Count"
+msgstr "状态数量"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_map
+msgid "Tax Map"
+msgstr "税项配对"
+
+#. module: tax
+#. odoo-python
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_ids
+msgid "Taxes"
+msgstr "税项"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__fiscal_country_codes
+msgid ""
+"The ISO country code in two chars. \n"
+"You can use this field for quick search."
+msgstr ""
+"ISO国家/地区代码包含两个字符。\n"
+"可以使用该字段进行快速搜索。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
+msgid "The country to use the tax reports from for this company"
+msgstr "使用该公司税务报表的国家/地区"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,help:tax.field_res_users__property_account_position_id
+msgid ""
+"The fiscal position determines the taxes/accounts used for this contact."
+msgstr "应税设定决定该联系人的税项/科目。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__foreign_vat
+msgid ""
+"The tax ID of your company in the region mapped by this fiscal position."
+msgstr "该应税设定映射的区域内贵公司的税务ID。"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__vat_required
+msgid "VAT required"
+msgstr "要求的增值税"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
+msgid "Zip Range From"
+msgstr "邮编范围从"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_to
+msgid "Zip Range To"
+msgstr "邮编范围到"

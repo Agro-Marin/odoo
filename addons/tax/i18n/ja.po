@@ -1,0 +1,245 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * account
+#
+# Translators:
+# Norimichi Sugimoto <norimichi.sugimoto@tls-ltd.co.jp>, 2022
+# Tim Siu Lai <tl@roomsfor.hk>, 2022
+# Noma Yuki, 2022
+# Yoshi Tashiro (Quartile) <tashiro@roomsfor.hk>, 2023
+# 江口和志 <sandwhale1010@gmail.com>, 2023
+# Ryoko Tsuda <ryoko@quartile.co>, 2023, 2025.
+# Martin Trigaux, 2023
+# Andy Yiu, 2023
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Junko Augias (juau)" <juau@odoo.com>, 2025, 2026.
+# Yoshi Tashiro <tashiro@quartile.co>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2026-02-11 17:40+0000\n"
+"Last-Translator: \"Junko Augias (juau)\" <juau@odoo.com>\n"
+"Language-Team: Japanese <https://translate.odoo.com/projects/odoo-19/account/ja/>\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
+msgid "Active"
+msgstr "有効"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_group_id
+msgid "Apply only if delivery country matches the group."
+msgstr "配送先国がグループに一致する場合のみ適用されます。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_id
+msgid "Apply only if delivery country matches."
+msgstr "配送先国が一致する場合のみ適用されます。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__vat_required
+msgid "Apply only if partner has a VAT number."
+msgstr "取引先がVAT番号を持つ場合のみ、適用されます。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__auto_apply
+msgid ""
+"Apply tax & account mappings on invoices automatically if the matching "
+"criterias (VAT/Country) are met."
+msgstr "一致条件 (VAT/国)が満たされた場合、自動的に請求書に税・勘定マッピングを適用します。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__active
+msgid ""
+"By unchecking the active field, you may hide a fiscal position without "
+"deleting it."
+msgstr "有効化フィールドを解除することで、それを消すことなく会計ポジションを非表示にすることができます。"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_id
+msgid "Company"
+msgstr "会社"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_country_id
+msgid "Company Country"
+msgstr "会社所在国"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__fiscal_country_codes
+msgid "Company Fiscal Country Code"
+msgstr "会社の会計上の国コード"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_id
+msgid "Country"
+msgstr "国"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_group_id
+msgid "Country Group"
+msgstr "国グループ"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_uid
+msgid "Created by"
+msgstr "作成者"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_date
+msgid "Created on"
+msgstr "作成日"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__auto_apply
+msgid "Detect Automatically"
+msgstr "自動検出"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__display_alternative_taxes_field
+msgid "Display Alternative Taxes Field"
+msgstr "代替税フィールドを表示"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__display_name
+msgid "Display Name"
+msgstr "表示名"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__state_ids
+msgid "Federal States"
+msgstr "州"
+
+#. module: tax
+#: model:ir.model,name:tax.model_account_fiscal_position
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__name
+#: model:ir.model.fields,field_description:tax.field_account_tax__fiscal_position_ids
+#: model:ir.model.fields,field_description:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,field_description:tax.field_res_users__property_account_position_id
+msgid "Fiscal Position"
+msgstr "会計ポジション"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__foreign_vat
+msgid "Foreign Tax ID"
+msgstr "国外登録番号"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__id
+msgid "ID"
+msgstr "ID"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
+#: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
+msgid "Is Domestic"
+msgstr "国内"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_uid
+msgid "Last Updated by"
+msgstr "最終更新者"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_date
+msgid "Last Updated on"
+msgstr "最終更新日"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__note
+msgid "Legal mentions that have to be printed on the invoices."
+msgstr "請求書に印刷する必要のある法的文言。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_tax__original_tax_ids
+msgid ""
+"List of taxes to replace when applying any of the stipulated fiscal "
+"positions."
+msgstr "指定された会計ポジションを適用する際に置き換える税の一覧"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__note
+msgid "Notes"
+msgstr "ノート"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__replacing_tax_ids
+msgid "Replaced by"
+msgstr "置き換え先："
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__original_tax_ids
+msgid "Replaces"
+msgstr "置換える税"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__sequence
+msgid "Sequence"
+msgstr "シーケンス"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__states_count
+msgid "States Count"
+msgstr "アメリカカウント"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_map
+msgid "Tax Map"
+msgstr "税マップ"
+
+#. module: tax
+#. odoo-python
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_ids
+msgid "Taxes"
+msgstr "税金"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__fiscal_country_codes
+msgid ""
+"The ISO country code in two chars. \n"
+"You can use this field for quick search."
+msgstr ""
+"ISOの国別コードは2文字です。\n"
+"これを使ってクイックサーチできます。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
+msgid "The country to use the tax reports from for this company"
+msgstr "この会社の税レポートの課税国"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,help:tax.field_res_users__property_account_position_id
+msgid ""
+"The fiscal position determines the taxes/accounts used for this contact."
+msgstr "会計ポジションは、この連絡先に使用される税及び勘定科目を決定します。"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__foreign_vat
+msgid ""
+"The tax ID of your company in the region mapped by this fiscal position."
+msgstr "この会計ポジションにマップされた地区での会社の登録番号。"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__vat_required
+msgid "VAT required"
+msgstr "要登録番号"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
+msgid "Zip Range From"
+msgstr "郵便番号範囲の開始"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_to
+msgid "Zip Range To"
+msgstr "郵便番号範囲の終了"

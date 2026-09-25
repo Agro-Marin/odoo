@@ -1,0 +1,269 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * account
+#
+# Translators:
+# luisfreitasarxi, 2022
+# Ricardo Santa Ana <ricardosantana@gmail.com>, 2022
+# Diogo Duarte <diogocarvalhoduarte@gmail.com>, 2022
+# Tiago Santos <tiago.santos@arxi.pt>, 2022
+# João Carvalho <jpldcarvalho+github@gmail.com>, 2022
+# Daniel Reis, 2022
+# Marcelo Pereira <marcelo.pereira@arxi.pt>, 2022
+# Daniel C Santos <dcs@thinkopensolutions.pt>, 2022
+# Joao Felix <jrmfelix@gmail.com>, 2022
+# José Gomes <jg@opencloud.pro>, 2022
+# 425fe09b3064b9f906f637fff94056ae_a00ea56 <0fa3588fa89906bfcb3a354600956e0e_308047>, 2022
+# Cristina Loureiro <cloureiro@live.com>, 2022
+# Luiz Fernando <lfpsgs@outlook.com>, 2022
+# Ricardo Correia <rcorreiavv@gmail.com>, 2022
+# Martin Trigaux, 2022
+# Catarina Rocha <cr@opencloud.pro>, 2022
+# Diogo Fonseca <dsf@thinkopensolutions.pt>, 2022
+# Ricardo Martins <ricardo.nbs.martins@gmail.com>, 2022
+# Pedro Filipe <pedro2.10@hotmail.com>, 2022
+# Pedro Castro Silva <pedrocs@exo.pt>, 2022
+# Nuno Silva <nuno.silva@arxi.pt>, 2022
+# Reinaldo Ramos <reinaldo.ramos@arxi.pt>, 2023
+# cafonso <cafonso62@gmail.com>, 2023
+# Mónica Pinheiro, 2023
+# Manuela Silva <mmsrs@sky.com>, 2023
+# João Neves, 2023
+# "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2025-11-17 10:56+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Portuguese <https://translate.odoo.com/projects/odoo-19/account/pt/>\n"
+"Language: pt\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=3; plural=(n == 0 || n == 1) ? 0 : ((n != 0 && n % 1000000 == 0) ? 1 : 2);\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
+msgid "Active"
+msgstr "Ativo"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_group_id
+msgid "Apply only if delivery country matches the group."
+msgstr "Aplicar apenas se o país de entrega corresponde ao grupo."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_id
+msgid "Apply only if delivery country matches."
+msgstr "Aplicar apenas se o país de entrega corresponde."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__vat_required
+msgid "Apply only if partner has a VAT number."
+msgstr "Aplicar apenas se o parceiro tiver um NIF."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__auto_apply
+msgid ""
+"Apply tax & account mappings on invoices automatically if the matching "
+"criterias (VAT/Country) are met."
+msgstr ""
+"Aplique o mapeamento de conta e imposto em faturas automaticamente se os "
+"critérios de correspondência (imposto/país) forem atendidos."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__active
+msgid ""
+"By unchecking the active field, you may hide a fiscal position without "
+"deleting it."
+msgstr ""
+"Ao desmarcar o campo ativo, pode ocultar uma posição fiscal sem a eliminar."
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_id
+msgid "Company"
+msgstr "Empresa"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_country_id
+msgid "Company Country"
+msgstr "País da Empresa"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__fiscal_country_codes
+msgid "Company Fiscal Country Code"
+msgstr "Código do país fiscal da empresa"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_id
+msgid "Country"
+msgstr "País"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_group_id
+msgid "Country Group"
+msgstr "Grupo de Países"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_uid
+msgid "Created by"
+msgstr "Criado por"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_date
+msgid "Created on"
+msgstr "Criado em"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__auto_apply
+msgid "Detect Automatically"
+msgstr "Detectar Automaticamente"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__display_alternative_taxes_field
+msgid "Display Alternative Taxes Field"
+msgstr "Exibir campo de impostos alternativos"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__display_name
+msgid "Display Name"
+msgstr "Nome"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__state_ids
+msgid "Federal States"
+msgstr "Estados Federais"
+
+#. module: tax
+#: model:ir.model,name:tax.model_account_fiscal_position
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__name
+#: model:ir.model.fields,field_description:tax.field_account_tax__fiscal_position_ids
+#: model:ir.model.fields,field_description:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,field_description:tax.field_res_users__property_account_position_id
+msgid "Fiscal Position"
+msgstr "Posição Fiscal"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__foreign_vat
+msgid "Foreign Tax ID"
+msgstr "ID fiscal estrangeira"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__id
+msgid "ID"
+msgstr "ID"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
+#: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
+msgid "Is Domestic"
+msgstr "É Doméstico"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_uid
+msgid "Last Updated by"
+msgstr "Última Atualização por"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_date
+msgid "Last Updated on"
+msgstr "Última Atualização em"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__note
+msgid "Legal mentions that have to be printed on the invoices."
+msgstr "Menções legais que têm de ser impressas nas faturas."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_tax__original_tax_ids
+msgid ""
+"List of taxes to replace when applying any of the stipulated fiscal "
+"positions."
+msgstr ""
+"Lista de impostos substituídos ao aplicar qualquer uma das posições fiscais "
+"estipuladas."
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__note
+msgid "Notes"
+msgstr "Notas"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__replacing_tax_ids
+msgid "Replaced by"
+msgstr ""
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__original_tax_ids
+msgid "Replaces"
+msgstr "Substitui"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__sequence
+msgid "Sequence"
+msgstr "Sequência"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__states_count
+msgid "States Count"
+msgstr "Contagem de Estados"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_map
+msgid "Tax Map"
+msgstr "Mapa fiscal"
+
+#. module: tax
+#. odoo-python
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_ids
+msgid "Taxes"
+msgstr "Impostos"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__fiscal_country_codes
+msgid ""
+"The ISO country code in two chars. \n"
+"You can use this field for quick search."
+msgstr ""
+"O código ISO do país em dois caracteres.\n"
+"Pode utilizar este campo para procura rápida."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
+msgid "The country to use the tax reports from for this company"
+msgstr "O país de onde usar os relatórios de impostos para esta empresa"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,help:tax.field_res_users__property_account_position_id
+msgid ""
+"The fiscal position determines the taxes/accounts used for this contact."
+msgstr ""
+"A posição fiscal determina os impostos/contas utilizados para este contato."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__foreign_vat
+msgid ""
+"The tax ID of your company in the region mapped by this fiscal position."
+msgstr ""
+"A identificação fiscal da sua empresa na região mapeada por esta posição "
+"fiscal."
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__vat_required
+msgid "VAT required"
+msgstr "NIF obrigatório"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
+msgid "Zip Range From"
+msgstr "Código Postal de"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_to
+msgid "Zip Range To"
+msgstr "Código Postal para"

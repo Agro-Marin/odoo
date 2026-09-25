@@ -1,0 +1,272 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * account
+#
+# Translators:
+# Onur Başer <onur@bit.com.tr>, 2022
+# Metin Akın <aknmetin@gmail.com>, 2022
+# Buket Şeker <buket_skr@hotmail.com>, 2022
+# İmat Yahya Çataklı <yahyacatakli@gmail.com>, 2022
+# Gökhan Yüksel <yg_yuksel@hotmail.com>, 2022
+# Tugay Hatıl <tugayh@projetgrup.com>, 2022
+# Güven YILMAZ <guvenyilmaz@outlook.com.tr>, 2022
+# Halil, 2022
+# Özlem Atalay <ozlema@eskayazilim.com.tr>, 2022
+# İlknur Püskül <ilknurpuskull@gmail.com>, 2022
+# Ayhan KIZILTAN <akiziltan76@hotmail.com>, 2022
+# İmat Yahya Çataklı <yahya.catakli@soluto.com.tr>, 2022
+# Ramiz Deniz Öner <deniz@denizoner.com>, 2022
+# abc Def <hdogan1974@gmail.com>, 2022
+# Ahmet Altinisik <aaltinisik@altinkaya.com.tr>, 2022
+# Levent Karakaş <levent@mektup.at>, 2022
+# Ozlem Cikrikci <ozlemc@eskayazilim.com.tr>, 2022
+# Murat Durmuş <muratd@projetgrup.com>, 2022
+# Umur Akın <umura@projetgrup.com>, 2022
+# Murat Kaplan <muratk@projetgrup.com>, 2022
+# Nadir Gazioglu <nadirgazioglu@gmail.com>, 2022
+# Jérôme JEK <jek@odoo.com>, 2022
+# Yedigen, 2022
+# muhammed ateş, 2022
+# Ediz Duman <neps1192@gmail.com>, 2023
+# Ertuğrul Güreş <ertugrulg@projetgrup.com>, 2023
+# Martin Trigaux, 2023
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# MAHAMADASIF ANSARI <maan@odoo.com>, 2025.
+# Weblate Translation Memory <noreply-mt-weblate-translation-memory@weblate.org>, 2025.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+# DeepL <noreply-mt-deepl@weblate.org>, 2025.
+# Odoo Turkish Import <dyki+tr@odoo.com>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2025-11-20 12:08+0000\n"
+"Last-Translator: Odoo Turkish Import <dyki+tr@odoo.com>\n"
+"Language-Team: Turkish <https://translate.odoo.com/projects/odoo-19/account/tr/>\n"
+"Language: tr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
+msgid "Active"
+msgstr "Etkin"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_group_id
+msgid "Apply only if delivery country matches the group."
+msgstr "Yalnızca teslimat ülkesi grupla eşleşirse uygulayın."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_id
+msgid "Apply only if delivery country matches."
+msgstr "Yalnızca teslimat ülkesi eşleşiyorsa uygulayın."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__vat_required
+msgid "Apply only if partner has a VAT number."
+msgstr "Yalnızca iş ortağının bir KDV numarası varsa uygula."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__auto_apply
+msgid ""
+"Apply tax & account mappings on invoices automatically if the matching "
+"criterias (VAT/Country) are met."
+msgstr ""
+"Eşleşme kriterlerinin (KDV/Ülke) karşılanması durumunda faturalara vergi ve "
+"hesap eşlemelerini otomatik olarak uygulayın."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__active
+msgid ""
+"By unchecking the active field, you may hide a fiscal position without "
+"deleting it."
+msgstr ""
+"Bu kutunun onayını kaldırırsanız, mali koşulu silmeden gizleyebilirsiniz."
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_id
+msgid "Company"
+msgstr "Firma"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_country_id
+msgid "Company Country"
+msgstr "Şirket Ülkesi"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__fiscal_country_codes
+msgid "Company Fiscal Country Code"
+msgstr "Şirket Mali Ülke Kodu"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_id
+msgid "Country"
+msgstr "Ülke"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_group_id
+msgid "Country Group"
+msgstr "Ülke Grubu"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_uid
+msgid "Created by"
+msgstr "Tarafından oluşturuldu"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_date
+msgid "Created on"
+msgstr "Oluşturuldu"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__auto_apply
+msgid "Detect Automatically"
+msgstr "Otomatik Algıla"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__display_alternative_taxes_field
+msgid "Display Alternative Taxes Field"
+msgstr "Alternatif Vergiler Alanını Göster"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__display_name
+msgid "Display Name"
+msgstr "İsim Göster"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__state_ids
+msgid "Federal States"
+msgstr "İller/Eyaletler"
+
+#. module: tax
+#: model:ir.model,name:tax.model_account_fiscal_position
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__name
+#: model:ir.model.fields,field_description:tax.field_account_tax__fiscal_position_ids
+#: model:ir.model.fields,field_description:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,field_description:tax.field_res_users__property_account_position_id
+msgid "Fiscal Position"
+msgstr "Mali Durum"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__foreign_vat
+msgid "Foreign Tax ID"
+msgstr "Yabancı Vergi Kimliği"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__id
+msgid "ID"
+msgstr "ID"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
+#: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
+msgid "Is Domestic"
+msgstr "Yurtiçi mi"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_uid
+msgid "Last Updated by"
+msgstr "Son Güncelleyen"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_date
+msgid "Last Updated on"
+msgstr "Son Güncelleme"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__note
+msgid "Legal mentions that have to be printed on the invoices."
+msgstr "Faturalara basılması gereken yasal ifadeler."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_tax__original_tax_ids
+msgid ""
+"List of taxes to replace when applying any of the stipulated fiscal "
+"positions."
+msgstr ""
+"Öngörülen mali pozisyonlardan herhangi biri uygulanırken değiştirilecek "
+"vergilerin listesi."
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__note
+msgid "Notes"
+msgstr "Notlar"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__replacing_tax_ids
+msgid "Replaced by"
+msgstr "Tarafından değiştirildi"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__original_tax_ids
+msgid "Replaces"
+msgstr "Değiştirir"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__sequence
+msgid "Sequence"
+msgstr "Sıra"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__states_count
+msgid "States Count"
+msgstr "Durum Sayısı"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_map
+msgid "Tax Map"
+msgstr "Vergi Eşlemesi"
+
+#. module: tax
+#. odoo-python
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_ids
+msgid "Taxes"
+msgstr "Vergiler"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__fiscal_country_codes
+msgid ""
+"The ISO country code in two chars. \n"
+"You can use this field for quick search."
+msgstr ""
+"İki karakterde ISO ülke kodu.\n"
+"Hızlı arama için bu alanı kullanabilirsiniz."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
+msgid "The country to use the tax reports from for this company"
+msgstr "Bu şirket için vergi raporlarının kullanılacağı ülke"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,help:tax.field_res_users__property_account_position_id
+msgid ""
+"The fiscal position determines the taxes/accounts used for this contact."
+msgstr "Mali koşul, bu kontak için kullanılan vergileri / hesapları belirler."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__foreign_vat
+msgid ""
+"The tax ID of your company in the region mapped by this fiscal position."
+msgstr ""
+"Bu mali koşul tarafından eşlenen bölgedeki şirketinizin vergi kimliği."
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__vat_required
+msgid "VAT required"
+msgstr "VKN/TCKN Zorunlu"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
+msgid "Zip Range From"
+msgstr "PK Başlangıç"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_to
+msgid "Zip Range To"
+msgstr "PK Bitiş"

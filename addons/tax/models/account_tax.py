@@ -258,6 +258,40 @@ class AccountTax(models.Model):
         related="country_id.code",
         readonly=True,
     )
+    fiscal_position_ids = fields.Many2many(
+        comodel_name="account.fiscal.position",
+        relation="account_fiscal_position_account_tax_rel",
+        column1="account_tax_id",
+        column2="account_fiscal_position_id",
+    )
+    original_tax_ids = fields.Many2many(
+        comodel_name="account.tax",
+        relation="account_tax_alternatives",
+        column1="dest_tax_id",
+        column2="src_tax_id",
+        string="Replaces",
+        domain="""[
+            ('type_tax_use', '=', type_tax_use),
+            ('is_domestic', '=', True),
+        ]""",
+        ondelete="cascade",
+        help="List of taxes to replace when applying any of the stipulated fiscal positions.",
+    )
+    replacing_tax_ids = fields.Many2many(
+        comodel_name="account.tax",
+        relation="account_tax_alternatives",
+        column1="src_tax_id",
+        column2="dest_tax_id",
+        string="Replaced by",
+        readonly=True,
+    )
+    display_alternative_taxes_field = fields.Boolean(
+        compute="_compute_display_alternative_taxes_field"
+    )
+    is_domestic = fields.Boolean(
+        compute="_compute_is_domestic",
+        search="_search_is_domestic",
+    )
 
     has_negative_factor = fields.Boolean(compute="_compute_has_negative_factor")
 
@@ -469,6 +503,39 @@ class AccountTax(models.Model):
 
         domain = Domain(domain).map_conditions(preprocess_name)
         return super()._search(domain, *args, **kwargs)
+
+    @api.depends_context("company")
+    @api.depends("fiscal_position_ids")
+    def _compute_is_domestic(self):
+        domestic = (
+            self._get_settings_company().tax_config_id.domestic_fiscal_position_id
+        )
+        for tax in self:
+            tax.is_domestic = (
+                not tax.fiscal_position_ids or domestic in tax.fiscal_position_ids
+            )
+
+    def _search_is_domestic(self, operator, value):
+        if operator not in ("in", "not in"):
+            return NotImplemented
+        domestic = (
+            self._get_settings_company().tax_config_id.domestic_fiscal_position_id
+        )
+        matches = Domain("fiscal_position_ids", "=", False) | Domain(
+            "fiscal_position_ids", "in", domestic.ids
+        )
+        return matches if operator == "in" else ~matches
+
+    @api.depends_context("company")
+    @api.depends("fiscal_position_ids", "original_tax_ids")
+    def _compute_display_alternative_taxes_field(self):
+        for tax in self:
+            domestic = (
+                tax._get_settings_company().tax_config_id.domestic_fiscal_position_id
+            )
+            tax.display_alternative_taxes_field = tax.original_tax_ids or (
+                tax.fiscal_position_ids and tax.fiscal_position_ids._origin != domestic
+            )
 
     @api.depends_context("company")
     def _compute_country_id(self):

@@ -3057,7 +3057,6 @@ msgstr "Activer pour créer un reçu de vente"
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__active
 #: model:ir.model.fields,field_description:account.field_account_account_tag__active
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__active
@@ -3940,31 +3939,6 @@ msgstr "Appliquer"
 msgid "Apply VAT of the EU country to which goods and services are delivered."
 msgstr ""
 "Appliquer la TVA du pays de l'UE auquel les biens et services sont livrés."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__country_group_id
-msgid "Apply only if delivery country matches the group."
-msgstr "Appliquer uniquement si le pays de livraison correspond au groupe."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__country_id
-msgid "Apply only if delivery country matches."
-msgstr "Appliquer uniquement si le pays de livraison correspond."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__vat_required
-msgid "Apply only if partner has a VAT number."
-msgstr ""
-"S'applique seulement si le partenaire a un numéro de TVA intracommunautaire."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__auto_apply
-msgid ""
-"Apply tax & account mappings on invoices automatically if the matching "
-"criterias (VAT/Country) are met."
-msgstr ""
-"Appliquez les correspondances de taxes & de comptes sur les factures "
-"automatiquement si les critères de lettrage (TVA/pays) sont remplis."
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__res_company__fiscalyear_last_month__4
@@ -4897,15 +4871,6 @@ msgstr ""
 "replier les lignes sera affiché."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__active
-msgid ""
-"By unchecking the active field, you may hide a fiscal position without "
-"deleting it."
-msgstr ""
-"En décochant le champ 'actif', vous masquez la position fiscale sans la "
-"supprimer."
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/chart_template.py:0
 msgid "CABA"
@@ -5625,7 +5590,6 @@ msgstr "Sociétés qui font réference au partenaire"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__company_id
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__company_id
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__company_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__company_id
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__company_id
 #: model:ir.model.fields,field_description:account.field_account_group__company_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__company_id
@@ -5677,11 +5641,6 @@ msgid "Company Bank Account"
 msgstr "Compte bancaire de la société"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__company_country_id
-msgid "Company Country"
-msgstr "Pays de la société"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__company_currency_id
 #: model:ir.model.fields,field_description:account.field_account_accrued_orders_wizard__currency_id
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__company_currency_id
@@ -5702,7 +5661,6 @@ msgstr "Mise en page des documents de votre société"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__company_fiscal_country_code
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__fiscal_country_codes
 msgid "Company Fiscal Country Code"
 msgstr "Code fiscal du pays de la société"
 
@@ -6008,7 +5966,6 @@ msgstr "Pays pour lesquels l'entreprise possède un numéro de TVA"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account_tag__country_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__country_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__country_id
 #: model:ir.model.fields,field_description:account.field_account_report__country_id
 #: model:ir.model.fields,field_description:account.field_account_report_external_value__report_country_id
@@ -6045,7 +6002,6 @@ msgstr "Code du pays"
 
 #. module: account
 #: model:ir.model,name:account.model_res_country_group
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__country_group_id
 msgid "Country Group"
 msgstr "Groupe de pays"
 
@@ -6291,7 +6247,6 @@ msgstr "Créé le"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__create_uid
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__create_uid
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__create_uid
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_uid
 #: model:ir.model.fields,field_description:account.field_account_group__create_uid
@@ -6357,7 +6312,6 @@ msgstr "Créé par"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__create_date
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__create_date
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__create_date
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_date
 #: model:ir.model.fields,field_description:account.field_account_group__create_date
@@ -7293,11 +7247,6 @@ msgid "Destination Account"
 msgstr "Compte de destination"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__auto_apply
-msgid "Detect Automatically"
-msgstr "Détecter automatiquement"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_tax__type_tax_use
 msgid ""
 "Determines where the tax is selectable. Note: 'None' means a tax can't be "
@@ -7465,11 +7414,6 @@ msgid "Display Alias Fields"
 msgstr "Afficher les champs d'alias"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__display_alternative_taxes_field
-msgid "Display Alternative Taxes Field"
-msgstr "Afficher le champ de taxes alternatives"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_accrued_orders_wizard__display_amount
 msgid "Display Amount"
 msgstr "Afficher le montant"
@@ -7538,7 +7482,6 @@ msgstr "Afficher l'onglet de correspondance"
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__display_name
 #: model:ir.model.fields,field_description:account.field_account_document_import_mixin__display_name
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__display_name
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__display_name
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__display_name
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__display_name
 #: model:ir.model.fields,field_description:account.field_account_group__display_name
@@ -8677,11 +8620,6 @@ msgid "Federal Income Tax"
 msgstr "Impôt fédéral sur le revenu"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__state_ids
-msgid "Federal States"
-msgstr "États fédéraux"
-
-#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/fetch_einvoices/fetch_einvoices_cog.js:0
 msgid "Fetch e-Invoices"
@@ -8823,16 +8761,11 @@ msgid "Fiscal Periods"
 msgstr "Périodes fiscales"
 
 #. module: account
-#: model:ir.model,name:account.model_account_fiscal_position
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__fiscal_position_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__name
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__position_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__fiscal_position_id
 #: model:ir.model.fields,field_description:account.field_account_move__fiscal_position_id
-#: model:ir.model.fields,field_description:account.field_account_tax__fiscal_position_ids
 #: model:ir.model.fields,field_description:account.field_res_company__fiscal_position_ids
-#: model:ir.model.fields,field_description:account.field_res_partner__property_account_position_id
-#: model:ir.model.fields,field_description:account.field_res_users__property_account_position_id
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_filter
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_tree
@@ -9054,11 +8987,6 @@ msgstr "Gain de change"
 #: model:account.account,name:account.2_account_account_us_expense_currency_exchange
 msgid "Foreign Exchange Loss"
 msgstr "Perte de change"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__foreign_vat
-msgid "Foreign Tax ID"
-msgstr "Numéro d'identification fiscal étranger"
 
 #. module: account
 #: model:account.fiscal.position,name:account.1_template_generic_export_fiscal_position
@@ -9657,7 +9585,6 @@ msgstr "ICE :"
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__id
 #: model:ir.model.fields,field_description:account.field_account_document_import_mixin__id
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__id
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__id
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__id
 #: model:ir.model.fields,field_description:account.field_account_group__id
@@ -10987,12 +10914,6 @@ msgid "Is Complete"
 msgstr "Est complet"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__is_domestic
-#: model:ir.model.fields,field_description:account.field_account_tax__is_domestic
-msgid "Is Domestic"
-msgstr "Est national"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__is_draft_duplicated_ref_ids
 #: model:ir.model.fields,field_description:account.field_account_move__is_draft_duplicated_ref_ids
 msgid "Is Draft Duplicated Ref"
@@ -11559,7 +11480,6 @@ msgstr "Dernier relevé"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__write_uid
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__write_uid
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__write_uid
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_uid
 #: model:ir.model.fields,field_description:account.field_account_group__write_uid
@@ -11625,7 +11545,6 @@ msgstr "Mis à jour par"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__write_date
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__write_date
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__write_date
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_date
 #: model:ir.model.fields,field_description:account.field_account_group__write_date
@@ -11762,7 +11681,6 @@ msgid "Legal Notes..."
 msgstr "Mentions juridiques..."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__note
 #: model:ir.model.fields,help:account.field_account_tax__invoice_legal_notes
 msgid "Legal mentions that have to be printed on the invoices."
 msgstr "Les mentions légales qui doivent être imprimées sur les factures."
@@ -11874,15 +11792,6 @@ msgstr "Liquidités"
 #: model:account.account,name:account.1_transfer_account_id
 msgid "Liquidity Transfer"
 msgstr "Transfert de liquidités"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_tax__original_tax_ids
-msgid ""
-"List of taxes to replace when applying any of the stipulated fiscal "
-"positions."
-msgstr ""
-"Liste des taxes à remplacer lors de l’application de l’une des positions "
-"fiscales stipulées."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_report__load_more_limit
@@ -13026,7 +12935,6 @@ msgstr ""
 "faire directement à partir de la facture fournisseur."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__note
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
 msgid "Notes"
 msgstr "Notes"
@@ -15277,16 +15185,6 @@ msgid "Repartition Lines"
 msgstr "Lignes de répartition"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__replacing_tax_ids
-msgid "Replaced by"
-msgstr "Remplacé par"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__original_tax_ids
-msgid "Replaces"
-msgstr "Remplace"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_report_column__report_id
 #: model:ir.model.fields,field_description:account_reports.field_account_report_send__account_report_id
 #: model:ir.model.fields,field_description:account_reports.field_account_return_type__report_id
@@ -16285,7 +16183,6 @@ msgstr "Septembre"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__sequence
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__sequence
 #: model:ir.model.fields,field_description:account.field_account_journal__sequence
 #: model:ir.model.fields,field_description:account.field_account_journal_group__sequence
 #: model:ir.model.fields,field_description:account.field_account_merge_wizard_line__sequence
@@ -16819,11 +16716,6 @@ msgid "Statements lines matched to this payment"
 msgstr "Lignes de relevé correspondant à ce paiement"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__states_count
-msgid "States Count"
-msgstr "Nombre d'états"
-
-#. module: account
 #. odoo-python
 #: code:addons/account/controllers/portal.py:0
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__state
@@ -17335,11 +17227,6 @@ msgid "Tax Lock Date Message"
 msgstr "Message de la date de verrouillage de la taxe"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__tax_map
-msgid "Tax Map"
-msgstr "Plan des taxes"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_tax__name
 msgid "Tax Name"
 msgstr "Nom de la taxe"
@@ -17490,7 +17377,6 @@ msgstr "Placeholder pour la date de l’opération imposable"
 #: code:addons/account/models/account_account.py:0
 #: model:account.group,name:account.2_us_group_8
 #: model:ir.actions.act_window,name:account.action_tax_form
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__tax_ids
 #: model:ir.model.fields,field_description:account.field_account_move_line__tax_ids
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__tax_ids
 #: model:ir.model.fields.selection,name:account.selection__account_account_tag__applicability__taxes
@@ -17773,7 +17659,6 @@ msgstr "La date de verrou définitif ne peut pas être supprimée."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__country_code
-#: model:ir.model.fields,help:account.field_account_fiscal_position__fiscal_country_codes
 #: model:ir.model.fields,help:account.field_account_journal__country_code
 #: model:ir.model.fields,help:account.field_account_move__country_code
 #: model:ir.model.fields,help:account.field_account_move_reversal__country_code
@@ -18024,7 +17909,6 @@ msgstr ""
 "Veuillez attribuer un pays à la position fiscale."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__company_country_id
 #: model:ir.model.fields,help:account.field_res_company__account_fiscal_country_id
 #: model:ir.model.fields,help:account.field_res_config_settings__account_fiscal_country_id
 msgid "The country to use the tax reports from for this company"
@@ -18198,14 +18082,6 @@ msgid ""
 msgstr ""
 "Le champ 'Fournisseur' est requis, veuillez le compléter pour valider cette "
 "facture fournisseur."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_res_partner__property_account_position_id
-#: model:ir.model.fields,help:account.field_res_users__property_account_position_id
-msgid ""
-"The fiscal position determines the taxes/accounts used for this contact."
-msgstr ""
-"La position fiscale détermine les taxes/comptes utilisés pour ce contact."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_automatic_entry_wizard_form
@@ -18691,14 +18567,6 @@ msgstr ""
 #: model:ir.model.fields,help:account.field_account_move_line__statement_line_id
 msgid "The statement line that created this entry"
 msgstr "La ligne de relevé ayant généré cette écriture"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__foreign_vat
-msgid ""
-"The tax ID of your company in the region mapped by this fiscal position."
-msgstr ""
-"Le numéro d'identification fiscale de votre entreprise dans la région mappée"
-" par cette position fiscale."
 
 #. module: account
 #. odoo-python
@@ -20140,11 +20008,6 @@ msgstr ""
 "comptabilité storno"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__vat_required
-msgid "VAT required"
-msgstr "TVA requise"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
 msgid "Valid for"
 msgstr "Valide pour"
@@ -21469,16 +21332,6 @@ msgstr "Code postal"
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
 msgid "Zip Range"
 msgstr "Intervalle de code postal"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__zip_from
-msgid "Zip Range From"
-msgstr "Début de l'intervalle de code postal"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__zip_to
-msgid "Zip Range To"
-msgstr "Fin de l'intervalle de code postal"
 
 #. module: account
 #: model:ir.model.fields,help:account.field_res_partner__days_sales_outstanding

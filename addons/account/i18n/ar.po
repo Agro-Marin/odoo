@@ -3142,7 +3142,6 @@ msgstr "التفعيل لإنشاء إيصال بيع"
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__active
 #: model:ir.model.fields,field_description:account.field_account_account_tag__active
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__active
@@ -4006,30 +4005,6 @@ msgid "Apply VAT of the EU country to which goods and services are delivered."
 msgstr ""
 "أضف ضريبة القيمة المضافة لدولة الاتحاد الأوروبي التي سيتم توصيل البضائع "
 "والخدمات إليها"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__country_group_id
-msgid "Apply only if delivery country matches the group."
-msgstr "التطبيق فقط إذا كانت دولة التسليم مطابقة للمجموعة."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__country_id
-msgid "Apply only if delivery country matches."
-msgstr "التطبيق فقط إذا كانت دولة التسليم مطابقة."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__vat_required
-msgid "Apply only if partner has a VAT number."
-msgstr "التطبيق فقط إذا كان للشريك رقم ضريبة القيمة المضافة."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__auto_apply
-msgid ""
-"Apply tax & account mappings on invoices automatically if the matching "
-"criterias (VAT/Country) are met."
-msgstr ""
-"تطبيق الضريبة وتخطيطات الحسابات في الفواتير تلقائياً إذا تم استيفاء المعايير"
-" المطابقة (ضريبة القيمة المضافة/الدولة)."
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__res_company__fiscalyear_last_month__4
@@ -4948,13 +4923,6 @@ msgstr ""
 "كشف البند افتراضياً وسيتم عرض زر للطي."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__active
-msgid ""
-"By unchecking the active field, you may hide a fiscal position without "
-"deleting it."
-msgstr "عند إلغاء تحديد حقل نشط، يمكنك إخفاء الوضع الضريبي دون حذفه."
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/chart_template.py:0
 msgid "CABA"
@@ -5655,7 +5623,6 @@ msgstr "الشركات التي تشير إلى شريك"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__company_id
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__company_id
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__company_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__company_id
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__company_id
 #: model:ir.model.fields,field_description:account.field_account_group__company_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__company_id
@@ -5707,11 +5674,6 @@ msgid "Company Bank Account"
 msgstr "الحساب البنكي للشركة"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__company_country_id
-msgid "Company Country"
-msgstr "بلد الشركة"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__company_currency_id
 #: model:ir.model.fields,field_description:account.field_account_accrued_orders_wizard__currency_id
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__company_currency_id
@@ -5732,7 +5694,6 @@ msgstr "مخطط مستندات الشركة"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__company_fiscal_country_code
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__fiscal_country_codes
 msgid "Company Fiscal Country Code"
 msgstr "كود الدولة المالية للشركة"
 
@@ -6019,7 +5980,6 @@ msgstr "الدول التي تمتلك الشركة فيها رقم لضريبة
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account_tag__country_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__country_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__country_id
 #: model:ir.model.fields,field_description:account.field_account_report__country_id
 #: model:ir.model.fields,field_description:account.field_account_report_external_value__report_country_id
@@ -6056,7 +6016,6 @@ msgstr "رمز الدولة"
 
 #. module: account
 #: model:ir.model,name:account.model_res_country_group
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__country_group_id
 msgid "Country Group"
 msgstr "مجموعات الدول"
 
@@ -6298,7 +6257,6 @@ msgstr "أنشئ في"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__create_uid
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__create_uid
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__create_uid
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_uid
 #: model:ir.model.fields,field_description:account.field_account_group__create_uid
@@ -6364,7 +6322,6 @@ msgstr "أنشئ بواسطة"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__create_date
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__create_date
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__create_date
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_date
 #: model:ir.model.fields,field_description:account.field_account_group__create_date
@@ -7286,11 +7243,6 @@ msgid "Destination Account"
 msgstr "حساب الوجهة"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__auto_apply
-msgid "Detect Automatically"
-msgstr "الكشف تلقائياً"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_tax__type_tax_use
 msgid ""
 "Determines where the tax is selectable. Note: 'None' means a tax can't be "
@@ -7454,11 +7406,6 @@ msgid "Display Alias Fields"
 msgstr "عرض حقول الألقاب"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__display_alternative_taxes_field
-msgid "Display Alternative Taxes Field"
-msgstr "عرض حقل الضرائب البديل"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_accrued_orders_wizard__display_amount
 msgid "Display Amount"
 msgstr "مبلغ العرض"
@@ -7527,7 +7474,6 @@ msgstr "عرض علامة تبويب التخطيط"
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__display_name
 #: model:ir.model.fields,field_description:account.field_account_document_import_mixin__display_name
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__display_name
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__display_name
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__display_name
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__display_name
 #: model:ir.model.fields,field_description:account.field_account_group__display_name
@@ -8655,11 +8601,6 @@ msgid "Federal Income Tax"
 msgstr "Federal Income Tax"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__state_ids
-msgid "Federal States"
-msgstr "الولايات الاتحادية"
-
-#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/fetch_einvoices/fetch_einvoices_cog.js:0
 msgid "Fetch e-Invoices"
@@ -8801,16 +8742,11 @@ msgid "Fiscal Periods"
 msgstr "الفترات المالية"
 
 #. module: account
-#: model:ir.model,name:account.model_account_fiscal_position
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__fiscal_position_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__name
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__position_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__fiscal_position_id
 #: model:ir.model.fields,field_description:account.field_account_move__fiscal_position_id
-#: model:ir.model.fields,field_description:account.field_account_tax__fiscal_position_ids
 #: model:ir.model.fields,field_description:account.field_res_company__fiscal_position_ids
-#: model:ir.model.fields,field_description:account.field_res_partner__property_account_position_id
-#: model:ir.model.fields,field_description:account.field_res_users__property_account_position_id
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_filter
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_tree
@@ -9028,11 +8964,6 @@ msgstr "أرباح تحويل العملة الأجنبية"
 #: model:account.account,name:account.2_account_account_us_expense_currency_exchange
 msgid "Foreign Exchange Loss"
 msgstr "خسائر تحويل العملة الأجنبية"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__foreign_vat
-msgid "Foreign Tax ID"
-msgstr "معرّف الضريبة الأجنبية"
 
 #. module: account
 #: model:account.fiscal.position,name:account.1_template_generic_export_fiscal_position
@@ -9623,7 +9554,6 @@ msgstr "ICE:"
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__id
 #: model:ir.model.fields,field_description:account.field_account_document_import_mixin__id
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__id
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__id
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__id
 #: model:ir.model.fields,field_description:account.field_account_group__id
@@ -10923,12 +10853,6 @@ msgid "Is Complete"
 msgstr "مكتمل"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__is_domestic
-#: model:ir.model.fields,field_description:account.field_account_tax__is_domestic
-msgid "Is Domestic"
-msgstr "محلي"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__is_draft_duplicated_ref_ids
 #: model:ir.model.fields,field_description:account.field_account_move__is_draft_duplicated_ref_ids
 msgid "Is Draft Duplicated Ref"
@@ -11486,7 +11410,6 @@ msgstr "آخر كشف حساب"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__write_uid
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__write_uid
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__write_uid
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_uid
 #: model:ir.model.fields,field_description:account.field_account_group__write_uid
@@ -11552,7 +11475,6 @@ msgstr "آخر تحديث بواسطة"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__write_date
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__write_date
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__write_date
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_date
 #: model:ir.model.fields,field_description:account.field_account_group__write_date
@@ -11688,7 +11610,6 @@ msgid "Legal Notes..."
 msgstr "ملاحظات قانونية..."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__note
 #: model:ir.model.fields,help:account.field_account_tax__invoice_legal_notes
 msgid "Legal mentions that have to be printed on the invoices."
 msgstr "الإشارات القانونية التي يجب طباعتها على الفواتير."
@@ -11798,15 +11719,6 @@ msgstr "السيولة"
 #: model:account.account,name:account.1_transfer_account_id
 msgid "Liquidity Transfer"
 msgstr "حساب تحويل وسيط"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_tax__original_tax_ids
-msgid ""
-"List of taxes to replace when applying any of the stipulated fiscal "
-"positions."
-msgstr ""
-"قائمة الضرائب التي يجب استبدالها عند تطبيق أي من الأوضاع المالية المنصوص "
-"عليها."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_report__load_more_limit
@@ -12939,7 +12851,6 @@ msgstr ""
 "المورد."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__note
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
 msgid "Notes"
 msgstr "الملاحظات"
@@ -15153,16 +15064,6 @@ msgid "Repartition Lines"
 msgstr "بنود التوزيع"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__replacing_tax_ids
-msgid "Replaced by"
-msgstr "تم استبداله بـ"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__original_tax_ids
-msgid "Replaces"
-msgstr "يستبدل"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_report_column__report_id
 #: model:ir.model.fields,field_description:account_reports.field_account_report_send__account_report_id
 #: model:ir.model.fields,field_description:account_reports.field_account_return_type__report_id
@@ -16141,7 +16042,6 @@ msgstr "سبتمبر"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__sequence
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__sequence
 #: model:ir.model.fields,field_description:account.field_account_journal__sequence
 #: model:ir.model.fields,field_description:account.field_account_journal_group__sequence
 #: model:ir.model.fields,field_description:account.field_account_merge_wizard_line__sequence
@@ -16666,11 +16566,6 @@ msgid "Statements lines matched to this payment"
 msgstr "بنود كشوفات الحساب المطابقة لعملية الدفع هذه"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__states_count
-msgid "States Count"
-msgstr "عدد الحالات"
-
-#. module: account
 #. odoo-python
 #: code:addons/account/controllers/portal.py:0
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__state
@@ -17182,11 +17077,6 @@ msgid "Tax Lock Date Message"
 msgstr "رسالة تاريخ إقفال الضريبة"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__tax_map
-msgid "Tax Map"
-msgstr "خريطة الضريبة"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_tax__name
 msgid "Tax Name"
 msgstr "اسم الضريبة"
@@ -17335,7 +17225,6 @@ msgstr "العنصر النائب لتاريخ التوريد الخاضع لل�
 #: code:addons/account/models/account_account.py:0
 #: model:account.group,name:account.2_us_group_8
 #: model:ir.actions.act_window,name:account.action_tax_form
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__tax_ids
 #: model:ir.model.fields,field_description:account.field_account_move_line__tax_ids
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__tax_ids
 #: model:ir.model.fields.selection,name:account.selection__account_account_tag__applicability__taxes
@@ -17601,7 +17490,6 @@ msgstr "لا يمكن إزالة تاريخ القفل الثابت."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__country_code
-#: model:ir.model.fields,help:account.field_account_fiscal_position__fiscal_country_codes
 #: model:ir.model.fields,help:account.field_account_journal__country_code
 #: model:ir.model.fields,help:account.field_account_move__country_code
 #: model:ir.model.fields,help:account.field_account_move_reversal__country_code
@@ -17829,7 +17717,6 @@ msgstr ""
 "المالي."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__company_country_id
 #: model:ir.model.fields,help:account.field_res_company__account_fiscal_country_id
 #: model:ir.model.fields,help:account.field_res_config_settings__account_fiscal_country_id
 msgid "The country to use the tax reports from for this company"
@@ -17992,14 +17879,6 @@ msgid ""
 "The field 'Vendor' is required, please complete it to validate the Vendor "
 "Bill."
 msgstr "الحقل 'المورد' مطلوب، الرجاء إكماله حتى يتم تصديق فاتورة المورد."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_res_partner__property_account_position_id
-#: model:ir.model.fields,help:account.field_res_users__property_account_position_id
-msgid ""
-"The fiscal position determines the taxes/accounts used for this contact."
-msgstr ""
-"يحدِّد الوضع المالي الضرائب/الحسابات المستخدمة لجهة الاتصال المُختارة."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_automatic_entry_wizard_form
@@ -18466,12 +18345,6 @@ msgstr ""
 #: model:ir.model.fields,help:account.field_account_move_line__statement_line_id
 msgid "The statement line that created this entry"
 msgstr "بند اليومية الذي قام بإنشاء هذا القيد"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__foreign_vat
-msgid ""
-"The tax ID of your company in the region mapped by this fiscal position."
-msgstr "مُعرّف الضريبة في شركتك في المنطقة معيّن من قِبَل هذا الوضع المالي."
 
 #. module: account
 #. odoo-python
@@ -19875,11 +19748,6 @@ msgstr ""
 "حقل أدوات للتعبير عن ما إذا كان قيد اليومية خاضعاً لمحاسبة Storno أم لا."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__vat_required
-msgid "VAT required"
-msgstr "مطلوب ضريبة القيمة المضافة"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
 msgid "Valid for"
 msgstr "صالح لمدة"
@@ -21124,16 +20992,6 @@ msgstr "ZIP"
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
 msgid "Zip Range"
 msgstr "نطاق الرمز البريدي"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__zip_from
-msgid "Zip Range From"
-msgstr "نطاق الرمز البريدي من"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__zip_to
-msgid "Zip Range To"
-msgstr "نطاق الرمز البريدي إلى"
 
 #. module: account
 #: model:ir.model.fields,help:account.field_res_partner__days_sales_outstanding

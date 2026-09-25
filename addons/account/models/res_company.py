@@ -136,8 +136,8 @@ class ResCompany(models.Model):
 
     @api.depends(
         "tax_config_id.account_fiscal_country_id",
-        "account_config_id.fiscal_position_ids.foreign_vat",
-        "account_config_id.fiscal_position_ids.country_id",
+        "tax_config_id.fiscal_position_ids.foreign_vat",
+        "tax_config_id.fiscal_position_ids.country_id",
     )
     def _initiate_account_onboardings(self):
         account_onboarding_routes = [

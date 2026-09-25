@@ -172,25 +172,19 @@ class TestResCompanyDomesticFP(common.TransactionCase):
     def test_lowest_sequence_wins_over_specificity(self):
         self._fp("spec-seq5", 5, specific=True)
         group_low = self._fp("group-seq1", 1, specific=False)
-        self.company.account_config_id.invalidate_recordset(
-            ["domestic_fiscal_position_id"]
-        )
+        self.company.tax_config_id.invalidate_recordset(["domestic_fiscal_position_id"])
         self.assertEqual(
-            self.company.account_config_id.domestic_fiscal_position_id, group_low
+            self.company.tax_config_id.domestic_fiscal_position_id, group_low
         )
 
     def test_specific_beats_group_on_sequence_tie(self):
         self._fp("group-seq5", 5, specific=False)
         spec = self._fp("spec-seq5", 5, specific=True)
-        self.company.account_config_id.invalidate_recordset(
-            ["domestic_fiscal_position_id"]
-        )
-        self.assertEqual(
-            self.company.account_config_id.domestic_fiscal_position_id, spec
-        )
+        self.company.tax_config_id.invalidate_recordset(["domestic_fiscal_position_id"])
+        self.assertEqual(self.company.tax_config_id.domestic_fiscal_position_id, spec)
 
     def test_no_candidate(self):
-        self.assertFalse(self.company.account_config_id.domestic_fiscal_position_id)
+        self.assertFalse(self.company.tax_config_id.domestic_fiscal_position_id)
 
 
 @tagged("post_install", "-at_install")
@@ -211,10 +205,10 @@ class TestResCompanyMultiVat(common.TransactionCase):
                 "foreign_vat": "BE0477472701",
             }
         )
-        self.assertEqual(company.account_config_id.multi_vat_foreign_country_ids, be)
+        self.assertEqual(company.tax_config_id.multi_vat_foreign_country_ids, be)
 
         fp.write({"country_id": fr.id})
-        self.assertEqual(company.account_config_id.multi_vat_foreign_country_ids, fr)
+        self.assertEqual(company.tax_config_id.multi_vat_foreign_country_ids, fr)
 
 
 @tagged("post_install", "-at_install")

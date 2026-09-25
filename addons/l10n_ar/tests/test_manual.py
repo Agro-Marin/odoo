@@ -58,7 +58,7 @@ class TestArManual(common.TestAr):
         invoice = self._create_invoice_ar(partner_id=self.partner)
         self.assertEqual(
             invoice.fiscal_position_id,
-            self.env.company.account_config_id.domestic_fiscal_position_id,
+            self.env.company.tax_config_id.domestic_fiscal_position_id,
         )
 
         # Consumidor Final > IVA Responsable Inscripto > Without Fiscal Positon

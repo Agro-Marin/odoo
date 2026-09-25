@@ -27,8 +27,8 @@ class TestAccountTaxSettingsCompany(AccountTestInvoicingCommon):
                 "sequence": 1,
             }
         )
-        company.account_config_id.invalidate_recordset(["domestic_fiscal_position_id"])
-        assert company.account_config_id.domestic_fiscal_position_id == fp, (
+        company.tax_config_id.invalidate_recordset(["domestic_fiscal_position_id"])
+        assert company.tax_config_id.domestic_fiscal_position_id == fp, (
             f"fixture: {company.name} did not adopt {fp.name} as its domestic "
             f"fiscal position"
         )

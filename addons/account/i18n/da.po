@@ -2806,7 +2806,6 @@ msgstr "Aktivér for at oprette salgskvitteringer"
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__active
 #: model:ir.model.fields,field_description:account.field_account_account_tag__active
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__active
@@ -3676,30 +3675,6 @@ msgstr "Anvend"
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "Apply VAT of the EU country to which goods and services are delivered."
 msgstr "Anvend moms for EU landet som varer og ydelser er leveret til."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__country_group_id
-msgid "Apply only if delivery country matches the group."
-msgstr "Anvend kun hvis leverings landet stemmer overens med gruppen."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__country_id
-msgid "Apply only if delivery country matches."
-msgstr "Anvend kun hvis leveringslandet stemmer overens."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__vat_required
-msgid "Apply only if partner has a VAT number."
-msgstr "Gem kun hvis partneren har et momsnummer."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__auto_apply
-msgid ""
-"Apply tax & account mappings on invoices automatically if the matching "
-"criterias (VAT/Country) are met."
-msgstr ""
-"Anvend automatisk moms- og kontoplaner på faktura hvis match kriterierne "
-"(moms/land) er opfyldte."
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__res_company__fiscalyear_last_month__4
@@ -4619,15 +4594,6 @@ msgstr ""
 "knappen vil blive vist."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__active
-msgid ""
-"By unchecking the active field, you may hide a fiscal position without "
-"deleting it."
-msgstr ""
-"Ved at fjerne markering Aktiv, skjules konteringsgruppen uden at blive "
-"slettet"
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/chart_template.py:0
 msgid "CABA"
@@ -5341,7 +5307,6 @@ msgstr "Virksomheder med relation til partneren"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__company_id
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__company_id
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__company_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__company_id
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__company_id
 #: model:ir.model.fields,field_description:account.field_account_group__company_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__company_id
@@ -5393,11 +5358,6 @@ msgid "Company Bank Account"
 msgstr "Virksomhed Bankkonto"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__company_country_id
-msgid "Company Country"
-msgstr "Virksomhed Land"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__company_currency_id
 #: model:ir.model.fields,field_description:account.field_account_accrued_orders_wizard__currency_id
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__company_currency_id
@@ -5418,7 +5378,6 @@ msgstr "Virksomhedsdokument layout"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__company_fiscal_country_code
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__fiscal_country_codes
 msgid "Company Fiscal Country Code"
 msgstr "Virksomhed fiskal kode"
 
@@ -5705,7 +5664,6 @@ msgstr "Lande hvortil virksomheden har et momsnummer"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account_tag__country_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__country_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__country_id
 #: model:ir.model.fields,field_description:account.field_account_report__country_id
 #: model:ir.model.fields,field_description:account.field_account_report_external_value__report_country_id
@@ -5742,7 +5700,6 @@ msgstr "Lande kode"
 
 #. module: account
 #: model:ir.model,name:account.model_res_country_group
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__country_group_id
 msgid "Country Group"
 msgstr "Landegruppe"
 
@@ -5986,7 +5943,6 @@ msgstr "Oprettet den"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__create_uid
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__create_uid
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__create_uid
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_uid
 #: model:ir.model.fields,field_description:account.field_account_group__create_uid
@@ -6052,7 +6008,6 @@ msgstr "Oprettet af"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__create_date
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__create_date
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__create_date
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_date
 #: model:ir.model.fields,field_description:account.field_account_group__create_date
@@ -6979,11 +6934,6 @@ msgid "Destination Account"
 msgstr "Destinations konto"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__auto_apply
-msgid "Detect Automatically"
-msgstr "Find automatisk"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_tax__type_tax_use
 msgid ""
 "Determines where the tax is selectable. Note: 'None' means a tax can't be "
@@ -7148,11 +7098,6 @@ msgid "Display Alias Fields"
 msgstr "Vis alias felter"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__display_alternative_taxes_field
-msgid "Display Alternative Taxes Field"
-msgstr "Vis felt for alternative skatter"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_accrued_orders_wizard__display_amount
 msgid "Display Amount"
 msgstr "Vis Mængde"
@@ -7221,7 +7166,6 @@ msgstr "Vis plan fane"
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__display_name
 #: model:ir.model.fields,field_description:account.field_account_document_import_mixin__display_name
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__display_name
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__display_name
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__display_name
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__display_name
 #: model:ir.model.fields,field_description:account.field_account_group__display_name
@@ -8340,11 +8284,6 @@ msgid "Federal Income Tax"
 msgstr ""
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__state_ids
-msgid "Federal States"
-msgstr "Føderale stater"
-
-#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/fetch_einvoices/fetch_einvoices_cog.js:0
 msgid "Fetch e-Invoices"
@@ -8486,16 +8425,11 @@ msgid "Fiscal Periods"
 msgstr "Regnskabsperioder"
 
 #. module: account
-#: model:ir.model,name:account.model_account_fiscal_position
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__fiscal_position_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__name
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__position_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__fiscal_position_id
 #: model:ir.model.fields,field_description:account.field_account_move__fiscal_position_id
-#: model:ir.model.fields,field_description:account.field_account_tax__fiscal_position_ids
 #: model:ir.model.fields,field_description:account.field_res_company__fiscal_position_ids
-#: model:ir.model.fields,field_description:account.field_res_partner__property_account_position_id
-#: model:ir.model.fields,field_description:account.field_res_users__property_account_position_id
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_filter
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_tree
@@ -8715,11 +8649,6 @@ msgstr "Valutagevinst"
 #: model:account.account,name:account.2_account_account_us_expense_currency_exchange
 msgid "Foreign Exchange Loss"
 msgstr "Valutatab"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__foreign_vat
-msgid "Foreign Tax ID"
-msgstr "Udenlandsk moms ID"
 
 #. module: account
 #: model:account.fiscal.position,name:account.1_template_generic_export_fiscal_position
@@ -9313,7 +9242,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__id
 #: model:ir.model.fields,field_description:account.field_account_document_import_mixin__id
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__id
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__id
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__id
 #: model:ir.model.fields,field_description:account.field_account_group__id
@@ -10627,12 +10555,6 @@ msgid "Is Complete"
 msgstr "Er fuldført"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__is_domestic
-#: model:ir.model.fields,field_description:account.field_account_tax__is_domestic
-msgid "Is Domestic"
-msgstr "Er national"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__is_draft_duplicated_ref_ids
 #: model:ir.model.fields,field_description:account.field_account_move__is_draft_duplicated_ref_ids
 msgid "Is Draft Duplicated Ref"
@@ -11194,7 +11116,6 @@ msgstr "Seneste kontoudtog"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__write_uid
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__write_uid
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__write_uid
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_uid
 #: model:ir.model.fields,field_description:account.field_account_group__write_uid
@@ -11260,7 +11181,6 @@ msgstr "Sidst opdateret af"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__write_date
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__write_date
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__write_date
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_date
 #: model:ir.model.fields,field_description:account.field_account_group__write_date
@@ -11398,7 +11318,6 @@ msgid "Legal Notes..."
 msgstr "Juridiske noter..."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__note
 #: model:ir.model.fields,help:account.field_account_tax__invoice_legal_notes
 msgid "Legal mentions that have to be printed on the invoices."
 msgstr "Juridiske navne, der skal udskrives på fakturaerne."
@@ -11507,15 +11426,6 @@ msgstr "Likviditet"
 #: model:account.account,name:account.1_transfer_account_id
 msgid "Liquidity Transfer"
 msgstr "Likviditetsoverførsel"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_tax__original_tax_ids
-msgid ""
-"List of taxes to replace when applying any of the stipulated fiscal "
-"positions."
-msgstr ""
-"Liste over skatter, der skal erstattes, når en af de foruddefinerede "
-"skattepositioner anvendes."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_report__load_more_limit
@@ -12644,7 +12554,6 @@ msgstr ""
 " det direkte fra leverandørregningen."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__note
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
 msgid "Notes"
 msgstr "Notater"
@@ -14860,16 +14769,6 @@ msgid "Repartition Lines"
 msgstr "Opdelingslinjer"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__replacing_tax_ids
-msgid "Replaced by"
-msgstr ""
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__original_tax_ids
-msgid "Replaces"
-msgstr "Erstatter"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_report_column__report_id
 #: model:ir.model.fields,field_description:account_reports.field_account_report_send__account_report_id
 #: model:ir.model.fields,field_description:account_reports.field_account_return_type__report_id
@@ -15853,7 +15752,6 @@ msgstr "September"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__sequence
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__sequence
 #: model:ir.model.fields,field_description:account.field_account_journal__sequence
 #: model:ir.model.fields,field_description:account.field_account_journal_group__sequence
 #: model:ir.model.fields,field_description:account.field_account_merge_wizard_line__sequence
@@ -16369,11 +16267,6 @@ msgid "Statements lines matched to this payment"
 msgstr "Kontoudtogslinjer matchet til denne betaling"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__states_count
-msgid "States Count"
-msgstr "Status antal"
-
-#. module: account
 #. odoo-python
 #: code:addons/account/controllers/portal.py:0
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__state
@@ -16885,11 +16778,6 @@ msgid "Tax Lock Date Message"
 msgstr "Moms låse dato besked"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__tax_map
-msgid "Tax Map"
-msgstr "Skattetildeling"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_tax__name
 msgid "Tax Name"
 msgstr "Momsnavn"
@@ -17040,7 +16928,6 @@ msgstr ""
 #: code:addons/account/models/account_account.py:0
 #: model:account.group,name:account.2_us_group_8
 #: model:ir.actions.act_window,name:account.action_tax_form
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__tax_ids
 #: model:ir.model.fields,field_description:account.field_account_move_line__tax_ids
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__tax_ids
 #: model:ir.model.fields.selection,name:account.selection__account_account_tag__applicability__taxes
@@ -17314,7 +17201,6 @@ msgstr "Den endelige låsedato kan ikke fjernes."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__country_code
-#: model:ir.model.fields,help:account.field_account_fiscal_position__fiscal_country_codes
 #: model:ir.model.fields,help:account.field_account_journal__country_code
 #: model:ir.model.fields,help:account.field_account_move__country_code
 #: model:ir.model.fields,help:account.field_account_move_reversal__country_code
@@ -17552,7 +17438,6 @@ msgstr ""
 "skattepositionen et land."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__company_country_id
 #: model:ir.model.fields,help:account.field_res_company__account_fiscal_country_id
 #: model:ir.model.fields,help:account.field_res_config_settings__account_fiscal_country_id
 msgid "The country to use the tax reports from for this company"
@@ -17719,13 +17604,6 @@ msgid ""
 msgstr ""
 "Feltet 'forhandler' er påkrævet, udfyld den venligst for at validere "
 "sælgerregningen."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_res_partner__property_account_position_id
-#: model:ir.model.fields,help:account.field_res_users__property_account_position_id
-msgid ""
-"The fiscal position determines the taxes/accounts used for this contact."
-msgstr "Skattepositionen afgør moms/konti brugt for denne kontakt."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_automatic_entry_wizard_form
@@ -18208,13 +18086,6 @@ msgstr ""
 #: model:ir.model.fields,help:account.field_account_move_line__statement_line_id
 msgid "The statement line that created this entry"
 msgstr "Udtogs linjen der oprettede denne postering"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__foreign_vat
-msgid ""
-"The tax ID of your company in the region mapped by this fiscal position."
-msgstr ""
-"Moms ID'et på din virksomhed i regionen udpeget af denne finansposition."
 
 #. module: account
 #. odoo-python
@@ -19636,11 +19507,6 @@ msgid ""
 msgstr "Felt til angivelse af, om journalposten indgår i storno-regnskab"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__vat_required
-msgid "VAT required"
-msgstr "Moms er påkrævet"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
 msgid "Valid for"
 msgstr "Gyldig for"
@@ -20935,16 +20801,6 @@ msgstr "Post nr."
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
 msgid "Zip Range"
 msgstr "Postnr. område"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__zip_from
-msgid "Zip Range From"
-msgstr "Postnr. område fra"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__zip_to
-msgid "Zip Range To"
-msgstr "Postnr. område til"
 
 #. module: account
 #: model:ir.model.fields,help:account.field_res_partner__days_sales_outstanding

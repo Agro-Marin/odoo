@@ -2733,7 +2733,6 @@ msgstr "Активуйте, щоби створити квитанцію про�
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__active
 #: model:ir.model.fields,field_description:account.field_account_account_tag__active
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__active
 #: model:ir.model.fields,field_description:account.field_account_journal__active
 #: model:ir.model.fields,field_description:account.field_account_lock_exception__active
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model__active
@@ -3601,30 +3600,6 @@ msgstr "Застосувати"
 msgid "Apply VAT of the EU country to which goods and services are delivered."
 msgstr ""
 "Застосуйте ПДВ країни Євросоюзу, куди доставляються послуги та товари."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__country_group_id
-msgid "Apply only if delivery country matches the group."
-msgstr "Застосуйте лише якщо країна доставки відповідає групі."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__country_id
-msgid "Apply only if delivery country matches."
-msgstr "Застосуйте тільки якщо країна доставки співставляється."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__vat_required
-msgid "Apply only if partner has a VAT number."
-msgstr "Застосовувати, якщо у партнера вказано ІПН"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__auto_apply
-msgid ""
-"Apply tax & account mappings on invoices automatically if the matching "
-"criterias (VAT/Country) are met."
-msgstr ""
-"Автоматично застосовуйте зіставлення податків і рахунків до рахунків-фактур,"
-" якщо відповідають критеріям відповідності (ПДВ/країна)."
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__res_company__fiscalyear_last_month__4
@@ -4544,15 +4519,6 @@ msgstr ""
 "кнопку згортання."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__active
-msgid ""
-"By unchecking the active field, you may hide a fiscal position without "
-"deleting it."
-msgstr ""
-"Знімаючи прапорець біля активного поля, ви можете приховати схему "
-"оподаткування, не видаляючи її."
-
-#. module: account
 #. odoo-python
 #: code:addons/account/models/chart_template.py:0
 msgid "CABA"
@@ -5263,7 +5229,6 @@ msgstr "Компанії, що стосуються партнера"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__company_id
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__company_id
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__company_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__company_id
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__company_id
 #: model:ir.model.fields,field_description:account.field_account_group__company_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__company_id
@@ -5315,11 +5280,6 @@ msgid "Company Bank Account"
 msgstr "Банківський рахунок компанії"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__company_country_id
-msgid "Company Country"
-msgstr "Країна компанії"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__company_currency_id
 #: model:ir.model.fields,field_description:account.field_account_accrued_orders_wizard__currency_id
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__company_currency_id
@@ -5340,7 +5300,6 @@ msgstr "Шаблон документу компанії"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account__company_fiscal_country_code
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__fiscal_country_codes
 msgid "Company Fiscal Country Code"
 msgstr "Фіскальний код країни компанії"
 
@@ -5628,7 +5587,6 @@ msgstr "Країни для яких компанія має номер VAT"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_account_tag__country_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__country_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__country_id
 #: model:ir.model.fields,field_description:account.field_account_report__country_id
 #: model:ir.model.fields,field_description:account.field_account_report_external_value__report_country_id
@@ -5665,7 +5623,6 @@ msgstr "Код країни"
 
 #. module: account
 #: model:ir.model,name:account.model_res_country_group
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__country_group_id
 msgid "Country Group"
 msgstr "Група країн"
 
@@ -5909,7 +5866,6 @@ msgstr "Створено на"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__create_uid
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__create_uid
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__create_uid
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__create_uid
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_uid
 #: model:ir.model.fields,field_description:account.field_account_group__create_uid
@@ -5975,7 +5931,6 @@ msgstr "Створив"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__create_date
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__create_date
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__create_date
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__create_date
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__create_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__create_date
 #: model:ir.model.fields,field_description:account.field_account_group__create_date
@@ -6904,11 +6859,6 @@ msgid "Destination Account"
 msgstr "Рахунок призначення"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__auto_apply
-msgid "Detect Automatically"
-msgstr "Визначити автоматично"
-
-#. module: account
 #: model:ir.model.fields,help:account.field_account_tax__type_tax_use
 msgid ""
 "Determines where the tax is selectable. Note: 'None' means a tax can't be "
@@ -7073,11 +7023,6 @@ msgid "Display Alias Fields"
 msgstr "Відображення полів псевдонімів"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__display_alternative_taxes_field
-msgid "Display Alternative Taxes Field"
-msgstr ""
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_accrued_orders_wizard__display_amount
 msgid "Display Amount"
 msgstr "Відобразити суму"
@@ -7146,7 +7091,6 @@ msgstr "Відобразити вкладку співставлення"
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__display_name
 #: model:ir.model.fields,field_description:account.field_account_document_import_mixin__display_name
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__display_name
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__display_name
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__display_name
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__display_name
 #: model:ir.model.fields,field_description:account.field_account_group__display_name
@@ -8265,11 +8209,6 @@ msgid "Federal Income Tax"
 msgstr ""
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__state_ids
-msgid "Federal States"
-msgstr "Області"
-
-#. module: account
 #. odoo-javascript
 #: code:addons/account/static/src/components/fetch_einvoices/fetch_einvoices_cog.js:0
 msgid "Fetch e-Invoices"
@@ -8411,16 +8350,11 @@ msgid "Fiscal Periods"
 msgstr "Звітні періоди"
 
 #. module: account
-#: model:ir.model,name:account.model_account_fiscal_position
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__fiscal_position_id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__name
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__position_id
 #: model:ir.model.fields,field_description:account.field_account_invoice_report__fiscal_position_id
 #: model:ir.model.fields,field_description:account.field_account_move__fiscal_position_id
-#: model:ir.model.fields,field_description:account.field_account_tax__fiscal_position_ids
 #: model:ir.model.fields,field_description:account.field_res_company__fiscal_position_ids
-#: model:ir.model.fields,field_description:account.field_res_partner__property_account_position_id
-#: model:ir.model.fields,field_description:account.field_res_users__property_account_position_id
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_filter
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_tree
@@ -8640,11 +8574,6 @@ msgstr "Дохід від курсових різниць"
 #: model:account.account,name:account.2_account_account_us_expense_currency_exchange
 msgid "Foreign Exchange Loss"
 msgstr "Втрати від курсових різниць"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__foreign_vat
-msgid "Foreign Tax ID"
-msgstr "Закордонний ID податку"
 
 #. module: account
 #: model:account.fiscal.position,name:account.1_template_generic_export_fiscal_position
@@ -9239,7 +9168,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:account.field_account_code_mapping__id
 #: model:ir.model.fields,field_description:account.field_account_document_import_mixin__id
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__id
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__id
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__id
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__id
 #: model:ir.model.fields,field_description:account.field_account_group__id
@@ -10546,12 +10474,6 @@ msgid "Is Complete"
 msgstr "Завершено"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__is_domestic
-#: model:ir.model.fields,field_description:account.field_account_tax__is_domestic
-msgid "Is Domestic"
-msgstr ""
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__is_draft_duplicated_ref_ids
 #: model:ir.model.fields,field_description:account.field_account_move__is_draft_duplicated_ref_ids
 msgid "Is Draft Duplicated Ref"
@@ -11113,7 +11035,6 @@ msgstr "Остання виписка"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__write_uid
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__write_uid
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__write_uid
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__write_uid
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_uid
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_uid
 #: model:ir.model.fields,field_description:account.field_account_group__write_uid
@@ -11179,7 +11100,6 @@ msgstr "Востаннє оновив"
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__write_date
 #: model:ir.model.fields,field_description:account.field_account_cash_rounding__write_date
 #: model:ir.model.fields,field_description:account.field_account_financial_year_op__write_date
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__write_date
 #: model:ir.model.fields,field_description:account.field_account_fiscal_position_account__write_date
 #: model:ir.model.fields,field_description:account.field_account_full_reconcile__write_date
 #: model:ir.model.fields,field_description:account.field_account_group__write_date
@@ -11318,7 +11238,6 @@ msgid "Legal Notes..."
 msgstr "Примітки..."
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__note
 #: model:ir.model.fields,help:account.field_account_tax__invoice_legal_notes
 msgid "Legal mentions that have to be printed on the invoices."
 msgstr ""
@@ -11429,13 +11348,6 @@ msgstr "Ліквідність"
 #: model:account.account,name:account.1_transfer_account_id
 msgid "Liquidity Transfer"
 msgstr "Передача ліквідності"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_tax__original_tax_ids
-msgid ""
-"List of taxes to replace when applying any of the stipulated fiscal "
-"positions."
-msgstr ""
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_report__load_more_limit
@@ -12564,7 +12476,6 @@ msgstr ""
 "це безпосередньо з рахунку постачальника."
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__note
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
 msgid "Notes"
 msgstr "Примітки"
@@ -14773,16 +14684,6 @@ msgid "Repartition Lines"
 msgstr "Рядки перерозподілу"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__replacing_tax_ids
-msgid "Replaced by"
-msgstr ""
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_tax__original_tax_ids
-msgid "Replaces"
-msgstr ""
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_report_column__report_id
 #: model:ir.model.fields,field_description:account_reports.field_account_report_send__account_report_id
 #: model:ir.model.fields,field_description:account_reports.field_account_return_type__report_id
@@ -15762,7 +15663,6 @@ msgstr "Вересень"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__sequence
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__sequence
 #: model:ir.model.fields,field_description:account.field_account_journal__sequence
 #: model:ir.model.fields,field_description:account.field_account_journal_group__sequence
 #: model:ir.model.fields,field_description:account.field_account_merge_wizard_line__sequence
@@ -16284,11 +16184,6 @@ msgid "Statements lines matched to this payment"
 msgstr "Рядки виписки узгоджені з цим платежем"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__states_count
-msgid "States Count"
-msgstr "Кількість етапів"
-
-#. module: account
 #. odoo-python
 #: code:addons/account/controllers/portal.py:0
 #: model:ir.model.fields,field_description:account.field_account_bank_statement_line__state
@@ -16800,11 +16695,6 @@ msgid "Tax Lock Date Message"
 msgstr "Повідомлення дати блокування податку"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__tax_map
-msgid "Tax Map"
-msgstr "Співставлення податків"
-
-#. module: account
 #: model:ir.model.fields,field_description:account.field_account_tax__name
 msgid "Tax Name"
 msgstr "Назва податку"
@@ -16953,7 +16843,6 @@ msgstr ""
 #: code:addons/account/models/account_account.py:0
 #: model:account.group,name:account.2_us_group_8
 #: model:ir.actions.act_window,name:account.action_tax_form
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__tax_ids
 #: model:ir.model.fields,field_description:account.field_account_move_line__tax_ids
 #: model:ir.model.fields,field_description:account.field_account_reconcile_model_line__tax_ids
 #: model:ir.model.fields.selection,name:account.selection__account_account_tag__applicability__taxes
@@ -17226,7 +17115,6 @@ msgstr "Дата жорсткого блокування не може бути 
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__country_code
-#: model:ir.model.fields,help:account.field_account_fiscal_position__fiscal_country_codes
 #: model:ir.model.fields,help:account.field_account_journal__country_code
 #: model:ir.model.fields,help:account.field_account_move__country_code
 #: model:ir.model.fields,help:account.field_account_move_reversal__country_code
@@ -17463,7 +17351,6 @@ msgid ""
 msgstr ""
 
 #. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__company_country_id
 #: model:ir.model.fields,help:account.field_res_company__account_fiscal_country_id
 #: model:ir.model.fields,help:account.field_res_config_settings__account_fiscal_country_id
 msgid "The country to use the tax reports from for this company"
@@ -17629,15 +17516,6 @@ msgid ""
 msgstr ""
 "Поле 'Постачальник' є обов'язковим, заповніть його для підтвердження Рахунка"
 " постачальника."
-
-#. module: account
-#: model:ir.model.fields,help:account.field_res_partner__property_account_position_id
-#: model:ir.model.fields,help:account.field_res_users__property_account_position_id
-msgid ""
-"The fiscal position determines the taxes/accounts used for this contact."
-msgstr ""
-"Схема оподаткування визначає податки/рахунки, що використовуються для "
-"партнера."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_automatic_entry_wizard_form
@@ -18107,14 +17985,6 @@ msgstr ""
 #: model:ir.model.fields,help:account.field_account_move_line__statement_line_id
 msgid "The statement line that created this entry"
 msgstr "Рядок виписки, що створив цей запис"
-
-#. module: account
-#: model:ir.model.fields,help:account.field_account_fiscal_position__foreign_vat
-msgid ""
-"The tax ID of your company in the region mapped by this fiscal position."
-msgstr ""
-"ID податку вашої компанії в регіоні, зіставлений з цією схемою "
-"оподаткування."
 
 #. module: account
 #. odoo-python
@@ -19528,11 +19398,6 @@ msgid ""
 msgstr "Допоміжне поле, щоб вказати, чи підлягає запис журналу обліку сторно"
 
 #. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__vat_required
-msgid "VAT required"
-msgstr "ПДВ обов'язкове"
-
-#. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
 msgid "Valid for"
 msgstr "Дійсний для"
@@ -20826,16 +20691,6 @@ msgstr "Індекс"
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
 msgid "Zip Range"
 msgstr "Діапазон індексів"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__zip_from
-msgid "Zip Range From"
-msgstr "Діапазон індексів від"
-
-#. module: account
-#: model:ir.model.fields,field_description:account.field_account_fiscal_position__zip_to
-msgid "Zip Range To"
-msgstr "Діапазон індексів до"
 
 #. module: account
 #: model:ir.model.fields,help:account.field_res_partner__days_sales_outstanding

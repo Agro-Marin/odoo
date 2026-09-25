@@ -129,13 +129,6 @@ class ResPartner(models.Model):
         ondelete="restrict",
         check_company=True,
     )
-    property_account_position_id = fields.Many2one(
-        comodel_name="account.fiscal.position",
-        string="Fiscal Position",
-        company_dependent=True,
-        check_company=True,
-        help="The fiscal position determines the taxes/accounts used for this contact.",
-    )
     ref_company_ids = fields.One2many(
         comodel_name="res.company",
         inverse_name="partner_id",
@@ -622,7 +615,6 @@ class ResPartner(models.Model):
         return super()._commercial_fields() + [
             "property_account_payable_id",
             "property_account_receivable_id",
-            "property_account_position_id",
             "credit_limit",
         ]
 
@@ -896,28 +888,6 @@ class ResPartner(models.Model):
         )
 
         return frontend_writable_fields
-
-    @_debug.perf.timed
-    def _check_vat(self, validation="error"):
-        for partner in self:
-            vat, _country_code = self._run_vat_checks(
-                partner.commercial_partner_id.country_id,
-                partner.vat,
-                partner_name=partner.name,
-                validation=validation,
-            )
-            if vat != partner.vat:
-                partner.vat = vat
-
-    @api.model
-    @_debug.perf.timed
-    def _run_vat_checks(self, country, vat, partner_name="", validation="error"):
-        assert validation in (False, "error", "setnull")
-        return vat, (country and country.code) or ""
-
-    def _is_vat_required_valid(self, company=None):
-        self.check_singleton()
-        return bool(self.vat)
 
     @api.model
     def get_partner_localisation_fields_required_to_invoice(self, country_id):

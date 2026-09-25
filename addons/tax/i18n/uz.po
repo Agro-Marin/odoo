@@ -1,0 +1,288 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* tax
+#
+#
+# Translated by:
+# Deepvision - info@deepvision.uz | +998 77-093-0007
+# Amon Olimov - amon.bars@gmail.com
+# Jonibek Yorqulov - j.yorqulov@deepvision.uz
+# Mirzohidkhon Ulugkhujaev ulugkhujayevmirzohidxon@gmail.com
+#
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-13 18:35+0000\n"
+"PO-Revision-Date: 2025-10-18 14:56+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: uz\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
+#, fuzzy
+msgid "Active"
+msgstr "Faol"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_group_id
+#, fuzzy
+msgid "Apply only if delivery country matches the group."
+msgstr "Faqat yetkazib berish mamlakati guruhga mos kelganda qo‘llash."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__country_id
+#, fuzzy
+msgid "Apply only if delivery country matches."
+msgstr "Faqat yetkazib berish mamlakati mos kelganda qo‘llash."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__vat_required
+#, fuzzy
+msgid "Apply only if partner has a VAT number."
+msgstr "Faqat hamkorning QQS raqami mavjud bo‘lganda qo‘llash."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__auto_apply
+#, fuzzy
+msgid ""
+"Apply tax & account mappings on invoices automatically if the matching "
+"criterias (VAT/Country) are met."
+msgstr ""
+"Agar moslik mezonlari (QQS/Mamlakat) bajarilsa, hisob-fakturalarda soliq va "
+"hisob xaritalarini avtomatik qo‘llash."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__active
+#, fuzzy
+msgid ""
+"By unchecking the active field, you may hide a fiscal position without "
+"deleting it."
+msgstr ""
+"Faol maydonni belgilamay qo‘yish orqali fiskal pozitsiyani o‘chirmasdan "
+"yashirishingiz mumkin."
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_id
+#, fuzzy
+msgid "Company"
+msgstr "Kompaniya"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__company_country_id
+#, fuzzy
+msgid "Company Country"
+msgstr "Kompaniya joylashgan mamlakat"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__fiscal_country_codes
+#, fuzzy
+msgid "Company Fiscal Country Code"
+msgstr "Kompaniyaning soliq kodi"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_id
+#, fuzzy
+msgid "Country"
+msgstr "Mamlakat"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__country_group_id
+#, fuzzy
+msgid "Country Group"
+msgstr "Mamlakatlar guruhi"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_uid
+#, fuzzy
+msgid "Created by"
+msgstr "Yaratuvchi"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__create_date
+#, fuzzy
+msgid "Created on"
+msgstr "Yaratilgan sana"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__auto_apply
+#, fuzzy
+msgid "Detect Automatically"
+msgstr "Avtomatik aniqlash"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__display_alternative_taxes_field
+#, fuzzy
+msgid "Display Alternative Taxes Field"
+msgstr "Muqobil soliqlar maydonini ko‘rsatish"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__display_name
+#, fuzzy
+msgid "Display Name"
+msgstr "Ko‘rsatiladigan nom"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__state_ids
+#, fuzzy
+msgid "Federal States"
+msgstr "Federal davlatlar"
+
+#. module: tax
+#: model:ir.model,name:tax.model_account_fiscal_position
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__name
+#: model:ir.model.fields,field_description:tax.field_account_tax__fiscal_position_ids
+#: model:ir.model.fields,field_description:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,field_description:tax.field_res_users__property_account_position_id
+#, fuzzy
+msgid "Fiscal Position"
+msgstr "Soliq holati"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__foreign_vat
+#, fuzzy
+msgid "Foreign Tax ID"
+msgstr "Xorijiy soliq identifikatori"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__id
+#, fuzzy
+msgid "ID"
+msgstr "ID"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
+#: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
+#, fuzzy
+msgid "Is Domestic"
+msgstr "Mahalliy"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_uid
+#, fuzzy
+msgid "Last Updated by"
+msgstr "Oxirgi yangilovchi"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__write_date
+#, fuzzy
+msgid "Last Updated on"
+msgstr "Oxirgi yangilangan sana"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__note
+#, fuzzy
+msgid "Legal mentions that have to be printed on the invoices."
+msgstr "Hisob-fakturalarda ko‘rsatilishi shart bo‘lgan yuridik eslatmalar"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_tax__original_tax_ids
+#, fuzzy
+msgid ""
+"List of taxes to replace when applying any of the stipulated fiscal "
+"positions."
+msgstr ""
+"Belgilangan fiskal pozitsiyalardan biri qo‘llanilganda almashtirilishi kerak"
+" bo‘lgan soliqlar ro‘yxati"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__note
+#, fuzzy
+msgid "Notes"
+msgstr "Izohlar"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__replacing_tax_ids
+#, fuzzy
+msgid "Replaced by"
+msgstr "O‘rniga qo‘yilgan"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_tax__original_tax_ids
+#, fuzzy
+msgid "Replaces"
+msgstr "O‘rnini bosadi"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__sequence
+#, fuzzy
+msgid "Sequence"
+msgstr "Ketma-ketlik"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__states_count
+#, fuzzy
+msgid "States Count"
+msgstr "Shtatlar soni"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_map
+#, fuzzy
+msgid "Tax Map"
+msgstr "Soliq xaritasi"
+
+#. module: tax
+#. odoo-python
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__tax_ids
+#, fuzzy
+msgid "Taxes"
+msgstr "Soliqlar"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__fiscal_country_codes
+#, fuzzy
+msgid ""
+"The ISO country code in two chars. \n"
+"You can use this field for quick search."
+msgstr ""
+"Ikki harfli ISO mamlakat kodi.  Bu maydondan tez qidirish uchun "
+"foydalanishingiz mumkin."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
+#, fuzzy
+msgid "The country to use the tax reports from for this company"
+msgstr "Ushbu kompaniya uchun soliq hisobotlarida foydalaniladigan mamlakat"
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_res_partner__property_account_position_id
+#: model:ir.model.fields,help:tax.field_res_users__property_account_position_id
+#, fuzzy
+msgid ""
+"The fiscal position determines the taxes/accounts used for this contact."
+msgstr ""
+"Soliq pozitsiyasi ushbu kontakt uchun ishlatiladigan soliqlar/hisoblarni "
+"belgilaydi."
+
+#. module: tax
+#: model:ir.model.fields,help:tax.field_account_fiscal_position__foreign_vat
+#, fuzzy
+msgid ""
+"The tax ID of your company in the region mapped by this fiscal position."
+msgstr ""
+"Ushbu fiskal pozitsiya bilan belgilangan mintaqadagi kompaniyangizning soliq"
+" identifikatori."
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__vat_required
+#, fuzzy
+msgid "VAT required"
+msgstr "QQS talab qilinadi"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
+#, fuzzy
+msgid "Zip Range From"
+msgstr "Zip oralig‘i boshlanishi"
+
+#. module: tax
+#: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_to
+#, fuzzy
+msgid "Zip Range To"
+msgstr "Zip oralig‘i oxiri"

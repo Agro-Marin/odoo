@@ -144,17 +144,17 @@ def test_all_l10n(env):
             ).try_loading(template_code, company, install_demo=True)
             env.cr.commit()
             if (
-                company.account_config_id.fiscal_position_ids
-                and not company.account_config_id.domestic_fiscal_position_id
+                company.tax_config_id.fiscal_position_ids
+                and not company.tax_config_id.domestic_fiscal_position_id
             ):
                 _logger.warning(
                     "No domestic fiscal position found in fiscal data for %s %s.",
                     company.country_id.name,
                     template_code,
                 )
-            elif company.account_config_id.fiscal_position_ids:
+            elif company.tax_config_id.fiscal_position_ids:
                 potential_domestic_fps = (
-                    company.account_config_id.fiscal_position_ids.filtered_domain(
+                    company.tax_config_id.fiscal_position_ids.filtered_domain(
                         Domain("country_id", "=", company.country_id.id)
                         | Domain(
                             [

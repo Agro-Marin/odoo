@@ -13,3 +13,6 @@ tax_config_rule_company_group_portal,tax.config: the reader's companies,model_ta
 tax_config_rule_company_group_public,tax.config: the reader's companies,model_tax_config,base.group_public,permission,r,"[('company_id', 'in', company_ids)]"
 tax_config_rule_erp_manager,tax.config: every company for an access-rights manager,model_tax_config,base.group_erp_manager,permission,r,
 tax_config_rule_erp_manager_group_system,tax.config: every company for an access-rights manager,model_tax_config,base.group_system,permission,cud,
+access_account_fiscal_position,account.fiscal.position all,model_account_fiscal_position,base.group_user,permission,r,
+account_fiscal_position_comp_rule,Account fiscal Mapping company rule,model_account_fiscal_position,base.group_everyone,guard,crud,"[('company_id', 'parent_of', company_ids)]"
+access_account_fiscal_position_system,account.fiscal.position system,model_account_fiscal_position,base.group_system,permission,cud,

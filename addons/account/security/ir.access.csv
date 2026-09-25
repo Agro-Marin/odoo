@@ -10,9 +10,8 @@ access_account_secure_entries_wizard,access.account.secure.entries.wizard,model_
 access_account_secure_entries_wizard_user,account.secure.entries.wizard.user,model_account_secure_entries_wizard,group_account_user,permission,cru,
 access_account_lock_exception,account.lock_exception,model_account_lock_exception,base.group_user,permission,r,
 access_account_lock_exception_manager,account.lock_exception manager,model_account_lock_exception,group_account_manager,permission,c,
-access_account_fiscal_position_product_manager,account.fiscal.position account.manager,model_account_fiscal_position,group_account_manager,permission,cud,
+access_account_fiscal_position_product_manager,account.fiscal.position account.manager,tax.model_account_fiscal_position,group_account_manager,permission,cud,
 access_account_fiscal_position_account_product_manager,account.fiscal.position account.manager,model_account_fiscal_position_account,group_account_manager,permission,cud,
-access_account_fiscal_position,account.fiscal.position all,model_account_fiscal_position,base.group_user,permission,r,
 access_account_fiscal_position_account,account.fiscal.position all,model_account_fiscal_position_account,base.group_user,permission,r,
 access_account_bank_statement_group_readonly,account.bank.statement.group.invoice,model_account_bank_statement,group_account_readonly,permission,r,
 access_account_bank_statement_group_invoice_r,account.bank.statement.group.invoice,model_account_bank_statement,group_account_invoice,permission,r,
@@ -154,7 +153,6 @@ journal_comp_rule,Journal multi-company,model_account_journal,base.group_everyon
 account_comp_rule,Account multi-company,account_coa.model_account_account,base.group_everyone,guard,crud,"[('company_ids', 'parent_of', company_ids)]"
 account_group_comp_rule,Account Group multi-company,model_account_group,base.group_everyone,guard,crud,"[('company_id', 'parent_of', company_ids)]"
 invoice_analysis_comp_rule,Invoice Analysis multi-company,model_account_invoice_report,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids)]"
-account_fiscal_position_comp_rule,Account fiscal Mapping company rule,model_account_fiscal_position,base.group_everyone,guard,crud,"[('company_id', 'parent_of', company_ids)]"
 account_bank_statement_comp_rule,Account bank statement company rule,model_account_bank_statement,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
 account_bank_statement_line_comp_rule,Account bank statement line company rule,model_account_bank_statement_line,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids)]"
 account_reconcile_model_template_comp_rule,Account reconcile model template company rule,model_account_reconcile_model,base.group_everyone,guard,crud,"[('company_id', 'parent_of', company_ids)]"

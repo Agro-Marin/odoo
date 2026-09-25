@@ -60,7 +60,7 @@ class AccountAccountTag(models.Model):
     @api.depends_context("company")
     @_debug.perf.timed
     def _compute_display_name(self):
-        if not self.env.company.account_config_id.multi_vat_foreign_country_ids:
+        if not self.env.company.tax_config_id.multi_vat_foreign_country_ids:
             return super()._compute_display_name()
 
         for tag in self:

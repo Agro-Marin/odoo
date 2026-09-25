@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+from odoo.fields import Domain
 
 
 class TaxConfig(models.Model):
@@ -28,9 +29,73 @@ class TaxConfig(models.Model):
         ],
         default="round_globally",
     )
+    domestic_fiscal_position_id = fields.Many2one(
+        comodel_name="account.fiscal.position",
+        compute="_compute_domestic_fiscal_position_id",
+    )
+    fiscal_position_ids = fields.One2many(
+        comodel_name="account.fiscal.position",
+        compute="_compute_fiscal_position_ids",
+    )
+    multi_vat_foreign_country_ids = fields.Many2many(
+        comodel_name="res.country",
+        string="Foreign VAT countries",
+        compute="_compute_multi_vat_foreign_country_ids",
+        help="Countries for which the company has a VAT number",
+    )
 
     @api.depends("company_id.country_id")
     def _compute_account_fiscal_country_id(self):
         for config in self:
             if not config.account_fiscal_country_id:
                 config.account_fiscal_country_id = config.company_id.country_id
+
+    @api.depends("company_id")
+    def _compute_fiscal_position_ids(self):
+        positions = self.env["account.fiscal.position"].search(
+            [("company_id", "in", self.company_id.ids)]
+        )
+        by_company = positions.grouped("company_id")
+        for config in self:
+            config.fiscal_position_ids = by_company.get(
+                config.company_id, self.env["account.fiscal.position"]
+            )
+
+    @api.depends("company_id.country_id")
+    def _compute_domestic_fiscal_position_id(self):
+        for config in self:
+            country = config.company_id.country_id
+            potential_domestic_fps = config.fiscal_position_ids.filtered_domain(
+                Domain("country_id", "=", country.id)
+                | Domain(
+                    [
+                        ("country_id", "=", False),
+                        ("country_group_id", "in", country.country_group_ids.ids),
+                    ]
+                ),
+            ).sorted(lambda fp: (fp.sequence, fp.country_id.id or float("inf")))
+            config.domestic_fiscal_position_id = potential_domestic_fps[:1]
+
+    def _get_foreign_vat_countries_per_company(self, companies):
+        FiscalPosition = self.env["account.fiscal.position"]
+        return {
+            company.id: self.env["res.country"].browse(filter(None, country_ids))
+            for company, country_ids in FiscalPosition._read_group(
+                domain=[
+                    *FiscalPosition._check_company_domain(companies),
+                    ("foreign_vat", "!=", False),
+                ],
+                groupby=["company_id"],
+                aggregates=["country_id:array_agg"],
+            )
+        }
+
+    @api.depends("company_id")
+    def _compute_multi_vat_foreign_country_ids(self):
+        countries_per_company = self._get_foreign_vat_countries_per_company(
+            self.company_id
+        )
+        for config in self:
+            config.multi_vat_foreign_country_ids = countries_per_company.get(
+                config.company_id.id, self.env["res.country"]
+            )
