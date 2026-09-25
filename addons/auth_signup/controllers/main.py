@@ -222,7 +222,7 @@ class AuthSignupHome(Home):
     def _is_reset_token(self, token):
         if not token:
             return False
-        partner = request.env["res.partner"].sudo()._get_partner_from_token(token)
+        partner = request.env["res.partner"]._get_partner_from_token(token)
         return bool(partner) and partner.signup_type == "reset"
 
     def get_auth_signup_config(self):

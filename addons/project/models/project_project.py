@@ -2936,8 +2936,8 @@ class ProjectProject(models.Model):
                 )
                 project.message_unsubscribe(partner_ids=portal_users.partner_id.ids)
                 project.task_ids._unsubscribe_portal_users()
-                project.task_ids.sudo().access_token = ""
-                project.sudo().access_token = ""
+                project.task_ids._portal_revoke_tokens()
+                project._portal_revoke_tokens()
 
     def _is_project_sharing_accessible(self) -> bool:
         self.check_singleton()

@@ -235,10 +235,11 @@ class ResPartner(models.Model):
 
     @api.model
     def _get_partner_from_token(self, token):
-        if payload := tools.resolve_hash_signed(self.sudo().env, "signup", token):
+        env = self.sudo().env
+        if payload := tools.resolve_hash_signed(env, "signup", token):
             partner_id, user_ids, login_date, signup_type, *password_state = payload
             # login_date can be either an int or "None" as a string for signup
-            partner = self.browse(partner_id)
+            partner = env["res.partner"].browse(partner_id)
             if (
                 login_date == partner._get_login_date()
                 and partner.user_ids.ids == user_ids

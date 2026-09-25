@@ -41,8 +41,14 @@ class MixinPortal(models.AbstractModel):
     def _portal_get_or_create_token(self) -> str:
         self.check_singleton()
         if not self.access_token:
-            self.sudo().write({"access_token": str(uuid.uuid4())})
+            self._portal_write_token(str(uuid.uuid4()))
         return self.access_token
+
+    def _portal_revoke_tokens(self) -> None:
+        self._portal_write_token(False)
+
+    def _portal_write_token(self, token) -> None:
+        self.sudo().write({"access_token": token})
 
     def _get_share_url(
         self, redirect=False, signup_partner=False, pid=None, share_token=True
