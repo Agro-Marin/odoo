@@ -1,7 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
+import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
+
+// headless Chrome 153 answers SpeechRecognition.available() never, for any
+// language: an engine that does not say within this is not available
+export const AVAILABILITY_TIMEOUT_MS = 2000;
 
 /**
  * A speech engine turns one utterance into text. The first available one, by
@@ -35,7 +40,13 @@ voiceEngineRegistry.addValidation({
 export async function firstAvailableEngine(lang) {
     for (const engine of voiceEngineRegistry.getAll()) {
         try {
-            if (await engine.available(lang)) {
+            const answer = await Promise.race([
+                engine.available(lang),
+                new Promise((resolve) =>
+                    browser.setTimeout(() => resolve(false), AVAILABILITY_TIMEOUT_MS),
+                ),
+            ]);
+            if (answer) {
                 return engine;
             }
         } catch {

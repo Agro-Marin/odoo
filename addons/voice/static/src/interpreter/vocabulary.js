@@ -34,7 +34,7 @@ import { flattenMenuTree } from "@web/webclient/menus/menu_utils";
  *   today: any,
  *   targets?: TargetTerm[],
  *   numbersShown?: boolean,
- *   canDictate?: boolean,
+ *   extensions?: string[],
  * }} Vocabulary
  */
 

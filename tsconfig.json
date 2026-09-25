@@ -548,6 +548,7 @@
             "@utm/*": ["addons/utm/static/src/*"],
             "@voice/*": ["addons/voice/static/src/*"],
             "@voice_gateway_ml/*": ["addons/voice_gateway_ml/static/src/*"],
+            "@voice_mail/*": ["addons/voice_mail/static/src/*"],
             "@voip/*": ["../enterprise/voip/static/src/*"],
             "@voip_crm/*": ["../enterprise/voip_crm/static/src/*"],
             "@voip_hr_recruitment/*": ["../enterprise/voip_hr_recruitment/static/src/*"],

@@ -2,7 +2,8 @@
 
 import { after, beforeEach, describe, expect, test } from "@odoo/hoot";
 import { click, queryAllTexts, waitFor } from "@odoo/hoot-dom";
-import { animationFrame } from "@odoo/hoot-mock";
+import { advanceTime, animationFrame } from "@odoo/hoot-mock";
+import { AVAILABILITY_TIMEOUT_MS } from "@voice/engines/voice_engines";
 import {
     contains,
     defineActions,
@@ -335,4 +336,34 @@ test("a label on screen is clicked by name", async () => {
     await say("haz clic en New");
     await waitFor(".o_form_view");
     expect(".o_form_view .o_form_editable").toHaveCount(1);
+});
+
+test("an engine that never says whether it can listen is passed over", async () => {
+    const engines = registry.category("voice_engines");
+    engines.add(
+        "silent",
+        {
+            available: () => new Promise(() => {}),
+            listen: async () => "never",
+            privacy: () => "",
+        },
+        { sequence: 1 },
+    );
+    engines.add(
+        "answering",
+        {
+            available: async () => true,
+            listen: async () => "sin pagar",
+            privacy: () => "",
+        },
+        { sequence: 2 },
+    );
+    await openInvoices();
+    await click(".o_voice_systray");
+    await advanceTime(AVAILABILITY_TIMEOUT_MS);
+    await waitFor(".o_voice_done_item");
+    await animationFrame();
+    expect(getFacetTexts()).toEqual(["Sin pagar"]);
+    engines.remove("silent");
+    engines.remove("answering");
 });

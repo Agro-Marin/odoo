@@ -288,7 +288,7 @@ describe("anything on screen", () => {
 });
 
 describe("dictation", () => {
-    const withDictation = { ...vocabulary(ORDER_FORM), canDictate: true };
+    const withDictation = { ...vocabulary(ORDER_FORM), extensions: ["dictate"] };
 
     test("a field is dictated into by its label, or the long-text one", () => {
         expect(interpret("dicta notas", withDictation).proposals[0]).toMatchObject({
@@ -307,5 +307,41 @@ describe("dictation", () => {
                 (p) => p.kind,
             ),
         ).not.toInclude("dictate");
+    });
+});
+
+describe("chatter", () => {
+    const withChatter = {
+        ...vocabulary(ORDER_FORM),
+        extensions: ["log_note", "compose_message"],
+    };
+
+    test("a note or a message takes the words that follow, as said", () => {
+        expect(
+            interpret("nota: Llamó el cliente, quiere factura", withChatter)
+                .proposals[0],
+        ).toMatchObject({
+            kind: "log_note",
+            risk: RISK.STAGE,
+            text: "Llamó el cliente, quiere factura",
+        });
+        expect(
+            interpret("send message Your order is ready", withChatter).proposals[0],
+        ).toMatchObject({
+            kind: "compose_message",
+            text: "Your order is ready",
+        });
+    });
+
+    test("a field named Notas is still a field, and nothing is noted without a chatter", () => {
+        expect(interpret("notas llamar mañana", withChatter).proposals[0].kind).toBe(
+            "set_field",
+        );
+        expect(
+            interpret("nota hola", vocabulary(ORDER_FORM)).proposals.map((p) => p.kind),
+        ).not.toInclude("log_note");
+        expect(
+            interpret("nota", withChatter).proposals.map((p) => p.kind),
+        ).not.toInclude("log_note");
     });
 });

@@ -51,6 +51,24 @@ export const DICTATE_VERBS = wordSet(`
     dicta dictar dictame dictado dictate dictation
 `);
 
+export const NOTE_PHRASES = phraseList([
+    "nota",
+    "nota interna",
+    "anota",
+    "apunta",
+    "registra nota",
+    "log note",
+    "note",
+]);
+
+export const MESSAGE_PHRASES = phraseList([
+    "mensaje",
+    "manda mensaje",
+    "envia mensaje",
+    "send message",
+    "message",
+]);
+
 export const NUMBER_WORDS = wordSet(`
     numero num number
 `);

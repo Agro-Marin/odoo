@@ -97,7 +97,9 @@ export class VoiceService {
         const targets = withTargets ? this.currentTargets() : [];
         vocabulary.targets = targets.map(({ label, risk }) => ({ label, risk }));
         vocabulary.numbersShown = withTargets && this.state.numbers.length > 0;
-        vocabulary.canDictate = voiceExecutorRegistry.contains("dictate");
+        vocabulary.extensions = voiceExecutorRegistry
+            .getEntries()
+            .map(([kind]) => kind);
         this.lastSaid = { vocabulary, target, targets };
         return this.bind(interpret(text, vocabulary));
     }

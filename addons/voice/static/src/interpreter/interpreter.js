@@ -16,8 +16,10 @@ import {
     FILLER_PHRASES,
     GROUP_BY_TRIGGERS,
     INTERVALS,
+    MESSAGE_PHRASES,
     MONTHS,
     NEGATIONS,
+    NOTE_PHRASES,
     NUMBER_WORDS,
     OPEN_VERBS,
     ORDINALS,
@@ -816,7 +818,11 @@ function parseDictate(words, vocabulary) {
     const fields = (vocabulary.view?.form?.fields || []).filter((field) =>
         DICTATED_TYPES.includes(field.type),
     );
-    if (!vocabulary.canDictate || !fields.length || !DICTATE_VERBS.has(words[0])) {
+    if (
+        !vocabulary.extensions?.includes("dictate") ||
+        !fields.length ||
+        !DICTATE_VERBS.has(words[0])
+    ) {
         return null;
     }
     const heard = content(words.slice(1)).filter((word) => !DICTATE_VERBS.has(word));
@@ -835,6 +841,42 @@ function parseDictate(words, vocabulary) {
         fieldType: field.type,
         description: _t("Dictating into %s", field.label),
     };
+}
+
+/**
+ * "nota: llamó el cliente": the words go into the chatter's composer, where
+ * the user reads them and posts them; nothing is posted by voice.
+ *
+ * @param {Token[]} tokens
+ * @param {string} text
+ * @param {Vocabulary} vocabulary
+ * @returns {Proposal | null}
+ */
+function parseChatter(tokens, text, vocabulary) {
+    if (vocabulary.view?.viewType !== "form") {
+        return null;
+    }
+    const words = tokens.map((token) => token.norm);
+    for (const [kind, phrases, describe] of /** @type {const} */ ([
+        ["log_note", NOTE_PHRASES, (/** @type {string} */ t) => _t("Note: %s", t)],
+        [
+            "compose_message",
+            MESSAGE_PHRASES,
+            (/** @type {string} */ t) => _t("Message: %s", t),
+        ],
+    ])) {
+        const length = phraseAt(words, 0, phrases);
+        if (
+            !length ||
+            !vocabulary.extensions?.includes(kind) ||
+            length >= tokens.length
+        ) {
+            continue;
+        }
+        const said = text.slice(tokens[length].start).trim();
+        return { kind, risk: RISK.STAGE, text: said, description: describe(said) };
+    }
+    return null;
 }
 
 /**
@@ -1026,6 +1068,10 @@ function understand(tokens, words, text, vocabulary, view) {
         const setField = parseSetField(tokens, text, view, vocabulary.today);
         if (setField) {
             return single(text, setField);
+        }
+        const chatter = parseChatter(tokens, text, vocabulary);
+        if (chatter) {
+            return single(text, chatter);
         }
         const button = parseButton(words, view);
         if (button) {
