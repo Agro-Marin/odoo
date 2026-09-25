@@ -1,8 +1,8 @@
 from itertools import accumulate
 
 from odoo import api, fields, models
-from odoo.exceptions import UserError
-from odoo.tools import Query
+from odoo.fields import Domain
+from odoo.tools import SQL, Query
 
 
 class AccountRoot(models.Model):
@@ -34,7 +34,22 @@ class AccountRoot(models.Model):
                 return self.browse(
                     sorted({s for _id in ids for s in accumulate(_id)})
                 )._as_query()
-        raise UserError(self.env._("Filter on the Account or its Display Name instead"))
+        domain = Domain(domain).optimize_full(self)
+        roots = self._of_readable_accounts().filtered_domain(domain)
+        return roots[offset:][:limit]._as_query()
+
+    def _of_readable_accounts(self):
+        Account = self.env["account.account"]
+        query = Account._search([])
+        rows = self.env.execute_query(
+            SQL(
+                "SELECT DISTINCT root FROM (%s) AS account_roots(root)",
+                query.select(Account._field_to_sql(query.table, "root_id", query)),
+            )
+        )
+        return self.browse(
+            sorted({prefix for (root,) in rows if root for prefix in accumulate(root)})
+        )
 
     @api.model
     def _from_account_code(self, code):

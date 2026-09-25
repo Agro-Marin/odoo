@@ -140,6 +140,18 @@ class TestAccountCoa(TransactionCase):
                 self.assertFalse(defaults.get("name"))
 
 
+def _internal_user(env):
+    return env["res.users"].create(
+        {
+            "name": "Internal",
+            "login": "account_coa_internal",
+            "company_id": env.company.id,
+            "company_ids": [Command.set(env.company.ids)],
+            "group_ids": [Command.set(env.ref("base.group_user").ids)],
+        }
+    )
+
+
 @tagged("post_install", "-at_install")
 class TestAccountRoot(TransactionCase):
     def test_from_account_code(self):
@@ -154,6 +166,21 @@ class TestAccountRoot(TransactionCase):
         Root = self.env["account.root"]
         roots = Root.search([("id", "parent_of", ["10"])])
         self.assertEqual(sorted(roots.ids), ["1", "10"])
+
+    def test_internal_user_searches_any_domain(self):
+        self.env["account.account"].create(
+            [
+                {"code": "Z71000", "name": "Root A", "account_type": "asset_current"},
+                {"code": "Z81000", "name": "Root B", "account_type": "income"},
+            ]
+        )
+        Root = self.env["account.root"].with_user(_internal_user(self.env))
+
+        self.assertTrue({"Z", "Z7", "Z8"} <= set(Root.search([]).ids))
+        self.assertEqual(Root.search_count([]), len(Root.search([])))
+        self.assertEqual(Root.search([("name", "=like", "Z%")]).ids, ["Z", "Z7", "Z8"])
+        self.assertEqual(Root.search([("parent_id", "=", "Z")]).ids, ["Z7", "Z8"])
+        self.assertEqual([root_id for root_id, _name in Root.name_search("Z7")], ["Z7"])
 
 
 @tagged("post_install", "-at_install")
