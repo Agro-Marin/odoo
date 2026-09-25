@@ -33,17 +33,20 @@ export class KanbanColumnQuickCreate extends Component {
         this.inputRef = useRef("autofocus");
 
         useListener(window, "mousedown", (/** @type {Event} */ ev) => {
-            this.mousedownTarget = ev.target;
+            if (this.root.el) {
+                this.mousedownTarget = ev.target;
+            }
         });
         useListener(
             window,
             "click",
             (/** @type {Event} */ ev) => {
+                const rootEl = this.root.el;
+                if (!rootEl) {
+                    return;
+                }
                 const target = /** @type {Node} */ (this.mousedownTarget || ev.target);
-                const gotClickedInside = /** @type {HTMLElement} */ (
-                    this.root.el
-                ).contains(target);
-                if (!gotClickedInside) {
+                if (!rootEl.contains(target)) {
                     this.fold();
                 }
                 this.mousedownTarget = null;
