@@ -42,7 +42,6 @@ class TeamTeam(models.Model):
     )
     maintenance_alias_id = fields.Many2one(
         comodel_name="team.alias",
-        string="Maintenance Alias",
         compute="_compute_maintenance_alias_id",
         search="_search_maintenance_alias_id",
         help="Email alias for this maintenance team.",

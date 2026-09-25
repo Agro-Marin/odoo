@@ -89,6 +89,10 @@ def _string_node(call: ast.Call):
     for keyword in call.keywords:
         if keyword.arg == "string":
             return keyword
+    # A field class called by name has a signature of its own: which positional
+    # is the label only `fields.<X>` answers.
+    if not isinstance(call.func, ast.Attribute):
+        return None
     position = _STRING_POSITION.get(call.func.attr, 0)
     if len(call.args) > position and not isinstance(call.args[position], ast.Starred):
         return call.args[position]
@@ -142,7 +146,7 @@ def rewrite(path: str, wanted: set[tuple[str, str]]) -> tuple[bytes, bytes, int]
                 continue
             if not (
                 isinstance(statement.value, ast.Call)
-                and isinstance(statement.value.func, ast.Attribute)
+                and isinstance(statement.value.func, (ast.Attribute, ast.Name))
             ):
                 continue
             target = _string_node(statement.value)

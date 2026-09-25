@@ -11,7 +11,6 @@ class AppointmentBookingLine(models.Model):
     active = fields.Boolean(related="calendar_event_id.active")
     resource_id = fields.Many2one(
         comodel_name="resource.resource",
-        string="Resource",
         ondelete="cascade",
     )
     appointment_user_id = fields.Many2one(

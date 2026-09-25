@@ -1,12 +1,13 @@
 import logging
 import re
+from types import SimpleNamespace
 
 from lxml import etree
 
 from odoo import SUPERUSER_ID, api
 from odoo.modules.registry import Registry
 from odoo.tests import tagged
-from odoo.tests.common import get_db_name
+from odoo.tests.common import BaseCase, get_db_name
 
 from .lint_case import LintCase
 
@@ -47,28 +48,92 @@ class OrphanLabelLinter(LintCase):
             )
 
     @classmethod
+    def _rendered(cls, el) -> bool:
+        return not any(
+            node.get("invisible") in cls.LITERAL_INVISIBLE
+            for node in (el, *el.iterancestors())
+        )
+
+    # Mirrors FormCompiler.compileLabel / compileField: a literal-invisible node
+    # is never compiled, a label waits for the next compiled field whose `id`
+    # (else `name`) it names, and binds at once to one already compiled.
+    @classmethod
     def _orphans(cls, view, arch):
-        dropped, present = set(), set()
-        for el in arch.iter("field"):
-            name = el.get("name")
-            if not name:
+        present, buttons, compiled = set(), set(), set()
+        pending: dict[str, int] = {}
+        for el in arch.iter("field", "button", "label"):
+            if el.tag == "button":
+                if el.get("name"):
+                    buttons.add(el.get("name"))
                 continue
-            present.add(name)
-            if el.get("invisible") in cls.LITERAL_INVISIBLE:
-                dropped.add(name)
-            else:
-                dropped.discard(name)
-        for el in arch.iter("button"):
-            if el.get("name"):
-                present.add(el.get("name"))
-        for el in arch.iter("label"):
+            if el.tag == "field":
+                if not (name := el.get("name")):
+                    continue
+                key = el.get("id") or name
+                present.update((name, key))
+                if cls._rendered(el):
+                    pending.pop(key, None)
+                    compiled.update((name, key))
+                continue
             target = el.get("for")
-            if not target or (target in present and target not in dropped):
+            if not target or target in compiled or not cls._rendered(el):
                 continue
             if el.get("string") is not None or (el.text or "").strip():
                 continue
+            pending[target] = pending.get(target, 0) + 1
+        for target, count in pending.items():
+            if target in buttons:
+                continue
             why = "absent" if target not in present else 'invisible="1"'
-            yield f"{view.xml_id or view.id}: <label for={target!r}> ({why})"
+            finding = f"{view.xml_id or view.id}: <label for={target!r}> ({why})"
+            yield from [finding] * count
+
+
+class TestOrphanLabelBinding(BaseCase):
+    def _orphans(self, arch: str) -> list[str]:
+        view = SimpleNamespace(xml_id="m.v", id=1)
+        return list(OrphanLabelLinter._orphans(view, etree.fromstring(arch)))
+
+    def test_a_label_for_a_field_id_binds_to_that_field(self):
+        self.assertEqual(
+            self._orphans(
+                '<form><label for="mail_box"/><field name="email" id="mail_box"/></form>'
+            ),
+            [],
+        )
+
+    def test_a_label_binds_to_the_next_rendered_field_of_its_name(self):
+        self.assertEqual(
+            self._orphans(
+                "<form>"
+                '<label for="pricelist_id"/><div><field name="pricelist_id"/></div>'
+                '<field name="pricelist_id" invisible="1"/>'
+                "</form>"
+            ),
+            [],
+        )
+
+    def test_a_label_whose_field_is_never_rendered_is_empty(self):
+        self.assertEqual(
+            self._orphans(
+                "<form>"
+                '<label for="a"/><field name="a" invisible="1"/>'
+                '<label for="b"/><group invisible="1"><field name="b"/></group>'
+                '<label for="c"/>'
+                "</form>"
+            ),
+            [
+                "m.v: <label for='a'> (invisible=\"1\")",
+                "m.v: <label for='b'> (invisible=\"1\")",
+                "m.v: <label for='c'> (absent)",
+            ],
+        )
+
+    def test_a_label_that_is_not_rendered_itself_is_not_empty(self):
+        self.assertEqual(
+            self._orphans('<form><group invisible="1"><label for="a"/></group></form>'),
+            [],
+        )
 
 
 @tagged("post_install", "-at_install")

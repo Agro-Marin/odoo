@@ -6,7 +6,6 @@ class StockPickingType(models.Model):
 
     team_id = fields.Many2one(
         comodel_name="team.team",
-        string="Team",
         index="btree_not_null",
         domain="[('use_stock', '=', True), ('company_id', 'in', [False, company_id])]",
         check_company=True,

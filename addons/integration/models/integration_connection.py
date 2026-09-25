@@ -43,14 +43,12 @@ class IntegrationConnection(models.Model):
     )
     service_id = fields.Many2one(
         comodel_name="integration.service",
-        string="Service",
         index=True,
         required=True,
         ondelete="cascade",
     )
     credential_id = fields.Many2one(
         comodel_name="credential.credential",
-        string="Credential",
         index=True,
         ondelete="cascade",
         help="The secret this connection authenticates with. Empty only for a "
@@ -58,7 +56,6 @@ class IntegrationConnection(models.Model):
     )
     company_id = fields.Many2one(
         comodel_name="res.company",
-        string="Company",
         index=True,
         help="Empty: the connection serves every company that has none of its own.",
     )

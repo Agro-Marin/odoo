@@ -21,14 +21,12 @@ class StockWarehouse(models.Model):
     )
     maintenance_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
-        string="Maintenance Type",
         copy=False,
         check_company=True,
         tracking=True,
     )
     maintenance_return_type_id = fields.Many2one(
         comodel_name="stock.picking.type",
-        string="Maintenance Return Type",
         copy=False,
         check_company=True,
         tracking=True,

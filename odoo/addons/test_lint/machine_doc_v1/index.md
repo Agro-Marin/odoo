@@ -319,7 +319,7 @@ model with `_inherits` also declares `<xmlid>_<parent_model>`, every manifest
 | `_modernize_output_directives.py` | `is_rename_only`: the two documents, walked in parallel, differ in nothing but the renamed attribute keys | value-**renaming**: `t-esc` becomes `t-out` in place, which is what `ir.qweb` and Owl both compile it to. `t-raw` is not renamed -- it skips escaping, so `t-out` could change output -- and an element carrying both is left for a human. Swept 2026-09-12: 115 files, `deprecated-output-directive` 500 -> 0; one inheritance locator (`sale_timesheet`, `td[t[@t-esc=...]]`) followed the rename by hand. |
 | `_relocate_menus.py` | a fresh install before and after produces the same `ir.ui.menu` rows (xmlid, name, parent, action, sequence, groups) -- checked by installing every changed module from two worktrees and diffing the dump, not by the script | structure-**moving**: every top-level `<menuitem>` of a module, with its subtree and the comments before it, goes to the module's `views/` menus file, named after the module with a `_menus` suffix, in manifest load order (an existing menu file's own menus interleaved by their original position). The file is listed after every file that defines an action a menu names and before the first staying file that needs a menu -- a `ref()` to it, an `ir.ui.menu` record redefining it by `id` -- which is the end of `data` when nothing does. Refuses a module when no such position exists, when a menuitem sits under `noupdate`, or when the module's Python names a menu (`--python-refs-verified <module>` once you have read that none runs while data loads). A source file left with no element is deleted with its manifest line. Swept 2026-09-12: 98 modules; `event`'s six `ir.ui.menu` action patches became the menuitems' own `action=`, `point_of_sale` and `website` carry their menu-bound client actions in the menus file, `hr` swapped two manifest lines; `menuitem-placement` 333 -> 0. |
 | `_sort_field_attributes.py` | the module's AST with every field call normalised -- positionals mapped to their keywords, keywords sorted by name -- is identical before and after, checked per file before it is written | spelling-**normalising**: every positional argument becomes the keyword `POSITIONAL_PARAMETERS` names, keywords take `FIELD_ATTRIBUTE_ORDER`, two or more go one per line with a trailing comma and `ruff format` lays the file out. A comment trailing an argument travels with it, one on a line of its own with the argument that follows; a `*args`, a `**kwargs` or a comment after the last argument is declined and reported. Swept 2026-09-13: 12,060 declarations in 2,024 core files, none declined; `field-positional-argument` 5,948 -> 0, `field-attribute-order` 7,525 -> 0. |
-| `_drop_field_labels.py` | the registry's `field.string` for every installed field, before and after, is identical -- the fixer removes only what `get_attrs` would have derived anyway, and the check is a fresh registry over the rewritten source | value-**dropping**: `string=` (or the positional label) whose value equals the auto label and whose every lower MRO definition says nothing else, located through the built registry (`-d <db>`), so it is exact rather than syntactic; touched files are re-run through `ruff format`. Swept 2026-09-13 on a 645-module community install: `lint_field_string_restates_label` 4,205 -> 0. |
+| `_drop_field_labels.py` | the registry's `field.string` for every installed field, before and after, is identical -- the fixer removes only what `get_attrs` would have derived anyway, and the check is a fresh registry over the rewritten source | value-**dropping**: `string=` (or the positional label) whose value equals the auto label and whose every lower MRO definition says nothing else, located through the built registry (`-d <db>`), so it is exact rather than syntactic; touched files are re-run through `ruff format`. Swept 2026-09-13 on a 645-module community install: `lint_field_string_restates_label` 4,205 -> 0. A field class called by name rather than as `fields.<X>` (resource_asset's `AssetIdentifier`) loses only a keyword `string=`: its positionals follow its own signature. The full-scope lane found 37 more on 2026-09-25 (frozen, base 97eeb000aad2) that the narrow scope never installs; 31 swept, 6 left in account and mrp. |
 | `_modernize_commands.py` | `is_equivalent`: both the original and the rewrite are mapped to `(code, id, values)` tuples and compared as `ast.dump` | value-**rewriting**: `(6, 0, ids)` becomes `Command.set(ids)` inside an `eval` list, and the sub-commands inside a `create`/`update` dict with it. No evaluation, so it runs without odoo-bin; a refusal is a rewrite the round-trip would not reproduce. Swept 2026-09-12: 312 files, `legacy-x2many-command` 1,408 -> 0. |
 
 `_xml_sweep.py` runs a fixer over every data file **once**; the gates read the
@@ -410,8 +410,30 @@ There is no CI any more; every gate below runs by hand.
 | run | scope |
 |---|---|
 | `odoo-bin --addons-path=odoo/addons,addons -d <db> -i test_lint --test-enable --test-tags /test_lint --stop-after-init --no-http` | the whole module, `--addons-path=odoo/addons,addons`, only `test_lint` installed |
-| the same command against a fuller `-i`/`--addons-path` install | the registry-dependent classes, against a wider INSTALL set |
+| `odoo/addons/test_lint/lint_full_scope.sh` (or `./gates.sh --lint-full`) | the whole module on the workspace addons path, over a scratch install of the script's `FULL_SCOPE` modules (odoo, enterprise and agromarin), dropped afterwards; `--keep`/`--db` re-run on one database, `--tags` narrows |
 
 **A gate that reads the installed registry cannot be graded at the narrow
 scope.** `TestSchemeDuplication` passes there for want of modules to measure;
 `TestDocstring` is one-sided (`exact=False`) for the same reason. Do not floor either at a narrow-scope reading.
+`TestFieldDeclarations` reads the registry too, but its floors are zero and it
+passes at the narrow scope over the little installed there: a zero there says
+nothing about a module that is not installed. The dead point_of_sale constraint
+read zero at the narrow scope and four on an install with point_of_sale, so run
+the class on a fuller install before trusting it.
+
+**The full-scope lane is what grades the rest.** `lint_full_scope.sh` installs
+`FULL_SCOPE` into a scratch database created through odoo-bin (so `db_template`
+applies), repeats `-i` until the modules it names stop going missing (a single
+`-i` converges on a subgraph and exits 0), runs `/test_lint` with `-u test_lint`
+and drops the database. A `--ref` worktree grades its own addons: the conf's
+`odoo/addons` entry is replaced by the checkout's. What only this lane can see:
+`TestFieldDeclarations`, `TestIndex`, `TestLintOverrideSignatures`,
+`OrphanLabelLinter`, `TestSchemeDuplication`, `TestDocstring`, the bundle gates
+that read what is served (`TestBundlesAssemble`, `TestBundleTokenDefs`,
+`TestOrphanAssets`, `TestAssetPathsExist`, `TestBundleDoubleEvaluation`), and the
+per-repository floors of enterprise and agromarin (`bare_sudo_agromarin`,
+`owl_env_reads_enterprise`). `OrphanLabelLinter` binds a label the way
+`FormCompiler` does -- to the next compiled field whose `id` (else `name`) it
+names, or at once to one already compiled, a literal-invisible node or ancestor
+never compiling -- so a label naming a field `id` is not orphaned and a later
+hidden duplicate of the field does not empty it.

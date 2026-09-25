@@ -6,7 +6,7 @@ from odoo.tests import common
 
 _logger = logging.getLogger(__name__)
 
-BTREE_INDEX_PY_DEFS = (True, "1", "btree", "btree_not_null")
+BTREE_INDEX_PY_DEFS = (True, "1", "btree", "btree_not_null", "unique")
 
 _LEADING_COLUMN_RE = re.compile(
     r"""
@@ -34,10 +34,16 @@ _LEADING_PAIR_RE = re.compile(
 )
 
 
-def leading_index_pairs(model) -> set[tuple[str, str]]:
-    pairs: set[tuple[str, str]] = set()
+_UNIQUE_CONSTRAINT_RE = re.compile(
+    r"^\s*UNIQUE\s*(?:NULLS\s+(?:NOT\s+)?DISTINCT\s*)?(?=\()", re.IGNORECASE
+)
+
+
+# A UNIQUE constraint is backed by a btree index over its columns, so it serves
+# the same lookups a declared Index does.
+def _btree_clauses(model):
     for table_object in getattr(model, "_table_objects", {}).values():
-        if not isinstance(table_object, models.Index):
+        if not isinstance(table_object, (models.Index, models.Constraint)):
             continue
         try:
             definition = table_object.get_definition(model.pool)
@@ -49,12 +55,22 @@ def leading_index_pairs(model) -> set[tuple[str, str]]:
                 exc_info=True,
             )
             continue
+        if isinstance(table_object, models.Constraint):
+            if not (unique := _UNIQUE_CONSTRAINT_RE.match(definition)):
+                continue
+            yield definition[unique.end() :]
+            continue
         clause = re.sub(
             r"^\s*(UNIQUE\s+)?INDEX\s*", "", definition, flags=re.IGNORECASE
         )
         if re.match(r"^\s*USING\s+(?!btree\b)", clause, flags=re.IGNORECASE):
             continue
-        clause = re.sub(r"^\s*USING\s+btree\s*", "", clause, flags=re.IGNORECASE)
+        yield re.sub(r"^\s*USING\s+btree\s*", "", clause, flags=re.IGNORECASE)
+
+
+def leading_index_pairs(model) -> set[tuple[str, str]]:
+    pairs: set[tuple[str, str]] = set()
+    for clause in _btree_clauses(model):
         match = _LEADING_PAIR_RE.match(clause)
         if not match:
             continue
@@ -66,25 +82,7 @@ def leading_index_pairs(model) -> set[tuple[str, str]]:
 
 def leading_index_columns(model) -> set[str]:
     columns: set[str] = set()
-    for table_object in getattr(model, "_table_objects", {}).values():
-        if not isinstance(table_object, models.Index):
-            continue
-        try:
-            definition = table_object.get_definition(model.pool)
-        except Exception:
-            _logger.debug(
-                "could not render the definition of %s on %s",
-                table_object.name,
-                getattr(model, "_name", model),
-                exc_info=True,
-            )
-            continue
-        clause = re.sub(
-            r"^\s*(UNIQUE\s+)?INDEX\s*", "", definition, flags=re.IGNORECASE
-        )
-        if re.match(r"^\s*USING\s+(?!btree\b)", clause, flags=re.IGNORECASE):
-            continue
-        clause = re.sub(r"^\s*USING\s+btree\s*", "", clause, flags=re.IGNORECASE)
+    for clause in _btree_clauses(model):
         match = _LEADING_COLUMN_RE.match(clause)
         if not match:
             continue

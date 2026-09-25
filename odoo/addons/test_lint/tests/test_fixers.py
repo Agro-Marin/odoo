@@ -12,6 +12,7 @@ from odoo.tests.common import BaseCase, no_retry, tagged
 
 from . import (
     _checker_field_declaration,
+    _drop_field_labels,
     _modernize_commands,
     _modernize_output_directives,
     _pretty_xml,
@@ -1042,6 +1043,60 @@ class TestSortFieldAttributes(BaseCase):
             ),
             ["string", "zzz", "groups", "help"],
         )
+
+
+@no_retry
+class TestDropFieldLabels(BaseCase):
+    def _rewrite(self, source: str, wanted: set[tuple[str, str]]) -> tuple[str, int]:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "m.py"
+            path.write_text(textwrap.dedent(source), encoding="utf-8")
+            _before, after, count = _drop_field_labels.rewrite(str(path), wanted)
+        return after.decode(), count
+
+    def test_a_fields_attribute_call_loses_its_label(self):
+        after, count = self._rewrite(
+            """
+            class M(models.Model):
+                team_id = fields.Many2one(comodel_name="team.team", string="Team")
+                note = fields.Char("Note")
+            """,
+            {("M", "team_id"), ("M", "note")},
+        )
+        self.assertEqual(count, 2)
+        self.assertEqual(
+            after,
+            textwrap.dedent("""
+            class M(models.Model):
+                team_id = fields.Many2one(comodel_name="team.team")
+                note = fields.Char()
+            """),
+        )
+
+    def test_a_field_class_called_by_name_loses_its_keyword_label(self):
+        after, count = self._rewrite(
+            """
+            class M(models.Model):
+                serial_number = AssetIdentifier(identifier_code="serial", string="Serial Number")
+            """,
+            {("M", "serial_number")},
+        )
+        self.assertEqual(count, 1)
+        self.assertEqual(
+            after,
+            textwrap.dedent("""
+            class M(models.Model):
+                serial_number = AssetIdentifier(identifier_code="serial")
+            """),
+        )
+
+    def test_a_positional_of_a_field_class_called_by_name_is_never_taken_as_label(self):
+        source = """
+            class M(models.Model):
+                serial_number = AssetIdentifier("Serial Number")
+            """
+        after, count = self._rewrite(source, {("M", "serial_number")})
+        self.assertEqual((count, after), (0, textwrap.dedent(source)))
 
 
 @no_retry

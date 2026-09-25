@@ -12,7 +12,6 @@ class StockPickingBatch(models.Model):
     vehicle_id = fields.Many2one(comodel_name="resource.asset.vehicle")
     vehicle_model_id = fields.Many2one(
         comodel_name="product.product",
-        string="Vehicle Model",
         compute="_compute_vehicle_model_id",
         store=True,
         readonly=False,

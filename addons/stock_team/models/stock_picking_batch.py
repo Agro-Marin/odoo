@@ -9,7 +9,6 @@ class StockPickingBatch(models.Model):
 
     team_id = fields.Many2one(
         comodel_name="team.team",
-        string="Team",
         compute="_compute_team_id",
         store=True,
         index="btree_not_null",

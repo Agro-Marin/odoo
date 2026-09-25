@@ -16,7 +16,6 @@ class TeamMember(models.Model):
 
     team_id = fields.Many2one(
         comodel_name="team.team",
-        string="Team",
         index=True,
         required=True,
         group_expand="_read_group_expand_full",

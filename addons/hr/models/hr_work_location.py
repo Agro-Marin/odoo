@@ -18,7 +18,6 @@ class HrWorkLocation(models.Model):
     )
     location_type = fields.Selection(
         selection=[("home", "Home"), ("office", "Office"), ("other", "Other")],
-        string="Location Type",
         default="office",
         required=True,
     )

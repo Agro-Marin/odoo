@@ -13,15 +13,9 @@ class AccountSplitJournalItemWizard(models.TransientModel):
         column2="line_id",
     )
     line_currency_id = fields.Many2one(comodel_name="res.currency")
-    quantity = fields.Integer(string="Quantity")
-    amount = fields.Monetary(
-        string="Amount",
-        currency_field="line_currency_id",
-    )
-    account_id = fields.Many2one(
-        comodel_name="account.account",
-        string="Account",
-    )
+    quantity = fields.Integer()
+    amount = fields.Monetary(currency_field="line_currency_id")
+    account_id = fields.Many2one(comodel_name="account.account")
 
     show_simple_wizard = fields.Boolean(compute="_compute_show_simple_wizard")
 

@@ -17,7 +17,6 @@ class AccountBankAutoReconcileWizard(models.TransientModel):
     )
     journal_id = fields.Many2one(
         comodel_name="account.journal",
-        string="Journal",
         required=True,
         domain="[('type', 'in', ('bank', 'cash', 'credit'))]",
         check_company=True,

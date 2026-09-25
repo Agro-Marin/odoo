@@ -9,7 +9,4 @@ class ResourceAssetFurniture(models.Model):
     _inherit = ["resource.asset"]
     _table = "resource_asset_furniture"
 
-    inventory_tag = AssetIdentifier(
-        identifier_code="inventory",
-        string="Inventory Tag",
-    )
+    inventory_tag = AssetIdentifier(identifier_code="inventory")

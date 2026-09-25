@@ -41,6 +41,7 @@ class ApprovalDecisionLog(models.Model):
     )
     approver_id = fields.Many2one(
         comodel_name="approval.approver",
+        index="btree_not_null",
         readonly=True,
         ondelete="set null",
     )

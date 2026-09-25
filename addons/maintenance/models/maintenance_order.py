@@ -85,7 +85,6 @@ class MaintenanceOrder(models.Model):
 
     vendor_id = fields.Many2one(
         comodel_name="res.partner",
-        string="Vendor",
         check_company=True,
         tracking=True,
         help="Supplier performing the maintenance, when it is done outside.",

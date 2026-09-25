@@ -6,17 +6,19 @@
 #   ./gates.sh --rust --js     add the cargo checks and the JS toolchain
 #   ./gates.sh --perf          add statement-count and residual wall-time floors
 #   ./gates.sh --perf-counts   add portable statement-count checks without time limits
+#   ./gates.sh --lint-full     add test_lint on a fuller install in a scratch database
 #   ./gates.sh --ref <rev>     run everything on a detached worktree of <rev>
 #
 # The commands are the ones doc/architecture/gates.md and CLAUDE.md §9 give;
 # this file only sequences them and prints a table. A gate that needs a
-# named database (test_lint, the addon integration suites) runs by hand.
-# The optional performance suite creates and drops its own scratch databases.
+# named database (the narrow-scope test_lint, the addon integration suites)
+# runs by hand. The optional performance suite and --lint-full create and drop
+# their own scratch databases.
 set -u
 
-usage() { sed -n '2,9p' "$0"; exit 2; }
+usage() { sed -n '2,10p' "$0"; exit 2; }
 
-FAST=0 RUST=0 JS=0 PERF=0 PERF_COUNTS=0 REF=""
+FAST=0 RUST=0 JS=0 PERF=0 PERF_COUNTS=0 LINT_FULL=0 REF=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --fast) FAST=1 ;;
@@ -24,6 +26,7 @@ while [ $# -gt 0 ]; do
         --js) JS=1 ;;
         --perf) PERF=1 ;;
         --perf-counts) PERF_COUNTS=1 ;;
+        --lint-full) LINT_FULL=1 ;;
         --ref) shift; REF="${1:-}"; [ -n "$REF" ] || usage ;;
         -h|--help) usage ;;
         *) echo "unknown option: $1" >&2; usage ;;
@@ -128,6 +131,9 @@ if [ "$PERF" -eq 1 ] || [ "$PERF_COUNTS" -eq 1 ]; then
     PERF_ARGS=()
     [ "$PERF" -eq 1 ] || PERF_ARGS+=(--perf-counts-only)
     run "perf floors (tests/perf)" "$BIN/pytest" -q -p no:cacheprovider tests/perf "${PERF_ARGS[@]}" --perf-output "${ODOO_PERF_OUTPUT:-$TREE/perf-results.json}"
+fi
+if [ "$LINT_FULL" -eq 1 ]; then
+    run "test_lint full scope"    env VIRTUAL_ENV="$(dirname "$BIN")" bash odoo/addons/test_lint/lint_full_scope.sh
 fi
 if [ "$JS" -eq 1 ]; then
     run "eslint"                  npx eslint .

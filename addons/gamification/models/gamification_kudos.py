@@ -109,6 +109,7 @@ class GamificationKudos(models.Model):
     )
     category_id = fields.Many2one(
         comodel_name="gamification.kudos.category",
+        index=True,
         required=True,
         ondelete="restrict",
     )

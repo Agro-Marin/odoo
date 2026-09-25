@@ -8,7 +8,6 @@ class HrDepartureWizard(models.TransientModel):
     _inherit = "hr.departure.wizard"
 
     release_assets = fields.Boolean(
-        string="Release Assets",
         default=True,
         help="End the custody of every asset the employees hold.",
     )

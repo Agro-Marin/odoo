@@ -247,6 +247,7 @@ class ProductTemplate(models.Model):
         compute="_compute_manufacturer_info",
         inverse="_inverse_manufacturer_info",
         store=True,
+        index="btree_not_null",
     )
     manufacturer_pname = fields.Char(
         string="Manufacturer Product Name",

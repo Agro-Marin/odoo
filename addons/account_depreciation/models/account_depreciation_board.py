@@ -43,7 +43,6 @@ class AccountDepreciationBoard(models.Model):
 
     asset_id = fields.Many2one(
         comodel_name="resource.asset",
-        string="Asset",
         index="unique",
         required=True,
         ondelete="cascade",
@@ -251,7 +250,6 @@ class AccountDepreciationBoard(models.Model):
 
     depreciation_profile_id = fields.Many2one(
         comodel_name="account.depreciation.profile",
-        string="Depreciation Profile",
         change_default=True,
         index="btree_not_null",
         check_company=True,

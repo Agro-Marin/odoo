@@ -292,6 +292,37 @@ class TestLeadingIndexColumns(BaseCase):
             {"guest_id"},
         )
 
+    def _constraint_columns(self, definition):
+        from odoo.orm import models as orm_models
+
+        from .test_index import leading_index_columns
+
+        return leading_index_columns(
+            self._FakeModel({"c": orm_models.Constraint(definition, "message")})
+        )
+
+    def test_a_unique_constraint_answers_its_leading_column(self):
+        self.assertEqual(
+            self._constraint_columns("unique(account_move_line_id)"),
+            {"account_move_line_id"},
+        )
+        self.assertEqual(
+            self._constraint_columns("UNIQUE (employee_id, bank_account_id)"),
+            {"employee_id"},
+        )
+        self.assertEqual(
+            self._constraint_columns("UNIQUE NULLS NOT DISTINCT (code, company_id)"),
+            {"code"},
+        )
+
+    def test_a_check_or_exclusion_constraint_answers_nothing(self):
+        for definition in (
+            "CHECK (amount >= 0)",
+            "EXCLUDE USING gist (resource_id WITH =, period WITH &&)",
+        ):
+            with self.subTest(definition=definition):
+                self.assertEqual(self._constraint_columns(definition), set())
+
 
 @no_retry
 class TestOrmImportLint(BaseCase):

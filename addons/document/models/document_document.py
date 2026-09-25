@@ -243,7 +243,10 @@ class DocumentsDocument(models.Model):
         help="Set when a URL document still needs its link preview fetched "
         "asynchronously (see _cron_update_url_preview).",
     )
-    request_activity_id = fields.Many2one(comodel_name="mail.activity")
+    request_activity_id = fields.Many2one(
+        comodel_name="mail.activity",
+        index="btree_not_null",
+    )
     requestee_partner_id = fields.Many2one(comodel_name="res.partner")
     tag_ids = fields.Many2many(
         comodel_name="document.tag",
@@ -340,7 +343,6 @@ class DocumentsDocument(models.Model):
         help="Delay after permanent deletion of the document in the trash (days)",
     )
     deletion_date = fields.Date(
-        string="Deletion Date",
         index="btree_not_null",
         copy=False,
         help="When this document, sitting in the trash, is deleted forever. "

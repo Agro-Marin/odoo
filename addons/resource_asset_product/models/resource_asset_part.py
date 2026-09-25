@@ -134,7 +134,6 @@ class ResourceAssetPart(models.Model):
     )
     vendor_id = fields.Many2one(
         comodel_name="res.partner",
-        string="Vendor",
         check_company=True,
         tracking=True,
         help="The supplier who installed the part, when it was not done in house.",

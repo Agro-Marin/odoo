@@ -19,7 +19,7 @@ class HrEmployeeBankAllocation(models.Model):
     )
     bank_account_id = fields.Many2one(
         comodel_name="res.partner.bank.account",
-        string="Bank Account",
+        index=True,
         required=True,
         domain="[('partner_id', '=', partner_id),"
         " '|', ('company_id', '=', False), ('company_id', '=', company_id)]",

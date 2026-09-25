@@ -9,7 +9,4 @@ class ResourceAssetEquipment(models.Model):
     _inherit = ["resource.asset"]
     _table = "resource_asset_equipment"
 
-    serial_number = AssetIdentifier(
-        identifier_code="serial",
-        string="Serial Number",
-    )
+    serial_number = AssetIdentifier(identifier_code="serial")

@@ -349,7 +349,6 @@ class ApprovalRequest(models.Model):
         help="Snapshot of category configuration at confirmation time",
     )
     res_model = fields.Char(
-        index=True,
         copy=False,
         readonly=True,
         help="Model name of the source document (e.g., 'purchase.order', "
@@ -440,6 +439,8 @@ class ApprovalRequest(models.Model):
         domain=[("res_model", "=", "approval.request")],
     )
     count_attachment = fields.Integer(compute="_compute_count_attachment")
+
+    _res_model_res_id_idx = models.Index("(res_model, res_id)")
 
     @api.model
     def _get_fields_approver_sync_trigger(self) -> frozenset[str]:

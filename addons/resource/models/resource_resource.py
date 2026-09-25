@@ -147,7 +147,6 @@ class ResourceResource(models.Model):
     )
     operator_id = fields.Many2one(
         comodel_name="resource.resource",
-        string="Operator",
         compute="_compute_custody",
         inverse="_inverse_operator_id",
         search="_search_operator_id",
@@ -156,7 +155,6 @@ class ResourceResource(models.Model):
     )
     manager_id = fields.Many2one(
         comodel_name="resource.resource",
-        string="Manager",
         compute="_compute_custody",
         inverse="_inverse_manager_id",
         search="_search_manager_id",
@@ -165,7 +163,6 @@ class ResourceResource(models.Model):
     )
     future_operator_id = fields.Many2one(
         comodel_name="resource.resource",
-        string="Future Operator",
         compute="_compute_future_operator",
         inverse="_inverse_future_operator",
         search="_search_future_operator_id",

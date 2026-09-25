@@ -30,7 +30,6 @@ class ResourceAssetKindDocument(models.Model):
     )
     folder_id = fields.Many2one(
         comodel_name="document.document",
-        string="Folder",
         compute="_compute_folder_id",
         store=True,
         readonly=False,

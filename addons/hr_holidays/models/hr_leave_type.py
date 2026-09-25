@@ -125,7 +125,6 @@ class HrLeaveType(models.Model):
         help="Choose the Time Off Officers who will be notified to approve allocation or Time Off Request. If empty, nobody will be notified",
     )
     notify_time_off_officers = fields.Boolean(
-        string="Notify Time Off Officers",
         help="If checked, every request of this type notifies all the time off "
         "officers of the employee's company, without having to keep the list "
         "above up to date.",

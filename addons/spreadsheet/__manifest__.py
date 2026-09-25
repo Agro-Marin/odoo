@@ -55,6 +55,7 @@
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",
             "web/static/src/libs/fontawesome7/css/brands.css",
+            "web/static/src/scss/tokens.scss",
             "web/static/src/core/utils/**/*.js",
             "web/static/src/core/browser/browser.js",
             "web/static/src/core/browser/feature_detection.js",

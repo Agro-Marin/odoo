@@ -252,6 +252,7 @@ class StockMoveLine(models.Model):
     result_package_id = fields.Many2one(
         comodel_name="stock.package",
         string="Destination Package",
+        index="btree_not_null",
         required=False,
         domain="""[
         '|', '|',
