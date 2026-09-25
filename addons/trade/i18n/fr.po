@@ -1,0 +1,1717 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * trade
+#
+# Translators:
+# Cécile Collart <cco@odoo.com>, 2022
+# Camille Dantinne <cmd@odoo.com>, 2022
+# Jordan D. (Joda), 2023
+# Rémi CAZENAVE, 2023
+# Martin Trigaux, 2023
+# Jolien De Paepe, 2023
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Manon Rondou (ronm)" <ronm@odoo.com>, 2025, 2026.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-06 18:36+0000\n"
+"PO-Revision-Date: 2026-01-26 21:10+0000\n"
+"Last-Translator: \"Manon Rondou (ronm)\" <ronm@odoo.com>\n"
+"Language-Team: French <https://translate.odoo.com/projects/odoo-19/sale/fr/"
+">\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=3; plural=(n == 0 || n == 1) ? 0 : ((n != 0 && n % "
+"1000000 == 0) ? 1 : 2);\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_line_fields.py:0
+msgid " and %s more"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__nbr_lines
+msgid "# of Lines"
+msgstr "# de lignes"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/res_config_settings.py:0
+msgid "%(label)s is required and must be greater or equal to 0."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+msgid "%(type)s Order"
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_merge.py:0
+msgid ""
+"- Partner\n"
+"- Currency"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_trade_config
+msgid "A company's trade configuration"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__locked
+#: model:ir.model.fields,help:trade.field_mixin_order_line_fields__locked
+msgid "A locked document cannot be modified."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__access_warning
+msgid "Access warning"
+msgstr "Avertissement d'accès"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__acknowledged
+msgid "Acknowledged"
+msgstr "Confirmé"
+
+#. module: trade
+#. odoo-javascript
+#: code:addons/trade/static/src/components/price_history/price_history_widget.js:0
+msgid "Action"
+msgstr "Action"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__message_needaction
+msgid "Action Needed"
+msgstr "Nécessite une action"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__activity_ids
+msgid "Activities"
+msgstr "Activités"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__activity_exception_decoration
+msgid "Activity Exception Decoration"
+msgstr "Activité exception décoration"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__activity_state
+msgid "Activity State"
+msgstr "Statut de l'activité"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__activity_type_icon
+msgid "Activity Type Icon"
+msgstr "Icône de type d'activité"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__include_draft
+msgid ""
+"Add unconfirmed documents to the shortlist. Statistics always read confirmed"
+" documents only."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_line_fields.py:0
+msgid "Added %(count)s extra lines to this %(order_type)s"
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_line_fields.py:0
+msgid "Added %(count)s extra lines: %(products)s"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__allowed_uom_ids
+msgid "Allowed Uom"
+msgstr "Unité de mesure autorisée"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_discount__discount_amount
+msgid "Amount"
+msgstr "Montant"
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_line_fields__qty_transferred_method__analytic
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_line__qty_transferred_method__analytic
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_line__qty_transferred_method__analytic
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order_line__qty_transferred_method__analytic
+msgid "Analytic From Expenses"
+msgstr "Analytique des dépenses"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__message_attachment_count
+msgid "Attachment Count"
+msgstr "Nombre de pièces jointes"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__product_template_attribute_value_ids
+msgid "Attribute Values"
+msgstr "Valeurs d'attribut"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__discount_auto
+msgid "Automatic Discount"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__price_unit_auto
+msgid "Automatic Price"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__tax_ids_auto_key
+msgid "Automatic Taxes Key"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__avg_price_unit
+msgid "Average Price"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__partner_avg_price_unit
+msgid "Average with this Partner"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__avg_price_unit_exact
+msgid "Avg Price Unit Exact"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__avg_sample_truncated
+msgid "Avg Sample Truncated"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order_mass_cancel
+msgid "Cancel Multiple Orders"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order__state__cancel
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order__state__cancel
+msgid "Cancelled"
+msgstr "Annulé"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+msgid ""
+"Cannot confirm %(desc)s with lines missing products:\n"
+"\n"
+"%(details)s\n"
+"\n"
+"Please assign a product to all order lines before confirming."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+msgid ""
+"Cannot confirm %(desc)s without lines: %(orders)s\n"
+"\n"
+"Please add at least one product line before confirming."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_line_fields.py:0
+msgid ""
+"Cannot delete a %(line_type)s which is in state '%(state)s'.\n"
+"Once an order is confirmed, you can't remove lines that have been invoiced or %(verb)s (we need to track if something gets invoiced or %(verb)s).\n"
+"Set the quantity to 0 instead."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__commercial_partner_id
+msgid "Commercial Entity"
+msgstr "Entité commerciale"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__date_commitment
+msgid "Commitment Date"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order_line_fields
+msgid "Common Order Line Fields"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_res_company
+msgid "Companies"
+msgstr "Sociétés"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__company_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_discount__company_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__company_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__company_id
+#: model:ir.model.fields,field_description:trade.field_trade_config__company_id
+msgid "Company"
+msgstr "Société"
+
+#. module: trade
+#: model:ir.model,name:trade.model_res_config_settings
+msgid "Config Settings"
+msgstr "Paramètres de configuration"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__date_confirmed
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__date_confirmed
+msgid "Confirmation Date"
+msgstr "Date de confirmation"
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order__state__done
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order__state__done
+msgid "Confirmed"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_res_partner
+msgid "Contact"
+msgstr "Contact"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_trade_config__create_uid
+msgid "Created by"
+msgstr "Créé par"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_trade_config__create_date
+msgid "Created on"
+msgstr "Créé le"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__date_order
+#: model:ir.model.fields,help:trade.field_mixin_order_line_fields__date_order
+msgid ""
+"Creation date of draft/sent orders,\n"
+"Confirmation date of confirmed orders."
+msgstr ""
+"Date de création des commandes en brouillon/envoyées,\n"
+"Date de confirmation des commandes confirmées."
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__currency_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_amount__currency_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_discount__currency_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__currency_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__currency_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__currency_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history_line__currency_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__currency_id
+msgid "Currency"
+msgstr "Devise"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__currency_rate
+msgid "Currency Rate"
+msgstr "Taux de change"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__currency_id
+msgid "Currency every price on this screen is normalized to."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history_line__currency_id
+msgid ""
+"Currency the normalized price is expressed in. Concrete models relate this "
+"to their wizard."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__current_price_unit
+msgid "Current Price"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_line_price_history__period__current_year
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_line_price_history__period__current_year
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_line_price_history__period__current_year
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order_line_price_history__period__current_year
+msgid "Current Year"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__date_confirmed
+#: model:ir.model.fields,help:trade.field_mixin_order_line_fields__date_confirmed
+msgid "Date when the order was confirmed."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__trade_config__order_cycle_unit__day
+msgid "Days"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_res_bank__days_since_last_order
+#: model:ir.model.fields,field_description:trade.field_res_company__days_since_last_order
+#: model:ir.model.fields,field_description:trade.field_res_partner__days_since_last_order
+#: model:ir.model.fields,field_description:trade.field_res_users__days_since_last_order
+msgid "Days Since Last Order"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__company_price_include
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__company_price_include
+msgid "Default Sales Price Include"
+msgstr "Inclure prix de vente par défaut"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__company_price_include
+#: model:ir.model.fields,help:trade.field_mixin_order_line_fields__company_price_include
+msgid ""
+"Default on whether the sales price used on the product and invoices with "
+"this Company includes its taxes."
+msgstr ""
+"Le taxes sont incluses par défaut dans le prix de vente utilisé pour le "
+"produit et les factures de cette entreprise."
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__name
+msgid "Description"
+msgstr "Description"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+#: code:addons/trade/wizards/mixin_order_discount.py:0
+msgid "Discount"
+msgstr "Remise"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/wizards/mixin_order_discount.py:0
+msgid "Discount %(percent)s%%"
+msgstr "Remise %(percent)s%%"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/wizards/mixin_order_discount.py:0
+msgid ""
+"Discount %(percent)s%% - On products with the following taxes %(taxes)s"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__discount
+msgid "Discount (%)"
+msgstr "Remise (%)"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/wizards/mixin_order_discount.py:0
+msgid "Discount - On products with the following taxes %(taxes)s"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_discount__discount_type
+msgid "Discount Type"
+msgstr "Type de remise"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_amount__discount_auto
+msgid ""
+"Discount from the pricelist/seller. Compared with discount to detect manual "
+"overrides."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/wizards/mixin_order_discount.py:0
+msgid "Discount percentage cannot be negative."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/wizards/mixin_order_discount.py:0
+msgid "Discount percentage must be at most 100%."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_ir_actions_report__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_amount__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_discount__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history_line__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_transfer__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_mass_cancel__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_merge__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__display_name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_state_rollup__display_name
+#: model:ir.model.fields,field_description:trade.field_product_product__display_name
+#: model:ir.model.fields,field_description:trade.field_res_company__display_name
+#: model:ir.model.fields,field_description:trade.field_res_config_settings__display_name
+#: model:ir.model.fields,field_description:trade.field_res_partner__display_name
+#: model:ir.model.fields,field_description:trade.field_res_partner_tag__display_name
+#: model:ir.model.fields,field_description:trade.field_trade_config__display_name
+msgid "Display Name"
+msgstr "Nom d'affichage"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__display_type
+msgid "Display Type"
+msgstr "Type d'affichage"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__divergence_pct
+msgid "Divergence"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__divergence_favorable
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history_line__divergence_favorable
+msgid "Divergence Favorable"
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_line_fields.py:0
+msgid "Down Payments"
+msgstr "Acomptes"
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order__state__draft
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order__state__draft
+msgid "Draft"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__duplicated_order_ids
+msgid "Duplicated Order"
+msgstr "Commande dupliquée"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__date_validity
+msgid "Expiration"
+msgstr "Expiration"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__extra_tax_data
+msgid "Extra Tax Data"
+msgstr "Données fiscales supplémentaires"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_line_fields.py:0
+msgid "Extra line with %s"
+msgstr "Ligne supplémentaire avec %s"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__fiscal_position_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__fiscal_position_id
+msgid "Fiscal Position"
+msgstr "Position fiscale"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__fiscal_position_id
+#: model:ir.model.fields,help:trade.field_mixin_order_line_fields__fiscal_position_id
+msgid ""
+"Fiscal positions are used to adapt taxes and accounts for particular "
+"partners or orders/invoices. The default value comes from the partner."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_discount__discount_type__amount
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_discount__discount_type__amount
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_discount__discount_type__amount
+msgid "Fixed Amount"
+msgstr "Montant fixe"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__message_follower_ids
+msgid "Followers"
+msgstr "Abonnés"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "Abonnés (Partenaires)"
+
+#. module: trade
+#: model:ir.model.constraint,message:trade.constraint_mixin_order_line_fields_non_accountable_null_fields
+#: model:ir.model.constraint,message:trade.constraint_purchase_order_line_non_accountable_null_fields
+#: model:ir.model.constraint,message:trade.constraint_sale_order_line_non_accountable_null_fields
+#: model:ir.model.constraint,message:trade.constraint_test_trade_order_line_non_accountable_null_fields
+msgid "Forbidden values on non-accountable order line"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_discount__discount_type__so_discount
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_discount__discount_type__so_discount
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_discount__discount_type__so_discount
+msgid "Global Discount"
+msgstr "Remise globale"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_fields__product_type
+msgid ""
+"Goods are tangible materials and merchandise you provide.\n"
+"A service is a non-material product you provide."
+msgstr ""
+"Les biens sont des matériaux tangibles et des marchandises que vous "
+"fournissez.\n"
+"Un service est un produit non matériel que vous fournissez."
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__weight
+msgid "Gross Weight"
+msgstr "Poids brut"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__has_archived_products
+msgid "Has Archived Products"
+msgstr "Contient des produits archivés"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_mass_cancel__has_confirmed_order
+msgid "Has Confirmed Order"
+msgstr "A une commande confirmée"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__has_message
+msgid "Has Message"
+msgstr "A un message"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__max_price_unit
+msgid "Highest Price"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__max_price_unit
+msgid "Highest normalized price in the period sample."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_res_config_settings__order_cycle_count
+#: model:ir.model.fields,help:trade.field_trade_config__order_cycle_count
+msgid ""
+"How long a partner may go without ordering before it counts as having gone "
+"quiet. Ordering rhythms differ by company and by industry: a seasonal crop "
+"supplier may need twelve months where a convenience retailer needs one."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_ir_actions_report__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_amount__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_discount__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history_line__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_transfer__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_mass_cancel__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_merge__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_state_rollup__id
+#: model:ir.model.fields,field_description:trade.field_product_product__id
+#: model:ir.model.fields,field_description:trade.field_res_company__id
+#: model:ir.model.fields,field_description:trade.field_res_config_settings__id
+#: model:ir.model.fields,field_description:trade.field_res_partner__id
+#: model:ir.model.fields,field_description:trade.field_res_partner_tag__id
+#: model:ir.model.fields,field_description:trade.field_trade_config__id
+msgid "ID"
+msgstr "ID"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__activity_exception_icon
+msgid "Icon"
+msgstr "Icône"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__activity_exception_icon
+msgid "Icon to indicate an exception activity."
+msgstr "Icône pour indiquer une activité d'exception."
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "Si coché, de nouveaux messages demandent votre attention."
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__message_has_error
+#: model:ir.model.fields,help:trade.field_mixin_order__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr "Si coché, certains messages ont une erreur de livraison."
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__include_draft
+msgid "Include Draft Documents"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__is_expired
+msgid "Is Expired"
+msgstr "A expiré"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__message_is_follower
+msgid "Is Follower"
+msgstr "Est un abonné"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__is_late
+msgid "Is Late"
+msgstr "En retard"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__is_downpayment
+msgid "Is a down payment"
+msgstr "Est un acompte"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__is_expense
+msgid "Is expense"
+msgstr "Est une dépense"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_fields__is_expense
+msgid "Is true if the order line comes from an expense or a vendor bill"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__acknowledged
+msgid ""
+"It indicates that the partner has acknowledged the receipt of the order."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_line_fields.py:0
+msgid ""
+"It is forbidden to modify the following fields in a locked order:\n"
+"%s"
+msgstr ""
+"Il est interdit de modifier les champs suivants dans une commande "
+"verrouillée :\n"
+"%s"
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_line_price_history__period__last_12m
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_line_price_history__period__last_12m
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_line_price_history__period__last_12m
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order_line_price_history__period__last_12m
+msgid "Last 12 Months"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_line_price_history__period__last_3m
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_line_price_history__period__last_3m
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_line_price_history__period__last_3m
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order_line_price_history__period__last_3m
+msgid "Last 3 Months"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_trade_config__write_uid
+msgid "Last Updated by"
+msgstr "Mis à jour par"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_trade_config__write_date
+msgid "Last Updated on"
+msgstr "Mis à jour le"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_line_fields.py:0
+msgid "Line #%s"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__locked
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__locked
+msgid "Locked"
+msgstr "Verrouillé"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__min_price_unit
+msgid "Lowest Price"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__min_price_unit
+msgid "Lowest normalized price in the period sample."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_line_fields__qty_transferred_method__manual
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_line__qty_transferred_method__manual
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_line__qty_transferred_method__manual
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order_line__qty_transferred_method__manual
+msgid "Manual"
+msgstr "Manuelle"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_merge.py:0
+msgid "Merged Orders"
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_merge.py:0
+msgid "Merged into %s"
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_merge.py:0
+msgid "Merged with: %(sources)s"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__message_has_error
+msgid "Message Delivery error"
+msgstr "Erreur d'envoi du message"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__message_ids
+msgid "Messages"
+msgstr "Messages"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_fields__qty_transferred_method
+msgid ""
+"Method used to compute the transferred quantity:\n"
+"  - Manual: set manually on the line\n"
+"  - Analytic: sum of analytic line unit amounts\n"
+"  - Stock Moves: from confirmed pickings\n"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.constraint,message:trade.constraint_mixin_order_line_fields_accountable_required_fields
+#: model:ir.model.constraint,message:trade.constraint_purchase_order_line_accountable_required_fields
+#: model:ir.model.constraint,message:trade.constraint_sale_order_line_accountable_required_fields
+#: model:ir.model.constraint,message:trade.constraint_test_trade_order_line_accountable_required_fields
+msgid "Missing required fields on accountable order line."
+msgstr ""
+
+#. module: trade
+#. odoo-javascript
+#: code:addons/trade/static/src/components/monetary_field_no_zero/monetary_field_no_zero.js:0
+msgid "Monetary (hide zero)"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__trade_config__order_cycle_unit__month
+msgid "Months"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__my_activity_date_deadline
+msgid "My Activity Deadline"
+msgstr "Échéance de mon activité"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/controllers/portal.py:0
+msgid "Name"
+msgstr "Nom"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__price_unit_discounted_taxexc_product_uom
+msgid "Net Unit Price Product UoM"
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+msgid "New"
+msgstr "Nouveau"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/controllers/portal.py:0
+msgid "Newest"
+msgstr "Le plus récent"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__activity_date_deadline
+msgid "Next Activity Deadline"
+msgstr "Date limite de l'activité à venir"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__activity_summary
+msgid "Next Activity Summary"
+msgstr "Résumé de l'activité suivante"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__activity_type_id
+msgid "Next Activity Type"
+msgstr "Type d'activités à venir"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_merge.py:0
+msgid ""
+"No compatible orders to merge. Orders must have the same:\n"
+"%s"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order__priority__0
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order__priority__0
+#: model:ir.model.fields.selection,name:trade.selection__sale_order__priority__0
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order__priority__0
+msgid "Normal"
+msgstr "Normal"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history_line__price_unit_normalized
+msgid "Normalized Price"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_line_fields__display_type__line_note
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_line__display_type__line_note
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_line__display_type__line_note
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order_line__display_type__line_note
+msgid "Note"
+msgstr "Note"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__message_needaction_counter
+msgid "Number of Actions"
+msgstr "Nombre d'actions"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_res_bank__days_since_last_order
+#: model:ir.model.fields,help:trade.field_res_company__days_since_last_order
+#: model:ir.model.fields,help:trade.field_res_partner__days_since_last_order
+#: model:ir.model.fields,help:trade.field_res_users__days_since_last_order
+msgid "Number of days since this partner's last order."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__message_has_error_counter
+msgid "Number of errors"
+msgstr "Nombre d'erreurs"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr "Nombre de messages nécessitant une action"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "Nombre de messages avec des erreurs d'envoi"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_res_bank__recent_orders_count
+#: model:ir.model.fields,help:trade.field_res_company__recent_orders_count
+#: model:ir.model.fields,help:trade.field_res_partner__recent_orders_count
+#: model:ir.model.fields,help:trade.field_res_users__recent_orders_count
+msgid ""
+"Number of orders this partner placed within the order cycle configured on "
+"the company."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_discount__discount_type__sol_discount
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_discount__discount_type__sol_discount
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_discount__discount_type__sol_discount
+msgid "On All Order Lines"
+msgstr "Sur toutes les lignes de commande"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_res_partner_tag__group_ids
+msgid ""
+"Only users in one of these groups may pick a partner tagged with this tag, "
+"or with one of its children, on an order of the scope above. Leave empty to "
+"place the tag outside the restriction."
+msgstr ""
+
+#. module: trade
+#. odoo-javascript
+#: code:addons/trade/static/src/components/open_match_line_field/open_match_line_field.js:0
+msgid "Open Matched Document"
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+msgid "Order"
+msgstr "Commander"
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order_amount
+msgid "Order Amount Computation"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order_report
+msgid "Order Analysis Report Base"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_res_config_settings__order_cycle_count
+#: model:ir.model.fields,field_description:trade.field_trade_config__order_cycle_count
+msgid "Order Cycle"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_res_config_settings__order_cycle_unit
+#: model:ir.model.fields,field_description:trade.field_trade_config__order_cycle_unit
+msgid "Order Cycle Unit"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__date_order
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__date_order
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__date_order
+msgid "Order Date"
+msgstr "Date de la commande"
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order_discount
+msgid "Order Discount Wizard"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order_line_amount
+msgid "Order Line Amount Computation"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order_line_price_history
+msgid "Order Line Price History"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order_line_price_history_line
+msgid "Order Line Price History Result"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order_state_rollup
+msgid "Order Line State Rollup"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order_line_transfer
+msgid "Order Line Transferred Quantity"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__line_ids
+msgid "Order Lines"
+msgstr "Lignes de commande"
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order
+msgid "Order Management Base"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_mixin_order_merge
+msgid "Order Merge System"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__name
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__order_id
+msgid "Order Reference"
+msgstr "Référence commande"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_res_partner_tag__order_type
+msgid "Order Scope"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__state
+msgid "Order Status"
+msgstr "Statut de la commande"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_res_partner_tag__order_type
+msgid ""
+"Order type whose partner selection this tag restricts. Leave empty to "
+"restrict every order type."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_mass_cancel__orders_count
+msgid "Orders Count"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__parent_id
+msgid "Parent Section Line"
+msgstr "Ligne de section parente"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__partner_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__partner_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__partner_id
+msgid "Partner"
+msgstr "Partenaire"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__partner_divergence_favorable
+msgid "Partner Divergence Favorable"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__partner_ref
+msgid "Partner Reference"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__partner_avg_sample_count
+msgid "Partner Sample Size"
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_res_partner_tag
+msgid "Partner Tag"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__partner_divergence_pct
+msgid "Partner vs Market"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__payment_term_id
+msgid "Payment Terms"
+msgstr "Conditions de paiement"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_discount__discount_percentage
+msgid "Percentage"
+msgstr "Pourcentage"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__period
+msgid "Period"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__period
+msgid "Period the statistics and the shortlist below are computed over."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_merge.py:0
+msgid "Please select at least two orders to merge."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__access_url
+msgid "Portal Access URL"
+msgstr "URl d'accès au portail"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__access_url
+msgid "Portal URL for this record (overridden by concrete models)."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+msgid "Price Comparison for %s"
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_line_price_history.py:0
+msgid "Price History for %s"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_amount__price_unit_auto
+msgid ""
+"Price from the pricelist/seller. Compared with price_unit to detect manual "
+"overrides."
+msgstr ""
+
+#. module: trade
+#. odoo-javascript
+#: code:addons/trade/static/src/components/price_history/price_history_widget.xml:0
+msgid "Price history"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__count_print
+msgid "Print Count"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__printed_before
+msgid "Printed Before"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__priority
+msgid "Priority"
+msgstr "Priorité"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__product_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__product_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__product_id
+msgid "Product"
+msgstr "Produit"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__product_categ_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__product_category_id
+msgid "Product Category"
+msgstr "Catégorie de produits"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__product_is_archived
+msgid "Product Is Archived"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__product_name_translated
+msgid "Product Name Translated"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__product_type
+msgid "Product Type"
+msgstr "Type de produit"
+
+#. module: trade
+#: model:ir.model,name:trade.model_product_product
+msgid "Product Variant"
+msgstr "Variante de produit"
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__res_partner_tag__order_type__purchase
+msgid "Purchase Orders"
+msgstr "Bons de commande fournisseur"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__product_uom_qty
+msgid "Qty Ordered"
+msgstr "Qté commandée"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__qty_to_transfer
+msgid "Qty To Transfer"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__product_qty
+msgid "Quantity"
+msgstr "Quantité"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__product_uom_qty
+msgid "Quantity (Reference UoM)"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__avg_price_unit
+msgid ""
+"Quantity-weighted average over confirmed documents in the period, all "
+"partners, target line excluded. Prices are normalized to the currency above "
+"and to the product reference unit of measure."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__partner_avg_price_unit
+msgid ""
+"Quantity-weighted average over the same period, restricted to the selected "
+"partner and its commercial group. Read against the all-partner average "
+"beside it: that comparison, not the global figure alone, is what says "
+"whether this partner is priced with the market."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+msgid "Quotation"
+msgstr "Devis"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_res_bank__recent_orders_count
+#: model:ir.model.fields,field_description:trade.field_res_company__recent_orders_count
+#: model:ir.model.fields,field_description:trade.field_res_partner__recent_orders_count
+#: model:ir.model.fields,field_description:trade.field_res_users__recent_orders_count
+msgid "Recent Orders"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__origin
+msgid "Reference of the document that generated this order request."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__partner_divergence_pct
+msgid ""
+"Relative difference between the partner average and the all-partner average."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__divergence_pct
+msgid ""
+"Relative difference between the target line price and the period average."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history_line__divergence_pct
+msgid ""
+"Relative difference between this line's normalized price and the period "
+"average."
+msgstr ""
+
+#. module: trade
+#: model:ir.model,name:trade.model_ir_actions_report
+msgid "Report Action"
+msgstr "Action de rapport"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_res_partner_tag__group_ids
+msgid "Reserved For"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__user_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__user_id
+msgid "Responsible"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__activity_user_id
+msgid "Responsible User"
+msgstr "Utilisateur responsable"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr "Erreur d'envoi SMS"
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__res_partner_tag__order_type__sale
+msgid "Sale Orders"
+msgstr "Commandes clients"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history__avg_sample_count
+msgid "Sample Size"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_line_fields__display_type__line_section
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_line__display_type__line_section
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_line__display_type__line_section
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order_line__display_type__line_section
+msgid "Section"
+msgstr "Section"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__access_token
+msgid "Security Token"
+msgstr "Jeton de sécurité"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+msgid "Send"
+msgstr "Envoyer"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__sent
+msgid "Sent"
+msgstr "Envoyé"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__count_sent
+msgid "Sent Count"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__sequence
+msgid "Sequence"
+msgstr "Séquence"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__show_comparison
+msgid "Show Comparison"
+msgstr "Afficher la comparaison"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__origin
+msgid "Source Document"
+msgstr "Document d'origine"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__state
+msgid "Status"
+msgstr "Statut"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__activity_state
+msgid ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+msgstr ""
+"Statut basé sur les activités\n"
+"En retard : la date d'échéance est déjà dépassée\n"
+"Aujourd'hui : la date d'activité est aujourd'hui\n"
+"Planifiée : activités futures"
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_line_fields__qty_transferred_method__stock_move
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_line__qty_transferred_method__stock_move
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_line__qty_transferred_method__stock_move
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order_line__qty_transferred_method__stock_move
+msgid "Stock Moves"
+msgstr "Mouvements de stock"
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order_line_fields__display_type__line_subsection
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order_line__display_type__line_subsection
+#: model:ir.model.fields.selection,name:trade.selection__sale_order_line__display_type__line_subsection
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order_line__display_type__line_subsection
+msgid "Subsection"
+msgstr "Sous-section"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__price_subtotal
+msgid "Subtotal"
+msgstr "Sous-total"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__current_price_unit
+msgid "Target line effective price, normalized like the average."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__tax_country_id
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__tax_country_id
+msgid "Tax Country"
+msgstr "Pays de la taxe"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_amount__tax_totals
+msgid "Tax Totals"
+msgstr "Taxes totales"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_amount__amount_tax
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__tax_ids
+msgid "Taxes"
+msgstr "Taxes"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__notes
+msgid "Terms and Conditions"
+msgstr "Conditions générales"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__date_commitment
+msgid ""
+"The date somebody committed to: the delivery date promised to the customer "
+"on a sale, the arrival date promised by the vendor on a purchase."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/wizards/mixin_order_discount.py:0
+msgid "The discount amount cannot be negative."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/wizards/mixin_order_discount.py:0
+msgid "The discount amount cannot exceed the order total."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/trade_config.py:0
+msgid "The order cycle of %(company)s must be zero or more."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__printed_before
+msgid "The order has already been printed."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__sent
+msgid "The order has been sent to the partner."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__avg_sample_truncated
+msgid ""
+"The period holds more documents than the sample cap, so the statistics read "
+"the most recent ones only."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_amount__price_unit_product_uom
+msgid ""
+"The price of one unit of the product's own unit of measure. Comparable "
+"across lines that were bought or sold in different units."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_amount__tax_ids_auto_key
+msgid ""
+"The taxes the product and fiscal position would give, as a sorted key. "
+"Compared with tax_ids to detect manual overrides."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/wizards/mixin_order_discount.py:0
+msgid ""
+"There does not seem to be any discount product configured for this company "
+"yet. You can either use a per-line discount, or ask an administrator to "
+"grant the discount the first time."
+msgstr ""
+"Il ne semble pas encore y avoir de produit de réduction configuré pour cette "
+"entreprise. Il est possible d'utiliser une remise par ligne ou de demander à "
+"un administrateur d'accorder la remise la première fois."
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history_line__price_unit_normalized
+msgid ""
+"This line's discounted price, converted to the wizard currency and to the "
+"product reference unit of measure. This is the only column comparable across"
+" units and currencies."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/controllers/portal.py:0
+#: model:ir.model.fields,field_description:trade.field_mixin_order_amount__amount_total
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__price_total
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__price_total
+msgid "Total"
+msgstr "Total"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__price_tax
+msgid "Total Tax"
+msgstr "Total des taxes"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_res_company__trade_config_id
+msgid "Trade Config"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__qty_transferred_at_date
+msgid "Transferred"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__qty_transferred
+msgid "Transferred Qty"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__qty_transferred_method
+msgid "Transferred Qty Method"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__is_late
+msgid "True when the order is confirmed and its planned date has passed."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order__type_name
+msgid "Type Name"
+msgstr "Nom du type"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__activity_exception_decoration
+msgid "Type of the exception activity on record."
+msgstr "Type d'activité d'exception enregistrée."
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_fields__product_uom_id
+msgid "Unit"
+msgstr "Unité"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__price_unit
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__price_unit
+msgid "Unit Price"
+msgstr "Prix unitaire"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__price_unit_discounted_taxexc
+msgid "Unit Price Discounted Tax Excluded"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__price_unit_discounted_taxinc
+msgid "Unit Price Discounted Tax Included"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_amount__price_unit_product_uom
+msgid "Unit Price Product UoM"
+msgstr "Prix unitaire (UdM du produit)"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_amount__amount_untaxed
+msgid "Untaxed Amount"
+msgstr "Montant hors taxes"
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__price_subtotal
+msgid "Untaxed Total"
+msgstr "Total hors taxes"
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__mixin_order__priority__1
+#: model:ir.model.fields.selection,name:trade.selection__purchase_order__priority__1
+#: model:ir.model.fields.selection,name:trade.selection__sale_order__priority__1
+#: model:ir.model.fields.selection,name:trade.selection__test_trade_order__priority__1
+msgid "Urgent"
+msgstr "Urgent"
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__date_validity
+msgid "Validity of the quotation, after which it expires."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_report__volume
+msgid "Volume"
+msgstr "Volume"
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/res_config_settings.py:0
+msgid "Warning"
+msgstr "Avertissement"
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__trade_config__order_cycle_unit__week
+msgid "Weeks"
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order__show_comparison
+msgid ""
+"Whether any product on this order was also bought or sold on another "
+"confirmed order, so a price comparison has something to show."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__divergence_favorable
+msgid ""
+"Whether the divergence goes the way this document type wants: below average "
+"when buying, above average when selling."
+msgstr ""
+
+#. module: trade
+#. odoo-javascript
+#: code:addons/trade/static/src/components/price_history/price_history_widget.js:0
+msgid "XML id of the price history wizard action to open."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields.selection,name:trade.selection__trade_config__order_cycle_unit__year
+msgid "Years"
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+msgid ""
+"You are limited to your own documents, so you may only make yourself "
+"responsible for an order. Ask someone with access to all documents to "
+"reassign it."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_line_fields.py:0
+msgid ""
+"You cannot change the type of %(count)s %(line_type)s lines (%(lines)s). "
+"Instead, delete these lines and create new lines of the proper type."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order_line_fields.py:0
+msgid ""
+"You cannot change the type of %(line_type)s '%(line_id)s'. Instead, delete "
+"the current line and create a new line of the proper type."
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+msgid ""
+"Your %(desc)s contains products from company %(product_company)s whereas your %(desc)s belongs to company %(quote_company)s.\n"
+"\n"
+"Please change the company of your %(desc)s or remove the products from other companies (%(bad_products)s)."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_price_history__avg_price_unit_exact
+msgid ""
+"`avg_price_unit` before the currency rounds it. Every divergence on this "
+"screen divides by this one, so the wizard total and each row cannot disagree"
+" in the last decimal."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,help:trade.field_mixin_order_line_amount__price_unit_discounted_taxexc_product_uom
+msgid ""
+"`price_unit_discounted_taxexc` expressed in the product's own unit of "
+"measure: the discount applied, taxes excluded, units normalized. The only "
+"per-line price that compares across both, which is why it is stored rather "
+"than computed -- price statistics read it with MIN/MAX in SQL instead of "
+"looping over a capped sample."
+msgstr ""
+
+#. module: trade
+#: model:ir.model.fields,field_description:trade.field_mixin_order_line_price_history_line__divergence_pct
+msgid "vs Average"
+msgstr ""
+
+#. module: trade
+#. odoo-python
+#: code:addons/trade/models/mixin_order.py:0
+msgid "• %(order)s has %(count)d line(s) without products"
+msgstr ""
