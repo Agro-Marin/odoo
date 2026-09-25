@@ -2,10 +2,10 @@ import ast
 from collections.abc import Iterator
 from dataclasses import dataclass
 
-# The schemes `ir.http` answers `auth=` with. base owns the session ones and
-# the API key; integration owns the receiver. Everything else is data on a
-# receiver row, never a fourth method on ir.http.
-OWNED_METHODS = frozenset({"user", "none", "public", "bearer", "receiver"})
+# The schemes `ir.http` answers `auth=` with. base owns the session ones, the
+# API key and the link; integration owns the receiver. Everything else is data
+# on a receiver row or a link row, never another method on ir.http.
+OWNED_METHODS = frozenset({"user", "none", "public", "bearer", "link", "receiver"})
 OWNER_MODULES = frozenset({"base", "integration", "test_auth_custom"})
 
 

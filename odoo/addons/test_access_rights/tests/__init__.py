@@ -5,3 +5,4 @@ from . import test_access_monetary_related
 from . import test_write_groups
 from . import test_merge_write_groups
 from . import test_scoped_grant_fields
+from . import test_access_link

@@ -83,6 +83,13 @@
         groups="base.group_erp_manager" />
 
     <menuitem
+        id="menu_action_access_link"
+        parent="menu_users"
+        action="action_access_link"
+        sequence="7"
+        groups="base.group_system" />
+
+    <menuitem
         id="menu_action_ir_access_log"
         parent="menu_users"
         action="action_ir_access_log"

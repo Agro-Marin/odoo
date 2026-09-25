@@ -11,6 +11,9 @@ ACCESS_LOG_EVENTS = [
     ("grant_expired", "Grant expired"),
     ("grant_migrated", "Memberships migrated"),
     ("privilege_used", "Privilege used"),
+    ("link_created", "Link issued"),
+    ("link_extended", "Link extended"),
+    ("link_revoked", "Link revoked"),
 ]
 
 
@@ -72,6 +75,12 @@ class IrAccessLog(models.Model):
         readonly=True,
     )
     reason = fields.Char(readonly=True)
+    link_id = fields.Many2one(
+        comodel_name="access.link",
+        index="btree_not_null",
+        readonly=True,
+        ondelete="set null",
+    )
     count = fields.Integer(
         readonly=True,
         help="How many grants one row stands for (a migration writes one row).",

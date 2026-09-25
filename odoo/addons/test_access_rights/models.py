@@ -148,3 +148,12 @@ class ResPartner(models.Model):
     def _compute_test_access_currency_id(self):
         for partner in self:
             partner.test_access_currency_id = partner.sudo().company_id.currency_id
+
+
+class Test_Access_RightSharedDoc(models.Model):
+    _name = "test_access_right.shared_doc"
+    _description = "A record shared by link"
+
+    name = fields.Char()
+    company_id = fields.Many2one(comodel_name="res.company")
+    reader_ids = fields.Many2many(comodel_name="res.users")

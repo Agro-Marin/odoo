@@ -397,10 +397,48 @@ about them.
 - `event` (Selection, required), `actor_id`, `subject_user_id` (Many2one → res.users)
 - `group_id` (Many2one → res.groups), `grant_id` (Many2one → res.users.grant)
 - `model_name`, `operation`, `res_ids`, `cause`, `cause_model`, `reason` (Char), `cause_res_id` (Many2oneReference), `count` (Integer)
+- `link_id` (Many2one → access.link): a link issued, extended or revoked
 
 **Key Methods:**
 - `_record(vals_list)` — the one writer, as the superuser with the real actor
 - `_record_privileged(model_name, operation, ids)` — what the access policy calls for a privileged operation
+
+### models/access_link.py
+
+#### AccessLink — `access.link` (`_name`)
+
+A bearer link to one record: the token is shown to its holder, only its
+sha256 is stored (`token_hash`, unique), and a new token is derived from the
+database secret and a stored nonce so the server can show the same link
+again. A link has a role (view, comment, edit), an audience (anyone,
+signed-in users, named people), the person it was issued to, an expiry the
+sharer sets (a link anyone can use always has one, by purpose: a manual share
+30 days, a notification 12 months; only an administrator waives it), and is
+revoked, never deleted. Created only by `_issue`; its token, record, cause and
+counters are the server's.
+
+**Fields:**
+- `res_model` (Char), `res_id` (Many2oneReference), `record_name` (Char, computed)
+- `role`, `audience`, `cause` (Selection), `partner_id` (Many2one → res.partner), `audience_partner_ids` (Many2many → res.partner)
+- `token_hash`, `token_nonce` (Char, the manage privilege only), `token_hint` (Char), `legacy_source` (Char)
+- `date_to`, `revoked_at`, `last_used_at` (Datetime), `expiry_waived` (Boolean), `revoked_by_id` (Many2one → res.users), `revoke_reason` (Char)
+- `cause_model` (Char), `cause_res_id` (Many2oneReference), `company_id` (Many2one → res.company), `use_count` (Integer)
+- `state` (Selection, computed and searchable: live, expired, revoked), `use_ids` (One2many → access.link.use)
+
+**Key Methods:**
+- `_issue(record, partner=, role=, audience=, date_to=, cause=, ...)` — a live link and its token, the same one again for the same person, role, audience and cause
+- `_resolve(token, model=, res_id=, role=, action=)` — the one door: hash, indexed lookup, record, revocation, expiry, role and audience; every refusal is `LinkRefused`, a link for signed-in people met by a visitor `LinkLoginRequired`; records the use
+- `action_revoke(reason)`, `action_extend(date_to)` — the sharer or an administrator
+- `_record_links(records, domain)`, `_update_record_links(records, vals, domain)` (role and expiry only), `_revoke_record_links(records, reason, domain)` — for whoever may read (list) or write (change) the records
+- Runs under the privileges `base.privilege_manage_links` (issue, extend, revoke: the only env that writes a token, a record or a revocation) and `base.privilege_resolve_links` (read a link); the bearer's record is read as the server, named by the link that opened it
+
+#### AccessLinkUse — `access.link.use` (`_name`)
+
+How a link was used, one row per link, hour, address, user and action,
+counted by one upsert per use; nothing else writes it.
+
+**Fields:**
+- `link_id` (Many2one → access.link), `bucket` (Datetime), `remote_addr` (Char), `user_id` (Integer, 0 for a visitor), `action` (Selection), `count` (Integer)
 
 ### models/ir_access_exception.py
 

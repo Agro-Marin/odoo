@@ -39,7 +39,9 @@ CURSOR = re.compile(r"(sync_token|page_token|next_token|_cursor)$", re.IGNORECAS
 
 # Decided per field, because the name does not say: identifiers printed on a
 # document or sent in the clear, and tokens that authorise a visitor to one of
-# our records rather than us to somebody's API, or that we publish on purpose.
+# our records rather than us to somebody's API, or that we publish on purpose;
+# an access.link's nonce is useless without the sealed database secret, and its
+# hint is four characters of the token.
 JUDGED_NOT_SECRET = frozenset(
     {
         "appointment_account_payment.booking_token",
@@ -65,6 +67,8 @@ JUDGED_NOT_SECRET = frozenset(
         "planning.employee_token",
         "web_map.map_box_token",
         "base.access_token",
+        "base.token_hint",
+        "base.token_nonce",
         "calendar.access_token",
         "calendar.booking_access_token",
         "document.access_token",

@@ -108,6 +108,11 @@ access_res_users_grant_own,res.users.grant: a user reads their own grants,model_
 access_res_users_grant_delegated,res.users.grant: the members of a group's admin group give and end its grants,model_res_users_grant,group_user,permission,cru,,,"[('group_id.admin_group_id', 'in', group_ids)]"
 access_ir_access_log_erp_manager,ir.access.log: the access administrators read the authorization log,model_ir_access_log,group_erp_manager,permission,r,,,
 access_ir_access_log_own,ir.access.log: a user reads the events about them,model_ir_access_log,group_user,permission,r,own,,
+access_access_link_own,access.link: a user reads and revokes the links they shared,model_access_link,group_user,permission,ru,own,creator,
+access_access_link_system,access.link: administrators read every external link and revoke or extend it,model_access_link,group_system,permission,ru,,,
+access_access_link_use,access.link.use: whoever reads a link reads how it was used,model_access_link_use,group_user,permission,r,,,"[('link_id', 'access', 'read')]"
+access_access_link_manage,access.link: the link machinery issues extends and revokes links,model_access_link,privilege_manage_links,permission,cru,,,
+access_access_link_resolve,access.link: the resolver reads the link a token names,model_access_link,privilege_resolve_links,permission,r,,,
 access_res_users_identitycheck_employee,id check employees,model_res_users_identitycheck,group_user,permission,cru,,,
 access_res_users_identitycheck_portal,id check portal,model_res_users_identitycheck,group_portal,permission,cru,,,
 api_key_user_group_user,Users can read and delete their own keys,model_res_users_apikeys,group_user,permission,r,own,,

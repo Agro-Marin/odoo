@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <record id="access_link_view_list" model="ir.ui.view">
+        <field name="name">access.link.list</field>
+        <field name="model">access.link</field>
+        <field name="arch" type="xml">
+            <list string="External Links" create="0" delete="0">
+                <field name="record_name" />
+                <field name="res_model" optional="show" />
+                <field name="partner_id" />
+                <field name="role" />
+                <field name="audience" />
+                <field name="cause" optional="show" />
+                <field name="create_uid" string="Shared By" optional="show" />
+                <field name="create_date" string="Shared On" optional="show" />
+                <field name="date_to" />
+                <field name="last_used_at" />
+                <field name="use_count" />
+                <field name="token_hint" optional="hide" />
+                <field name="state" />
+                <button
+                    name="action_revoke"
+                    type="object"
+                    string="Revoke"
+                    icon="fa-ban"
+                    invisible="state == 'revoked'"
+                    confirm="Whoever holds this link loses access at once." />
+            </list>
+        </field>
+    </record>
+
+    <record id="access_link_view_form" model="ir.ui.view">
+        <field name="name">access.link.form</field>
+        <field name="model">access.link</field>
+        <field name="arch" type="xml">
+            <form string="External Link" create="0" delete="0">
+                <header>
+                    <button
+                        name="action_revoke"
+                        type="object"
+                        string="Revoke"
+                        invisible="state == 'revoked'"
+                        confirm="Whoever holds this link loses access at once." />
+                    <field name="state" widget="statusbar" />
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="record_name" />
+                            <field name="res_model" />
+                            <field name="partner_id" />
+                            <field name="role" />
+                            <field name="audience" />
+                            <field
+                                name="audience_partner_ids"
+                                widget="many2many_tags"
+                                invisible="audience != 'partners'" />
+                        </group>
+                        <group>
+                            <field name="cause" />
+                            <field name="create_uid" string="Shared By" />
+                            <field name="create_date" string="Shared On" />
+                            <field name="date_to" readonly="state == 'revoked'" />
+                            <field name="expiry_waived" invisible="not expiry_waived" />
+                            <field name="legacy_source" invisible="not legacy_source" />
+                            <field name="token_hint" />
+                        </group>
+                    </group>
+                    <group invisible="state != 'revoked'">
+                        <field name="revoked_at" />
+                        <field name="revoked_by_id" />
+                        <field name="revoke_reason" />
+                    </group>
+                    <group string="Use">
+                        <field name="last_used_at" />
+                        <field name="use_count" />
+                    </group>
+                    <field name="use_ids">
+                        <list>
+                            <field name="bucket" />
+                            <field name="action" />
+                            <field name="remote_addr" />
+                            <field name="user_id" />
+                            <field name="count" />
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="access_link_view_search" model="ir.ui.view">
+        <field name="name">access.link.search</field>
+        <field name="model">access.link</field>
+        <field name="arch" type="xml">
+            <search string="External Links">
+                <field name="res_model" />
+                <field name="partner_id" />
+                <field name="create_uid" string="Shared By" />
+                <filter name="live" string="Live" domain="[('state', '=', 'live')]" />
+                <filter
+                    name="anyone"
+                    string="Anyone with the link"
+                    domain="[('audience', '=', 'anyone')]" />
+                <filter
+                    name="never_used"
+                    string="Never used"
+                    domain="[('use_count', '=', 0)]" />
+                <filter
+                    name="legacy"
+                    string="Carried over"
+                    domain="[('legacy_source', '!=', False)]" />
+                <filter
+                    name="no_expiry"
+                    string="Never expires"
+                    domain="[('date_to', '=', False)]" />
+                <separator />
+                <filter name="revoked" string="Revoked" domain="[('state', '=', 'revoked')]" />
+                <filter name="expired" string="Expired" domain="[('state', '=', 'expired')]" />
+                <group>
+                    <filter
+                        name="group_by_model"
+                        string="Model"
+                        context="{'group_by': 'res_model'}" />
+                    <filter
+                        name="group_by_audience"
+                        string="Audience"
+                        context="{'group_by': 'audience'}" />
+                    <filter
+                        name="group_by_cause"
+                        string="Cause"
+                        context="{'group_by': 'cause'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_access_link" model="ir.actions.act_window">
+        <field name="name">External Links</field>
+        <field name="res_model">access.link</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_live': 1, 'search_default_anyone': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No live external link</p>
+            <p>Links shared with people outside the company appear here, with their
+                expiry and their last use, for you to revoke or extend.</p>
+        </field>
+    </record>
+
+</odoo>

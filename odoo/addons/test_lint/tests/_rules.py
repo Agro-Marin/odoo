@@ -14,6 +14,7 @@ from . import (
     _checker_field_declaration,
     _checker_gettext,
     _checker_http_json,
+    _checker_link_token,
     _checker_noqa_rationale,
     _checker_onchange,
     _checker_orm_import,
@@ -286,6 +287,16 @@ RULES: tuple[Rule, ...] = (
         "guesser how much of the secret is right",
     ),
     Rule(
+        "link-token-compare",
+        "E8537",
+        "open the record through `access.link`: a route declares "
+        '`auth="link"` and reads `request.link_subject`, other code calls '
+        "`env['access.link']._resolve(token, ...)`, which hashes the token, "
+        "looks it up by index and checks expiry, revocation, audience and role "
+        "in one place; a token compared or searched for anywhere else is a "
+        "capability nobody can list, expire or revoke",
+    ),
+    Rule(
         "sql-bound-placeholder",
         "E8534",
         "a bound parameter cannot stand where PostgreSQL parses syntax: psycopg "
@@ -308,7 +319,8 @@ RULES: tuple[Rule, ...] = (
         "E8531",
         "an identity is a scheme on a receiver row, not a method on ir.http: put "
         "the check in the subject's `_verify_inbound_request` (or a Resolution's "
-        'verifier) behind `auth="receiver"`; base owns user/none/public/bearer '
+        'verifier) behind `auth="receiver"`, and a bearer link to a record is an '
+        '`access.link` behind `auth="link"`; base owns user/none/public/bearer/link '
         "and integration owns receiver",
     ),
     Rule(
@@ -457,6 +469,10 @@ def _token_compare(unit: Unit) -> Iterable[object]:
     return _checker_token_compare.check(unit.tree)
 
 
+def _link_token(unit: Unit) -> Iterable[object]:
+    return _checker_link_token.check(unit.tree, unit.path)
+
+
 def _band_range(unit: Unit) -> Iterable[object]:
     if "/addons/base/" in unit.path:
         return ()
@@ -580,6 +596,11 @@ CHECKERS: tuple[Checker, ...] = (
         frozenset({"sql-bound-placeholder"}),
     ),
     Checker(_ensure_one, _anywhere, frozenset({"ensure-one-call"})),
+    Checker(
+        _link_token,
+        _in_an_addon_outside_tests,
+        frozenset({"link-token-compare"}),
+    ),
     Checker(
         _token_compare,
         _in_an_addon_outside_tests,

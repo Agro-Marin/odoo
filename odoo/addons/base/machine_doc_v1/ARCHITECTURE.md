@@ -70,7 +70,7 @@ access control, and ORM extensions that those controllers depend on.
 odoo/addons/base/
 ├── __manifest__.py              # Module metadata + asset/data file declarations
 ├── __init__.py                  # Imports models, report, wizard + post_init hook
-├── models/                      # 119 Python model files (core ORM infrastructure)
+├── models/                      # 120 Python model files (core ORM infrastructure)
 │   ├── assetsbundle/            #   Asset compilation package (bundle, JS/CSS/XML pipelines, store)
 │   ├── decimal_precision.py         #   Configurable decimal precision
 │   ├── ir_access.py                 #   ir.access: permissions and guards with domains, the decision of every model
@@ -78,6 +78,7 @@ odoo/addons/base/
 │   ├── ir_access_predicate.py       #   ir.access.predicate: a named, validated reach no anchor states
 │   ├── ir_access_reach.py           #   the recognizer: a stored domain proven equal to reach parts
 │   ├── ir_access_log.py             #   ir.access.log: the append-only authorization log
+│   ├── access_link.py               #   access.link / .use: bearer links stored as hashes, the one resolver, their use log
 │   ├── ir_access_exception.py       #   ir.access.exception: one named, dated, logged way past a strict rule
 │   ├── ir_access_sod.py             #   ir.access.sod.rule / .function: two duties one person must not hold
 │   ├── ir_access_convert.py         #   access lines + rules to ir.access rows, module-aware, with the audit report (pure)
@@ -206,7 +207,7 @@ odoo/addons/base/
 ├── tests/                       # 157 Python test files + test assets
 │   ├── common.py                #   Base test classes (demo user, portal user)
 │   └── test_*.py                #   Test modules -- counts in TEST_TAGS.md, derived by factcheck.sh
-├── views/                       # 40 XML view definition files
+├── views/                       # 41 XML view definition files
 ├── data/                        # 22 data files (XML, CSV, SQL, JSON)
 ├── security/                    # ir.access.csv + groups and access-row XML
 ├── rng/                         # RelaxNG schemas (view validation)
@@ -290,10 +291,10 @@ Derived by `factcheck.sh`, which re-measures every row against the tree.
 
 | Category | Count |
 |----------|-------|
-| Python (models) | 119 |
+| Python (models) | 120 |
 | Python (wizards) | 11 |
 | Python (tests) | 157 |
-| XML (views) | 40 |
+| XML (views) | 41 |
 | Data files | 22 |
 | XML (reports) | 0 |
 | XML (wizard views) | 8 |

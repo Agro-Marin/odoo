@@ -4,7 +4,7 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 7.7
+:Version: 7.8
 :Date: 2026-09-25
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
@@ -4599,6 +4599,17 @@ field.
   way, and a comment on the decorator names that way** ``[review]``. Valid ways
   are a bearer token, ``auth="receiver"``, or a verified signature. ``jsonrpc`` is
   CSRF-exempt by design.
+* **A route that opens a record to someone outside by a token declares
+  ``auth="link"``** ``[test_lint link-token-compare]``. ``link="<model>:<path
+  argument>"`` names the record, ``link_role`` the least role the route needs;
+  the session's own access is tried first, then the ``access_token`` the request
+  carries, and the handler reads ``request.link_subject``. Issue a link with
+  ``env["access.link"]._issue(record, partner=..., cause=...)``, never by writing
+  a token column. Why: a token checked in its own controller is a capability
+  nobody can list, expire or revoke; ``access.link`` stores its hash only, and
+  refuses every bad token with the same 404.
+* **Compare a secret with ``consteq``** ``[test_lint token-compare]``. ``==``
+  returns at the first differing character.
 
 10.7 Constraints run privileged
 -------------------------------
@@ -5442,6 +5453,11 @@ collisions, so an eighth fails and so does a renumbering.
    * - Version
      - Date
      - Summary
+   * - 7.8
+     - 2026-09-25
+     - §10.6: a route that opens a record by a token declares ``auth="link"``
+       and the link is an ``access.link`` row; a secret is compared with
+       ``consteq`` (``token-compare`` E8536, ``link-token-compare`` E8537).
    * - 7.7
      - 2026-09-25
      - §5.2: colour literals outside palette files, and raw ``backdrop-filter``

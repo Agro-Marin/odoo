@@ -118,6 +118,20 @@
         <field name="is_privilege" eval="True" />
     </record>
 
+    <record id="privilege_manage_links" model="res.groups">
+        <field name="name">Manage External Links</field>
+        <field
+            name="comment">A link is issued, extended and revoked by the record it opens: the code checks the sharer's right on the record, then writes the link, its hash and its expiry, which nobody writes by hand.</field>
+        <field name="is_privilege" eval="True" />
+    </record>
+
+    <record id="privilege_resolve_links" model="res.groups">
+        <field name="name">Resolve External Links</field>
+        <field
+            name="comment">Whoever presents a token, signed in or not, has it looked up: the resolver reads the link the token's hash names, and nothing else.</field>
+        <field name="is_privilege" eval="True" />
+    </record>
+
     <record id="privilege_read_access_exceptions" model="res.groups">
         <field name="name">Read Access Exceptions</field>
         <field

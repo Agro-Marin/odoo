@@ -12,3 +12,5 @@ access_test_access_right_child_employee,access_test_access_right_child,model_tes
 access_test_access_right_obj_categ,access_test_access_right_obj_categ,model_test_access_right_obj_categ,base.group_user,permission,crud,
 test_access_right_fake_ticket,Fake Ticket: portal or following,model_test_access_right_ticket,base.group_portal,permission,r,"[ '|', ('message_partner_ids', 'child_of', [user.partner_id.commercial_partner_id.id]), ('message_partner_ids', 'in', [user.partner_id.id]) ]"
 access_test_access_right_ticket_employee,access_test_access_right_ticket_employee,model_test_access_right_ticket,base.group_user,permission,crud,
+access_test_access_right_shared_doc_owner,The owner of a shared doc,model_test_access_right_shared_doc,base.group_user,permission,crud,"[('create_uid', '=', user.id)]"
+access_test_access_right_shared_doc_reader,The named readers of a shared doc,model_test_access_right_shared_doc,base.group_user,permission,r,"[('reader_ids', 'in', user.id)]"

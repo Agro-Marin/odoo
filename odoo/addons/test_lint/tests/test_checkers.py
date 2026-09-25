@@ -16,6 +16,7 @@ from . import (
     _checker_field_declaration,
     _checker_gettext,
     _checker_http_json,
+    _checker_link_token,
     _checker_noqa_rationale,
     _checker_onchange,
     _checker_orm_import,
@@ -2518,6 +2519,38 @@ class TestEnsureOneLint(BaseCase):
             "rec.ensure_one()\nrec.check_singleton()\nx = rec.ensure_one\n"
         )
         self.assertEqual([v.lineno for v in _checker_ensure_one.check(tree)], [1])
+
+
+@no_retry
+class TestLinkTokenLint(BaseCase):
+    def test_a_token_compared_or_searched_outside_the_resolver_is_flagged(self):
+        tree = ast.parse(
+            "ok = consteq(record.access_token, token)\n"
+            "order = env['pos.order'].sudo().search([('access_token', '=', t)])\n"
+            "row = env['x'].search([('document_token', 'in', ts)], limit=1)\n"
+        )
+        found = _checker_link_token.check(tree, "/x/addons/sale/controllers/portal.py")
+        self.assertEqual([v.lineno for v in found], [1, 2, 3])
+
+    def test_the_resolver_and_other_credentials_are_not(self):
+        tree = ast.parse(
+            "ok = consteq(record.access_token, token)\n"
+            "sig = hmac.compare_digest(received_signature, expected)\n"
+            "key = consteq(provider.oauth_token, header_value)\n"
+        )
+        self.assertEqual(
+            [
+                v.lineno
+                for v in _checker_link_token.check(
+                    tree, "/x/odoo/addons/base/models/access_link.py"
+                )
+            ],
+            [],
+        )
+        self.assertEqual(
+            [v.lineno for v in _checker_link_token.check(tree, "/x/addons/y/z.py")],
+            [1],
+        )
 
 
 @no_retry

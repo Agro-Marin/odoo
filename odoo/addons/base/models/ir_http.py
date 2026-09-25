@@ -35,6 +35,8 @@ from odoo.tools.json import json_default
 from odoo.tools.misc import get_lang, str2bool
 from odoo.tools.translate import code_translations
 
+from .access_link import LinkLoginRequired, LinkRefused
+
 _logger = logging.getLogger(__name__)
 _debug = DebugLog(__name__)
 
@@ -175,7 +177,10 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _auth_routing_keys(cls) -> dict[str, tuple[str, ...]]:
-        return {"bearer": ("scope",)}
+        return {
+            "bearer": ("scope",),
+            "link": ("link", "link_role", "link_param"),
+        }
 
     @classmethod
     def _auth_method_bearer(cls, scope: str = "rpc") -> None:
@@ -262,6 +267,65 @@ class IrHttp(models.AbstractModel):
             public_user = request.env.ref("base.public_user")
             _debug.logic("auth_public_assigned", public_uid=public_user.id)
             request.update_env(user=public_user.id)
+
+    @classmethod
+    def _auth_method_link(
+        cls,
+        link: str | None = None,
+        link_role: str = "view",
+        link_param: str = "access_token",
+    ) -> None:
+        # a record that may be sent to someone outside: the session's own
+        # access first, then a link presented with the request; the handler
+        # reads request.link_subject, and request.access_link says which link
+        cls._auth_method_public()
+        if not link:
+            _logger.error(
+                "%s %s declares auth='link' without link='<model>:<path argument>'",
+                request.httprequest.method,
+                request.httprequest.path,
+            )
+            raise NotFound
+        model_name, _sep, id_arg = link.partition(":")
+        raw_id = request.path_args.get(id_arg) if id_arg else None
+        res_id = raw_id.id if isinstance(raw_id, models.BaseModel) else raw_id
+        record = request.env[model_name].browse(int(res_id)) if res_id else None
+        request.access_link = request.env["access.link"]
+        if (
+            record is not None
+            and not request.env.user._is_public()
+            and record.exists()
+            and record.has_access("read")
+        ):
+            # the session's own access: the handler elevates, if it must,
+            # under its own name
+            request.link_subject = record
+            _debug.logic("link_auth", by="session", model=model_name)
+            return
+        token = (
+            request.path_args.get(link_param)
+            or request.httprequest.args.get(link_param)
+            or request.httprequest.form.get(link_param)
+        )
+        try:
+            resolution = request.env["access.link"]._resolve(
+                token,
+                model=model_name,
+                res_id=int(res_id) if res_id else None,
+                role=link_role,
+            )
+        except LinkLoginRequired:
+            _debug.logic("link_auth", by="login_required", model=model_name)
+            abort(
+                request.redirect_query(
+                    "/web/login", query={"redirect": request.httprequest.full_path}
+                )
+            )
+        except LinkRefused:
+            raise NotFound from None
+        request.access_link = resolution.link
+        request.link_subject = resolution.record
+        _debug.logic("link_auth", by="link", model=model_name, link=resolution.link.id)
 
     @classmethod
     def _authenticate(cls, endpoint: Any) -> None:
