@@ -88,6 +88,7 @@ access_mail_push_device_system,access.mail.push.device.system,model_mail_push_de
 access_mail_message_translation_system,mail.message.translation,model_mail_message_translation,base.group_system,permission,crud,
 access_mail_scheduled_message,access.mail.scheduled.message,model_mail_scheduled_message,base.group_user,permission,crud,
 access_mail_config_user,mail.config: the reader's companies,model_mail_config,base.group_user,permission,r,"[('company_id', 'in', company_ids)]"
+mail_config_rule_erp_manager,mail.config: every company for an access-rights manager,model_mail_config,base.group_erp_manager,permission,r,
 access_mail_config_erp_manager,mail.config erp manager,model_mail_config,base.group_erp_manager,permission,cud,
 mail_compose_message_rule,Mail Compose Message Rule,model_mail_compose_message,base.group_everyone,guard,ru,"[('create_uid', '=', user.id)]"
 ir_rule_mail_scheduled_message_user,mail.scheduled.message: group_user: write its own entries,model_mail_scheduled_message,base.group_everyone,guard,cu,"[('create_uid', '=', user.id)]"
