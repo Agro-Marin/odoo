@@ -10,6 +10,7 @@ import {
     AssetsLoadingError,
     esmBundleCache,
     globalBundleCache,
+    importMapWasIgnored,
     loadBundle,
     loadCSS,
     loadJS,
@@ -897,5 +898,25 @@ describe("the whenReady re-seed", () => {
 
         loadJS("/late.js", { targetDoc: doc });
         expect(doc.head.querySelectorAll('script[src="/late.js"]')).toHaveLength(1);
+    });
+});
+
+describe("import maps added after the first one", () => {
+    test("a merged map is not reported as ignored", () => {
+        const mapEl = document.createElement("script");
+        mapEl.type = "importmap";
+        mapEl.textContent = JSON.stringify({
+            imports: { "late-map-probe": "/web/static/lib/late_map_probe.js" },
+        });
+        document.head.appendChild(mapEl);
+        after(() => mapEl.remove());
+        expect(importMapWasIgnored("late-map-probe")).toBe(false);
+    });
+
+    test("a browser that drops the map is detected", () => {
+        const dropped = () => {
+            throw new TypeError('Failed to resolve module specifier "late-map-probe"');
+        };
+        expect(importMapWasIgnored("late-map-probe", dropped)).toBe(true);
     });
 });

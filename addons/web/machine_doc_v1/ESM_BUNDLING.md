@@ -591,6 +591,22 @@ bypassed when `dev_mode` contains `"xml"` (`@tools.conditional`,
   restarts on `.py` change; JS is then picked up on the next request. This is
   a server-lifecycle choice, not a bug, and still needs no manual SQL flush.
 
+## Browser baseline
+
+Pages that render several ESM bundles, and every per-file load (`?debug=assets`, the
+compile-declined or circuit-open fallback, cross-document loads), append a second
+`<script type="importmap">`. Only browsers that merge import maps honour it:
+**Chrome/Edge 133+ and Safari 18.4+**. Firefox stable drops it (support sits behind
+`dom.multiple_import_maps.enabled`), so the bare specifiers it carries fail to resolve —
+on exactly the resilience paths. The compiled production path for dynamic children is
+unaffected: the page map and the child descriptor both carry every served external lib.
+
+That is the supported baseline. `addFreshImportMapEntries` (`core/assets.js`) checks the
+first specifier of each map it appends with `import.meta.resolve`; when the browser
+dropped the map it logs one `[assets] This browser ignores import maps added after the
+first one` error per page, so an unsupported browser shows up in the JS error reports
+instead of as an unexplained resolution failure.
+
 ## Serving & caching
 
 ESM artifacts are served by a dedicated route
