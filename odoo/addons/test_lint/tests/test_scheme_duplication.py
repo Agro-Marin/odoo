@@ -11,6 +11,7 @@ from odoo.tests.css import (
     is_mask,
     norm,
     parse,
+    parse_per_selector,
     pick_dark,
     resolve,
     same_paint,
@@ -28,8 +29,8 @@ INERT_IN_URI_RE = re.compile(r"(?:var|color-mix)(?:\(|%28)")
 
 
 def measure(light_css, dark_css):
-    light = settle(parse(light_css))
-    dark = settle(parse(dark_css))
+    light = settle(parse_per_selector(light_css))
+    dark = settle(parse_per_selector(dark_css))
 
     light_root = {p: v for _, s, p, v in light if s == ROOT}
     dark_root = {p: v for _, s, p, v in dark if s == ROOT}
@@ -40,22 +41,16 @@ def measure(light_css, dark_css):
 
     served = {(s, p): v for _, s, p, v in light}
     origin = {(s, p): f for f, s, p, _ in light}
-    # a rule restated for a selector list restates each selector in it, as
-    # the cascade applies it; later rules win, as they do in the cascade
-    scoped = {}
-    for _, selector, prop, value in light:
-        parts = split_selector(selector)
-        stripped = [unscoped(part) for part in parts]
-        if parts and all(a != b for a, b in zip(parts, stripped, strict=True)):
-            for key in (",".join(stripped), *stripped):
-                scoped[(key, prop)] = value
-
-    dark_scoped = set()
-    for _, selector, prop, _value in dark:
-        parts = split_selector(selector)
-        stripped = [unscoped(part) for part in parts]
-        if parts and all(a != b for a, b in zip(parts, stripped, strict=True)):
-            dark_scoped.update((key, prop) for key in (",".join(stripped), *stripped))
+    scoped = {
+        (unscoped(selector), prop): value
+        for _, selector, prop, value in light
+        if unscoped(selector) != selector
+    }
+    dark_scoped = {
+        (unscoped(selector), prop)
+        for _, selector, prop, _value in dark
+        if unscoped(selector) != selector
+    }
 
     gap = []
     answered = 0
@@ -170,6 +165,41 @@ class TestSchemeDuplication(lint_case.LintCase):
         gap, answered, _light, _dark = measure(light, dark)
         self.assertEqual(gap, [])
         self.assertEqual(answered, 2)
+
+    def test_a_restatement_per_selector_answers_a_selector_list(self):
+        light = (
+            "/* /a/x.scss */.a,.b{--c:#fff}"
+            ':root[data-color-scheme="dark"] .a{--c:#000}'
+            ':root[data-color-scheme="dark"] .b{--c:#000}'
+        )
+        dark = "/* /a/x.scss */.a,.b{--c:#000}"
+        gap, answered, _light, _dark = measure(light, dark)
+        self.assertEqual(gap, [])
+        self.assertEqual(answered, 2)
+
+    def test_a_list_the_dark_bundle_groups_differently_is_still_measured(self):
+        light = "/* /a/x.scss */.a,.b{color:#fff}"
+        dark = "/* /a/x.scss */.a,.b,.c{color:#000}"
+        gap, answered, _light, _dark = measure(light, dark)
+        self.assertEqual(
+            gap, [("/a/x.scss", ".a", "color"), ("/a/x.scss", ".b", "color")]
+        )
+        self.assertEqual(answered, 0)
+
+    def test_an_at_rule_prefixes_each_selector_of_its_list(self):
+        light = (
+            "@media x{.a,.b{color:#fff}}"
+            '@media x{:root[data-color-scheme="dark"] .b{color:#000}}'
+        )
+        dark = "@media x{.a,.b{color:#000}}"
+        gap, answered, _light, _dark = measure(light, dark)
+        self.assertEqual(gap, [("?", "@media x .a", "color")])
+        self.assertEqual(answered, 1)
+
+    def test_a_comma_inside_an_attribute_value_is_not_a_selector_boundary(self):
+        self.assertEqual(
+            split_selector('[data-x="a,b"] .c, .d'), ['[data-x="a,b"] .c', ".d"]
+        )
 
     def test_the_measurement_survives_a_brace_in_a_string(self):
         css = (

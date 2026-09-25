@@ -67,43 +67,19 @@
             margin-bottom: 8px;
         }
 
-        &.o_kpi_primary {
-            .o_kpi_icon {
-                background: rgba($o-brand-primary, 0.1);
-                color: $o-brand-primary;
-            }
-            .o_kpi_value {
-                color: $o-brand-primary;
-            }
-        }
-
-        &.o_kpi_success {
-            .o_kpi_icon {
-                background: rgba($success, 0.1);
-                color: $success;
-            }
-            .o_kpi_value {
-                color: $success;
-            }
-        }
-
-        &.o_kpi_danger {
-            .o_kpi_icon {
-                background: rgba($danger, 0.1);
-                color: $danger;
-            }
-            .o_kpi_value {
-                color: $danger;
-            }
-        }
-
-        &.o_kpi_warning {
-            .o_kpi_icon {
-                background: rgba($warning, 0.1);
-                color: $warning;
-            }
-            .o_kpi_value {
-                color: $warning;
+        @each $-variant in (primary, success, danger, warning) {
+            &.o_kpi_#{$-variant} {
+                .o_kpi_icon {
+                    background: color-mix(
+                        in srgb,
+                        var(--#{$-variant}) 10%,
+                        transparent
+                    );
+                    color: var(--#{$-variant});
+                }
+                .o_kpi_value {
+                    color: var(--#{$-variant});
+                }
             }
         }
     }

@@ -9,7 +9,7 @@
             > th[data-expression_label="assets_minus"],
             > th[data-expression_label="assets_date_to"],
             > th[data-expression_label="balance"] {
-                background: $o-gray-100;
+                background: o-palette-token(--o-gray-100, $o-gray-100);
             }
         }
         > tbody {
@@ -22,7 +22,7 @@
                 > td[data-expression_label="assets_minus"],
                 > td[data-expression_label="assets_date_to"],
                 > td[data-expression_label="balance"] {
-                    background: $o-gray-100;
+                    background: o-palette-token(--o-gray-100, $o-gray-100);
                 }
             }
             > tr.line_level_0 {
@@ -34,7 +34,7 @@
                 > td[data-expression_label="assets_minus"],
                 > td[data-expression_label="assets_date_to"],
                 > td[data-expression_label="balance"] {
-                    background: $o-gray-300;
+                    background: o-palette-token(--o-gray-300, $o-gray-300);
                 }
             }
         }

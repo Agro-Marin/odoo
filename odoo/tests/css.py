@@ -19,6 +19,21 @@ _KEYWORDS = {
 
 
 def parse(css):
+    return [
+        (source, " ".join(stack), prop, value)
+        for source, stack, prop, value in _declarations(css)
+    ]
+
+
+def parse_per_selector(css):
+    return [
+        (source, " ".join((*stack[:-1], part)), prop, value)
+        for source, stack, prop, value in _declarations(css)
+        for part in split_selector(stack[-1]) or stack[-1:]
+    ]
+
+
+def _declarations(css):
     stack: list[str] = []
     out, buf, source = [], "", "?"
     index, end = 0, len(css)
@@ -28,7 +43,7 @@ def parse(css):
         declaration, buf = buf.strip(), ""
         if ":" in declaration and stack:
             prop, _, value = declaration.partition(":")
-            out.append((source, " ".join(stack), prop.strip(), value.strip()))
+            out.append((source, tuple(stack), prop.strip(), value.strip()))
 
     while index < end:
         char = css[index]
@@ -65,9 +80,9 @@ def parse(css):
 def split_selector(selector):
     parts, depth, current = [], 0, ""
     for char in selector:
-        if char == "(":
+        if char in "([":
             depth += 1
-        elif char == ")":
+        elif char in ")]":
             depth -= 1
         if char == "," and not depth:
             parts.append(current)
