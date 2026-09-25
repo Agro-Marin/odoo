@@ -47,7 +47,8 @@ class MixinPortal(models.AbstractModel):
     def _portal_revoke_tokens(self) -> None:
         self._portal_write_token(False)
 
-    def _portal_write_token(self, token) -> None:
+    def _portal_write_token(self, token: str | bool) -> None:
+        # access_token is write_groups=NO_ACCESS, so only the superuser writes it
         self.sudo().write({"access_token": token})
 
     def _get_share_url(

@@ -157,6 +157,8 @@ class ResPartner(models.Model):
                     the name of the database
                 token
                     the token, if token is valid
+                signup_type
+                    what the token was minted for ("signup" or "reset")
                 name
                     the name of the partner, if token is valid
                 login
@@ -169,6 +171,7 @@ class ResPartner(models.Model):
             return None
         res = {"db": self.env.cr.dbname}
         res["token"] = token
+        res["signup_type"] = partner.signup_type
         res["name"] = partner.name
         if partner.user_ids:
             res["login"] = partner.user_ids[0].login

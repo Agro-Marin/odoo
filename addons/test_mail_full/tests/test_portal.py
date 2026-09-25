@@ -684,3 +684,15 @@ class TestPortalMixin(TestPortal):
 
         fresh = self.env["mail.test.portal"].create({"name": "Fresh"})
         self.assertTrue(fresh._portal_get_or_create_token())
+
+    @users("employee")
+    def test_a_revoked_token_is_cleared_by_the_server_and_minted_anew(self):
+        record = self.record_portal.with_env(self.env)
+        revoked = record.sudo().access_token
+
+        with self.assertRaises(AccessError):
+            record.write({"access_token": False})
+        record._portal_revoke_tokens()
+
+        self.assertFalse(record.sudo().access_token)
+        self.assertNotEqual(record._portal_get_or_create_token(), revoked)
