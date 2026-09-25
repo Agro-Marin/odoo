@@ -6,7 +6,7 @@ from odoo.modules import Manifest
 from odoo.tools.assets.esm_graph import addon_specifier_to_url
 from odoo.tools.assets.esm_registry import external_libs
 
-from . import _js_sources, lint_case
+from . import _js_sources, _specifier_renames, lint_case
 
 _logger = logging.getLogger(__name__)
 
@@ -60,7 +60,14 @@ def _unresolved_specifiers(sources):
             target = root / relative
             index = target.with_suffix("") / "index.js"
             if not target.is_file() and not index.is_file():
-                broken.append((path, spec, f"no such file {addon}/{relative}"))
+                broken.append(
+                    (
+                        path,
+                        spec,
+                        f"no such file {addon}/{relative}"
+                        + _specifier_renames.hint(spec),
+                    )
+                )
     return broken
 
 
@@ -157,6 +164,23 @@ class TestEsmSpecifiers(lint_case.LintCase):
                 "not-a-declared-lib",
             ],
         )
+
+    def test_the_rename_table_points_at_live_modules(self):
+        # a stale row would send the next upstream import to a dead path
+        for old, new in _specifier_renames.RENAMED.items():
+            with self.subTest(old=old):
+                self.assertEqual(
+                    _unresolved_specifiers(
+                        [("web", Path("probe.js"), f'import "{new}";')]
+                    ),
+                    [],
+                )
+                self.assertTrue(
+                    _unresolved_specifiers(
+                        [("web", Path("probe.js"), f'import "{old}";')]
+                    ),
+                    "the old specifier resolves again: drop its row",
+                )
 
     def test_esm_specifiers_resolve(self):
         sources = _addon_js_sources()
