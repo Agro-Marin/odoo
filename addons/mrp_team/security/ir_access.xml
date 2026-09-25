@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="mrp_production_own_rule" model="ir.access">
+        <field name="name">Mrp Production: Own Documents</field>
+        <field name="model_id" ref="mrp.model_mrp_production" />
+        <field name="group_id" ref="group_mrp_user_own" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">[] if user.has_group('mrp_team.group_mrp_user_team') else ['|', ('user_id', '=', False), ('user_id', '=', user.id)]</field>
+    </record>
+
+    <record id="mrp_production_team_rule" model="ir.access">
+        <field name="name">Mrp Production: Team Documents</field>
+        <field name="model_id" ref="mrp.model_mrp_production" />
+        <field name="group_id" ref="group_mrp_user_team" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">['|', '|', '|', '|', ('user_id', '=', False), ('user_id', '=', user.id), ('team_id', 'in', user.mrp_team_ids.ids), ('picking_type_id.team_id', 'in', user.mrp_team_ids.ids), ('user_id.mrp_team_ids', 'in', user.mrp_team_ids.ids)]</field>
+    </record>
+
+    <record id="mrp_workorder_own_rule" model="ir.access">
+        <field name="name">Mrp Workorder: Own Documents</field>
+        <field name="model_id" ref="mrp.model_mrp_workorder" />
+        <field name="group_id" ref="group_mrp_user_own" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">[] if user.has_group('mrp_team.group_mrp_user_team') else ['|', ('production_id.user_id', '=', False), ('production_id.user_id', '=', user.id)]</field>
+    </record>
+
+    <record id="mrp_workorder_team_rule" model="ir.access">
+        <field name="name">Mrp Workorder: Team Documents</field>
+        <field name="model_id" ref="mrp.model_mrp_workorder" />
+        <field name="group_id" ref="group_mrp_user_team" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">['|', '|', '|', '|', ('production_id.user_id', '=', False), ('production_id.user_id', '=', user.id), ('production_id.team_id', 'in', user.mrp_team_ids.ids), ('production_id.picking_type_id.team_id', 'in', user.mrp_team_ids.ids), ('production_id.user_id.mrp_team_ids', 'in', user.mrp_team_ids.ids)]</field>
+    </record>
+
+</odoo>

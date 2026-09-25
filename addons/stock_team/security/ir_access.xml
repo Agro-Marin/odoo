@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="stock_picking_own_rule" model="ir.access">
+        <field name="name">Stock Picking: Own Documents</field>
+        <field name="model_id" ref="stock.model_stock_picking" />
+        <field name="group_id" ref="group_stock_user_own" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">[] if user.has_group('stock_team.group_stock_user_team') else ['|', ('user_id', '=', False), ('user_id', '=', user.id)]</field>
+    </record>
+
+    <record id="stock_picking_team_rule" model="ir.access">
+        <field name="name">Stock Picking: Team Documents</field>
+        <field name="model_id" ref="stock.model_stock_picking" />
+        <field name="group_id" ref="group_stock_user_team" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">['|', '|', '|', '|', ('user_id', '=', False), ('user_id', '=', user.id), ('team_id', 'in', user.stock_team_ids.ids), ('picking_type_id.team_id', 'in', user.stock_team_ids.ids), ('user_id.stock_team_ids', 'in', user.stock_team_ids.ids)]</field>
+    </record>
+
+    <record id="stock_move_own_rule" model="ir.access">
+        <field name="name">Stock Move: Own Documents</field>
+        <field name="model_id" ref="stock.model_stock_move" />
+        <field name="group_id" ref="group_stock_user_own" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">[] if user.has_group('stock_team.group_stock_user_team') else ['|', ('picking_id', '=', False), '|', ('picking_id.user_id', '=', False), ('picking_id.user_id', '=', user.id)]</field>
+    </record>
+
+    <record id="stock_move_team_rule" model="ir.access">
+        <field name="name">Stock Move: Team Documents</field>
+        <field name="model_id" ref="stock.model_stock_move" />
+        <field name="group_id" ref="group_stock_user_team" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">['|', ('picking_id', '=', False), '|', '|', '|', '|', ('picking_id.user_id', '=', False), ('picking_id.user_id', '=', user.id), ('picking_id.team_id', 'in', user.stock_team_ids.ids), ('picking_id.picking_type_id.team_id', 'in', user.stock_team_ids.ids), ('picking_id.user_id.stock_team_ids', 'in', user.stock_team_ids.ids)]</field>
+    </record>
+
+    <record id="stock_move_line_own_rule" model="ir.access">
+        <field name="name">Stock Move Line: Own Documents</field>
+        <field name="model_id" ref="stock.model_stock_move_line" />
+        <field name="group_id" ref="group_stock_user_own" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">[] if user.has_group('stock_team.group_stock_user_team') else ['|', ('picking_id', '=', False), '|', ('picking_id.user_id', '=', False), ('picking_id.user_id', '=', user.id)]</field>
+    </record>
+
+    <record id="stock_move_line_team_rule" model="ir.access">
+        <field name="name">Stock Move Line: Team Documents</field>
+        <field name="model_id" ref="stock.model_stock_move_line" />
+        <field name="group_id" ref="group_stock_user_team" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">['|', ('picking_id', '=', False), '|', '|', '|', '|', ('picking_id.user_id', '=', False), ('picking_id.user_id', '=', user.id), ('picking_id.team_id', 'in', user.stock_team_ids.ids), ('picking_id.picking_type_id.team_id', 'in', user.stock_team_ids.ids), ('picking_id.user_id.stock_team_ids', 'in', user.stock_team_ids.ids)]</field>
+    </record>
+
+    <record id="stock_picking_batch_own_rule" model="ir.access">
+        <field name="name">Stock Picking Batch: Own Documents</field>
+        <field name="model_id" ref="stock.model_stock_picking_batch" />
+        <field name="group_id" ref="group_stock_user_own" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">[] if user.has_group('stock_team.group_stock_user_team') else ['|', ('user_id', '=', False), ('user_id', '=', user.id)]</field>
+    </record>
+
+    <record id="stock_picking_batch_team_rule" model="ir.access">
+        <field name="name">Stock Picking Batch: Team Documents</field>
+        <field name="model_id" ref="stock.model_stock_picking_batch" />
+        <field name="group_id" ref="group_stock_user_team" />
+        <field name="kind">guard</field>
+        <field name="guard_scope">members</field>
+        <field name="operation">crud</field>
+        <field
+            name="domain">['|', '|', '|', '|', ('user_id', '=', False), ('user_id', '=', user.id), ('team_id', 'in', user.stock_team_ids.ids), ('picking_type_id.team_id', 'in', user.stock_team_ids.ids), ('user_id.stock_team_ids', 'in', user.stock_team_ids.ids)]</field>
+    </record>
+
+</odoo>

@@ -1,6 +1,6 @@
 {
     "name": "Inventory Teams",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Supply Chain/Inventory",
     "summary": "Operators work in teams: operation types belong to a team, and so do their transfers",
     "author": "AgroMarin",
@@ -12,6 +12,7 @@
     "data": [
         "security/stock_team_security.xml",
         "security/ir.access.csv",
+        "security/ir_access.xml",
         "views/team_team_views.xml",
         "views/stock_picking_views.xml",
         "views/stock_team_menus.xml",
