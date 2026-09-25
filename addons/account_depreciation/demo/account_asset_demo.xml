@@ -10,7 +10,7 @@
             <field name="depreciation_prorata">none</field>
             <field name="value_original">1000</field>
             <field
-                name="journal_id"
+                name="depreciation_journal_id"
                 model="account.journal"
                 search="[                 ('type', '=', 'general'),                 ('company_id', '=', ref('base.main_company')),                 ('id', '!=', obj().env.user.company_id.account_config_id.currency_exchange_journal_id.id)]" />
             <field

@@ -9,3 +9,4 @@ from . import test_reevaluation_asset
 from . import test_resource_asset_board
 from . import test_resource_asset_lifecycle
 from . import test_resource_asset_components
+from . import test_demo_data
