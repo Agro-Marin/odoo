@@ -41,6 +41,14 @@ TEAMS = {
     "user.sale_team_ids.ids": "sale",
     "user.purchase_team_ids.ids": "purchase",
 }
+# a field whose search reads the principal: a condition on it is a named
+# predicate, never a fixed filter
+PREDICATE_FIELDS = {
+    "user_has_access": "base.user_has_access",
+    "is_member": "base.is_member",
+    "message_partner_ids": "mail.follows",
+}
+PRINCIPAL_FIELDS = {*PREDICATE_FIELDS, "is_self", "message_is_follower"}
 PRINCIPAL_NAMES = (
     "user",
     "uid",
@@ -64,6 +72,8 @@ class Part:
     hierarchy: str = ""
     usage: str = ""
     static: str = ""
+    predicate: str = ""
+    args: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(slots=True)
@@ -118,6 +128,10 @@ def _domain_text(terms: list[Any]) -> str:
 def _reads_principal(node: Any) -> bool:
     if isinstance(node, tuple):
         return any(_reads_principal(child) for child in node[1])
+    if (leaf := _leaf(node)) is not None and (
+        leaf[0].rsplit(".", 1)[-1] in PRINCIPAL_FIELDS
+    ):
+        return True
     names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
     return bool(names & set(PRINCIPAL_NAMES))
 
@@ -140,12 +154,30 @@ def _leaf(term: Any) -> tuple[str, str, str] | None:
     return None
 
 
+def _predicate(leaf: tuple[str, str, str]) -> Part | None:
+    # a condition on a field whose search reads the principal, as the named
+    # predicate that says it, the path to the field as its `at` argument
+    path, operator, value = leaf
+    at, _dot, field_name = path.rpartition(".")
+    name = PREDICATE_FIELDS.get(field_name)
+    if name is None:
+        return None
+    if field_name == "message_partner_ids":
+        if operator not in ("=", "in") or value not in SELF_PARTNER:
+            return None
+    elif (operator, value) != ("=", "True"):
+        return None
+    return Part("predicate", predicate=name, args=(("at", f"{at}." if at else ""),))
+
+
 def _rung(term: Any) -> Part | None:
     # one AND term that is exactly one rung, its "or unset" folded in
     leaves = [_leaf(leaf) for leaf in _flat(term, "|")]
     if not leaves or any(leaf is None for leaf in leaves):
         return None
     leaves = typing.cast("list[tuple[str, str, str]]", leaves)
+    if len(leaves) == 1 and (part := _predicate(leaves[0])) is not None:
+        return part
     paths = {path for path, _op, _value in leaves}
     if len(paths) != 1:
         return None
@@ -219,7 +251,15 @@ def _conjunction(terms: list[Any]) -> Part | None:
         return Part("all", static=static)
     rung = rungs[0]
     return Part(
-        rung.reach, rung.kind, rung.path, rung.unset, rung.hierarchy, rung.usage, static
+        rung.reach,
+        rung.kind,
+        rung.path,
+        rung.unset,
+        rung.hierarchy,
+        rung.usage,
+        static,
+        rung.predicate,
+        rung.args,
     )
 
 
@@ -333,6 +373,12 @@ def compile_part(part: Part) -> Domain:
         return static
     if part.reach == "none":
         return Domain.FALSE
+    if part.reach == "predicate":
+        at = dict(part.args).get("at", "")
+        field_name = next(f for f, n in PREDICATE_FIELDS.items() if n == part.predicate)
+        if field_name == "message_partner_ids":
+            return Domain(at + field_name, "in", [p["partner"]]) & static
+        return Domain(at + field_name, "=", True) & static
     path = part.path
     if part.reach == "own" and part.kind == "employee":
         # the employees bind is every employee whose user is the principal

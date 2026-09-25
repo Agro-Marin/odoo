@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="access_predicate_user_has_access" model="ir.access.predicate">
+        <field name="name">base.user_has_access</field>
+        <field name="description">the record says you have access to it</field>
+        <field name="template">[(args.at + 'user_has_access', '=', True)]</field>
+    </record>
+
+    <record id="access_predicate_is_member" model="ir.access.predicate">
+        <field name="name">base.is_member</field>
+        <field name="description">you are a member of it</field>
+        <field name="template">[(args.at + 'is_member', '=', True)]</field>
+    </record>
+
+</odoo>

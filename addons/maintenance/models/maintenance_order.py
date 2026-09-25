@@ -57,6 +57,7 @@ class MaintenanceOrder(models.Model):
         {
             "company": models.Anchor("company_id", shared=True),
             "owner": "approval_pending_user_ids",
+            "user": models.Anchor("user_id", kind="owner"),
         }
     )
 

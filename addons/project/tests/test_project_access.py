@@ -222,6 +222,8 @@ class TestProjectAccessMigration(TestProjectCommon):
         rule.write(
             {
                 "reach": False,
+                "predicate_id": False,
+                "predicate_args": False,
                 "domain": "[('message_partner_ids', 'in', [user.partner_id.id])]",
             }
         )
@@ -234,7 +236,10 @@ class TestProjectAccessMigration(TestProjectCommon):
         self.script.migrate(self.env.cr, "19.0.1.24")
         self.env.invalidate_all()
 
-        self.assertIn("user_has_access", rule.domain)
+        self.assertEqual(
+            rule.predicate_id, self.env.ref("base.access_predicate_user_has_access")
+        )
+        self.assertFalse(rule.domain)
         self.assertTrue(xmlid.noupdate)
 
     def test_fresh_install_is_noop(self):

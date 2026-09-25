@@ -1,5 +1,6 @@
 from odoo import fields, models
 from odoo.db.schema import drop_view_if_exists
+from odoo.tools import frozendict
 
 from ..tools import debug_log as dbg
 from odoo.addons.project.models.project_task import CLOSED_STATES
@@ -11,6 +12,11 @@ class ReportProjectTaskUser(models.Model):
     _description = "Tasks Analysis"
     _order = "name desc, project_id"
     _auto = False
+    _access_anchors = frozendict(
+        {
+            "owner": "user_ids",
+        }
+    )
 
     name = fields.Char(
         string="Task Title",

@@ -207,7 +207,7 @@ odoo/addons/base/
 │   ├── common.py                #   Base test classes (demo user, portal user)
 │   └── test_*.py                #   Test modules -- counts in TEST_TAGS.md, derived by factcheck.sh
 ├── views/                       # 40 XML view definition files
-├── data/                        # 21 data files (XML, CSV, SQL, JSON)
+├── data/                        # 22 data files (XML, CSV, SQL, JSON)
 ├── security/                    # ir.access.csv + groups and access-row XML
 ├── rng/                         # RelaxNG schemas (view validation)
 ├── static/                      # CSS, JS, images, test assets
@@ -294,7 +294,7 @@ Derived by `factcheck.sh`, which re-measures every row against the tree.
 | Python (wizards) | 11 |
 | Python (tests) | 157 |
 | XML (views) | 40 |
-| Data files | 21 |
+| Data files | 22 |
 | XML (reports) | 0 |
 | XML (wizard views) | 8 |
 | Security files | 3 |

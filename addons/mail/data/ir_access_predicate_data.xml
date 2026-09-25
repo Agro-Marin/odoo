@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="access_predicate_follows" model="ir.access.predicate">
+        <field name="name">mail.follows</field>
+        <field name="description">you follow it</field>
+        <field
+            name="template">[(args.at + 'message_partner_ids', 'in', [P.partner])]</field>
+    </record>
+
+</odoo>

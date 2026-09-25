@@ -120,6 +120,7 @@ For more specific needs, you may also assign custom-defined actions
         "data/ir_cron_data.xml",
         "data/ir_access_exception_data.xml",
         "data/ir_actions_client.xml",
+        "data/ir_access_predicate_data.xml",
         "security/ir.access.csv",
         "views/discuss_public_templates.xml",
         "views/mail_alias_domain_views.xml",

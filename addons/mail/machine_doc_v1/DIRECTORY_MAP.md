@@ -124,7 +124,7 @@ there is no unlayered `views/fields/`. Unlike the tables above, these rows are *
 | `controllers/` (+ `controllers/discuss/`) | 20 controller files, 64 routes — see `ROUTE_MAP.md` |
 | `wizards/` | 9 wizard `.py` files (composer, activity schedule + summary, blacklist remove, followers edit, template preview/reset, + 2 `_inherit` hooks) |
 | `tools/` | Pure-Python helpers: `discuss.py` (guest context + `Store`), `alias_error.py`, `channel_avatar.py`, `jwt.py`, `link_preview.py`, `mail_validation.py`, `parser.py`, `web_push.py` |
-| `data/` | 16 XML data files (subtypes, activity types, templates, channels, crons, the access-exception reminder) |
+| `data/` | 17 XML data files (subtypes, activity types, templates, channels, crons, the access-exception reminder, the follows predicate) |
 | `demo/` | 4 demo XML files |
 | `views/` | 41 backend view XML files |
 | `security/` | `ir.access.csv` |

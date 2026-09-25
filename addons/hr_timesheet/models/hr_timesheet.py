@@ -6,6 +6,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import frozendict
 from odoo.tools.view_ir import Node
 
 _debug = DebugLog(__name__)
@@ -13,6 +14,11 @@ _debug = DebugLog(__name__)
 
 class AccountAnalyticLine(models.Model):
     _inherit = "account.analytic.line"
+    _access_anchors = frozendict(
+        {
+            "partner": "partner_id",
+        }
+    )
 
     def _get_domain_favorite_project_id(self, employee_id=False):
         employee_id = employee_id or self.env.user.employee_id.id

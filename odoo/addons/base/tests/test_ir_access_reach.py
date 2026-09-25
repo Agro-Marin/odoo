@@ -94,7 +94,6 @@ class TestReachRecognizer(BaseCase):
 
     def test_what_is_not_a_rung_stays_a_domain(self):
         for domain in (
-            "[('message_partner_ids', 'in', [user.partner_id.id])]",
             "[('user_id', '!=', user.id)]",
             "[('group_id', 'in', group_ids)]",
             "[('country_id', 'in', user.env.companies.country_id.ids)]",
@@ -120,5 +119,54 @@ class TestReachRecognizer(BaseCase):
             proves(
                 "[('company_id', 'in', company_ids)]",
                 Proposal([Part("company", "company", "company_id", unset=True)]),
+            )
+        )
+
+    def test_a_field_whose_search_reads_the_user_is_a_named_predicate(self):
+        self.assert_converts(
+            "[('project_id.user_has_access', '=', True)]",
+            Part(
+                "predicate",
+                predicate="base.user_has_access",
+                args=(("at", "project_id."),),
+            ),
+        )
+        self.assert_converts(
+            "[('state', '=', 'open'), ('user_has_access', '=', True)]",
+            Part(
+                "predicate",
+                static="[('state', '=', 'open')]",
+                predicate="base.user_has_access",
+                args=(("at", ""),),
+            ),
+        )
+        self.assert_converts(
+            "[('sign_request_id.message_partner_ids', 'in', user.partner_id.ids)]",
+            Part(
+                "predicate",
+                predicate="mail.follows",
+                args=(("at", "sign_request_id."),),
+            ),
+        )
+
+    def test_member_or_follower_splits_into_predicates(self):
+        self.assert_converts(
+            "['|', ('is_member', '=', True), ('parent_channel_id.is_member', '=', True)]",
+            Part("predicate", predicate="base.is_member", args=(("at", ""),)),
+            Part(
+                "predicate",
+                predicate="base.is_member",
+                args=(("at", "parent_channel_id."),),
+            ),
+        )
+
+    def test_a_field_reading_the_user_is_never_a_fixed_filter(self):
+        self.assertIsNone(
+            propose("[('is_self', '=', True), ('state', '=', 'x')]", "permission")
+        )
+        self.assertIsNone(
+            propose(
+                "[('user_id', '=', user.id), ('message_is_follower', '=', True)]",
+                "permission",
             )
         )

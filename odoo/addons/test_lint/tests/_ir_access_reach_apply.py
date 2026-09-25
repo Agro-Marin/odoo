@@ -21,6 +21,17 @@ from pathlib import Path
 
 HEADER_AFTER = "operation"
 NEW_COLUMNS = ("reach", "anchor")
+PREDICATE_COLUMNS = ("predicate_id/id", "predicate_args")
+# the record each predicate the recognizer names is shipped as
+PREDICATE_XMLIDS = {
+    "base.user_has_access": "base.access_predicate_user_has_access",
+    "base.is_member": "base.access_predicate_is_member",
+    "mail.follows": "mail.access_predicate_follows",
+}
+
+
+def predicate_args(part: dict) -> str:
+    return json.dumps(dict(part.get("args") or ()), sort_keys=True)
 
 
 def csv_rewrite(path: Path, rows: dict[str, dict]) -> int:
@@ -33,6 +44,13 @@ def csv_rewrite(path: Path, rows: dict[str, dict]) -> int:
     if "reach" not in header:
         at = header.index(HEADER_AFTER) + 1
         header[at:at] = list(NEW_COLUMNS)
+        records = [r[:at] + ["", ""] + r[at:] if r else r for r in records]
+    named = any(
+        part["reach"] == "predicate" for row in rows.values() for part in row["parts"]
+    )
+    if named and PREDICATE_COLUMNS[0] not in header:
+        at = header.index("anchor") + 1
+        header[at:at] = list(PREDICATE_COLUMNS)
         records = [r[:at] + ["", ""] + r[at:] if r else r for r in records]
     i_id, i_name = header.index("id"), header.index("name")
     i_reach, i_anchor, i_domain = (
@@ -54,6 +72,12 @@ def csv_rewrite(path: Path, rows: dict[str, dict]) -> int:
             new[i_reach] = part["reach"]
             new[i_anchor] = part.get("anchor", "")
             new[i_domain] = part["static"]
+            if PREDICATE_COLUMNS[0] in header:
+                i_predicate = header.index(PREDICATE_COLUMNS[0])
+                i_args = header.index(PREDICATE_COLUMNS[1])
+                named = part["reach"] == "predicate"
+                new[i_predicate] = PREDICATE_XMLIDS[part["predicate"]] if named else ""
+                new[i_args] = predicate_args(part) if named else ""
             out.append(new)
         changed += 1
     buffer = io.StringIO()
@@ -81,10 +105,27 @@ def xml_rewrite(path: Path, rows: dict[str, dict]) -> int:
         body = text[start.end() : end]
         indent = re.search(r"\n(\s*)<field", body).group(1)
         body = re.sub(
-            r'\s*<field\s+name="domain"(?:\s[^>]*)?(?<!/)>.*?</field>', "", body, flags=re.DOTALL
+            r'\s*<field\s+name="domain"(?:\s[^>]*)?(?<!/)>.*?</field>',
+            "",
+            body,
+            flags=re.DOTALL,
         )
         body = re.sub(r'\s*<field\s+name="domain"\s[^>]*/>', "", body)
+        body = re.sub(
+            r'\s*<field\s+name="(reach|anchor|predicate_id|predicate_args)"'
+            r"(?:\s[^>]*)?(?:/>|(?<!/)>.*?</field>)",
+            "",
+            body,
+            flags=re.DOTALL,
+        )
         added = f'\n{indent}<field name="reach">{part["reach"]}</field>'
+        if part["reach"] == "predicate":
+            added += (
+                f'\n{indent}<field name="predicate_id" '
+                f'ref="{PREDICATE_XMLIDS[part["predicate"]]}" />'
+                f'\n{indent}<field name="predicate_args" '
+                f'eval="{dict(part.get("args") or ())!r}" />'
+            )
         if part.get("anchor"):
             added += f'\n{indent}<field name="anchor">{part["anchor"]}</field>'
         if part["static"]:
@@ -302,7 +343,8 @@ def main() -> None:
             and not p.get("anchor")
         }
         declared = {k for k in keys if k in declarations.get(model, {})}
-        if keys - declared - {"company", "creator"} and model not in declarations:
+        if not all("anchor" in p for p in row["parts"]):
+            # the planner found no anchor for a part: the row keeps its domain
             continue
         by_file[row["file"]][row["xmlid"]] = row
         file = Path(row["file"])

@@ -1,6 +1,6 @@
 {
     "name": "Base",
-    "version": "1.117",
+    "version": "1.118",
     "category": "Hidden",
     "description": """
 The kernel of Odoo, needed for all installation.
@@ -20,6 +20,7 @@ The kernel of Odoo, needed for all installation.
         "data/report_paperformat_data.xml",
         "data/res_country_data.xml",
         "data/ir_demo_data.xml",
+        "data/ir_access_predicate_data.xml",
         "security/base_groups.xml",
         "security/base_security.xml",
         "wizards/wizard_ir_model_menu_create_views.xml",

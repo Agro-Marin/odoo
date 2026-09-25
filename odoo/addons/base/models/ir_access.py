@@ -15,6 +15,7 @@ from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, frozendict
 from odoo.tools.safe_eval import safe_eval, time
 
+from .ir_access_reach import Part, propose, proves
 from .ir_model_common import (
     ACCESS_ERROR_GROUPS,
     ACCESS_ERROR_HEADER,
@@ -348,6 +349,59 @@ class _Principal:
         if name not in PREDICATE_BINDS:
             raise AttributeError(name)
         return self._bind(name, None) if name == "teams" else self._bind(name)
+
+
+KIND_OF_RUNG = {
+    ("own", "owner"): "owner",
+    ("own", "creator"): "creator",
+    ("own", "employee"): "employee",
+    ("own", "partner"): "partner",
+    ("partner", "partner"): "partner",
+    ("team", "team"): "team",
+    ("company", "company"): "company",
+}
+
+
+def reach_values(
+    anchors: Mapping[str, Any], predicates: Mapping[str, int], part: Part
+) -> dict[str, Any] | None:
+    # the values a proposed part writes on a row, or None when the model
+    # declares no anchor it reads, or the predicate it names is not installed
+    values: dict[str, Any] = {
+        "reach": part.reach,
+        "anchor": False,
+        "domain": part.static or False,
+        "predicate_id": False,
+        "predicate_args": False,
+    }
+    if part.reach in ("all", "none"):
+        return values
+    if part.reach == "predicate":
+        if part.predicate not in predicates:
+            return None
+        values["predicate_id"] = predicates[part.predicate]
+        values["predicate_args"] = dict(part.args)
+        return values
+    kind = KIND_OF_RUNG[(part.reach, part.kind)]
+    wanted = (part.path, kind, part.unset, part.hierarchy or "", part.usage or None)
+    keys = [
+        key
+        for key, anchor in anchors.items()
+        if (
+            anchor.path,
+            anchor.kind,
+            bool(anchor.shared),
+            anchor.hierarchy or "",
+            anchor.usage or None,
+        )
+        == wanted
+    ]
+    if not keys:
+        return None
+    default = REACH_ANCHOR.get(part.reach)
+    key = default if default in keys else min(keys)
+    values["anchor"] = False if key == default else key
+    return values
 
 
 def compile_predicate(
@@ -808,6 +862,85 @@ class IrAccess(models.Model):
                         "the reach says.",
                         access=access.name,
                     )
+                )
+
+    def _rows_to_reach(self) -> dict[str, int]:
+        # the stored rows whose domain a reach or a named predicate says: each
+        # proven equal and every anchor it reads declared, then written; a split
+        # permission keeps its id for its first row and names the others
+        # <xmlid>_2..., as the modules' files do
+        env = self.env
+        anchors_of = env.registry.model_anchors
+        predicates = {
+            predicate.name: predicate.id
+            for predicate in env["ir.access.predicate"].sudo().search([])
+        }
+        counts = {
+            "converted": 0,
+            "split": 0,
+            "unanchored": 0,
+            "unproven": 0,
+            "unreached": 0,
+        }
+        for access in self:
+            model_name = access.model_id.model
+            if model_name not in env.registry:
+                continue
+            proposal = propose(access.domain, access.kind)
+            if proposal is None and access.reach == "all":
+                # beside the reach all, a filter that reads the user is no
+                # fixed filter: the row says it as the domain it is
+                access.reach = False
+                counts["unreached"] += 1
+                continue
+            if proposal is None or (
+                access.reach == "all"
+                and [part.reach for part in proposal.parts] == ["all"]
+            ):
+                continue
+            if not proves(access.domain, proposal):
+                counts["unproven"] += 1
+                continue
+            values = [
+                reach_values(anchors_of.get(model_name, {}), predicates, part)
+                for part in proposal.parts
+            ]
+            if any(value is None for value in values):
+                counts["unanchored"] += 1
+                continue
+            access._write_parts(typing.cast("list[dict[str, Any]]", values))
+            counts["converted"] += 1
+            counts["split"] += len(values) > 1
+        return counts
+
+    def _write_parts(self, parts: list[dict[str, Any]]) -> None:
+        self.check_singleton()
+        xmlid = self.get_external_id().get(self.id)
+        data = self.env["ir.model.data"]
+        if xmlid:
+            module, name = xmlid.split(".", 1)
+            data = data.search([("module", "=", module), ("name", "=", name)], limit=1)
+        self.write(parts[0])
+        for index, values in enumerate(parts[1:], start=2):
+            sibling = (
+                self.env.ref(f"{module}.{name}_{index}", raise_if_not_found=False)
+                if xmlid
+                else None
+            )
+            if sibling is not None and sibling._name == "ir.access":
+                # the module's file split the row too, and loaded its parts
+                sibling.write(values)
+                continue
+            extra = self.copy({"name": f"{self.name} ({index})", **values})
+            if xmlid:
+                data.create(
+                    {
+                        "module": module,
+                        "name": f"{name}_{index}",
+                        "model": "ir.access",
+                        "res_id": extra.id,
+                        "noupdate": data.noupdate,
+                    }
                 )
 
     def _row_domains(self) -> typing.Callable[[str, AccessInfo], Domain]:

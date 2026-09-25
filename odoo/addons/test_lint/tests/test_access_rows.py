@@ -15,6 +15,7 @@ from odoo.addons.base.models.ir_access import (
     find_access_cycle,
     parse_access_domain,
 )
+from odoo.addons.base.models.ir_access_reach import PRINCIPAL_FIELDS
 
 # the methods through which a model decides access in code instead of in rows
 _CHECK_OVERRIDES = frozenset({"_check_access", "_has_field_access", "_access_domain"})
@@ -249,6 +250,25 @@ def override_paths():
     ]
 
 
+def _reads_principal(domain: str | None) -> bool:
+    # a domain that reads the user: through its names, or through a field
+    # whose search reads it (a named predicate says that one)
+    if not domain:
+        return False
+    if not isinstance(parse_access_domain(domain), Domain):
+        return True
+    try:
+        leaves = ast.literal_eval(domain)
+    except ValueError, SyntaxError:
+        return False
+    return any(
+        isinstance(leaf, (list, tuple))
+        and len(leaf) == 3
+        and str(leaf[0]).rsplit(".", 1)[-1] in PRINCIPAL_FIELDS
+        for leaf in leaves
+    )
+
+
 def reach_findings(rows):
     # a row that reaches through an anchor its model declares, of a kind its
     # rung can read, with nothing but a fixed filter beside it
@@ -256,7 +276,7 @@ def reach_findings(rows):
     for row in rows:
         if not row.reach:
             continue
-        if row.domain and not isinstance(parse_access_domain(row.domain), Domain):
+        if _reads_principal(row.domain):
             findings.append(
                 f"{row.where()}: a reach beside a domain that reads the user"
             )
@@ -319,10 +339,7 @@ def free_domain_findings(rows):
     return sorted(
         f"{row.where()}: {row.model}"
         for row in rows
-        if row.creates
-        and not row.reach
-        and row.domain
-        and not isinstance(parse_access_domain(row.domain), Domain)
+        if row.creates and not row.reach and _reads_principal(row.domain)
     )
 
 
