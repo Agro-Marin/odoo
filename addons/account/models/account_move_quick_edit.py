@@ -23,14 +23,11 @@ class AccountMove(models.Model):
             ("partner_id", "=", partner_id),
             ("date", ">=", date.today() - timedelta(days=365 * 2)),
         ]
-        if move_type in self.env["account.move"].get_inbound_types(
-            include_receipts=True
-        ):
-            domain.append(("account_id.internal_group", "=", "income"))
-        elif move_type in self.env["account.move"].get_outbound_types(
-            include_receipts=True
-        ):
-            domain.append(("account_id.internal_group", "=", "expense"))
+        suggestion_domain = self.env["account.account"]._get_suggestion_account_domain(
+            move_type
+        )
+        if not suggestion_domain.is_true():
+            domain.append(("account_id", "any", suggestion_domain))
 
         query = self.env["account.move.line"]._search(domain)
         account_code = self.env["account.account"]._field_to_sql(

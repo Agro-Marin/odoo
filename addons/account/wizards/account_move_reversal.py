@@ -186,7 +186,7 @@ class AccountMoveReversal(models.TransientModel):
         for move, default_vals in zip(moves, default_values_list, strict=True):
             is_auto_post = default_vals.get("auto_post") != "no"
             is_cancel_needed = not is_auto_post and (
-                is_modify or self.move_type == "entry"
+                is_modify or move.move_type == "entry"
             )
             batch_index = 0 if is_cancel_needed else 1
             batches[batch_index][0] |= move

@@ -21,6 +21,7 @@ from odoo.tools import (
     LazyTranslate,
     TransactionMemo,
     date_utils,
+    escape_psql,
     float_compare,
     format_date,
     format_list,
@@ -139,6 +140,7 @@ SELECT ARRAY(
                  WHERE other.journal_id = move.journal_id
                    AND other.sequence_prefix = move.sequence_prefix
                    AND other.sequence_number < move.sequence_number
+                   AND other.name LIKE '%%' || other.sequence_number || move_suffix.suffix
               ORDER BY other.sequence_number DESC
                  LIMIT 2
        ),
@@ -149,11 +151,13 @@ SELECT ARRAY(
                  WHERE other.journal_id = move.journal_id
                    AND other.sequence_prefix = move.sequence_prefix
                    AND other.sequence_number > move.sequence_number
+                   AND other.name LIKE '%%' || other.sequence_number || move_suffix.suffix
               ORDER BY other.sequence_number ASC
                  LIMIT 2
        )
   FROM account_move move
- WHERE move.id = ANY(%s)
+  JOIN (VALUES %(suffixes)s) AS move_suffix(move_id, suffix)
+    ON move_suffix.move_id = move.id
 """
 
 
@@ -1966,11 +1970,14 @@ class AccountMove(models.Model):
     @api.depends_context("lang")
     @api.depends("adjusting_entry_origin_move_ids")
     def _compute_adjusting_entry_origin_label(self):
+        move_type_labels = dict(
+            self._fields["move_type"]._description_selection(self.env)
+        )
         for move in self:
             if len(move.adjusting_entry_origin_move_ids) == 1:
-                move.adjusting_entry_origin_label = dict(
-                    self._fields["move_type"].selection
-                )[move.adjusting_entry_origin_move_ids.move_type]
+                move.adjusting_entry_origin_label = move_type_labels[
+                    move.adjusting_entry_origin_move_ids.move_type
+                ]
             else:
                 move.adjusting_entry_origin_label = False
 
@@ -2021,7 +2028,9 @@ class AccountMove(models.Model):
             date_ref=invoice.invoice_date
             or invoice.date
             or fields.Date.context_today(invoice),
-            currency=invoice.currency_id,
+            currency=invoice.currency_id
+            or invoice.journal_id.currency_id
+            or invoice.company_currency_id,
             company=invoice.company_id,
             cash_rounding=invoice.invoice_cash_rounding_id,
             sign=sign,
@@ -2104,21 +2113,34 @@ class AccountMove(models.Model):
                 move.journal_id and move.journal_id not in move.suitable_journal_ids
             )
 
+    @api.model
+    def _get_outstanding_company_domain(self, company):
+        return Domain.OR(
+            [
+                self.env["account.move.line"]._check_company_domain(company),
+                Domain("company_id", "child_of", company.id),
+            ]
+        )
+
     def _get_outstanding_lines(self, key, group_account_ids):
         company_id, partner_id, is_inbound = key
         company = self.env["res.company"].browse(company_id)
         return self.env["account.move.line"].search(
-            [
-                ("account_id", "in", list(group_account_ids)),
-                ("parent_state", "=", "posted"),
-                *self.env["account.move.line"]._check_company_domain(company),
-                ("partner_id", "=", partner_id),
-                ("reconciled", "=", False),
-                ("balance", "<" if is_inbound else ">", 0.0),
-                "|",
-                ("amount_residual", "!=", 0.0),
-                ("amount_residual_currency", "!=", 0.0),
-            ]
+            Domain.AND(
+                [
+                    [
+                        ("account_id", "in", list(group_account_ids)),
+                        ("parent_state", "=", "posted"),
+                        ("partner_id", "=", partner_id),
+                        ("reconciled", "=", False),
+                        ("balance", "<" if is_inbound else ">", 0.0),
+                        "|",
+                        ("amount_residual", "!=", 0.0),
+                        ("amount_residual_currency", "!=", 0.0),
+                    ],
+                    self._get_outstanding_company_domain(company),
+                ]
+            )
         )
 
     def _get_outstanding_lines_per_group(self, groups):
@@ -2227,7 +2249,7 @@ class AccountMove(models.Model):
     def _compute_preferred_payment_channel_id(self):
         for move in self:
             partner = move.partner_id.with_company(move.company_id)
-            if move.is_sale_document():
+            if move.is_inbound():
                 move.preferred_payment_channel_id = (
                     partner.property_inbound_payment_channel_id
                 )
@@ -2624,7 +2646,7 @@ class AccountMove(models.Model):
                     base_lines=base_lines,
                     currency=move.currency_id,
                     company=move.company_id,
-                    cash_rounding=move.invoice_cash_rounding_id,
+                    cash_rounding=move.sudo().invoice_cash_rounding_id,
                 )
                 move.tax_totals["display_in_company_currency"] = (
                     move.company_id.account_config_id.display_invoice_tax_company_currency
@@ -5571,9 +5593,6 @@ class AccountMove(models.Model):
     def _get_reconciled_payments(self):
         return self._get_reconciled_amls().move_id.origin_payment_id
 
-    def _get_reconciled_statement_lines(self):
-        return self._get_reconciled_amls().move_id.statement_line_id
-
     def _get_reconciled_invoices(self):
         return self._get_reconciled_amls().move_id.filtered(
             lambda move: move.is_invoice(include_receipts=True)
@@ -5666,28 +5685,19 @@ class AccountMove(models.Model):
     def _get_reconciled_invoices_partials(self):
         self.check_singleton()
         pay_term_lines = self._get_receivable_payable_lines()
-        invoice_partials = []
-        exchange_diff_moves = []
-
-        for partial in pay_term_lines.matched_debit_ids:
-            invoice_partials.append(
-                (partial, partial.credit_amount_currency, partial.debit_move_id)
-            )
-            if partial.exchange_move_id:
-                exchange_diff_moves.append(partial.exchange_move_id.id)
-        for partial in pay_term_lines.matched_credit_ids:
-            invoice_partials.append(
-                (partial, partial.debit_amount_currency, partial.credit_move_id)
-            )
-            if partial.exchange_move_id:
-                exchange_diff_moves.append(partial.exchange_move_id.id)
+        invoice_partials = [
+            (partial, partial.credit_amount_currency, partial.debit_move_id)
+            for partial in pay_term_lines.matched_debit_ids
+        ] + [
+            (partial, partial.debit_amount_currency, partial.credit_move_id)
+            for partial in pay_term_lines.matched_credit_ids
+        ]
         _debug.pipeline(
             "invoice_partials_collected",
             move=self,
             partials=len(invoice_partials),
-            exchange_moves=len(exchange_diff_moves),
         )
-        return invoice_partials, exchange_diff_moves
+        return invoice_partials
 
     @_debug.perf.timed
     def _reconcile_reversed_moves(self, reverse_moves, move_reverse_cancel):
@@ -6418,9 +6428,27 @@ class AccountMove(models.Model):
         )
         return sequence_mixin_cache.get(cache_key) is not None
 
+    def _get_sequence_suffix(self):
+        self.check_singleton()
+        if not self.name or self.name == "/":
+            return ""
+        try:
+            return self._get_sequence_format_param(self.name)[1].get("suffix", "")
+        except ValidationError:
+            return ""
+
     def _get_sequence_gap_neighbours(self):
         self.flush_model(["name", "sequence_prefix", "sequence_number", "journal_id"])
-        made_gap_data = self.env.execute_query(SQL(_SQL_SEQUENCE_NEIGHBOURS, self.ids))
+        moves = self.browse(self.ids)
+        if not moves:
+            return [], ()
+        suffixes = SQL(", ").join(
+            SQL("(%s, %s)", move.id, escape_psql(move._get_sequence_suffix()))
+            for move in moves
+        )
+        made_gap_data = self.env.execute_query(
+            SQL(_SQL_SEQUENCE_NEIGHBOURS, suffixes=suffixes)
+        )
         _debug.perf.count("sequence_neighbours_fetched", rows=len(made_gap_data))
         all_ids = tuple(
             {
@@ -6706,19 +6734,16 @@ class AccountMove(models.Model):
         _debug.lifecycle("open_adjusting_entries", records=self)
         self.check_singleton()
         return self.adjusting_entries_move_ids._get_records_action(
-            name="Adjusting Entries"
+            name=self.env._("Adjusting Entries")
         )
 
     @_debug.perf.timed
     def open_adjusting_entry_origin_moves(self):
         _debug.lifecycle("open_adjusting_entry_origin_moves", records=self)
         self.check_singleton()
-        label = (
-            self.adjusting_entry_origin_label
-            if len(self.adjusting_entries_move_ids) == 1
-            else "Invoices"
+        return self.adjusting_entry_origin_move_ids._get_records_action(
+            name=self.adjusting_entry_origin_label or self.env._("Invoices")
         )
-        return self.adjusting_entry_origin_move_ids._get_records_action(name=label)
 
     @_debug.perf.timed
     def action_switch_move_type(self):
@@ -6967,10 +6992,14 @@ class AccountMove(models.Model):
     def js_add_outstanding_line(self, line_id):
         _debug.lifecycle("js_add_outstanding_line", records=self)
         self.check_singleton()
-        counterpart_line = self.env["account.move.line"].browse(line_id).exists()
+        counterpart_line = (
+            self.env["account.move.line"]
+            .browse(line_id)
+            .exists()
+            .filtered_domain(self._get_outstanding_company_domain(self.company_id))
+        )
         if (
             not counterpart_line
-            or counterpart_line.company_id != self.company_id
             or counterpart_line.parent_state != "posted"
             or counterpart_line.reconciled
         ):
@@ -8048,10 +8077,6 @@ class AccountMove(models.Model):
 
     def _invoice_paid_hook(self):
         pass
-
-    @_debug.perf.timed
-    def _get_lines_onchange_currency(self):
-        return self.line_ids
 
     @api.model
     def _get_invoice_in_payment_state(self):

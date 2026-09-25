@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import markupsafe
 
 from odoo import Command, api, fields, models
+from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
@@ -203,18 +204,7 @@ class AccountMove(models.Model):
         matched_credits = self.line_ids.filtered(
             lambda line: line.account_id.account_type == "asset_receivable"
         ).matched_credit_ids
-        if matched_credits:
-            bank_line_amount = sum(matched_credits.mapped("amount"))
-            payment_date = max(matched_credits.mapped("max_date"))
-            amount_company = matched_credits[0].credit_currency_id._convert(
-                from_amount=bank_line_amount,
-                to_currency=self.company_id.currency_id,
-                company=self.company_id,
-                date=payment_date,
-            )
-            exclude_amount += amount_company
-
-        return exclude_amount
+        return exclude_amount + sum(matched_credits.mapped("amount"))
 
     @_debug.perf.timed
     def js_add_outstanding_line(self, line_id):
@@ -239,10 +229,22 @@ class AccountMove(models.Model):
     def js_remove_outstanding_partial(self, partial_id):
         _debug.lifecycle("js_remove_outstanding_partial", records=self)
         if st_line := self.statement_line_id:
-            partial = self.env["account.partial.reconcile"].browse(partial_id)
-            st_line.remove_reconciled_line(
-                (partial.credit_move_id + partial.debit_move_id).ids
+            self.check_singleton()
+            partial = self.env["account.partial.reconcile"].browse(partial_id).exists()
+            own_lines = (partial.credit_move_id + partial.debit_move_id) & self.line_ids
+            _debug.logic(
+                "statement_partial_removal",
+                move=self,
+                partial=partial,
+                own_lines=own_lines,
             )
+            if not own_lines:
+                raise UserError(
+                    self.env._(
+                        "This partial reconciliation does not concern this document."
+                    )
+                )
+            st_line.remove_reconciled_line(own_lines.ids)
         else:
             super().js_remove_outstanding_partial(partial_id)
 

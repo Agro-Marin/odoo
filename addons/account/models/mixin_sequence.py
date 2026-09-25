@@ -128,6 +128,12 @@ class MixinSequence(models.AbstractModel):
             self._get_sequence_cache().clear()
         return super().write(vals)
 
+    @_debug.perf.timed
+    def unlink(self):
+        _debug.lifecycle("unlink", unlink=self)
+        self._get_sequence_cache().clear()
+        return super().unlink()
+
     def _get_sequence_date_range(self, reset):
         ref_date = fields.Date.to_date(self[self._sequence_date_field])
         if reset in ("year", "year_range", "year_range_month"):

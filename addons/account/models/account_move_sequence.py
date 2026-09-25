@@ -20,40 +20,41 @@ class AccountMove(models.Model):
     def _is_date_sequence_check_required(self):
         return self.state == "posted" and not self.quick_edit_mode
 
-    def _get_domain_reference_move(self, is_payment):
-        domain = [
-            ("journal_id", "=", self.journal_id.id),
-            ("id", "!=", self.id or self._origin.id),
-            ("name", "not in", ("/", "", False)),
-        ]
+    def _get_sequence_kind_domain(self, is_payment):
+        domain = Domain.TRUE
         if self.journal_id.refund_sequence:
             refund_types = ("out_refund", "in_refund")
-            domain += [
-                (
-                    "move_type",
-                    "in" if self.move_type in refund_types else "not in",
-                    refund_types,
-                )
-            ]
+            domain &= Domain(
+                "move_type",
+                "in" if self.move_type in refund_types else "not in",
+                refund_types,
+            )
         if self.journal_id.payment_sequence:
-            domain += [("payment_ids", "!=" if is_payment else "=", False)]
+            domain &= Domain("payment_ids", "!=" if is_payment else "=", False)
         if self.journal_id.is_self_billing:
-            if self.partner_id:
-                domain += [
-                    (
-                        "commercial_partner_id",
-                        "=",
-                        self.partner_id.commercial_partner_id.id,
-                    )
-                ]
-            else:
-                domain += [(0, "=", 1)]
+            domain &= (
+                Domain(
+                    "commercial_partner_id",
+                    "=",
+                    self.partner_id.commercial_partner_id.id,
+                )
+                if self.partner_id
+                else Domain.FALSE
+            )
+        return domain
+
+    def _get_domain_reference_move(self, is_payment):
+        domain = (
+            Domain("journal_id", "=", self.journal_id.id)
+            & Domain("id", "!=", self.id or self._origin.id)
+            & Domain("name", "not in", ("/", "", False))
+            & self._get_sequence_kind_domain(is_payment)
+        )
         _debug.logic(
             "reference_domain_built",
             move=self,
             journal=self.journal_id,
             is_payment=is_payment,
-            clauses=len(domain),
         )
         return domain
 
@@ -77,14 +78,14 @@ class AccountMove(models.Model):
     def _get_strict_last_sequence_domain(self, is_payment):
         domain = self._get_domain_reference_move(is_payment)
         memo = _last_sequence_memo(self._name)(self.env)
-        key = ("reference_move_name", Domain(domain), self.date)
+        key = ("reference_move_name", domain, self.date)
         if key in memo:
             reference_move_name = memo[key]
         else:
             reference_move_name = (
                 self.sudo()
                 .search(
-                    domain + [("date", "<=", self.date)], order="date desc", limit=1
+                    domain & Domain("date", "<=", self.date), order="date desc", limit=1
                 )
                 .name
             )
@@ -143,25 +144,7 @@ class AccountMove(models.Model):
         if not relaxed:
             domain &= self._get_strict_last_sequence_domain(is_payment)
 
-        if self.journal_id.refund_sequence:
-            refund_types = ("out_refund", "in_refund")
-            domain &= Domain(
-                "move_type",
-                "in" if self.move_type in refund_types else "not in",
-                refund_types,
-            )
-        elif self.journal_id.payment_sequence:
-            domain &= Domain("payment_ids", "!=" if is_payment else "=", False)
-
-        if self.journal_id.is_self_billing:
-            if self.partner_id:
-                domain &= Domain(
-                    "commercial_partner_id",
-                    "=",
-                    self.partner_id.commercial_partner_id.id,
-                )
-            else:
-                domain = Domain.FALSE
+        domain &= self._get_sequence_kind_domain(is_payment)
         _debug.logic(
             "last_sequence_domain_built",
             seq_model=self._name,

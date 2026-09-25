@@ -64,7 +64,9 @@ class ProductRibbon(models.Model):
                 raise ValidationError(
                     self.env._(
                         "Only one ribbon with the assign %s is allowed.",
-                        dict(self._fields["assign"].selection).get(ribbon.assign),
+                        dict(
+                            self._fields["assign"]._description_selection(self.env)
+                        ).get(ribbon.assign),
                     )
                 )
 

@@ -52,7 +52,7 @@
                         t-value="o.reconciled_invoice_ids or o.reconciled_bill_ids" />
                     <t
                         t-set="partials_per_invoice"
-                        t-value="{inv.id: inv._get_reconciled_invoices_partials()[0] for inv in invoices}" />
+                        t-value="{inv.id: inv._get_reconciled_invoices_partials() for inv in invoices}" />
                     <t
                         t-set="otherCurrency"
                         t-value="any(inv.currency_id != par[2].currency_id for inv in invoices for par in partials_per_invoice[inv.id])" />

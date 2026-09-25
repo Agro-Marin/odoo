@@ -85,7 +85,11 @@ class AccountMove(models.Model):
                         ),
                     }
                 )
-            self.deferred_move_ids |= reversed_moves
+            reversals_by_original = reversed_moves.grouped(
+                lambda reversal: reversal.reversed_entry_id.deferred_original_move_ids
+            )
+            for originals, reversals in reversals_by_original.items():
+                originals.deferred_move_ids |= reversals
         return super().action_draft()
 
     @_debug.perf.timed
@@ -96,7 +100,8 @@ class AccountMove(models.Model):
                 move._is_protected_by_audit_trail() and move.deferred_original_move_ids
             )
         )
-        deferral_moves.deferred_original_move_ids.deferred_move_ids = False
+        for original in deferral_moves.deferred_original_move_ids:
+            original.deferred_move_ids -= deferral_moves
         deferral_moves._reverse_moves()
         return super(AccountMove, self - deferral_moves).unlink()
 
@@ -359,10 +364,10 @@ class AccountMove(models.Model):
             deferred_amounts = self._get_deferred_amounts_by_line(
                 line, [period], deferred_type, company=self.company_id
             )[0]
-            balance = (
+            balance = line.company_currency_id.round(
                 deferred_amounts[period] if force_balance is None else force_balance
             )
-            remaining_balance -= line.currency_id.round(balance)
+            remaining_balance -= balance
             moves_vals.append({**move_vals, "date": period[1]})
             lines_vals.append(
                 [

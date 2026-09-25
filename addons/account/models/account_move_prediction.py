@@ -36,7 +36,7 @@ class AccountMoveLine(models.Model):
             ],
             bypass_access=True,
         )
-        move_query.order = SQL("account_move.invoice_date")
+        move_query.order = SQL("account_move.invoice_date DESC, account_move.id DESC")
         move_query.limit = int(
             self.env["ir.config_parameter"]
             .sudo()

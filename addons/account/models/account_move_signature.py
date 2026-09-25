@@ -17,12 +17,7 @@ class AccountMove(models.Model):
     show_signature_area = fields.Boolean(compute="_compute_signature_area")
     signature = fields.Binary(compute="_compute_signature_area")
 
-    @api.depends(
-        "state",
-        "move_type",
-        "invoice_user_id",
-        "company_id.account_config_id.signing_user",
-    )
+    @api.depends("state", "move_type", "invoice_user_id")
     @api.depends_context("uid")
     @_debug.perf.timed
     def _compute_signing_user(self):

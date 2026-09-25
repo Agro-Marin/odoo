@@ -1908,12 +1908,12 @@
                                         name="preferred_payment_channel_id"
                                         string="Payment Method"
                                         domain="[('payment_type', '=', 'inbound'), ('company_id', 'parent_of', company_id)]"
-                                        invisible="move_type in ('in_invoice', 'in_refund', 'in_receipt')" />
+                                        invisible="move_type in ('in_invoice', 'out_refund', 'in_receipt')" />
                                     <field
                                         name="preferred_payment_channel_id"
                                         string="Payment Method"
                                         domain="[('payment_type', '=', 'outbound'), ('company_id', 'parent_of', company_id)]"
-                                        invisible="move_type in ('out_invoice', 'out_refund', 'out_receipt')" />
+                                        invisible="move_type in ('out_invoice', 'in_refund', 'out_receipt')" />
                                     <field
                                         name="invoice_cash_rounding_id"
                                         groups="account.group_cash_rounding"

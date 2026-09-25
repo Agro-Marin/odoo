@@ -57,7 +57,7 @@ class AccountMove(models.Model):
                     move.closing_return_id.message_post(
                         body=self.env._(
                             "Closing entry deleted for company %s",
-                            move.closing_return_id.company_id,
+                            move.company_id.display_name,
                         ),
                         message_type="comment",
                     )

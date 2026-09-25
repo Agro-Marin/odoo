@@ -191,7 +191,9 @@ class ResPartner(models.Model):
     )
     invoice_edi_format_store = fields.Char(company_dependent=True)
     display_invoice_edi_format = fields.Boolean(
-        default=lambda self: len(self._fields["invoice_edi_format"].selection),
+        default=lambda self: len(
+            self._fields["invoice_edi_format"]._description_selection(self.env)
+        ),
         store=False,
     )
     invoice_template_pdf_report_id = fields.Many2one(

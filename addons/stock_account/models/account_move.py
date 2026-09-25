@@ -27,9 +27,6 @@ class AccountMove(models.Model):
         " The latest posted one is the cursor the next closing starts from.",
     )
 
-    def _get_lines_onchange_currency(self):
-        return self.line_ids.filtered(lambda l: l.display_type != "cogs")
-
     def copy_data(self, default=None):
         vals_list = super().copy_data(default=default)
 

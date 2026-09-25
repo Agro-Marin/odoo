@@ -24,12 +24,6 @@ class AccountMove(models.Model):
             return ["name", "date", "journal_id", "company_id"]
         raise NotImplementedError(f"hash_version={hash_version} doesn't exist")
 
-    def _get_integrity_hash_fields_and_subfields(self):
-        return self._get_fields_integrity_hash() + [
-            f"line_ids.{subfield}"
-            for subfield in self.line_ids._get_fields_integrity_hash()
-        ]
-
     @api.model
     def _get_domain_move_hash(self, common_domain=False, force_hash=False):
         domain = Domain(common_domain or Domain.TRUE) & Domain("state", "=", "posted")

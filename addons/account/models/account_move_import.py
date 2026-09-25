@@ -1,7 +1,7 @@
 import logging
 from contextlib import contextmanager
 
-from odoo import api, models
+from odoo import models
 from odoo.exceptions import UserError
 from odoo.fields import Command
 from odoo.libs.debug_log import DebugLog
@@ -65,8 +65,6 @@ class AccountMove(models.Model):
                     "Failed to notify invoice subscribers after EDI import."
                 )
 
-        self._post_process_link_to_purchase_order(self)
-
         return res
 
     @contextmanager
@@ -90,10 +88,6 @@ class AccountMove(models.Model):
         if self.invoice_line_ids:
             return self.env._("The invoice already contains lines.")
         return None
-
-    @api.model
-    def _post_process_link_to_purchase_order(self, invoice):
-        pass
 
     @_debug.perf.timed
     def _prepare_edi_vals_to_export(self):

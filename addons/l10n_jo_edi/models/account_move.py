@@ -139,15 +139,20 @@ class AccountMove(models.Model):
                 if move.partner_id.is_company or move.partner_id.parent_id
                 else "cash"
             )
+            channels_field = (
+                "inbound_payment_channel_ids"
+                if move.is_inbound()
+                else "outbound_payment_channel_ids"
+            )
             journal = self.env["account.journal"].search(  # noqa: E8507 - one lookup per move, on its own company and partner type
                 [
                     ("type", "=", expected_type),
                     ("company_id", "=", move.company_id.id),
-                    ("inbound_payment_channel_ids", "!=", False),
+                    (channels_field, "!=", False),
                 ],
                 limit=1,
             )
-            if journal and (payment_channel := journal.inbound_payment_channel_ids[0]):
+            if journal and (payment_channel := journal[channels_field][:1]):
                 move.preferred_payment_channel_id = payment_channel
 
     def download_l10n_jo_edi_computed_xml(self):

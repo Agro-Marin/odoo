@@ -74,7 +74,7 @@ class AccountMove(models.Model):
 
     def _get_cash_rounding_profit_loss_account(self, diff_balance):
         self.check_singleton()
-        cash_rounding = self.invoice_cash_rounding_id
+        cash_rounding = self.invoice_cash_rounding_id.with_company(self.company_id)
         if diff_balance > 0.0 and cash_rounding.loss_account_id:
             return cash_rounding.loss_account_id
         return cash_rounding.profit_account_id
@@ -89,9 +89,6 @@ class AccountMove(models.Model):
             key=lambda line: abs(line.balance),
             default=self.env["account.move.line"],
         )
-
-    def _get_single_dynamic_line(self, lines):
-        return lines[:1]
 
     @_debug.perf.timed
     def _prepare_cash_rounding_line_vals(self, diff_balance, diff_amount_currency):
@@ -147,9 +144,9 @@ class AccountMove(models.Model):
     @_debug.perf.timed
     def _recompute_cash_rounding_lines(self):
         self.check_singleton()
-        existing_cash_rounding_line = self._get_single_dynamic_line(
-            self.line_ids.filtered(lambda line: line.display_type == "rounding")
-        )
+        existing_cash_rounding_line = self.line_ids.filtered(
+            lambda line: line.display_type == "rounding"
+        )[:1]
 
         if not self.invoice_cash_rounding_id:
             _debug.logic(
@@ -167,7 +164,13 @@ class AccountMove(models.Model):
                 if existing_cash_rounding_line.tax_line_id
                 else "add_invoice_line"
             )
-            if self.invoice_cash_rounding_id.strategy != old_strategy:
+            new_strategy = (
+                "biggest_tax"
+                if self.invoice_cash_rounding_id.strategy == "biggest_tax"
+                and self._get_biggest_tax_line()
+                else "add_invoice_line"
+            )
+            if new_strategy != old_strategy:
                 _debug.logic(
                     "cash_rounding_strategy_changed",
                     move=self,
@@ -259,11 +262,9 @@ class AccountMove(models.Model):
                 if had_tax and not has_tax(move):
                     detaxed_moves |= move
 
-                existing_balancing_line = self._get_single_dynamic_line(
-                    move.line_ids.filtered(
-                        lambda line: line.display_type == "balancing"
-                    )
-                )
+                existing_balancing_line = move.line_ids.filtered(
+                    lambda line: line.display_type == "balancing"
+                )[:1]
                 existing_balancing_lines |= existing_balancing_line
                 balancing_line_by_move[move] = existing_balancing_line
 
@@ -654,11 +655,9 @@ class AccountMove(models.Model):
             tax_updates=len(tax_results["tax_lines_to_update"]),
         )
 
-        non_deductible_tax_line = move._get_single_dynamic_line(
-            move.line_ids.filtered(
-                lambda line: line.display_type == "non_deductible_tax"
-            )
-        )
+        non_deductible_tax_line = move.line_ids.filtered(
+            lambda line: line.display_type == "non_deductible_tax"
+        )[:1]
         non_deductible_vals = self._prepare_non_deductible_tax_line_vals(
             move, base_lines_values
         )
@@ -796,20 +795,19 @@ class AccountMove(models.Model):
             )
 
         def has_non_deductible_lines(move):
-            return (
-                move.state == "draft"
-                and move.is_purchase_document(include_receipts=True)
-                and any(
-                    line._is_partially_deductible()
-                    for line in move.line_ids
-                    if line.display_type == "product"
-                )
+            return move.is_purchase_document(include_receipts=True) and any(
+                line._is_partially_deductible()
+                for line in move.line_ids
+                if line.display_type == "product"
             )
 
         def concerned(move):
-            return move.is_purchase_document(include_receipts=True) or any(
-                line.display_type in NON_DEDUCTIBLE_BASE_DISPLAY_TYPES
-                for line in move.line_ids
+            return move.state == "draft" and (
+                move.is_purchase_document(include_receipts=True)
+                or any(
+                    line.display_type in NON_DEDUCTIBLE_BASE_DISPLAY_TYPES
+                    for line in move.line_ids
+                )
             )
 
         def prepare():

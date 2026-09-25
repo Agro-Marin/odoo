@@ -44,9 +44,9 @@ class ResCompany(models.Model):
                 )
                 journals._l10n_sa_reset_certificates()
                 journals.l10n_sa_latest_submission_hash = False
-                api_mode = dict(self._fields["l10n_sa_api_mode"].selection).get(
-                    vals["l10n_sa_api_mode"]
-                )
+                api_mode = dict(
+                    self._fields["l10n_sa_api_mode"]._description_selection(self.env)
+                ).get(vals["l10n_sa_api_mode"])
                 for journal in journals.filtered(lambda j: j.type == "sale"):
                     journal.message_post(
                         body=self.env._("ZATCA API Mode changed to %s", api_mode)
