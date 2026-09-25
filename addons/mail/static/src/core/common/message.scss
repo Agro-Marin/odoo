@@ -192,7 +192,7 @@
 }
 
 .o-mail-Message-translated {
-    color: $o-enterprise-action-color;
+    color: o-token(--o-action, $o-enterprise-action-color);
 }
 
 @include media-only(screen) {

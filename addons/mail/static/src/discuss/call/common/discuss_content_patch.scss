@@ -12,7 +12,7 @@
                 background-color: o-palette-token(--o-gray-100, $gray-100) !important;
                 outline: 1px solid o-token-alpha(--success, $success, 0.25);
                 i {
-                    color: lighten($success, 5%) !important;
+                    color: o-token-lighten(--success, $success, 5%) !important;
                 }
             }
         }

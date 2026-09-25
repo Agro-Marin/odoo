@@ -31,7 +31,7 @@
     grid-template-rows: repeat(5, auto);
 
     .o_new_content_element_tile {
-        background: $popover-bg;
+        background: o-token(--o-popover-bg, $popover-bg);
         width: 2.5rem;
         min-width: 2.5rem;
         aspect-ratio: 1;

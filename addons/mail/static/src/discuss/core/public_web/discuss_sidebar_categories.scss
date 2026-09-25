@@ -10,7 +10,7 @@ $o-mail-DiscussSidebarChannel-borderOpacity: 0.05;
     &.o-bordered {
         background-color: var(
             ---mail-DiscussSidebarChannel-borderedBgColor,
-            mix($white, $dark, 98%)
+            #{o-token-mix(--o-white, $white, --dark, $dark, 98%)}
         ) !important;
     }
 }
@@ -137,8 +137,10 @@ $o-mail-DiscussSidebarChannel-borderOpacity: 0.05;
 
         &.o-mail-DiscussSidebarChannel,
         &.o-compact {
-            filter: drop-shadow(1px 2px 0px $white) drop-shadow(-1px 1px 0px $white)
-                drop-shadow(1px -1px 0px $white) drop-shadow(-1px -2px 0px $white);
+            filter: drop-shadow(1px 2px 0px o-token(--o-white, $white))
+                drop-shadow(-1px 1px 0px o-token(--o-white, $white))
+                drop-shadow(1px -1px 0px o-token(--o-white, $white))
+                drop-shadow(-1px -2px 0px o-token(--o-white, $white));
         }
     }
 
@@ -150,7 +152,7 @@ $o-mail-DiscussSidebarChannel-borderOpacity: 0.05;
 .o-mail-DiscussSidebarSubchannel svg {
     color: var(
         --mail-DiscussSidebarSubchannel-svgColor,
-        mix($gray-300, $gray-400, 75%)
+        #{o-token-mix(--o-gray-300, $gray-300, --o-gray-400, $gray-400, 75%)}
     );
     left: 22px;
     transform: scaleX(1) #{"/* rtl:scaleX(-1) */"};

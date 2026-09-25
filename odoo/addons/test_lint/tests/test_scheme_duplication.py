@@ -3,7 +3,6 @@ import base64
 import logging
 import operator
 import re
-from collections import Counter
 
 from odoo.tests import tagged
 
@@ -28,37 +27,6 @@ _KEYWORDS = {
     "black": "#000000",
     "#000": "#000000",
     "#fff": "#ffffff",
-}
-
-SINGLE_BUNDLE_GAP_FLOOR = {
-    "account": 4,
-    "account_edi_ubl_cii": 1,
-    "automation": 0,
-    "base_import": 1,
-    "calendar": 2,
-    "document": 11,
-    "event": 1,
-    "google_address_autocomplete": 1,
-    "hr_gamification": 1,
-    "hr_recruitment": 1,
-    "hr_skills_slides": 0,
-    "html_editor": 17,
-    "im_livechat": 4,
-    "mail": 52,
-    "mrp": 2,
-    "onboarding": 1,
-    "point_of_sale": 2,
-    "product": 1,
-    "project": 5,
-    "sale": 11,
-    "spreadsheet": 0,
-    "spreadsheet_dashboard": 2,
-    "stock": 1,
-    "survey": 1,
-    "web": 0,
-    "web_tour": 0,
-    "website": 13,
-    "website_sale": 1,
 }
 
 
@@ -150,17 +118,35 @@ def settle(declarations):
 def resolve(value, scope, depth=0):
     if depth > 12:
         return value
-
-    def substitute(match):
-        name, fallback = match.group(1), match.group(2)
+    out, index, changed = "", 0, False
+    while True:
+        start = value.find("var(", index)
+        if start < 0 or (
+            start and (value[start - 1].isalnum() or value[start - 1] in "-_")
+        ):
+            if start < 0:
+                out += value[index:]
+                break
+            out += value[index : start + 4]
+            index = start + 4
+            continue
+        end = _closing(value, start + 3)
+        if end < 0:
+            out += value[index:]
+            break
+        inner = value[start + 4 : end]
+        name, _, fallback = inner.partition(",")
+        name = name.strip()
         if name in scope:
-            return resolve(scope[name], scope, depth + 1)
-        return (
-            resolve(fallback.strip(), scope, depth + 1) if fallback else match.group(0)
-        )
-
-    substituted = VAR_RE.sub(substitute, value)
-    return value if substituted == value else resolve(substituted, scope, depth + 1)
+            replacement = resolve(scope[name], scope, depth + 1)
+        elif fallback.strip():
+            replacement = resolve(fallback.strip(), scope, depth + 1)
+        else:
+            replacement = value[start : end + 1]
+        changed = changed or replacement != value[start : end + 1]
+        out += value[index:start] + replacement
+        index = end + 1
+    return out if not changed else resolve(out, scope, depth + 1)
 
 
 def pick_dark(value):
@@ -213,11 +199,166 @@ def norm(value):
 # rewrite turns `mix()` or `rgba($x, .1)` into color-mix(), rgb(from ...) or
 # hsl(...), and the dark bundle serves the literal Sass computed.
 _COLOUR_FUNCTIONS = ("rgba", "rgb", "hsla", "hsl", "color-mix")
-_NAMED = {
-    "white": (255.0, 255.0, 255.0, 1.0),
-    "black": (0.0, 0.0, 0.0, 1.0),
-    "transparent": (0.0, 0.0, 0.0, 0.0),
+_NAMED_HEX = {
+    "aliceblue": "f0f8ff",
+    "antiquewhite": "faebd7",
+    "aqua": "00ffff",
+    "aquamarine": "7fffd4",
+    "azure": "f0ffff",
+    "beige": "f5f5dc",
+    "bisque": "ffe4c4",
+    "black": "000000",
+    "blanchedalmond": "ffebcd",
+    "blue": "0000ff",
+    "blueviolet": "8a2be2",
+    "brown": "a52a2a",
+    "burlywood": "deb887",
+    "cadetblue": "5f9ea0",
+    "chartreuse": "7fff00",
+    "chocolate": "d2691e",
+    "coral": "ff7f50",
+    "cornflowerblue": "6495ed",
+    "cornsilk": "fff8dc",
+    "crimson": "dc143c",
+    "cyan": "00ffff",
+    "darkblue": "00008b",
+    "darkcyan": "008b8b",
+    "darkgoldenrod": "b8860b",
+    "darkgray": "a9a9a9",
+    "darkgreen": "006400",
+    "darkgrey": "a9a9a9",
+    "darkkhaki": "bdb76b",
+    "darkmagenta": "8b008b",
+    "darkolivegreen": "556b2f",
+    "darkorange": "ff8c00",
+    "darkorchid": "9932cc",
+    "darkred": "8b0000",
+    "darksalmon": "e9967a",
+    "darkseagreen": "8fbc8f",
+    "darkslateblue": "483d8b",
+    "darkslategray": "2f4f4f",
+    "darkslategrey": "2f4f4f",
+    "darkturquoise": "00ced1",
+    "darkviolet": "9400d3",
+    "deeppink": "ff1493",
+    "deepskyblue": "00bfff",
+    "dimgray": "696969",
+    "dimgrey": "696969",
+    "dodgerblue": "1e90ff",
+    "firebrick": "b22222",
+    "floralwhite": "fffaf0",
+    "forestgreen": "228b22",
+    "fuchsia": "ff00ff",
+    "gainsboro": "dcdcdc",
+    "ghostwhite": "f8f8ff",
+    "gold": "ffd700",
+    "goldenrod": "daa520",
+    "gray": "808080",
+    "green": "008000",
+    "greenyellow": "adff2f",
+    "grey": "808080",
+    "honeydew": "f0fff0",
+    "hotpink": "ff69b4",
+    "indianred": "cd5c5c",
+    "indigo": "4b0082",
+    "ivory": "fffff0",
+    "khaki": "f0e68c",
+    "lavender": "e6e6fa",
+    "lavenderblush": "fff0f5",
+    "lawngreen": "7cfc00",
+    "lemonchiffon": "fffacd",
+    "lightblue": "add8e6",
+    "lightcoral": "f08080",
+    "lightcyan": "e0ffff",
+    "lightgoldenrodyellow": "fafad2",
+    "lightgray": "d3d3d3",
+    "lightgreen": "90ee90",
+    "lightgrey": "d3d3d3",
+    "lightpink": "ffb6c1",
+    "lightsalmon": "ffa07a",
+    "lightseagreen": "20b2aa",
+    "lightskyblue": "87cefa",
+    "lightslategray": "778899",
+    "lightslategrey": "778899",
+    "lightsteelblue": "b0c4de",
+    "lightyellow": "ffffe0",
+    "lime": "00ff00",
+    "limegreen": "32cd32",
+    "linen": "faf0e6",
+    "magenta": "ff00ff",
+    "maroon": "800000",
+    "mediumaquamarine": "66cdaa",
+    "mediumblue": "0000cd",
+    "mediumorchid": "ba55d3",
+    "mediumpurple": "9370db",
+    "mediumseagreen": "3cb371",
+    "mediumslateblue": "7b68ee",
+    "mediumspringgreen": "00fa9a",
+    "mediumturquoise": "48d1cc",
+    "mediumvioletred": "c71585",
+    "midnightblue": "191970",
+    "mintcream": "f5fffa",
+    "mistyrose": "ffe4e1",
+    "moccasin": "ffe4b5",
+    "navajowhite": "ffdead",
+    "navy": "000080",
+    "oldlace": "fdf5e6",
+    "olive": "808000",
+    "olivedrab": "6b8e23",
+    "orange": "ffa500",
+    "orangered": "ff4500",
+    "orchid": "da70d6",
+    "palegoldenrod": "eee8aa",
+    "palegreen": "98fb98",
+    "paleturquoise": "afeeee",
+    "palevioletred": "db7093",
+    "papayawhip": "ffefd5",
+    "peachpuff": "ffdab9",
+    "peru": "cd853f",
+    "pink": "ffc0cb",
+    "plum": "dda0dd",
+    "powderblue": "b0e0e6",
+    "purple": "800080",
+    "rebeccapurple": "663399",
+    "red": "ff0000",
+    "rosybrown": "bc8f8f",
+    "royalblue": "4169e1",
+    "saddlebrown": "8b4513",
+    "salmon": "fa8072",
+    "sandybrown": "f4a460",
+    "seagreen": "2e8b57",
+    "seashell": "fff5ee",
+    "sienna": "a0522d",
+    "silver": "c0c0c0",
+    "skyblue": "87ceeb",
+    "slateblue": "6a5acd",
+    "slategray": "708090",
+    "slategrey": "708090",
+    "snow": "fffafa",
+    "springgreen": "00ff7f",
+    "steelblue": "4682b4",
+    "tan": "d2b48c",
+    "teal": "008080",
+    "thistle": "d8bfd8",
+    "tomato": "ff6347",
+    "turquoise": "40e0d0",
+    "violet": "ee82ee",
+    "wheat": "f5deb3",
+    "white": "ffffff",
+    "whitesmoke": "f5f5f5",
+    "yellow": "ffff00",
+    "yellowgreen": "9acd32",
 }
+_NAMED = {
+    name: (
+        float(int(code[0:2], 16)),
+        float(int(code[2:4], 16)),
+        float(int(code[4:6], 16)),
+        1.0,
+    )
+    for name, code in _NAMED_HEX.items()
+}
+_NAMED["transparent"] = (0.0, 0.0, 0.0, 0.0)
 _HEX_RE = re.compile(r"#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{4}|[0-9a-f]{3})\b")
 
 
@@ -283,6 +424,8 @@ def _calc(expression, channels):
 
 def _number(token, scale=1.0):
     token = token.strip()
+    if token.startswith("calc("):
+        return _calc(token, {})
     if token.endswith("%"):
         return float(token[:-1]) * scale / 100
     return float(token)
@@ -464,6 +607,32 @@ def canonical_colours(value):
     return out
 
 
+_CANONICAL_RE = re.compile(r"rgb\((\d+),(\d+),(\d+)((?:,[0-9.]+)?)\)")
+
+
+def same_paint(left, right):
+    # Sass and the browser can land on either side of a .5 channel -- darken()
+    # of #ff453a is exactly 236.5 red -- so one 8-bit step is the same paint
+    if left == right:
+        return True
+    if _CANONICAL_RE.sub("rgb()", left) != _CANONICAL_RE.sub("rgb()", right):
+        return False
+    pairs = zip(
+        _CANONICAL_RE.finditer(left), _CANONICAL_RE.finditer(right), strict=True
+    )
+    return all(
+        a.group(4) == b.group(4)
+        and all(abs(int(a.group(i)) - int(b.group(i))) <= 1 for i in (1, 2, 3))
+        for a, b in pairs
+    )
+
+
+def unscoped(part):
+    if DARK_SELECTOR_RE.fullmatch(part.strip()):
+        return ":root"
+    return DARK_SCOPE_RE.sub("", part)
+
+
 def measure(light_css, dark_css):
     light = settle(parse(light_css))
     dark = settle(parse(dark_css))
@@ -480,14 +649,14 @@ def measure(light_css, dark_css):
     scoped = {}
     for _, selector, prop, value in light:
         parts = split_selector(selector)
-        stripped = [DARK_SCOPE_RE.sub("", part) for part in parts]
+        stripped = [unscoped(part) for part in parts]
         if parts and all(a != b for a, b in zip(parts, stripped, strict=True)):
             scoped[(",".join(stripped), prop)] = value
 
     dark_scoped = set()
     for _, selector, prop, _value in dark:
         parts = split_selector(selector)
-        stripped = [DARK_SCOPE_RE.sub("", part) for part in parts]
+        stripped = [unscoped(part) for part in parts]
         if parts and all(a != b for a, b in zip(parts, stripped, strict=True)):
             dark_scoped.add((",".join(stripped), prop))
 
@@ -513,7 +682,7 @@ def measure(light_css, dark_css):
         wanted = pick_dark(resolve(wanted, dark_root))
         if is_mask(prop):
             single, wanted = flatten_opaque(single), flatten_opaque(wanted)
-        if norm(single) == norm(wanted):
+        if same_paint(norm(single), norm(wanted)):
             answered += 1
         else:
             gap.append((origin[key], selector, prop))
@@ -553,91 +722,45 @@ class TestSchemeDuplication(lint_case.LintCase):
             f"scheme scope if it has to answer both:\n  " + "\n  ".join(offenders),
         )
 
-    def test_the_single_bundle_gap_does_not_grow(self):
+    def test_the_light_bundle_answers_the_dark_scheme_alone(self):
         with self.superuser_env() as env:
-            self._require_the_floors_can_be_exercised(env)
             gap, answered, light, dark = self._measure(env)
 
         self.assertGreater(
             min(light, dark),
             12000,
             f"assets_web compiled {light} declarations and assets_web_dark "
-            f"{dark}. Something did not compile -- every floor below is being "
-            f"measured against a partial bundle and will pass for the wrong "
+            f"{dark}. Something did not compile -- the comparison below is "
+            f"being made against a partial bundle and passes for the wrong "
             f"reason.",
         )
-        _logger.info(
-            "assets_web %s declarations, assets_web_dark %s: %s declarations would "
-            "still be wrong under one stylesheet, %s the attribute already answers",
-            light,
-            dark,
-            len(gap),
+        self.assertGreater(
             answered,
+            1000,
+            f"only {answered} declarations were answered under the attribute, so "
+            f"the bundles did not carry the dark scope they should",
         )
         core = lint_case.core_module_names()
-        by_module = Counter(
-            module
-            for source, _, _ in gap
-            if (module := source.strip("/").split("/")[0]) in core
+        offenders = sorted(
+            f"{source} {selector} {prop}"
+            for source, selector, prop in gap
+            if source.strip("/").split("/")[0] in core
         )
-        _logger.info("worst modules: %s", by_module.most_common(8))
-        by_file = Counter(source for source, _, _ in gap)
-        _logger.info("worst files: %s", by_file.most_common(6))
-
-        offenders = []
-        for module, count in sorted(by_module.items()):
-            floor = SINGLE_BUNDLE_GAP_FLOOR.get(module)
-            if floor is None:
-                offenders.append(f"{module}: {count}, in a module that had none")
-            elif count > floor:
-                offenders.append(f"{module}: {count}, floor is {floor}")
-        under = sorted(
-            f"{module} {by_module.get(module, 0)}/{floor}"
-            for module, floor in SINGLE_BUNDLE_GAP_FLOOR.items()
-            if module in by_module and by_module[module] < floor
-        )
-        if under:
-            _logger.info("under the floor on this install: %s", ", ".join(under))
-        unreachable = sorted(set(SINGLE_BUNDLE_GAP_FLOOR) - set(by_module))
         _logger.info(
-            "%s of %s floors were exercised on this install; %s were not: %s",
-            len(SINGLE_BUNDLE_GAP_FLOOR) - len(unreachable),
-            len(SINGLE_BUNDLE_GAP_FLOOR),
-            len(unreachable),
-            ", ".join(unreachable),
-        )
-        self.assertIn(
-            "web",
-            by_module,
-            "no `web` declarations were measured, so every floor below passed "
-            "for the wrong reason -- the bundles did not carry what they should",
+            "assets_web %s declarations, assets_web_dark %s: %s answered under "
+            "the attribute, %s outside this repository still differ",
+            light,
+            dark,
+            answered,
+            len(gap) - len(offenders),
         )
         self.assertFalse(
             offenders,
-            f"{len(offenders)} module(s) put more between this fork and a single "
-            f"stylesheet than the committed floor. A declaration counted here is "
-            f'one a light bundle under `data-color-scheme="dark"` resolves '
-            f"differently from what the dark bundle serves:\n  "
+            f'{len(offenders)} declaration(s) resolve differently under `data-color-scheme="dark"` '
+            f"in the light bundle from what the dark bundle serves. Answer the "
+            f"scheme with a token, or restate the declaration in the module's "
+            f"backend-only scheme rules (coding_guidelines §5.5):\n  "
             + "\n  ".join(offenders),
-        )
-
-    def _require_the_floors_can_be_exercised(self, env):
-        installed = set(
-            env["ir.module.module"].search([("state", "=", "installed")]).mapped("name")
-        )
-        missing = sorted(set(SINGLE_BUNDLE_GAP_FLOOR) - installed)
-        if missing:
-            self.skipTest(
-                f"{len(missing)} of {len(SINGLE_BUNDLE_GAP_FLOOR)} floored "
-                f"module(s) are not installed, so their floors would pass by "
-                f"describing an absence. Run this on a database that installs "
-                f"every floored module. Missing: {', '.join(missing)}"
-            )
-
-    def test_every_floor_names_a_module_that_exists(self):
-        self.assertFalse(
-            sorted(set(SINGLE_BUNDLE_GAP_FLOOR) - lint_case.core_module_names()),
-            "these floors name a module that is not in this repository",
         )
 
     def test_the_measurement_survives_a_brace_in_a_string(self):
@@ -700,6 +823,13 @@ class TestSchemeDuplication(lint_case.LintCase):
             ':root[data-color-scheme="dark"]',
         )
 
+    def test_the_attribute_alone_scopes_the_root(self):
+        gap, answered, _, _ = measure(
+            ':root{color-scheme:light}:root[data-color-scheme="dark"]{color-scheme:dark}',
+            ":root{color-scheme:dark}",
+        )
+        self.assertEqual((gap, answered), ([], 1))
+
     def test_bootstraps_own_colour_mode_is_not_counted(self):
         self.assertTrue(unreachable('[data-bs-theme="dark"]'))
         self.assertTrue(unreachable("[data-bs-theme=dark] .card"))
@@ -741,9 +871,30 @@ class TestSchemeDuplication(lint_case.LintCase):
             norm("rgba(0, 113, 227, 0.1)"),
         )
         self.assertEqual(norm("hsl(from #0071e3 h s calc(l - 10%))"), norm("#0058b0"))
+        self.assertEqual(
+            norm("rgba(0, 0, 0, calc(0.055 * 2))"), norm("rgba(0, 0, 0, 0.11)")
+        )
+        self.assertTrue(
+            same_paint(norm("1px solid #ed0d00"), norm("1px solid #ec0d00"))
+        )
+        self.assertFalse(
+            same_paint(norm("1px solid #ee0d00"), norm("1px solid #ec0d00"))
+        )
+        self.assertFalse(
+            same_paint(norm("2px solid #ec0d00"), norm("1px solid #ec0d00"))
+        )
         self.assertNotEqual(norm("rgba(245,245,247,.11)"), norm("rgba(245,245,247,.2)"))
         unresolved = "color-mix(in srgb, var(--x) 50%, #000)"
         self.assertEqual(norm(unresolved), unresolved)
         self.assertEqual(norm("white-space"), "white-space")
         self.assertEqual(norm("0 .5rem 1rem"), norm("0 0.5rem 1rem"))
         self.assertEqual(norm("rgba(48, 48, 48, 0)"), norm("transparent"))
+        self.assertEqual(
+            norm("color-mix(in srgb, purple 50%, white)"), norm("rgb(192,128,192)")
+        )
+        self.assertEqual(
+            resolve(
+                "var(--x, hsl(from var(--y, #000) h s calc(l + 20)))", {"--y": "#fff"}
+            ),
+            "hsl(from #fff h s calc(l + 20))",
+        )

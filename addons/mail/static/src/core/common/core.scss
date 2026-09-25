@@ -32,7 +32,7 @@ $o-discuss-talkingColor: lighten($success, 10%);
 .o-discuss-badge {
     &,
     & .o-innerBadge {
-        --o-discuss-badge-bg: #{$o-danger};
+        --o-discuss-badge-bg: #{o-palette-token(--danger, $o-danger)};
         color: white !important;
         background-color: var(--o-discuss-badge-bg) !important;
         align-items: center;
@@ -320,8 +320,12 @@ $o-mail-utilities: map-merge(
 }
 
 @mixin o-mail-call-bordered($opacity) {
-    border: 1px solid rgba($o-action, $opacity) !important;
-    background-color: mix(mix($white, $gray-100, 15%), $o-action, 97.5%) !important;
+    border: 1px solid rgba(var(--o-action-rgb, #{to-rgb($o-action)}), $opacity) !important;
+    background-color: color-mix(
+        in srgb,
+        #{o-palette-token-mix(--o-white, $white, --o-gray-100, $gray-100, 15%)} 97.5%,
+        #{o-token(--o-action, $o-action)}
+    ) !important;
 }
 
 @mixin o-mention-variant(
@@ -454,7 +458,7 @@ a.o-discuss-mention {
 }
 
 .o-mail-DiscussSystray {
-    --border-color: #{$o-gray-300} !important;
+    --border-color: #{o-token(--o-gray-300, $o-gray-300)} !important;
 }
 
 .o-mail-DiscussSystray-class {

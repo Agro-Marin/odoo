@@ -110,6 +110,7 @@ that reach sales orders only through another application.
             "sale/static/src/js/sale_utils.js",
             "sale/static/src/xml/**/*",
             "sale/static/src/views/**/*",
+            "sale/static/src/scss/sale.scheme_rules.scss",
         ],
         "web.assets_frontend": [
             "sale/static/src/interactions/**/*",

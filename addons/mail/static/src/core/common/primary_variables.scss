@@ -27,7 +27,7 @@ $o-mail-CallMenu-bgColor-lighter: #374151ff !default;
 
 @mixin o-FileViewer-arrow {
     background-color: rgba(black, 0.4);
-    color: rgba(map-get($theme-colors, "light"), 0.7);
+    color: o-token-alpha(--light, map-get($theme-colors, "light"), 0.7);
 
     &:hover {
         background-color: rgba(black, 0.6);

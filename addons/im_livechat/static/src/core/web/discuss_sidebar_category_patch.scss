@@ -22,7 +22,9 @@
             )};
     }
     .o-mail-DiscussSidebarChannel:hover &.bg-info {
-        --background-color: #{mix($o-webclient-background-color, $purple, 80%)};
+        --background-color: #{unquote(
+                "color-mix(in srgb, #{o-palette-token(--body-bg, $o-webclient-background-color)} 80%, #{$purple})"
+            )};
     }
 
     .o-mail-DiscussSidebarChannel.o-active &.bg-warning {
@@ -32,7 +34,9 @@
         --border-color: #{o-token-alpha(--warning, $warning, 0.75)};
     }
     .o-mail-DiscussSidebarChannel.o-active &.bg-info {
-        --background-color: #{mix($o-webclient-background-color, $purple, 90%)};
+        --background-color: #{unquote(
+                "color-mix(in srgb, #{o-palette-token(--body-bg, $o-webclient-background-color)} 90%, #{$purple})"
+            )};
         --border-color: #{rgba($indigo, 0.75)};
     }
 }

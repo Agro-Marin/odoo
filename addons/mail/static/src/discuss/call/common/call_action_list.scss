@@ -5,11 +5,12 @@
 @include media-only(screen) {
     :root[data-color-scheme="dark"] {
         .o-discuss-CallActionList-pushToTalk {
-            @include button-variant(
+            @include o-scheme-button-variant(
                 $o-dark-bs-primary,
                 $o-dark-bs-primary,
-                $active-background: $o-dark-gray-200,
-                $active-border: $o-dark-gray-200
+                o-dark-scheme(),
+                $-active-background: $o-dark-gray-200,
+                $-active-border: $o-dark-gray-200
             );
         }
     }

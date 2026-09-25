@@ -1,4 +1,4 @@
 .o-livechat-LivechatCommandDialog-form:focus-within {
-    border-color: $input-focus-border-color;
+    border-color: o-token(--o-input-focus-border, $input-focus-border-color);
     color: $input-focus-color;
 }

@@ -29,9 +29,16 @@
     .form-control:focus,
     .form-select:focus,
     .form-check-input:focus {
-        border-color: $input-focus-border-color !important;
+        border-color: o-token(
+            --o-input-focus-border,
+            $input-focus-border-color
+        ) !important;
         box-shadow: 0 0 0 $focus-ring-width
-            rgba($input-focus-border-color, $focus-ring-opacity);
+            o-token-alpha(
+                --o-input-focus-border,
+                $input-focus-border-color,
+                $focus-ring-opacity
+            );
     }
 
     .o_link_popover_container {

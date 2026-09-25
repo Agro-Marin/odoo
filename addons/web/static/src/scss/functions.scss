@@ -91,6 +91,48 @@ $o-bootstrap-follows-palette: false !default;
     );
 }
 
+@function o-token-mix($-name, $-fallback, $-other-name, $-other-fallback, $-weight) {
+    @return unquote(
+        "color-mix(in srgb, var(#{$-name}, #{$-fallback}) #{$-weight}, var(#{$-other-name}, #{$-other-fallback}))"
+    );
+}
+
+@function o-token-with-alpha($-name, $-fallback, $-alpha) {
+    @return unquote("rgb(from var(#{$-name}, #{$-fallback}) r g b / #{$-alpha})");
+}
+
+@function o-token-darken($-name, $-fallback, $-amount) {
+    @return unquote(
+        "hsl(from var(#{$-name}, #{$-fallback}) h s calc(l - #{o-strip-unit($-amount)}))"
+    );
+}
+
+@function o-token-link-shade($-name, $-fallback) {
+    @return unquote(
+        "hsl(from var(#{$-name}, #{$-fallback}) h s calc(l - var(--o-link-shade, #{o-strip-unit($link-shade-percentage)})))"
+    );
+}
+
+@function o-token-lighten($-name, $-fallback, $-amount) {
+    @return unquote(
+        "hsl(from var(#{$-name}, #{$-fallback}) h s calc(l + #{o-strip-unit($-amount)}))"
+    );
+}
+
+@function o-palette-token-mix(
+    $-name,
+    $-fallback,
+    $-other-name,
+    $-other-fallback,
+    $-weight
+) {
+    @return if(
+        $o-bootstrap-follows-palette,
+        o-token-mix($-name, $-fallback, $-other-name, $-other-fallback, $-weight),
+        mix($-fallback, $-other-fallback, $-weight)
+    );
+}
+
 @function o-palette-token-alpha($-name, $-fallback, $-alpha) {
     @return if(
         $o-bootstrap-follows-palette,

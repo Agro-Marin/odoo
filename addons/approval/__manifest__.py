@@ -75,13 +75,6 @@ activities to a substitute for a dated window; escalation reminds by priority.
             "approval/static/src/web/**",
             "approval/static/src/views/**",
             "approval/static/src/scss/**",
-            (
-                "remove",
-                "approval/static/src/scss/*.dark.scss",
-            ),
-        ],
-        "web.assets_web_dark": [
-            "approval/static/src/scss/approval.dark.scss",
         ],
         "mail.assets_public": [
             "approval/static/src/common/**",

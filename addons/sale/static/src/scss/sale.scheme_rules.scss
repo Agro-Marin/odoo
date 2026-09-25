@@ -1,0 +1,33 @@
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o_sale_product_configurator_uom_choice.active label {
+            $-design: map-get($o-dark-btns-bs-override, "secondary");
+
+            background-color: map-get($-design, active-background);
+            border-color: map-get($-design, active-border);
+            color: map-get($-design, active-color);
+        }
+
+        .o_sale_product_configurator_ptav_pills.active label {
+            $-design: map-get($o-dark-btns-bs-override, "secondary");
+
+            background-color: map-get($-design, active-background);
+            border-color: map-get($-design, active-border);
+            color: map-get($-design, active-color);
+        }
+
+        .o_sale_product_configurator_ptav_color.css_not_available:after {
+            background: o-sale-unavailable-strike(
+                map-get($o-dark-theme-colors, "danger")
+            );
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        .o_sale_product_configurator_ptav_image.css_not_available:after {
+            background-image: o-sale-unavailable-strike(
+                map-get($o-dark-theme-colors, "danger")
+            );
+        }
+    }
+}

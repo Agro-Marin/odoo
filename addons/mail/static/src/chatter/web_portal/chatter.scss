@@ -10,7 +10,7 @@
         background-image: linear-gradient(
             90deg,
             transparent,
-            $o-view-background-color,
+            o-token(--o-bg-view, $o-view-background-color),
             transparent
         );
     }

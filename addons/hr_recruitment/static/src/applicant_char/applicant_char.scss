@@ -2,6 +2,6 @@
     color: o-token(--link-color, $link-color);
 
     &:hover {
-        color: $link-hover-color;
+        color: o-token(--link-hover-color, $link-hover-color);
     }
 }

@@ -1,7 +1,7 @@
 .o-we-table-menu {
-    border: $border-width solid rgba($color: $o-brand-odoo, $alpha: 1);
+    border: $border-width solid o-token(--o-brand-odoo, $o-brand-odoo);
     color: #fff;
-    background-color: rgba($color: $o-brand-odoo, $alpha: 0.7);
+    background-color: o-token-alpha(--o-brand-odoo, $o-brand-odoo, 0.7);
 
     &.oi-ellipsis-v {
         width: 17px;

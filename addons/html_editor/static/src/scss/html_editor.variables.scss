@@ -75,17 +75,17 @@ $o-we-item-pressed-color: $o-we-fg-lighter !default;
     $bottom: auto,
     $left: auto
 ) {
-    box-shadow: 0 0 0 3px $o-brand-primary;
+    box-shadow: 0 0 0 3px o-token(--o-brand, $o-brand-primary);
 
     &:not(.fa) {
-        border: 3px solid $o-brand-primary;
+        border: 3px solid o-token(--o-brand, $o-brand-primary);
         box-shadow: none;
         &:before {
             content: $icon;
             @include o-position-absolute($top, $right, $bottom, $left);
             width: 19px;
             height: 19px;
-            background-color: $o-brand-primary;
+            background-color: o-token(--o-brand, $o-brand-primary);
             font-family: "Font Awesome 7 Pro";
             font-weight: 900;
             color: white;

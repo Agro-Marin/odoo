@@ -182,7 +182,7 @@ every one as a literal, so re-run it rather than trusting this table.
 | JS model classes (registered with `.register()`) | 39 (+ the base `Record` itself → 40 calls) |
 | JS OWL services | 23 |
 | JS tests (`static/tests/`, `*.test.js`) | 143 |
-| SCSS (`static/src/`) | 101 |
+| SCSS (`static/src/`) | 102 |
 | XML (module-wide) | 233 = 164 static OWL + 41 views + 16 data + 6 wizard + 4 demo + 1 security + 1 test |
 | i18n (.po/.pot) | 64 |
 

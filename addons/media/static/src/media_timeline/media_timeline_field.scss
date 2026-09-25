@@ -2,7 +2,7 @@
     .o_media_timeline_bar {
         height: 8px;
         border-radius: 4px;
-        background-color: $o-gray-300;
+        background-color: o-token(--o-gray-300, $o-gray-300);
         cursor: pointer;
     }
 
@@ -10,7 +10,7 @@
         top: 0;
         height: 100%;
         border-radius: 4px;
-        background-color: $o-brand-odoo;
+        background-color: o-token(--o-brand-odoo, $o-brand-odoo);
         opacity: 0.55;
     }
 
@@ -18,6 +18,6 @@
         top: -3px;
         width: 2px;
         height: 14px;
-        background-color: $o-main-text-color;
+        background-color: o-token(--o-text, $o-main-text-color);
     }
 }

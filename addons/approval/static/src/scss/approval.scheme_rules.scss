@@ -1,0 +1,6 @@
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_approval_dashboard {
+        --approval-text-muted: var(--o-gray-500);
+        --approval-border: var(--o-gray-700);
+    }
+}

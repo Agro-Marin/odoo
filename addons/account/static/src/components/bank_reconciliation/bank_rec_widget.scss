@@ -1,6 +1,6 @@
 .o_link_color {
     background-color: $btn-link-color;
-    color: var(--o-navbar-badge-color, $o-navbar-badge-color);
+    color: var(--o-navbar-badge-color, #{o-token(--o-white, $o-navbar-badge-color)});
 }
 
 .o_bank_reconciliation_container {
@@ -60,7 +60,10 @@
                             #{$o-navbar-badge-bg}
                         );
                         font-size: $o-navbar-badge-size;
-                        color: var(--o-navbar-badge-color, $o-navbar-badge-color);
+                        color: var(
+                            --o-navbar-badge-color,
+                            #{o-token(--o-white, $o-navbar-badge-color)}
+                        );
                         text-shadow: var(
                             --o-navbar-badge-text-shadow,
                             #{$o-navbar-badge-text-shadow}

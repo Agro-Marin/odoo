@@ -145,14 +145,14 @@
                 z-index: 10;
             }
             &.targeted {
-                color: lighten($primary, 20%);
+                color: o-token-lighten(--primary, $primary, 20%);
                 &:before {
                     color: white;
                     content: "\f00c";
-                    background-color: lighten($primary, 20%);
+                    background-color: o-token-lighten(--primary, $primary, 20%);
                 }
                 &:after {
-                    border-color: lighten($primary, 20%);
+                    border-color: o-token-lighten(--primary, $primary, 20%);
                 }
             }
             &.selected {

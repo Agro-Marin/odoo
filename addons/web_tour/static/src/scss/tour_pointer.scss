@@ -34,8 +34,12 @@
     --TourPointer__bounce-offset: 3px;
     --TourPointer__offset: 8px;
     --TourPointer__scale: 1.12;
-    --TourPointer__color: #{$o-enterprise-color};
-    --TourPointer__color-accent: #{lighten($o-enterprise-color, 7%)};
+    --TourPointer__color: #{o-token(--o-brand-odoo, $o-enterprise-color)};
+    --TourPointer__color-accent: #{o-token-lighten(
+            --o-brand-odoo,
+            $o-enterprise-color,
+            7%
+        )};
     --TourPointer__border-width: 1px;
     --TourPointer__border-color-rgb: 255, 255, 255;
     --TourPointer__border-color: rgba(var(--TourPointer__border-color-rgb), 1);

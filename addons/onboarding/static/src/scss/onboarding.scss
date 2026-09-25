@@ -15,7 +15,11 @@ $o-onboarding-step-width: calc(map-get($container-max-widths, "lg") / 4) !defaul
 }
 
 .o_onboarding_main {
-    background: linear-gradient(0deg, #{$o-gray-200} 0%, #{$o-gray-100} 100%);
+    background: linear-gradient(
+        0deg,
+        #{o-token(--o-gray-200, $o-gray-200)} 0%,
+        #{o-token(--o-gray-100, $o-gray-100)} 100%
+    );
 
     .o_onboarding_wrap {
         overflow-x: auto;

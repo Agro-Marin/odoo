@@ -14,3 +14,9 @@
         }
     }
 }
+
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] .o_kanban_renderer .o_kanban_group {
+        @include o-kanban-css-filter(rotting, #e64980, $o-dark-gray-100);
+    }
+}

@@ -116,22 +116,28 @@
     }
 
     .o_activity_filter_planned {
-        background-color: mix(
+        background-color: o-token-mix(
+            --success,
             map-get($theme-colors, "success"),
+            --body-bg,
             $o-webclient-background-color,
             5%
         );
     }
     .o_activity_filter_today {
-        background-color: mix(
+        background-color: o-token-mix(
+            --warning,
             map-get($theme-colors, "warning"),
+            --body-bg,
             $o-webclient-background-color,
             5%
         );
     }
     .o_activity_filter_overdue {
-        background-color: mix(
+        background-color: o-token-mix(
+            --danger,
             map-get($theme-colors, "danger"),
+            --body-bg,
             $o-webclient-background-color,
             5%
         );

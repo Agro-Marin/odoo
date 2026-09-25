@@ -1,6 +1,10 @@
 .journal-create-wizard-card {
     .card-body {
-        background: linear-gradient(to right, $card-bg, rgba($card-bg, 0.95));
+        background: linear-gradient(
+            to right,
+            o-token(--o-bg-view, $card-bg),
+            o-token-alpha(--o-bg-view, $card-bg, 0.95)
+        );
     }
 
     &:hover {

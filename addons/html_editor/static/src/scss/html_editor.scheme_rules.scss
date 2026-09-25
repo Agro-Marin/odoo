@@ -84,7 +84,7 @@ $-dark-colors: $colors;
 
         @for $index from 1 through 5 {
             $-color-name: "o-color-#{$index}";
-            $-color: map-get($colors, $-color-name);
+            $-color: map-get($-dark-colors, $-color-name);
 
             @include bg-variant(
                 ".bg-#{$-color-name}",
@@ -101,7 +101,7 @@ $-dark-colors: $colors;
         }
 
         @for $index from 1 through length($o-color-combinations) {
-            $-bg-color: o-color(map-get($colors, "o-cc#{$index}-bg"));
+            $-bg-color: o-color(map-get($-dark-colors, "o-cc#{$index}-bg"));
             $-text: map-get($colors, "o-cc#{$index}-text");
 
             .o_cc#{$index} {
@@ -115,6 +115,9 @@ $-dark-colors: $colors;
                     $yiq-min-opacity-threshold: 0,
                     $extend-heading-reset: false
                 );
+                @if $-bg-color != o-color(map-get($colors, "o-cc#{$index}-bg")) {
+                    --o-cc-bg: #{$-bg-color};
+                }
             }
         }
     }

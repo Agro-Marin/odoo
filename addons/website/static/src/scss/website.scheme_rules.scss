@@ -1,0 +1,20 @@
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o_website_page_templates_dialog .modal-body .list-group {
+            --list-group-active-color: #{o-scheme-contrast(
+                    $o-dark-brand-primary,
+                    o-dark-scheme()
+                )};
+        }
+
+        .o_website_dialog
+            ul.oe_menu_editor:not(:has(li.o_dragged))
+            .input-group:hover
+            > * {
+            background-color: rgba(
+                var(--#{$prefix}emphasis-color-rgb),
+                #{$o-dark-table-hover-bg-factor}
+            ) !important;
+        }
+    }
+}

@@ -120,6 +120,7 @@ $-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view", "o-gray-300");
     @return (
         "o-glass-bg": if($-dark, $o-dark-glass-bg, $o-glass-bg),
         "o-dropdown-bg": if($-dark, $o-dark-surface-raised, $dropdown-bg),
+        "o-popover-bg": if($-dark, $o-dark-surface-raised, $popover-bg),
         "o-hairline": if($-dark, $o-dark-hairline, $o-hairline),
         "o-form-lightsecondary": if(
                 $-dark,
@@ -132,6 +133,44 @@ $-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view", "o-gray-300");
                 $o-form-separator-color
             ),
         "o-shadow-color": if($-dark, $o-dark-shadow-color, $o-shadow-color),
+        "o-input-focus-border": if(
+                $-dark,
+                mix($o-dark-enterprise-action-color, $o-dark-gray-200),
+                $input-focus-border-color
+            ),
+        "o-table-hover-bg-factor": if(
+                $-dark,
+                $o-dark-table-hover-bg-factor,
+                $table-hover-bg-factor
+            ),
+        "o-input-border-required": if(
+                $-dark,
+                $o-dark-input-border-required,
+                $o-input-border-required
+            ),
+        "o-input-placeholder-color": if(
+                $-dark,
+                $o-dark-input-placeholder-color,
+                $input-placeholder-color
+            ),
+        "o-link-shade": o-strip-unit(
+                if(
+                    $-dark,
+                    o-or($o-dark-link-shade-percentage, $link-shade-percentage),
+                    $link-shade-percentage
+                )
+            ),
+        "o-bs-component-active-bg": if(
+                $-dark,
+                $o-dark-surface-raised,
+                $component-active-bg
+            ),
+        "o-range-track-bg": if($-dark, $o-dark-surface-raised, $form-range-track-bg),
+        "o-on-action": if(
+                $-dark,
+                o-scheme-contrast($o-dark-component-active-border, $-contrast),
+                color-contrast($o-component-active-border)
+            ),
         "o-on-danger": if(
                 $-dark,
                 o-scheme-contrast(map-get($o-dark-theme-colors, "danger"), $-contrast),
@@ -152,7 +191,11 @@ $-o-rgb-tokens: ("o-white", "o-black", "o-action", "o-bg-view", "o-gray-300");
 
 @mixin o-print-token-set($-set) {
     @each $-name, $-value in $-set {
-        @include print-variable($-name, $-value);
+        @if type-of($-value) == "string" {
+            --#{$-name}: #{$-value};
+        } @else {
+            @include print-variable($-name, $-value);
+        }
         @if index($-o-rgb-tokens, $-name) and type-of($-value) == "color" {
             @include print-variable("#{$-name}-rgb", to-rgb($-value));
         }

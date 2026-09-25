@@ -406,6 +406,5 @@ There is no CI any more; every gate below runs by hand.
 | the same command against a fuller `-i`/`--addons-path` install | the registry-dependent classes, against a wider INSTALL set |
 
 **A gate that reads the installed registry cannot be graded at the narrow
-scope.** `TestSchemeDuplication` skips there rather than passing, naming the
-modules it cannot see; `TestDocstring` is one-sided (`exact=False`) for the same
-reason. Do not floor either at a narrow-scope reading.
+scope.** `TestSchemeDuplication` passes there for want of modules to measure;
+`TestDocstring` is one-sided (`exact=False`) for the same reason. Do not floor either at a narrow-scope reading.

@@ -10,7 +10,7 @@
 
     select:has(option[value="empty"]:checked),
     select:has(option[value=""]:checked) {
-        color: $input-placeholder-color;
+        color: o-token(--o-input-placeholder-color, $input-placeholder-color);
     }
 
     select option {

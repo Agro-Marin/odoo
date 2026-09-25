@@ -49,6 +49,7 @@
                 "include",
                 "web._assets_bootstrap",
             ),
+            "web/static/src/scss/tokens.scss",
             "web/static/src/libs/bootstrap.js",
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
             "web/static/src/libs/fontawesome7/css/solid.css",

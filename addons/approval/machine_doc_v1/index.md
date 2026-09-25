@@ -183,7 +183,7 @@ into `test_approvals.py`).
 | `views/view_button/approval_button_popover.js` | Steps, who decided and when; Approve / Refuse / Withdraw / Reopen exactly where the server says the caller may |
 | `views/view_button/view_button_patch.js` | Gives gated object and action buttons the widget, and chains `beforeExecute` into the server check -- always for an action button, which nothing on the server can refuse, and for an object button while its loaded approvals say it is gated, so a stopped click warns and stays on the record; `_isApprovalGated()` is the override point, which Studio's form editor uses to draw every button's approvals |
 | `views/view_button/form_controller_patch.js` | Reads `has_approval_bindings` from the view's related models |
-| `scss/approval.scss` + `approval.dark.scss` | Approval styles |
+| `scss/approval.scss` + `approval.scheme_rules.scss` | Approval styles; the latter is its dark half |
 
 ### Security (`security/`)
 

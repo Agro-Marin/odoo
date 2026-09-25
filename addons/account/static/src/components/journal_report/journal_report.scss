@@ -9,12 +9,12 @@
 
     .table > tbody > tr {
         &.accent_header {
-            background-color: $o-gray-200;
+            background-color: o-token(--o-gray-200, $o-gray-200);
         }
         &.accent_line {
             background-color: o-palette-token(--o-gray-100, $o-gray-100);
             > td.muted {
-                color: $o-gray-300;
+                color: o-token(--o-gray-300, $o-gray-300);
             }
         }
         &.subtable {

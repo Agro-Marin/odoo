@@ -7,7 +7,7 @@
     }
     &.o-active {
         outline-color: rgba(
-            $o-action,
+            var(--o-action-rgb, #{to-rgb($o-action)}),
             var(--mail-NotificationItem-activeOutlineOpacity, 0.5)
         );
     }
@@ -62,13 +62,13 @@
     padding: calc(map-get($spacers, 1) / 2);
 
     &:hover {
-        outline-color: rgba(darken($success, 10%), 1);
-        color: darken($success, 10%) !important;
+        outline-color: o-token-darken(--success, $success, 10%);
+        color: o-token-darken(--success, $success, 10%) !important;
         background-color: unquote(
             "color-mix(in srgb, #{o-token(--o-bg-view, $o-view-background-color)} 75%, #{o-token(--success, $success)})"
         );
         filter: brightness(1.1);
-        box-shadow: $box-shadow-sm;
+        box-shadow: o-token(--box-shadow-sm, $box-shadow-sm);
     }
 }
 

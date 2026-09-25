@@ -73,7 +73,10 @@
 }
 
 .o_documents_pdf_page_selector {
-    @include o-hover-text-color($gray-400, $gray-800);
+    @include o-hover-text-color(
+        o-token(--o-gray-400, $gray-400),
+        o-token(--o-gray-800, $gray-800)
+    );
     margin-bottom: -30px;
     font-size: 18px;
     padding: 3px;

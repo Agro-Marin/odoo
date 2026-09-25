@@ -14,8 +14,8 @@
             --o-input-border-color: #{o-token(--border-color, $border-color)};
         }
         &:focus {
-            --o-input-border-color: #{$o-component-active-border};
-            color: $body-color !important;
+            --o-input-border-color: #{o-token(--o-action, $o-component-active-border)};
+            color: o-token(--body-color, $body-color) !important;
         }
     }
 

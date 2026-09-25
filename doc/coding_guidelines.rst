@@ -4,8 +4,8 @@
 AgroMarin Coding Guidelines
 ===========================
 
-:Version: 7.4
-:Date: 2026-09-24
+:Version: 7.5
+:Date: 2026-09-25
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_
        + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
 
@@ -125,7 +125,7 @@ floor moving in the same change.
 Exception: classes that read the installed registry (bundles, dark siblings, ESM
 specifiers, ``test_docstring``, ``TestSchemeDuplication``) are graded on a
 fuller install; at the narrow scope ``test_docstring`` under-counts and
-``TestSchemeDuplication`` skips.
+``TestSchemeDuplication`` measures too few modules to fail.
 
 AST rules (registry ``_rules.RULES``; engine ``_py_scan``; gate name
 ``lint_<rule_with_underscores>``):
@@ -5417,6 +5417,11 @@ collisions, so an eighth fails and so does a renumbering.
    * - Version
      - Date
      - Summary
+   * - 7.5
+     - 2026-09-25
+     - How rules are enforced: ``TestSchemeDuplication`` is a zero rule over the
+       repository's modules rather than per-module floors, so at the narrow scope
+       it measures too few modules to fail instead of skipping.
    * - 7.4
      - 2026-09-24
      - §1.5: the prefix-family example no longer names a live violation --

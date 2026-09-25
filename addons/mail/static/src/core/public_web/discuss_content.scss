@@ -5,7 +5,7 @@
 }
 
 .o-mail-DiscussContent-core {
-    background-color: $body-bg;
+    background-color: o-token(--body-bg, $body-bg);
 }
 
 .o-mail-DiscussContent-header {

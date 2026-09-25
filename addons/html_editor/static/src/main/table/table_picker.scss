@@ -1,5 +1,5 @@
 .o-we-tablepicker {
-    box-shadow: $box-shadow;
+    box-shadow: o-token(--#{$prefix}box-shadow, $box-shadow);
 
     .o-we-row {
         line-height: 0;

@@ -1,5 +1,5 @@
 .o-we-powerbox {
-    box-shadow: $box-shadow;
+    box-shadow: o-token(--#{$prefix}box-shadow, $box-shadow);
 }
 
 .o-we-category {

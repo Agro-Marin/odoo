@@ -15,7 +15,7 @@
     );
     --list-group-border-color: #{var(
             --mail-MessagingMenu-listBorderColor,
-            rgba($gray-200, 0.5)
+            #{o-token-alpha(--o-gray-200, $gray-200, 0.5)}
         )};
 }
 
@@ -88,16 +88,16 @@
     }
 
     &.active {
-        --btn-active-color: #{$o-enterprise-action-color};
+        --btn-active-color: #{o-token(--o-action, $o-enterprise-action-color)};
 
         .o-mail-MessagingMenu-tabIcon {
             background: o-token(--o-bg-active, $o-component-active-bg);
-            color: $o-enterprise-action-color;
+            color: o-token(--o-action, $o-enterprise-action-color);
         }
     }
 
     &:focus-visible {
-        outline: $border-width solid $o-enterprise-action-color !important;
+        outline: $border-width solid o-token(--o-action, $o-enterprise-action-color) !important;
     }
 
     .o-mail-MessagingMenu-tabIcon {

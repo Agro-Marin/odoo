@@ -17,7 +17,7 @@
         width: 6ch;
 
         &:not(:valid) {
-            background-color: $danger-bg-subtle;
+            background-color: o-token(--danger-bg-subtle, $danger-bg-subtle);
         }
     }
 }

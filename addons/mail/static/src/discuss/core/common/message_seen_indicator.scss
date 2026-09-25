@@ -2,7 +2,7 @@
     &.o-hasEveryoneSeen {
         color: var(
             --mail-MessageSeenIndicator-hasEveryoneSeenColor,
-            lighten($primary, 20%)
+            #{o-token-lighten(--primary, $primary, 20%)}
         );
     }
 

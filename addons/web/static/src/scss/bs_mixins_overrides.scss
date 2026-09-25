@@ -185,7 +185,9 @@ $o-color-extras-nesting-selector: "&" !default;
     $-border,
     $-scheme,
     $-color: null,
-    $-hover-background: null
+    $-hover-background: null,
+    $-active-background: null,
+    $-active-border: null
 ) {
     $-color: o-or($-color, o-scheme-contrast($-background, $-scheme));
     $-shades: $-color == o-scheme-contrast-light($-scheme);
@@ -197,10 +199,13 @@ $o-color-extras-nesting-selector: "&" !default;
             o-scheme-tint($-background, $btn-hover-bg-tint-amount, $-scheme)
         )
     );
-    $-active-background: if(
-        $-shades,
-        o-scheme-shade($-background, $btn-active-bg-shade-amount, $-scheme),
-        o-scheme-tint($-background, $btn-active-bg-tint-amount, $-scheme)
+    $-active-background: o-or(
+        $-active-background,
+        if(
+            $-shades,
+            o-scheme-shade($-background, $btn-active-bg-shade-amount, $-scheme),
+            o-scheme-tint($-background, $btn-active-bg-tint-amount, $-scheme)
+        )
     );
     @include button-variant(
         $-background,
@@ -214,10 +219,13 @@ $o-color-extras-nesting-selector: "&" !default;
             ),
         $hover-color: o-scheme-contrast($-hover-background, $-scheme),
         $active-background: $-active-background,
-        $active-border: if(
-                $-shades,
-                o-scheme-shade($-border, $btn-active-border-shade-amount, $-scheme),
-                o-scheme-tint($-border, $btn-active-border-tint-amount, $-scheme)
+        $active-border: o-or(
+                $-active-border,
+                if(
+                    $-shades,
+                    o-scheme-shade($-border, $btn-active-border-shade-amount, $-scheme),
+                    o-scheme-tint($-border, $btn-active-border-tint-amount, $-scheme)
+                )
             ),
         $active-color: o-scheme-contrast($-active-background, $-scheme),
         $disabled-background: $-background,

@@ -3,7 +3,7 @@
 
     &:not(.o-selfReacted):hover {
         border-color: rgba(
-            $o-action,
+            var(--o-action-rgb, #{to-rgb($o-action)}),
             var(--mail-MessageReaction-selfReactedBorderOpacity, 1)
         ) !important;
     }

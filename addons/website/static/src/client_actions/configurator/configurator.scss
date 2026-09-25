@@ -143,7 +143,7 @@
             }
 
             .o_configurator_industry_dropdown {
-                background: $dropdown-bg;
+                background: o-token(--o-dropdown-bg, $dropdown-bg);
             }
 
             .dropdown {
@@ -278,7 +278,7 @@
                 &.selected {
                     box-shadow:
                         0 0 0 1px #fff,
-                        0 0 0 3px map-get($theme-colors, "primary");
+                        0 0 0 3px o-token(--primary, map-get($theme-colors, "primary"));
                 }
             }
 
@@ -299,8 +299,8 @@
             .o_configurator_logo_upload {
                 cursor: pointer;
                 @include o-hover-text-color(
-                    map-get($grays, "400"),
-                    map-get($grays, "800")
+                    o-token(--o-gray-400, map-get($grays, "400")),
+                    o-token(--o-gray-800, map-get($grays, "800"))
                 );
             }
 
@@ -383,7 +383,7 @@
                 }
 
                 height: var(--ConfiguratorPreview-height);
-                box-shadow: $box-shadow-sm;
+                box-shadow: o-token(--#{$prefix}box-shadow-sm, $box-shadow-sm);
 
                 @include media-breakpoint-up(lg) {
                     &:hover {
@@ -400,7 +400,7 @@
                         --primary,
                         map-get($theme-colors, primary)
                     ) !important;
-                    box-shadow: $box-shadow;
+                    box-shadow: o-token(--#{$prefix}box-shadow, $box-shadow);
 
                     .theme_preview_tip {
                         transform: translate3d(0, -120%, 0);

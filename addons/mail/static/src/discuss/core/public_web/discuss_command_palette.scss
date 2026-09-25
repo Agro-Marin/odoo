@@ -22,7 +22,7 @@
     }
 
     .o-action {
-        color: lighten($o-action, 5%);
+        color: o-token-lighten(--o-action, $o-action, 5%);
     }
 }
 

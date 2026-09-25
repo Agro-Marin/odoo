@@ -185,7 +185,7 @@ Gates that read the *installed registry* rather than the tree cannot be graded a
 | Gate | Behaviour at narrow scope |
 |---|---|
 | `test_docstring` | One-sided ratchet: measures 1 there, 32 on a fuller install. Do not floor it at the former. |
-| `TestSchemeDuplication` | Floors are per module; **skips** at that scope rather than passing. 24 of its 28 floors name a module the narrow scope does not install, and `web` reads 91 against a floor of 136 without being able to fail. Grade it on a fuller install. |
+| `TestSchemeDuplication` | Zero rule: no declaration of a module in this repository may resolve differently under `data-color-scheme="dark"` in the light bundle from what the dark bundle serves. At the narrow scope it measures only what is installed there, so it passes for want of modules. Grade it on a fuller install. |
 
 `odoo/addons/test_lint/machine_doc_v1/` is the map: two halves (`_rules.py` declares what a rule is, `_py_scan.py` runs the scan), which fixer answers to which document-identity invariant, and what each scope can and cannot measure.
 

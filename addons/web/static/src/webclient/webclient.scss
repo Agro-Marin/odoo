@@ -191,7 +191,7 @@ select {
 }
 
 @mixin o-placeholder {
-    color: $input-placeholder-color;
+    color: o-token(--o-input-placeholder-color, $input-placeholder-color);
 }
 ::-webkit-input-placeholder {
     @include o-placeholder;

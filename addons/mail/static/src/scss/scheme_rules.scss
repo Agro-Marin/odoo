@@ -1,0 +1,21 @@
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o-mail-LinkPreviewCard-imageLinkWrap {
+            border-right: 1px solid $o-dark-card-border-color;
+        }
+
+        .o-discuss-dropdownMenu.o-simulateDarkTheme {
+            .form-select {
+                --#{$prefix}form-select-bg-img: #{escape-svg(
+                        url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill='none' stroke='#{$o-dark-gray-300}' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/></svg>")
+                    )};
+            }
+
+            .form-switch .form-check-input:not(:checked):not(:focus) {
+                --#{$prefix}form-switch-bg: #{escape-svg(
+                        url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'><circle r='3' fill='#{rgba($o-dark-white, 0.25)}'/></svg>")
+                    )};
+            }
+        }
+    }
+}

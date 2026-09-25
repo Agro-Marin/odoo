@@ -64,12 +64,12 @@
             padding: map-get($spacers, 2) !important;
         }
         &.o-sendMessageActive {
-            background-color: lighten($primary, 7.5%);
+            background-color: o-token-lighten(--primary, $primary, 7.5%);
             outline: 1px solid o-token(--primary, $primary);
             outline-offset: -1px;
             opacity: 100% !important;
             &:focus-visible {
-                outline: darken($o-action, 15%) solid 1px;
+                outline: o-token-darken(--o-action, $o-action, 15%) solid 1px;
             }
         }
         i.fa-paper-plane {
@@ -86,7 +86,7 @@
             background-color: o-token-alpha(--o-action, $o-action, 0.75);
             opacity: 100% !important;
             &:focus-visible {
-                outline: darken($o-action, 15%) solid 1px;
+                outline: o-token-darken(--o-action, $o-action, 15%) solid 1px;
             }
             i.fa-paper-plane {
                 color: #fff;
@@ -201,11 +201,11 @@
 
 .o-mail-Composer-inputContainer {
     &:has(textarea:focus) {
-        --border-color: #{rgba($o-component-active-border, 0.65)};
+        --border-color: #{o-token-alpha(--o-action, $o-component-active-border, 0.65)};
     }
 
     &:has(.o-mail-Composer-html:focus) {
-        --border-color: #{$o-component-active-border};
+        --border-color: #{o-token(--o-action, $o-component-active-border)};
     }
 }
 

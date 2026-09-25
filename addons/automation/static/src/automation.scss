@@ -47,6 +47,6 @@
 .o_field_automation_trigger_selection select {
     option,
     optgroup {
-        background-color: $dropdown-bg;
+        background-color: o-token(--o-dropdown-bg, $dropdown-bg);
     }
 }

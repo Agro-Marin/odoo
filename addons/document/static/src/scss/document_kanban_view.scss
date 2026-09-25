@@ -101,7 +101,7 @@
             }
 
             .o_kanban_image_wrapper {
-                background-color: $body-bg;
+                background-color: o-token(--body-bg, $body-bg);
                 height: 140px;
                 width: 100%;
                 display: flex;
@@ -152,7 +152,10 @@
             }
 
             .o_record_selector {
-                @include o-hover-text-color($gray-400, $gray-800);
+                @include o-hover-text-color(
+                    o-token(--o-gray-400, $gray-400),
+                    o-token(--o-gray-800, $gray-800)
+                );
                 @include o-position-absolute(
                     $o-kanban-inside-vgutter - 4px,
                     $o-kanban-inside-hgutter - 4px

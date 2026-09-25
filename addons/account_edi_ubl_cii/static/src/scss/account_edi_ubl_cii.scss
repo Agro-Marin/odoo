@@ -1,5 +1,5 @@
 .o_field_peppol_eas_selection > select {
-    color: $headings-color;
+    color: o-token(--heading-color, $headings-color);
     font-weight: $font-weight-bold;
 }
 .o_field_peppol_eas_selection {

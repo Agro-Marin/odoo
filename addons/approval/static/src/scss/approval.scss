@@ -1,10 +1,10 @@
 .o_approval_dashboard {
-    --approval-card-bg: var(--o-view-background-color, #{$o-view-background-color});
-    --approval-text: var(--o-main-text-color, #{$o-main-text-color});
+    --approval-card-bg: var(--o-bg-view, #{$o-view-background-color});
+    --approval-text: var(--o-text, #{$o-main-text-color});
     --approval-text-muted: var(--o-gray-600, #{$o-gray-600});
     --approval-border: var(--o-gray-300, #{$o-gray-300});
-    --approval-primary: var(--o-brand-primary, #{$o-brand-primary});
-    --approval-danger: var(--o-danger, #{$danger});
+    --approval-primary: var(--o-brand, #{$o-brand-primary});
+    --approval-danger: var(--danger, #{$danger});
 
     .o_kanban_renderer {
         gap: 1rem;
@@ -269,13 +269,13 @@
     transition: all 0.15s ease;
 
     &.o_stat_success {
-        background: color-mix(in srgb, var(--o-success, #{$success}) 12%, transparent);
-        color: var(--o-success, #{$success});
+        background: color-mix(in srgb, var(--success, #{$success}) 12%, transparent);
+        color: var(--success, #{$success});
 
         &:hover {
             background: color-mix(
                 in srgb,
-                var(--o-success, #{$success}) 18%,
+                var(--success, #{$success}) 18%,
                 transparent
             );
         }

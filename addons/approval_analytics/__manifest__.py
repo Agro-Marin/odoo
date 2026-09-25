@@ -41,9 +41,7 @@ the engine, not the reporting stack.
     "assets": {
         "web.assets_backend": [
             "approval_analytics/static/src/scss/approval_dashboard.scss",
-        ],
-        "web.assets_web_dark": [
-            "approval_analytics/static/src/scss/approval_dashboard.dark.scss",
+            "approval_analytics/static/src/scss/approval_dashboard.scheme_rules.scss",
         ],
     },
     "auto_install": True,

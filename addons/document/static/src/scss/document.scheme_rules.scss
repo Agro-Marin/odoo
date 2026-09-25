@@ -1,0 +1,13 @@
+@include media-only(screen) {
+    :root[data-color-scheme="dark"] {
+        .o_documents_drop_over_unauthorized {
+            background: o-scheme-tint($red, 80%, o-dark-scheme());
+        }
+
+        .o_documents_kanban_view
+            .o_content
+            .o_kanban_renderer.o_documents_drop_over_unauthorized {
+            background: o-scheme-tint($red, 80%, o-dark-scheme());
+        }
+    }
+}

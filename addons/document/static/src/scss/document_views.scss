@@ -4,7 +4,7 @@
     .o_drag_over_selector {
         &.o_search_panel_filter_value,
         > header {
-            background-color: $component-active-bg;
+            background-color: o-token(--o-bs-component-active-bg, $component-active-bg);
             font-weight: $font-weight-bold;
             color: o-token(--o-black, $black);
 
@@ -33,7 +33,10 @@
     }
     .o_data_row {
         &[focused] td {
-            background-color: $component-active-bg !important;
+            background-color: o-token(
+                --o-bs-component-active-bg,
+                $component-active-bg
+            ) !important;
         }
         .o_documents_list_actions {
             display: none;
@@ -158,10 +161,10 @@
     transition: opacity 0.15s step-end;
 
     &.o_documents_dnd_info {
-        color: $o-enterprise-action-color;
+        color: o-token(--o-action, $o-enterprise-action-color);
         font-weight: bold;
-        background-color: $component-active-bg;
-        border: 1px solid $o-enterprise-action-color;
+        background-color: o-token(--o-bs-component-active-bg, $component-active-bg);
+        border: 1px solid o-token(--o-action, $o-enterprise-action-color);
     }
 
     & .o_documents_dnd_pill {

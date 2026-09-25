@@ -62,6 +62,7 @@ the Studio automation upsell.
         "web.assets_backend": [
             "document/static/src/scss/document_views.scss",
             "document/static/src/scss/document_kanban_view.scss",
+            "document/static/src/scss/document.scheme_rules.scss",
             "document/static/src/attachments/**/*",
             "document/static/src/core/**/*",
             "document/static/src/mail/**/*",

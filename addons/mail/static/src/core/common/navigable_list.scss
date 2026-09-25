@@ -5,14 +5,26 @@
 .o-mail-NavigableList-active {
     background-color: var(
         --mail-NavigableList-activeBgColor,
-        mix($o-view-background-color, $o-action, 90%)
+        #{o-token-mix(
+                --o-bg-view,
+                $o-view-background-color,
+                --o-action,
+                $o-action,
+                90%
+            )}
     );
 }
 
 .o-mail-NavigableList-item:hover {
     background-color: var(
         --mail-NavigableList-hoverBgColor,
-        mix($o-view-background-color, $o-action, 95%)
+        #{o-token-mix(
+                --o-bg-view,
+                $o-view-background-color,
+                --o-action,
+                $o-action,
+                95%
+            )}
     );
 }
 

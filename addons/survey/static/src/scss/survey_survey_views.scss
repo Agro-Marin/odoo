@@ -4,8 +4,8 @@
     .o_survey_kanban_card_certification {
         background-image:
             linear-gradient(
-                rgba($o-view-background-color, 0.75),
-                rgba($o-view-background-color, 0.75)
+                o-token-alpha(--o-bg-view, $o-view-background-color, 0.75),
+                o-token-alpha(--o-bg-view, $o-view-background-color, 0.75)
             ),
             url(/survey/static/src/img/trophy-solid.svg);
         background-repeat: no-repeat;

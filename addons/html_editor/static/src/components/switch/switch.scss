@@ -1,5 +1,9 @@
 $o-we-switch-size: 1.2em !default;
-$o-we-switch-inactive-color: rgba($o-main-color-muted, 0.4) !default;
+$o-we-switch-inactive-color: o-token-with-alpha(
+    --o-text-muted,
+    $o-main-color-muted,
+    0.4
+) !default;
 .o_switch {
     display: flex;
     align-items: center;
@@ -13,7 +17,7 @@ $o-we-switch-inactive-color: rgba($o-main-color-muted, 0.4) !default;
 
     > input {
         &:focus + span {
-            box-shadow: 0 0 0 3px lighten($o-brand-primary, 30%);
+            box-shadow: 0 0 0 3px o-token-lighten(--o-brand, $o-brand-primary, 30%);
         }
 
         + span {

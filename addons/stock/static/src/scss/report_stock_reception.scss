@@ -13,7 +13,7 @@
             background-color: o-token(--o-brand, $o-brand-primary);
             border-color: o-token(--o-brand, $o-brand-primary);
             &:hover:not([disabled]) {
-                background-color: darken($o-brand-primary, 10%);
+                background-color: o-token-darken(--o-brand, $o-brand-primary, 10%);
             }
         }
     }

@@ -813,9 +813,9 @@ assert_eq "chatter/ recursive JS count" "$(find "$MAIL/static/src/chatter" -name
 assert_eq "DIRECTORY_MAP.md cites discuss 146" "$(grep -c '| `discuss/` | 146 |' "$DOC/DIRECTORY_MAP.md")" "1"
 
 # SCSS count: stated in ARCHITECTURE's table, never asserted.
-assert_eq "static/src SCSS count" "$(find "$MAIL/static/src" -name '*.scss' | wc -l)" "101"
-assert_eq "ARCHITECTURE.md cites 101 SCSS" \
-    "$(grep -c '| SCSS (`static/src/`) | 101 |' "$DOC/ARCHITECTURE.md")" "1"
+assert_eq "static/src SCSS count" "$(find "$MAIL/static/src" -name '*.scss' | wc -l)" "102"
+assert_eq "ARCHITECTURE.md cites 102 SCSS" \
+    "$(grep -c '| SCSS (`static/src/`) | 102 |' "$DOC/ARCHITECTURE.md")" "1"
 
 # tools/ file list, stated in DIRECTORY_MAP and two files short.
 assert_eq "tools/ .py count (excl __init__)" \

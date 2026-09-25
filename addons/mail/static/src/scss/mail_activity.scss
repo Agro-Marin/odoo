@@ -69,8 +69,8 @@
                     .o_activity_link_kanban {
                         font-size: 1.5em;
                         @include o-hover-text-color(
-                            $text-muted,
-                            map-get($theme-colors, "success")
+                            o-token(--o-text-muted, $text-muted),
+                            o-token(--success, map-get($theme-colors, "success"))
                         );
                         @include o-hover-opacity(0.5, 1);
                     }

@@ -114,7 +114,10 @@
         margin: auto 0;
         cursor: pointer;
         &.fa-regular.fa-star {
-            @include o-hover-text-color($o-main-color-muted, $o-main-favorite-color);
+            @include o-hover-text-color(
+                o-token(--o-text-muted, $o-main-color-muted),
+                o-token(--o-favorite, $o-main-favorite-color)
+            );
         }
         &.fa-solid.fa-star {
             color: o-token(--o-favorite, $o-main-favorite-color);

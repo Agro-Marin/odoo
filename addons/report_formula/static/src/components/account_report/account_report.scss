@@ -263,7 +263,10 @@
             white-space: nowrap;
         }
         &.draft {
-            color: $o-info;
+            color: light-dark(
+                #{$o-info},
+                #{map-get($o-dark-theme-text-colors, "info")}
+            );
         }
         &.unfoldable:hover {
             cursor: pointer;
@@ -333,10 +336,10 @@
             background-color: o-palette-token(--o-gray-300, $o-gray-300);
         }
         .muted {
-            color: $o-gray-400 !important;
+            color: o-token(--o-gray-400, $o-gray-400) !important;
         }
         .btn_debug {
-            color: $o-gray-400;
+            color: o-token(--o-gray-400, $o-gray-400);
         }
     }
 
@@ -362,7 +365,7 @@
     // Link
     //------------------------------------------------------------------------------------------------------------------
     .link {
-        color: $o-enterprise-action-color;
+        color: o-token(--o-action, $o-enterprise-action-color);
     }
 
     //------------------------------------------------------------------------------------------------------------------
@@ -390,17 +393,17 @@
         white-space: nowrap;
 
         &:hover {
-            color: $o-enterprise-action-color !important;
+            color: o-token(--o-action, $o-enterprise-action-color) !important;
             cursor: pointer;
         }
     }
 
     .btn_sortable > .fa-long-arrow-up,
     .btn_sortable > .fa-long-arrow-down {
-        color: $o-enterprise-action-color;
+        color: o-token(--o-action, $o-enterprise-action-color);
     }
     .btn_foldable {
-        color: $o-gray-500;
+        color: o-token(--o-gray-500, $o-gray-500);
     }
     .btn_foldable_empty:hover {
         cursor: default;
@@ -412,7 +415,7 @@
         opacity: 1;
     }
     .btn_annotation_go {
-        color: $o-gray-600;
+        color: o-token(--o-gray-600, $o-gray-600);
     }
     .btn_annotation_delete {
         margin-left: 4px;
@@ -497,7 +500,7 @@
 
     .btn {
         color: o-token(--o-white, $o-white);
-        background-color: $o-enterprise-action-color;
+        background-color: o-token(--o-action, $o-enterprise-action-color);
     }
 }
 
@@ -520,7 +523,7 @@
     width: 20px;
 
     &:hover {
-        color: $o-enterprise-action-color !important;
+        color: o-token(--o-action, $o-enterprise-action-color) !important;
         cursor: pointer;
     }
 }
@@ -591,7 +594,7 @@
         }
 
         .annotation_popover_line:nth-child(2n + 2) {
-            background: $o-gray-200;
+            background: o-token(--o-gray-200, $o-gray-200);
         }
 
         .annotation_popover_line {
@@ -635,7 +638,7 @@ label:focus-within input {
             white-space: pre-wrap;
 
             > .annotation_tooltip_line:nth-child(2n + 2) {
-                background: $o-gray-200;
+                background: o-token(--o-gray-200, $o-gray-200);
             }
 
             tr,
@@ -650,16 +653,16 @@ label:focus-within input {
 
         + .popover-arrow {
             &.top-0::after {
-                border-right-color: $o-white;
+                border-right-color: o-token(--o-white, $o-white);
             }
             &.bottom-0::after {
-                border-left-color: $o-white;
+                border-left-color: o-token(--o-white, $o-white);
             }
             &.start-0::after {
-                border-bottom-color: $o-white;
+                border-bottom-color: o-token(--o-white, $o-white);
             }
             &.end-0::after {
-                border-top-color: $o-white;
+                border-top-color: o-token(--o-white, $o-white);
             }
         }
     }

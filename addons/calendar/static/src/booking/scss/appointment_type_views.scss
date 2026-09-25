@@ -159,7 +159,7 @@
 }
 
 .o_appointment_capacity input:not(:focus) {
-    border-color: $o-input-border-required;
+    border-color: o-token(--o-input-border-required, $o-input-border-required);
 }
 
 .o_appointment_booking_gantt_view {
@@ -167,6 +167,9 @@
         top: 200px !important;
     }
     .o_nocontent_help {
-        @include gradient-radial($white, rgba($white, 0.2));
+        @include gradient-radial(
+            o-token(--o-white, $white),
+            o-token-alpha(--o-white, $white, 0.2)
+        );
     }
 }

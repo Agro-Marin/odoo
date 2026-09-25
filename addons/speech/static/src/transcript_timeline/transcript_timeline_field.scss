@@ -10,7 +10,7 @@
         border-radius: 0.25rem;
 
         &:hover {
-            background-color: $o-gray-200;
+            background-color: o-token(--o-gray-200, $o-gray-200);
         }
     }
 }

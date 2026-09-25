@@ -24,7 +24,10 @@
     }
 
     .subtask_list_row:hover {
-        background-color: $table-hover-bg;
+        background-color: rgba(
+            var(--#{$prefix}emphasis-color-rgb),
+            var(--o-table-hover-bg-factor, #{$table-hover-bg-factor})
+        );
         @include media-breakpoint-up(sm) {
             .o_field_widget.o_field_many2many_tags_avatar .o_quick_assign {
                 visibility: visible !important;

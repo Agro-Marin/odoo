@@ -1,13 +1,19 @@
 a.o_todo_done_button,
 button.o_todo_done_button {
     margin: 0px 5px;
-    @include o-hover-text-color($gray-400, $o-success);
+    @include o-hover-text-color(
+        o-token(--o-gray-400, $gray-400),
+        o-token(--success, $o-success)
+    );
     &:hover:before {
         content: "\f058";
     }
 
     &.done_button_enabled {
-        @include o-hover-text-color($o-success, $gray-400);
+        @include o-hover-text-color(
+            o-token(--success, $o-success),
+            o-token(--o-gray-400, $gray-400)
+        );
         &:hover:before {
             content: "\f05d";
         }

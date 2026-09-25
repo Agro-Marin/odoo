@@ -10,7 +10,13 @@
     &.cursor-pointer:hover {
         background-color: var(
             --discuss-ChannelMember-hoverBg,
-            mix($gray-100, $gray-200)
+            #{o-palette-token-mix(
+                    --o-gray-100,
+                    $gray-100,
+                    --o-gray-200,
+                    $gray-200,
+                    50%
+                )}
         );
     }
 }

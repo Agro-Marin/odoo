@@ -70,7 +70,7 @@
     .o_video_container {
         height: 200px;
         position: relative;
-        @include o-we-preview-box($text-muted);
+        @include o-we-preview-box(o-token(--o-text-muted, $text-muted));
         .o_invalid_warning {
             width: 90%;
             @include o-position-absolute($top: 50%, $left: 50%);

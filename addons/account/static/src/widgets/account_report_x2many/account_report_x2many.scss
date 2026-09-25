@@ -62,7 +62,7 @@
 
         .o_row_handle,
         .trash {
-            color: $o-gray-300;
+            color: o-token(--o-gray-300, $o-gray-300);
         }
     }
 }

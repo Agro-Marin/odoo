@@ -1,15 +1,29 @@
 .o-mail-RecipientsInput {
     border-bottom: 1px solid transparent;
     &:focus-within:hover {
-        border-bottom-color: $input-focus-border-color;
+        border-bottom-color: o-token-mix(
+            --o-action,
+            $o-enterprise-action-color,
+            --o-gray-200,
+            $o-gray-200,
+            50%
+        );
         &:after {
-            @include o-caret-down($caret-color: $input-focus-border-color);
+            @include o-caret-down(
+                $caret-color: o-token-mix(
+                        --o-action,
+                        $o-enterprise-action-color,
+                        --o-gray-200,
+                        $o-gray-200,
+                        50%
+                    )
+            );
         }
     }
     &:hover {
         border-bottom-color: o-token(--border-color, $border-color);
         &:after {
-            @include o-caret-down($caret-color: $border-color);
+            @include o-caret-down($caret-color: o-token(--border-color, $border-color));
         }
     }
     .o_input {

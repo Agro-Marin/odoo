@@ -1,7 +1,11 @@
 .o_field_widget {
     .o_signature {
         outline: 1px solid
-            o-token-alpha(--o-gray-300, map-get($theme-colors, "secondary"), 0.3);
+            o-palette-token-alpha(
+                --o-gray-300,
+                map-get($theme-colors, "secondary"),
+                0.3
+            );
         position: relative;
         &.o_signature_empty {
             display: flex;
