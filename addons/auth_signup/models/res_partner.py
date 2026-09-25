@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
 from odoo import api, exceptions, fields, models, tools
+from odoo.tools import SQL
 
 
 class SignupError(Exception):
@@ -210,19 +211,44 @@ class ResPartner(models.Model):
                         "auth_signup.signup.validity.hours", 144
                     )
                 )
-        plist = [self.id, self.user_ids.ids, self._get_login_date(), self.signup_type]
+        plist = [
+            self.id,
+            self.user_ids.ids,
+            self._get_login_date(),
+            self.signup_type,
+            self._get_password_state(),
+        ]
         return tools.hash_sign(self.env, "signup", plist, expiration_hours=expiration)
+
+    def _get_password_state(self) -> str:
+        self.check_singleton()
+        if not self.user_ids:
+            return ""
+        self.env.cr.execute(
+            SQL(
+                "SELECT COALESCE(password, '') FROM res_users WHERE id IN %s ORDER BY id",
+                tuple(self.user_ids.ids),
+            )
+        )
+        stored = tuple(row[0] for row in self.env.cr.fetchall())
+        return tools.hmac(self.env(su=True), "auth_signup-password-state", stored)[:16]
 
     @api.model
     def _get_partner_from_token(self, token):
         if payload := tools.resolve_hash_signed(self.sudo().env, "signup", token):
-            partner_id, user_ids, login_date, signup_type = payload
+            partner_id, user_ids, login_date, signup_type, *password_state = payload
             # login_date can be either an int or "None" as a string for signup
             partner = self.browse(partner_id)
             if (
                 login_date == partner._get_login_date()
                 and partner.user_ids.ids == user_ids
-                and signup_type == partner.browse(partner_id).signup_type
+                and signup_type == partner.signup_type
+                # a token minted before the password state entered the payload
+                # carries four values, and lives out its own few hours
+                and (
+                    not password_state
+                    or tools.consteq(password_state[0], partner._get_password_state())
+                )
             ):
                 return partner
         return None

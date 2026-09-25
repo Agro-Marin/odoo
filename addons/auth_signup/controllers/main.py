@@ -56,6 +56,12 @@ class AuthSignupHome(Home):
     def web_auth_signup(self, *args, **kw):
         qcontext = self.get_auth_signup_qcontext()
 
+        if self._is_reset_token(qcontext.get("token")):
+            # a reset link sets a password and never opens a session
+            return request.redirect_query(
+                "/web/reset_password", query={"token": qcontext["token"]}
+            )
+
         if not qcontext.get("token") and not qcontext.get("signup_enabled"):
             raise werkzeug.exceptions.NotFound
 
@@ -212,6 +218,12 @@ class AuthSignupHome(Home):
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Content-Security-Policy"] = "frame-ancestors 'self'"
         return response
+
+    def _is_reset_token(self, token):
+        if not token:
+            return False
+        partner = request.env["res.partner"].sudo()._get_partner_from_token(token)
+        return bool(partner) and partner.signup_type == "reset"
 
     def get_auth_signup_config(self):
         """retrieve the module config (which features are enabled) for the login page"""

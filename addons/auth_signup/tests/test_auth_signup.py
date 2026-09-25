@@ -294,3 +294,78 @@ class TestSignupHttpRoutes(HttpCaseWithUserDemo):
         res = self.url_open("/web/signup?token=not-a-real-token")
         self.assertEqual(res.status_code, 200)
         self.assertIn("Invalid signup token", res.text)
+
+    def _reset_token(self, user):
+        partner = user.partner_id.sudo()
+        partner.signup_prepare(signup_type="reset")
+        return partner._generate_signup_token()
+
+    def test_a_reset_token_opens_no_session_through_signup(self):
+        self._set_signup("b2b")
+        token = self._reset_token(self.user_demo)
+        self.authenticate(None, None)
+        res = self.url_open(
+            "/web/signup",
+            data={
+                "token": token,
+                "login": self.user_demo.login,
+                "name": self.user_demo.name,
+                "password": "Taken0ver!123",
+                "confirm_password": "Taken0ver!123",
+                "csrf_token": http.Request.csrf_token(self),
+            },
+        )
+        self.assertIn("/web/reset_password", res.url)
+        session = odoo.http.root.session_store.get(self.opener.cookies["session_id"])
+        self.assertFalse(session.uid)
+        self.assertEqual(self.user_demo.partner_id.sudo().signup_type, "reset")
+        with self.assertRaises(odoo.exceptions.AccessDenied):
+            self.env["res.users"].authenticate(
+                {
+                    "login": self.user_demo.login,
+                    "password": "Taken0ver!123",
+                    "type": "password",
+                },
+                {"interactive": False},
+            )
+
+    def test_a_password_change_kills_an_outstanding_reset_token(self):
+        token = self._reset_token(self.user_demo)
+        Partner = self.env["res.partner"].sudo()
+        self.assertEqual(
+            Partner._get_partner_from_token(token), self.user_demo.partner_id
+        )
+        self.user_demo.sudo().password = "Changed.Elsewhere!42"
+        self.assertFalse(Partner._get_partner_from_token(token))
+
+    def test_only_our_own_links_put_a_signup_token_in_the_session(self):
+        self._set_signup("b2b")
+        partner = (
+            self.env["res.partner"]
+            .sudo()
+            .create({"name": "Invited", "email": "invited@example.com"})
+        )
+        partner.signup_prepare()
+        token = partner._generate_signup_token()
+
+        self.authenticate(None, None)
+        self.url_open(f"/web/login?auth_signup_token={token}")
+        self.assertEqual(self.url_open("/web/signup").status_code, 404)
+
+        self.url_open(f"/mail/view?auth_signup_token={token}")
+        res = self.url_open("/web/signup")
+        self.assertEqual(res.status_code, 200)
+        self.assertIn("Invited", res.text)
+
+    def test_a_token_minted_before_the_password_state_still_resolves(self):
+        partner = self.user_demo.partner_id.sudo()
+        partner.signup_prepare(signup_type="reset")
+        legacy = odoo.tools.hash_sign(
+            partner.env,
+            "signup",
+            [partner.id, partner.user_ids.ids, partner._get_login_date(), "reset"],
+            expiration_hours=4,
+        )
+        self.assertEqual(
+            self.env["res.partner"].sudo()._get_partner_from_token(legacy), partner
+        )
