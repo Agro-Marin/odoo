@@ -8,7 +8,7 @@
     "author": "Odoo S.A.",
     "license": "LGPL-3",
     "depends": [
-        "purchase_edi_ubl_bis3",
+        "purchase_edi_ubl",
         "sale_edi_ubl",
     ],
 }
