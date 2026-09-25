@@ -40,6 +40,13 @@ msgstr "Boshlang‘ich to‘lov"
 
 #. module: trade_account
 #. odoo-python
+#: code:addons/trade_account/models/mixin_order_invoice.py:0
+#, fuzzy
+msgid "Down Payments"
+msgstr "Boshlang‘ich to‘lovlar"
+
+#. module: trade_account
+#. odoo-python
 #: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
 #, fuzzy
 msgid "Down payment invoice"

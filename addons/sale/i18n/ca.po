@@ -2336,7 +2336,6 @@ msgstr "Bestreta: %(date)s (esborrany)"
 
 #. module: sale
 #. odoo-python
-#: code:addons/sale/models/sale_order.py:0
 #: code:addons/sale/models/sale_order_line.py:0
 msgid "Down Payments"
 msgstr "Bestretes"

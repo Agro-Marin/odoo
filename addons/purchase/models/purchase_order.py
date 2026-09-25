@@ -587,29 +587,6 @@ class PurchaseOrder(models.Model):
             "name": self.env._("Down Payment"),
         }
 
-    def _get_invoiceable_lines(self, final=False):
-        self.check_singleton()
-        return self.line_ids
-
-    def _prepare_invoice_line_commands(self, invoiceable_lines, sequence=10):
-        commands = []
-        pending_section = None
-        for line in invoiceable_lines:
-            if line.display_type in ("line_section", "line_subsection"):
-                pending_section = line
-                continue
-            if pending_section:
-                for line_vals in pending_section._prepare_aml_vals_list():
-                    line_vals.update({"sequence": sequence})
-                    commands.append(Command.create(line_vals))
-                    sequence += 1
-                pending_section = None
-            for line_vals in line._prepare_aml_vals_list():
-                line_vals.update({"sequence": sequence})
-                commands.append(Command.create(line_vals))
-                sequence += 1
-        return commands, sequence
-
     def _get_invoice_grouping_keys(self):
         return ["company_id", "partner_id", "currency_id"]
 

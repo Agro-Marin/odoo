@@ -55,7 +55,7 @@ class TestPurchaseDownpayment(TestPurchaseToInvoiceCommon):
                     "product_id": False,
                     "display_type": "line_section",
                     "quantity": 0,
-                    "is_downpayment": True,
+                    "is_downpayment": False,
                     "balance": 0.0,
                 },
                 {

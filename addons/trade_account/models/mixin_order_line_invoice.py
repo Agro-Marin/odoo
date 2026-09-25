@@ -250,9 +250,20 @@ class MixinOrderLineInvoice(models.AbstractModel):
         self._assert_invoiced_uom_convertible()
         return [self._prepare_aml_vals(**optional_values)]
 
+    def _is_invoiceable(self, final=False):
+        self.check_singleton()
+        if self.display_type == "line_note":
+            return True
+        precision = self.env["decimal.precision"].get_precision("Product Unit")
+        return not float_is_zero(self.qty_to_invoice, precision_digits=precision)
+
+    def _prepare_down_payment_deduction_aml_vals(self):
+        return {"quantity": -1.0}
+
     def _prepare_aml_vals(self, **optional_values):
         self.check_singleton()
-        optional_values.pop("move", None)
+        move = optional_values.pop("move", None)
+        refund_type = self._get_invoice_move_types()[1]
         res = {
             "display_type": self.display_type or "product",
             "name": self.env["account.move.line"]._get_journal_items_full_name(
@@ -261,19 +272,33 @@ class MixinOrderLineInvoice(models.AbstractModel):
             ),
             "product_id": self.product_id.id,
             "product_uom_id": self.product_uom_id.id,
-            "quantity": self.qty_to_invoice,
+            "quantity": (
+                -self.qty_to_invoice
+                if move and move.move_type == refund_type
+                else self.qty_to_invoice
+            ),
             "discount": self.discount,
-            "price_unit": self.price_unit,
+            "price_unit": self.currency_id._convert(
+                self.price_unit,
+                (move and move.currency_id) or self.currency_id,
+                self.company_id,
+                (move and move.date) or fields.Date.today(),
+                round=False,
+            ),
             "tax_ids": [Command.set(self.tax_ids.ids)],
             "is_downpayment": self.is_downpayment,
         }
         link_field = self._get_invoice_line_link_field()
         if link_field:
             res[link_field] = [Command.link(self.id)]
-        if self.is_downpayment and self.invoice_line_ids:
-            res["account_id"] = self.invoice_line_ids.account_id[:1].id
+        if self.is_downpayment and (
+            downpayment_lines := self.invoice_line_ids.filtered("is_downpayment")
+        ):
+            res["account_id"] = downpayment_lines.account_id[:1].id
             _debug.logic("aml_account_from_downpayment", line=self)
         res.update(optional_values)
+        if self.display_type:
+            res["account_id"] = False
         _debug.pipeline("aml_vals", line=self, quantity=res["quantity"])
         return res
 

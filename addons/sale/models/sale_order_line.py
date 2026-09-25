@@ -1337,11 +1337,26 @@ class SaleOrderLine(models.Model):
             > 0
         )
 
+    def _get_invoice_line_link_field(self):
+        return "sale_line_ids"
+
+    def _is_invoiceable(self, final=False):
+        return super()._is_invoiceable(final) and (
+            final or self.qty_to_invoice > 0 or self.display_type == "line_note"
+        )
+
+    def _prepare_down_payment_deduction_aml_vals(self):
+        return {
+            **super()._prepare_down_payment_deduction_aml_vals(),
+            "extra_tax_data": self.env[
+                "account.tax"
+            ]._reverse_quantity_base_line_extra_tax_data(self.extra_tax_data),
+        }
+
     def _prepare_aml_vals(self, **optional_values):
         self.check_singleton()
-        move = optional_values.pop("move", None)
-
         if self.product_id.type == "combo":
+            optional_values.pop("move", None)
             qty_to_invoice = (
                 int(self.qty_to_invoice)
                 if self.qty_to_invoice == int(self.qty_to_invoice)
@@ -1349,7 +1364,6 @@ class SaleOrderLine(models.Model):
             )
             return {
                 "display_type": "line_section",
-                "sequence": self.sequence,
                 "name": f"{self.product_id.name} x {qty_to_invoice}",
                 "product_uom_id": self.product_uom_id.id,
                 "quantity": self.qty_to_invoice,
@@ -1358,47 +1372,12 @@ class SaleOrderLine(models.Model):
                 "collapse_composition": self.collapse_composition,
                 **optional_values,
             }
-
-        res = {
-            "display_type": self.display_type or "product",
-            "sequence": self.sequence,
-            "name": self.env["account.move.line"]._get_journal_items_full_name(
-                self.name,
-                self.product_id.display_name,
-            ),
-            "product_id": self.product_id.id,
-            "product_uom_id": self.product_uom_id.id,
-            "quantity": self.qty_to_invoice,
-            "discount": self.discount,
-            "price_unit": self.price_unit,
-            "tax_ids": [Command.set(self.tax_ids.ids)],
-            "sale_line_ids": [Command.link(self.id)],
-            "is_downpayment": self.is_downpayment,
+        return {
             "extra_tax_data": self.extra_tax_data,
             "collapse_prices": self.collapse_prices,
             "collapse_composition": self.collapse_composition,
+            **super()._prepare_aml_vals(**optional_values),
         }
-        downpayment_lines = self.invoice_line_ids.filtered("is_downpayment")
-        if self.is_downpayment and downpayment_lines:
-            res["account_id"] = downpayment_lines.account_id[:1].id
-        if move:
-            res["quantity"] = (
-                -self.qty_to_invoice
-                if move.move_type == "out_refund"
-                else self.qty_to_invoice
-            )
-            res["price_unit"] = self.currency_id._convert(
-                self.price_unit,
-                move.currency_id or self.currency_id,
-                self.company_id,
-                move.date or fields.Date.today(),
-                round=False,
-            )
-        if optional_values:
-            res.update(optional_values)
-        if self.display_type:
-            res["account_id"] = False
-        return res
 
     def _get_base_line_special_type(self):
         self.check_singleton()

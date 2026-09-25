@@ -58,23 +58,23 @@ class TestSaleInvoicing(TestSaleCouponCommon):
 
         order._update_programs_and_rewards()
         self._claim_reward(order, discount_coupon_program)
-        invoiceable_lines = order._get_order_lines_invoiceable()
+        invoiceable_lines = order._get_invoiceable_lines()
         self.assertEqual(len(invoiceable_lines), 0)
 
         order.action_confirm()
-        invoiceable_lines = order._get_order_lines_invoiceable()
+        invoiceable_lines = order._get_invoiceable_lines()
         self.assertEqual(order.invoice_state, "no")
         self.assertEqual(len(invoiceable_lines), 1)
 
         inv = order._create_invoices()
         self.assertEqual(len(inv.invoice_line_ids), 1)
-        invoiceable_lines = order._get_order_lines_invoiceable()
+        invoiceable_lines = order._get_invoiceable_lines()
         self.assertEqual(len(invoiceable_lines), 0)
         inv.action_cancel()
 
         order.line_ids[0].qty_transferred = 1
         self.assertEqual(order.invoice_state, "to do")
-        invoiceable_lines = order._get_order_lines_invoiceable()
+        invoiceable_lines = order._get_invoiceable_lines()
         self.assertEqual(order.line_ids, invoiceable_lines)
         account_move = order._create_invoices()
         self.assertEqual(len(account_move.invoice_line_ids), 2)

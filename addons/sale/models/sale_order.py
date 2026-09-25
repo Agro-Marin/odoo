@@ -1,5 +1,5 @@
 import json
-from itertools import groupby, starmap, zip_longest
+from itertools import starmap, zip_longest
 
 from odoo import api, fields, models
 from odoo.api import SUPERUSER_ID
@@ -8,7 +8,6 @@ from odoo.fields import Command
 from odoo.http import request
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import (
-    float_is_zero,
     format_amount,
     format_list,
     frozendict,
@@ -1281,100 +1280,6 @@ class SaleOrder(models.Model):
     def _get_invoice_line_sequence_start(self):
         return 0
 
-    def _get_invoiceable_lines(self, final=False):
-        return self._get_order_lines_invoiceable(final)
-
-    def _prepare_invoice_line_commands(self, invoiceable_lines, sequence=10):
-        if all(line.display_type for line in invoiceable_lines):
-            _debug.logic(
-                "invoice_line_commands_empty",
-                order=self,
-                reason="all_display_type",
-                lines=invoiceable_lines,
-            )
-            return [], sequence
-
-        commands = []
-        down_payment_section_added = False
-        for line in invoiceable_lines:
-            if not down_payment_section_added and line.is_downpayment:
-                commands.append(
-                    Command.create(
-                        self._prepare_down_payment_section_line(sequence=sequence),
-                    ),
-                )
-                down_payment_section_added = True
-                sequence += 1
-
-            optional_values = {"sequence": sequence}
-
-            if line.is_downpayment:
-                optional_values["quantity"] = -1.0
-                optional_values["extra_tax_data"] = self.env[
-                    "account.tax"
-                ]._reverse_quantity_base_line_extra_tax_data(line.extra_tax_data)
-
-            commands.extend(
-                Command.create(vals)
-                for vals in line._prepare_aml_vals_list(**optional_values)
-            )
-            sequence += 1
-        _debug.pipeline(
-            "invoice_line_commands",
-            order=self,
-            lines=len(invoiceable_lines),
-            commands=len(commands),
-            down_payment_section=down_payment_section_added,
-        )
-        return commands, sequence
-
-    def _group_invoice_vals(self, invoice_vals_list):
-        new_invoice_vals_list = []
-        invoice_grouping_keys = self._get_invoice_grouping_keys()
-        invoice_vals_list = sorted(
-            invoice_vals_list,
-            key=lambda x: [
-                x.get(grouping_key) for grouping_key in invoice_grouping_keys
-            ],
-        )
-        for _grouping_keys, invoices in groupby(
-            invoice_vals_list,
-            key=lambda x: [
-                x.get(grouping_key) for grouping_key in invoice_grouping_keys
-            ],
-        ):
-            origins = set()
-            payment_refs = set()
-            refs = set()
-            ref_invoice_vals = None
-            for invoice_vals in invoices:
-                if not ref_invoice_vals:
-                    ref_invoice_vals = invoice_vals
-                else:
-                    ref_invoice_vals["invoice_line_ids"] += invoice_vals[
-                        "invoice_line_ids"
-                    ]
-                origins.add(invoice_vals["invoice_origin"])
-                payment_refs.add(invoice_vals["payment_reference"])
-                refs.add(invoice_vals["ref"])
-            ref_invoice_vals.update(
-                {
-                    "ref": ", ".join(refs)[:2000],
-                    "invoice_origin": ", ".join(origins),
-                    "payment_reference": (len(payment_refs) == 1 and payment_refs.pop())
-                    or False,
-                },
-            )
-            new_invoice_vals_list.append(ref_invoice_vals)
-        _debug.pipeline(
-            "invoice_vals_grouped",
-            orders=self,
-            before=len(invoice_vals_list),
-            after=len(new_invoice_vals_list),
-            keys=format_list(self.env, invoice_grouping_keys),
-        )
-        return new_invoice_vals_list
-
     def _post_group_invoice_vals(self, invoice_vals_list):
         invoice_vals_list = super()._post_group_invoice_vals(invoice_vals_list)
         if len(invoice_vals_list) < len(self):
@@ -1416,61 +1321,6 @@ class SaleOrder(models.Model):
             "currency_id",
             "fiscal_position_id",
         ]
-
-    def _get_order_lines_invoiceable(self, final=False):
-        down_payment_line_ids = []
-        invoiceable_line_ids = []
-        section_line_ids = []
-        subsection_line_ids = []
-        precision = self.env["decimal.precision"].get_precision("Product Unit")
-
-        for line in self.line_ids:
-            if line.display_type == "line_section":
-                section_line_ids = [line.id]
-                subsection_line_ids = []
-                continue
-            if line.display_type == "line_subsection":
-                subsection_line_ids = [line.id]
-                continue
-            if line.display_type != "line_note" and float_is_zero(
-                line.qty_to_invoice,
-                precision_digits=precision,
-            ):
-                continue
-            if (
-                line.qty_to_invoice > 0
-                or (line.qty_to_invoice < 0 and final)
-                or line.display_type == "line_note"
-            ):
-                if line.is_downpayment:
-                    down_payment_line_ids.append(line.id)
-                    continue
-                if subsection_line_ids:
-                    if line.display_type:
-                        subsection_line_ids.append(line.id)
-                        continue
-                    invoiceable_line_ids.extend(section_line_ids + subsection_line_ids)
-                    subsection_line_ids = []
-                    section_line_ids = []
-                elif section_line_ids:
-                    if line.display_type:
-                        section_line_ids.append(line.id)
-                        continue
-                    invoiceable_line_ids.extend(section_line_ids)
-                    section_line_ids = []
-                    subsection_line_ids = []
-                invoiceable_line_ids.append(line.id)
-
-        _debug.perf.count(
-            "invoiceable_lines",
-            order=self,
-            lines=len(self.line_ids),
-            invoiceable=len(invoiceable_line_ids),
-            down_payments=len(down_payment_line_ids),
-        )
-        return self.line_ids.browse(
-            invoiceable_line_ids + down_payment_line_ids,
-        ).with_prefetch(self.line_ids._prefetch_ids)
 
     def _get_order_lines_price_updatable(self):
         return self.line_ids.filtered(lambda line: not line.display_type)
@@ -1845,22 +1695,6 @@ class SaleOrder(models.Model):
             "state": "done",
             "date_order": fields.Datetime.now(),
             "date_confirmed": fields.Datetime.now(),
-        }
-
-    def _prepare_down_payment_section_line(self, **optional_values):
-        self.check_singleton()
-        lang = self._get_lang()
-        self_lang = self.with_context(lang=lang) if lang != self.env.lang else self
-        return {
-            "display_type": "line_section",
-            "name": self_lang.env._("Down Payments"),
-            "product_id": False,
-            "product_uom_id": False,
-            "quantity": 0,
-            "discount": 0,
-            "price_unit": 0,
-            "account_id": False,
-            **optional_values,
         }
 
     def _prepare_down_payment_line_values_from_base_line(self, base_line):

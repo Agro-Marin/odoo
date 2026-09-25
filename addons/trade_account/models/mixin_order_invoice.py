@@ -4,6 +4,7 @@ from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError
 from odoo.fields import Command, Domain
 from odoo.libs.debug_log import DebugLog
+from odoo.tools import format_list
 
 from odoo.addons.trade.tools import direction_of
 
@@ -413,10 +414,73 @@ class MixinOrderInvoice(models.AbstractModel):
             moves_to_switch.action_switch_move_type()
 
     def _get_invoiceable_lines(self, final=False):
-        self.check_singleton()
-        return self.line_ids.filtered(
-            lambda line: not line.display_type and line.qty_to_invoice,
+        invoiceable_line_ids = []
+        down_payment_line_ids = []
+        for order in self:
+            line_ids, down_payment_ids = order._split_invoiceable_line_ids(final)
+            invoiceable_line_ids += line_ids
+            down_payment_line_ids += down_payment_ids
+        _debug.perf.count(
+            "invoiceable_lines",
+            orders=self,
+            lines=len(self.line_ids),
+            invoiceable=len(invoiceable_line_ids),
+            down_payments=len(down_payment_line_ids),
         )
+        return self.line_ids.browse(
+            invoiceable_line_ids + down_payment_line_ids,
+        ).with_prefetch(self.line_ids._prefetch_ids)
+
+    def _split_invoiceable_line_ids(self, final):
+        self.check_singleton()
+        invoiceable_line_ids = []
+        down_payment_line_ids = []
+        section_line_ids = []
+        subsection_line_ids = []
+        for line in self.line_ids:
+            if line.display_type == "line_section":
+                section_line_ids = [line.id]
+                subsection_line_ids = []
+                continue
+            if line.display_type == "line_subsection":
+                subsection_line_ids = [line.id]
+                continue
+            if not line._is_invoiceable(final):
+                continue
+            if line.is_downpayment:
+                down_payment_line_ids.append(line.id)
+                continue
+            if subsection_line_ids:
+                if line.display_type:
+                    subsection_line_ids.append(line.id)
+                    continue
+                invoiceable_line_ids.extend(section_line_ids + subsection_line_ids)
+                subsection_line_ids = []
+                section_line_ids = []
+            elif section_line_ids:
+                if line.display_type:
+                    section_line_ids.append(line.id)
+                    continue
+                invoiceable_line_ids.extend(section_line_ids)
+                section_line_ids = []
+            invoiceable_line_ids.append(line.id)
+        return invoiceable_line_ids, down_payment_line_ids
+
+    def _prepare_down_payment_section_line(self, **optional_values):
+        self.check_singleton()
+        lang = self._get_lang()
+        self_lang = self.with_context(lang=lang) if lang != self.env.lang else self
+        return {
+            "display_type": "line_section",
+            "name": self_lang.env._("Down Payments"),
+            "product_id": False,
+            "product_uom_id": False,
+            "quantity": 0,
+            "discount": 0,
+            "price_unit": 0,
+            "account_id": False,
+            **optional_values,
+        }
 
     def _prepare_down_payment_line_section_values(self):
         self.check_singleton()
@@ -484,13 +548,42 @@ class MixinOrderInvoice(models.AbstractModel):
         return lines
 
     def _prepare_invoice_line_commands(self, invoiceable_lines, sequence=10):
+        if all(line.display_type for line in invoiceable_lines):
+            _debug.logic(
+                "invoice_line_commands_empty",
+                order=self,
+                reason="all_display_type",
+                lines=invoiceable_lines,
+            )
+            return [], sequence
+
         commands = []
+        down_payment_section_added = False
         for line in invoiceable_lines:
+            if not down_payment_section_added and line.is_downpayment:
+                commands.append(
+                    Command.create(
+                        self._prepare_down_payment_section_line(sequence=sequence),
+                    ),
+                )
+                down_payment_section_added = True
+                sequence += 1
+
+            optional_values = {"sequence": sequence}
+            if line.is_downpayment:
+                optional_values |= line._prepare_down_payment_deduction_aml_vals()
             commands.extend(
                 Command.create(vals)
-                for vals in line._prepare_aml_vals_list(sequence=sequence)
+                for vals in line._prepare_aml_vals_list(**optional_values)
             )
             sequence += 1
+        _debug.pipeline(
+            "invoice_line_commands",
+            order=self,
+            lines=len(invoiceable_lines),
+            commands=len(commands),
+            down_payment_section=down_payment_section_added,
+        )
         return commands, sequence
 
     def _group_invoice_vals(self, invoice_vals_list):
@@ -502,6 +595,8 @@ class MixinOrderInvoice(models.AbstractModel):
         grouped = []
         for _keys, group in groupby(sorted(invoice_vals_list, key=key), key=key):
             origins = set()
+            payment_refs = set()
+            refs = set()
             ref_vals = None
             for vals in group:
                 if not ref_vals:
@@ -509,13 +604,22 @@ class MixinOrderInvoice(models.AbstractModel):
                 else:
                     ref_vals["invoice_line_ids"] += vals["invoice_line_ids"]
                 origins.add(vals.get("invoice_origin"))
+                payment_refs.add(vals.get("payment_reference"))
+                refs.add(vals.get("ref"))
             ref_vals["invoice_origin"] = ", ".join(sorted(o for o in origins if o))
+            if refs - {None}:
+                ref_vals["ref"] = ", ".join(sorted(r for r in refs if r))[:2000]
+            if payment_refs - {None}:
+                ref_vals["payment_reference"] = (
+                    len(payment_refs) == 1 and payment_refs.pop()
+                ) or False
             grouped.append(ref_vals)
         _debug.pipeline(
             "invoice_vals_grouped",
             orders=self,
             before=len(invoice_vals_list),
             after=len(grouped),
+            keys=format_list(self.env, grouping_keys),
         )
         return grouped
 

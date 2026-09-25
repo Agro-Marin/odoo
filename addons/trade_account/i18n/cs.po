@@ -46,6 +46,12 @@ msgstr "Záloha"
 
 #. module: trade_account
 #. odoo-python
+#: code:addons/trade_account/models/mixin_order_invoice.py:0
+msgid "Down Payments"
+msgstr "Zálohy"
+
+#. module: trade_account
+#. odoo-python
 #: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
 msgid "Down payment invoice"
 msgstr "Zálohová faktura"

@@ -527,26 +527,8 @@ class PurchaseOrderLine(models.Model):
     def _is_invoiced_on_transferred(self):
         return self.product_id.bill_policy == "transferred"
 
-    def _prepare_aml_vals(self, **optional_values):
-        self.check_singleton()
-        move = optional_values.pop("move", None)
-        res = super()._prepare_aml_vals(**optional_values)
-        aml_currency = (move and move.currency_id) or self.currency_id
-        date = (move and move.date) or fields.Date.today()
-        if "quantity" not in optional_values:
-            res["quantity"] = (
-                -self.qty_to_invoice
-                if move and move.move_type == "in_refund"
-                else self.qty_to_invoice
-            )
-        res["price_unit"] = self.currency_id._convert(
-            self.price_unit,
-            aml_currency,
-            self.company_id,
-            date,
-            round=False,
-        )
-        return res
+    def _is_invoiceable(self, final=False):
+        return not self.is_downpayment or super()._is_invoiceable(final)
 
     def _post_batched_quantity_changes(self, order, changes, change_type):
         if not changes:
