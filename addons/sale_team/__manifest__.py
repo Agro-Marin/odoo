@@ -1,6 +1,6 @@
 {
     "name": "Sales Teams",
-    "version": "2.1",
+    "version": "2.2",
     "category": "Sales/Sales",
     "summary": "Salespersons work in teams: team documents, team access, targets and reporting in Sales",
     "description": """

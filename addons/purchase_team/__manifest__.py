@@ -1,6 +1,6 @@
 {
     "name": "Purchase Teams",
-    "version": "1.0",
+    "version": "1.1",
     "category": "Supply Chain/Purchase",
     "summary": "Buyers work in teams: team documents, team access and team reporting in Purchase",
     "author": "AgroMarin",

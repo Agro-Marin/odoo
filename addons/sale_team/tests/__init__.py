@@ -9,3 +9,4 @@ from . import test_search
 from . import test_team
 from . import test_sale_order_team
 from . import test_team_sale_orders
+from . import test_team_documents
