@@ -45,6 +45,12 @@ class MrpWorkorder(models.Model):
                 and workorder.date_start < now
             )
 
+    def _compute_sequence(self):
+        for workorder in self:
+            workorder.sequence = (
+                workorder.operation_id.sequence if workorder.operation_id else 100
+            )
+
     def _sorted_by_routing(self):
         return self.sorted(lambda workorder: (workorder.sequence, workorder.id))
 
@@ -64,7 +70,12 @@ class MrpWorkorder(models.Model):
         string="Work Order",
         required=True,
     )
-    sequence = fields.Integer(default=100)
+    sequence = fields.Integer(
+        compute="_compute_sequence",
+        store=True,
+        readonly=False,
+        precompute=True,
+    )
     barcode = fields.Char(
         compute="_compute_barcode",
         store=True,
@@ -1039,24 +1050,8 @@ class MrpWorkorder(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        operations = self.env["mrp.routing.workcenter"].browse(
-            {
-                values["operation_id"]
-                for values in vals_list
-                if values.get("operation_id") and "sequence" not in values
-            }
-        )
-        sequence_by_operation = {
-            operation.id: operation.sequence for operation in operations
-        }
-        for values in vals_list:
-            if values.get("operation_id") in sequence_by_operation:
-                values["sequence"] = sequence_by_operation[values["operation_id"]]
-
         res = super().create(vals_list)
-        _debug.lifecycle(
-            "create", count=len(res), workorders=res, operations=len(operations)
-        )
+        _debug.lifecycle("create", count=len(res), workorders=res)
 
         for workorder in res:
             if workorder.date_start and not workorder.date_end:

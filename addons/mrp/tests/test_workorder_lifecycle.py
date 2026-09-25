@@ -225,3 +225,37 @@ class TestWorkorderLifecycle(TestMrpCommon):
         self.first.invalidate_recordset()
         self.assertEqual(self.first.time_cycle, 60)
         self.assertEqual(self._confirmed().workorder_ids.duration_expected, 120)
+
+    def test_a_kit_operation_keeps_its_own_place_in_the_routing(self):
+        kit, kit_component = self.env["product.product"].create(
+            [{"name": "Kit"}, {"name": "Kit component", "is_storable": True}]
+        )
+        kit_bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": kit.product_tmpl_id.id,
+                "type": "phantom",
+                "bom_line_ids": [
+                    Command.create({"product_id": kit_component.id, "product_qty": 1})
+                ],
+                "operation_ids": [
+                    Command.create(
+                        {"name": "kit step", "workcenter_id": self.workcenter_2.id}
+                    )
+                ],
+            }
+        )
+        kit_bom.bom_line_ids.operation_id = kit_bom.operation_ids
+        self.bom.bom_line_ids = [
+            Command.create({"product_id": kit.id, "product_qty": 1})
+        ]
+        production = self._confirmed()
+        production.button_plan()
+        kit_workorder = production.workorder_ids.filtered(
+            lambda workorder: workorder.operation_id == kit_bom.operation_ids
+        )
+        self.assertEqual(kit_workorder.sequence, kit_bom.operation_ids.sequence)
+        self.assertEqual(
+            sorted(production.workorder_ids.mapped("sequence")),
+            [0, 1, kit_bom.operation_ids.sequence],
+        )
+        self.assertEqual(kit_workorder.move_raw_ids.product_id, kit_component)
