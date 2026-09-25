@@ -16,6 +16,7 @@ from odoo.tools import (
 )
 
 from odoo.addons.purchase import const
+from odoo.addons.trade.tools import PURCHASE
 
 
 class PurchaseOrder(models.Model):
@@ -41,16 +42,13 @@ class PurchaseOrder(models.Model):
 
     _price_history_action = "purchase.action_purchase_history"
 
-    _order_type = "purchase"
+    _direction = PURCHASE
     _sequence_code = "purchase.order"
-    _invoice_move_direction = "in"
-    _partner_payment_term_field = "property_supplier_payment_term_id"
     _lock_setting_field = "order_lock_po"
     _auto_lock_group = "purchase.group_auto_done_setting"
     _mark_sent_context_key = "mark_rfq_as_sent"
     _display_name_context_key = "purchase_show_partner_name"
     _portal_url_prefix = "purchase"
-    _product_ok_field = "purchase_ok"
 
     def _get_fields_rec_search_base(self):
         return ["name", "partner_ref"]

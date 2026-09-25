@@ -5,6 +5,8 @@ from odoo.exceptions import UserError
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare
 
+from odoo.addons.trade.tools import TradeDirection, direction_of
+
 CHATTER_PRODUCT_LIST_THRESHOLD = 50
 
 _debug = DebugLog(__name__)
@@ -13,11 +15,7 @@ _debug = DebugLog(__name__)
 class MixinOrderLineFields(models.AbstractModel):
     _name = "mixin.order.line.fields"
     _description = "Common Order Line Fields"
-
-    _order_type = ""
-    _product_ok_field = ""
-    _analytic_business_domain = ""
-    _transfer_verb = "transferred"
+    _direction: TradeDirection | None = None
 
     order_id = fields.Many2one(
         comodel_name="mixin.order",
@@ -186,15 +184,12 @@ class MixinOrderLineFields(models.AbstractModel):
             getattr(self, method_name)(*args)
 
     def _get_order_type(self):
-        if not self._order_type:
-            _debug.logic("order_type_undeclared", model=self._name)
-            raise NotImplementedError(f"{self._name} must declare _order_type")
-        return self._order_type
+        return direction_of(self).key
 
     def _domain_product_id(self):
         if self._abstract:
             return []
-        return [(self._product_ok_field, "=", True)]
+        return [(direction_of(self).product_ok_field, "=", True)]
 
     def _get_merge_date_field(self):
         return
@@ -531,7 +526,7 @@ class MixinOrderLineFields(models.AbstractModel):
                     "gets invoiced or %(verb)s).\nSet the quantity to 0 instead.",
                     line_type=self._description.lower(),
                     state=state_label,
-                    verb=self._transfer_verb,
+                    verb=direction_of(self).transfer_verb,
                 ),
             )
 
@@ -656,7 +651,7 @@ class MixinOrderLineFields(models.AbstractModel):
         return self.filtered(lambda line: not line.display_type)
 
     def _check_analytic_distribution(self):
-        business_domain = self._analytic_business_domain
+        business_domain = direction_of(self).analytic_business_domain
         _debug.pipeline(
             "analytic_distribution_checked",
             lines=self,

@@ -13,5 +13,5 @@ class ProductProduct(models.Model):
         default="ordered",
         help="`sale` and `purchase` each name their own policy field and this "
         "module depends on neither, so it declares the one its line model "
-        "points `_invoice_policy_field` at.",
+        "names as its direction's invoice_policy_field.",
     )

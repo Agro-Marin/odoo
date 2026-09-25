@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from odoo.addons.trade.tools import SALE
+
 
 class TestTradeOrderDocumentMatch(models.Model):
     """Concrete `mixin.order.document.match`, so the union is testable.
@@ -17,7 +19,7 @@ class TestTradeOrderDocumentMatch(models.Model):
     _order = "date desc, name desc"
 
     _order_table = "test_trade_order"
-    _move_types = ("out_invoice", "out_refund")
+    _direction = SALE
     _order_reference_column = "partner_ref"
 
     move_id = fields.Many2one(

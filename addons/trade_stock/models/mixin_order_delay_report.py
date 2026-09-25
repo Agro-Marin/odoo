@@ -2,6 +2,8 @@ from odoo import fields, models
 from odoo.fields import Domain
 from odoo.tools import SQL
 
+from odoo.addons.trade.tools import TradeDirection, direction_of
+
 
 class MixinOrderDelayReport(models.AbstractModel):
     _name = "mixin.order.delay.report"
@@ -16,8 +18,7 @@ class MixinOrderDelayReport(models.AbstractModel):
     # the move's end that meets the partner, and the usage it carries there:
     # a return reverses the direction and shares the order line, so without
     # this it counts as a second on-time transfer
-    _partner_location_field = ""
-    _partner_location_usage = ""
+    _direction: TradeDirection | None = None
 
     partner_id = fields.Many2one(
         comodel_name="res.partner",
@@ -97,7 +98,7 @@ class MixinOrderDelayReport(models.AbstractModel):
                 "stock_location",
                 "pl",
                 "JOIN",
-                f"pl.id = m.{self._partner_location_field}",
+                f"pl.id = m.{direction_of(self).partner_location_field}",
             ),
             ("product_category", "pc", "LEFT JOIN", "pc.id = pt.categ_id"),
             ("stock_move_line", "ml", "LEFT JOIN", "ml.move_id = m.id"),
@@ -111,7 +112,7 @@ class MixinOrderDelayReport(models.AbstractModel):
         ]
 
     def _get_partner_end_condition(self):
-        condition = f"pl.usage = '{self._partner_location_usage}'"
+        condition = f"pl.usage = '{direction_of(self).partner_usage}'"
         inter_company = self.env.ref(
             "stock.stock_location_inter_company", raise_if_not_found=False
         )

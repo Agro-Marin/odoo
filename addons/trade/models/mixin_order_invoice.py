@@ -5,6 +5,8 @@ from odoo.exceptions import AccessError, UserError
 from odoo.fields import Command, Domain
 from odoo.libs.debug_log import DebugLog
 
+from odoo.addons.trade.tools import direction_of
+
 INVOICE_STATE = [
     ("no", "Nothing to invoice"),
     ("to do", "To invoice"),
@@ -42,8 +44,7 @@ class MixinOrderInvoice(models.AbstractModel):
     )
 
     def _get_invoice_move_types(self):
-        direction = self._invoice_move_direction
-        return (f"{direction}_invoice", f"{direction}_refund")
+        return direction_of(self).move_types
 
     @api.depends(
         "line_ids.invoice_line_ids",
@@ -213,7 +214,7 @@ class MixinOrderInvoice(models.AbstractModel):
         if not invoices:
             invoices = self.mapped("invoice_ids")
 
-        direction = self._invoice_move_direction
+        direction = direction_of(self).move_prefix
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             f"account.action_move_{direction}_invoice_type",
         )
@@ -240,7 +241,7 @@ class MixinOrderInvoice(models.AbstractModel):
 
     def _prepare_invoice_action_context(self):
         self.check_singleton()
-        pt_field = self._get_partner_payment_term_field()
+        pt_field = direction_of(self).partner_payment_term_field
         return {
             "default_partner_id": self.partner_id.id,
             "default_invoice_payment_term_id": (
@@ -261,7 +262,7 @@ class MixinOrderInvoice(models.AbstractModel):
 
     def _prepare_invoice_vals(self):
         self.check_singleton()
-        direction = self._invoice_move_direction
+        direction = direction_of(self).move_prefix
         move_type = self.env.context.get("default_move_type", f"{direction}_invoice")
         invoice_partner = self._get_invoice_partner()
         values = {

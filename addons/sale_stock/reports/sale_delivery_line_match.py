@@ -1,6 +1,8 @@
 from odoo import fields, models
 from odoo.tools import SQL
 
+from odoo.addons.trade.tools import SALE
+
 
 class SaleDeliveryLineMatch(models.Model):
     _name = "sale.delivery.line.match"
@@ -12,8 +14,7 @@ class SaleDeliveryLineMatch(models.Model):
     _order_line_table = "sale_order_line"
     _order_table = "sale_order"
     _link_column = "sale_line_id"
-    _move_usage = "customer"
-    _move_usage_side = "destination"
+    _direction = SALE
 
     order_line_id = fields.Many2one(
         comodel_name="sale.order.line",

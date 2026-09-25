@@ -1,4 +1,8 @@
+from dataclasses import replace
+
 from odoo import api, fields, models
+
+from odoo.addons.trade.tools import SALE
 
 
 class TestTradeOrderLine(models.Model):
@@ -37,13 +41,7 @@ class TestTradeOrderLine(models.Model):
 
     # ROUTING
 
-    _order_type = "sale"
-    _product_ok_field = "sale_ok"
-    _analytic_business_domain = "sale_order"
-    _product_tax_field = "taxes_id"
-    _invoice_move_direction = "out"
-    _invoice_policy_field = "test_trade_order_invoice_policy"
-    _price_direction = 1
+    _direction = replace(SALE, invoice_policy_field="test_trade_order_invoice_policy")
 
     # INVOICING METHODS
 

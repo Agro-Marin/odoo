@@ -9,6 +9,8 @@ from odoo.fields import Command, Domain
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare, float_is_zero, format_date, groupby
 
+from odoo.addons.trade.tools import SALE
+
 _debug = DebugLog(__name__)
 
 
@@ -25,14 +27,7 @@ class SaleOrderLine(models.Model):
     _order = "order_id, sequence, id"
     _rec_names_search = ["name", "order_id.name"]
 
-    _order_type = "sale"
-    _product_ok_field = "sale_ok"
-    _analytic_business_domain = "sale_order"
-    _transfer_verb = "delivered"
-    _product_tax_field = "taxes_id"
-    _invoice_move_direction = "out"
-    _invoice_policy_field = "invoice_policy"
-    _price_direction = 1
+    _direction = SALE
 
     order_id = fields.Many2one(comodel_name="sale.order")
     partner_id = fields.Many2one(string="Customer")

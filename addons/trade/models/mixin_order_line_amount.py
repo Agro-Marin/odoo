@@ -4,15 +4,15 @@ from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import float_compare
 
+from odoo.addons.trade.tools import TradeDirection, direction_of
+
 _debug = DebugLog(__name__)
 
 
 class MixinOrderLineAmount(models.AbstractModel):
     _name = "mixin.order.line.amount"
     _description = "Order Line Amount Computation"
-
-    _product_tax_field = ""
-    _price_direction = 0
+    _direction: TradeDirection | None = None
 
     currency_id = fields.Many2one(comodel_name="res.currency")
 
@@ -446,9 +446,6 @@ class MixinOrderLineAmount(models.AbstractModel):
                 line.price_subtotal / line.product_uom_qty
             )
 
-    def _get_product_tax_field(self):
-        return self._product_tax_field
-
     def _get_custom_compute_tax_cache_key(self):
         return ()
 
@@ -456,7 +453,7 @@ class MixinOrderLineAmount(models.AbstractModel):
     def _compute_tax_ids(self):
         lines_by_company = defaultdict(lambda: self.env[self._name])
         cached_taxes = {}
-        tax_field = self._get_product_tax_field()
+        tax_field = direction_of(self).product_taxes_field
         for line in self.filtered(lambda l: not l.display_type):
             if not line.product_id:
                 # Nothing to map from: keep the taxes a productless line was given,
@@ -506,9 +503,9 @@ class MixinOrderLineAmount(models.AbstractModel):
             return empty
         company = self.company_id
         line = self.with_company(company)
-        taxes = line.product_id[line._get_product_tax_field()]._filter_taxes_by_company(
-            company
-        )
+        taxes = line.product_id[
+            direction_of(line).product_taxes_field
+        ]._filter_taxes_by_company(company)
         if not taxes:
             return empty
         return line.order_id.fiscal_position_id.map_tax(taxes)

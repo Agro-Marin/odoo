@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from odoo.addons.trade.tools import PURCHASE
+
 
 class VendorDelayReport(models.Model):
     _name = "vendor.delay.report"
@@ -11,7 +13,6 @@ class VendorDelayReport(models.Model):
     _order_table = "purchase_order"
     _link_column = "purchase_line_id"
     _date_commitment_alias = "ol"
-    _partner_location_field = "location_id"
-    _partner_location_usage = "supplier"
+    _direction = PURCHASE
 
     partner_id = fields.Many2one(string="Vendor")

@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from odoo.addons.trade.tools import SALE
+
 
 class TestTradeOrderLineMatch(models.Model):
     """Concrete `mixin.order.line.match`, so its matching algorithm is testable.
@@ -21,7 +23,7 @@ class TestTradeOrderLineMatch(models.Model):
     _order_table = "test_trade_order"
     _link_rel_table = "account_move_line_test_trade_order_line_rel"
     _link_field = "test_trade_order_line_ids"
-    _move_types = ("out_invoice", "out_refund")
+    _direction = SALE
 
     order_line_id = fields.Many2one(
         comodel_name="test_trade.order.line",

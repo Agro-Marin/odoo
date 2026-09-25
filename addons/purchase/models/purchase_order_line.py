@@ -7,6 +7,8 @@ from odoo import api, fields, models
 from odoo.fields import Command
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, SQL, float_compare, get_lang
 
+from odoo.addons.trade.tools import PURCHASE
+
 
 class PurchaseOrderLine(models.Model):
     _name = "purchase.order.line"
@@ -21,14 +23,7 @@ class PurchaseOrderLine(models.Model):
     _order = "order_id, sequence, id"
     _rec_names_search = ["name", "order_id.name"]
 
-    _order_type = "purchase"
-    _product_ok_field = "purchase_ok"
-    _analytic_business_domain = "purchase_order"
-    _transfer_verb = "received"
-    _product_tax_field = "supplier_taxes_id"
-    _invoice_move_direction = "in"
-    _invoice_policy_field = "bill_policy"
-    _price_direction = -1
+    _direction = PURCHASE
 
     def _get_merge_date_field(self):
         return "date_commitment"

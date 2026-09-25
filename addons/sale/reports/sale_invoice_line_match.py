@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from odoo.addons.trade.tools import SALE
+
 
 class SaleInvoiceLineMatch(models.Model):
     _name = "sale.invoice.line.match"
@@ -12,7 +14,7 @@ class SaleInvoiceLineMatch(models.Model):
     _order_table = "sale_order"
     _link_rel_table = "account_move_line_sale_order_line_rel"
     _link_field = "sale_line_ids"
-    _move_types = ("out_invoice", "out_refund")
+    _direction = SALE
     _add_wizard_model = "invoice.to.so.wizard"
     _add_wizard_view = "sale.invoice_to_so_wizard_form"
     _add_order_context_key = "default_sale_order_id"

@@ -1,6 +1,8 @@
 from odoo import fields, models
 from odoo.tools import SQL
 
+from odoo.addons.trade.tools import PURCHASE
+
 
 class PurchaseReceiptLineMatch(models.Model):
     _name = "purchase.receipt.line.match"
@@ -12,8 +14,7 @@ class PurchaseReceiptLineMatch(models.Model):
     _order_line_table = "purchase_order_line"
     _order_table = "purchase_order"
     _link_column = "purchase_line_id"
-    _move_usage = "supplier"
-    _move_usage_side = "source"
+    _direction = PURCHASE
     _date_expected_field = "date_commitment"
 
     order_line_id = fields.Many2one(

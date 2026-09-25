@@ -8,6 +8,7 @@ from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, OrderedSet, format_list
 
 from odoo.addons.base.models.mixin_lifecycle import MixinLifecycle
+from odoo.addons.trade.tools import TradeDirection, direction_of
 
 _debug = DebugLog(__name__)
 
@@ -15,6 +16,7 @@ _debug = DebugLog(__name__)
 class MixinOrder(models.AbstractModel):
     _name = "mixin.order"
     _description = "Order Management Base"
+    _direction: TradeDirection | None = None
     _inherit = [
         "mixin.lifecycle",
         "mixin.mail.thread",
@@ -23,17 +25,12 @@ class MixinOrder(models.AbstractModel):
         "mixin.product.catalog",
     ]
 
-    _order_type = ""
-
     _sequence_code = ""
-    _invoice_move_direction = ""
-    _partner_payment_term_field = ""
     _lock_setting_field = ""
     _auto_lock_group = ""
     _mark_sent_context_key = ""
     _display_name_context_key = ""
     _portal_url_prefix = ""
-    _product_ok_field = ""
 
     _price_history_action = ""
 
@@ -336,10 +333,7 @@ class MixinOrder(models.AbstractModel):
         return action
 
     def _get_order_type(self):
-        if not self._order_type:
-            _debug.logic("order_type_undeclared", model=self._name)
-            raise NotImplementedError(f"{self._name} must declare _order_type")
-        return self._order_type
+        return direction_of(self).key
 
     def _domain_partner_id(self):
         if self._abstract:
@@ -540,7 +534,7 @@ class MixinOrder(models.AbstractModel):
 
     @api.depends("company_id", "partner_id")
     def _compute_payment_term_id(self):
-        field_name = self._get_partner_payment_term_field()
+        field_name = direction_of(self).partner_payment_term_field
         for order in self:
             order = order.with_company(order.company_id)
             order.payment_term_id = order.partner_id[field_name]
@@ -615,9 +609,6 @@ class MixinOrder(models.AbstractModel):
     def _get_validity_days(self):
         self.check_singleton()
         return 0
-
-    def _get_partner_payment_term_field(self):
-        return self._partner_payment_term_field
 
     def _get_default_user_from_partner(self):
         self.check_singleton()
@@ -1103,13 +1094,10 @@ class MixinOrder(models.AbstractModel):
 
     def _get_domain_product_catalog(self):
         return super()._get_domain_product_catalog() & Domain(
-            self._get_catalog_product_ok_field(),
+            direction_of(self).product_ok_field,
             "=",
             True,
         )
-
-    def _get_catalog_product_ok_field(self):
-        return self._product_ok_field
 
     def _get_product_catalog_order_data(self, products, **kwargs):
         res = super()._get_product_catalog_order_data(products, **kwargs)

@@ -18,6 +18,7 @@ from odoo.tools.misc import str2bool
 
 from odoo.addons.payment import utils as payment_utils
 from odoo.addons.sale import const
+from odoo.addons.trade.tools import SALE
 
 _debug = DebugLog(__name__)
 
@@ -45,16 +46,13 @@ class SaleOrder(models.Model):
 
     _price_history_action = "sale.action_sale_history"
 
-    _order_type = "sale"
+    _direction = SALE
     _sequence_code = "sale.order"
-    _invoice_move_direction = "out"
-    _partner_payment_term_field = "property_payment_term_id"
     _lock_setting_field = "order_lock_so"
     _auto_lock_group = "sale.group_auto_done_setting"
     _mark_sent_context_key = "mark_so_as_sent"
     _display_name_context_key = "sale_show_partner_name"
     _portal_url_prefix = "orders"
-    _product_ok_field = "sale_ok"
 
     terms_type = fields.Selection(related="company_id.account_config_id.terms_type")
     country_code = fields.Char(

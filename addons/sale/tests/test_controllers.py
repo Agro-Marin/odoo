@@ -471,7 +471,9 @@ class TestAccessRightsControllers(HttpCase, SaleCommon):
 
         cls.user_portal = cls._create_new_portal_user()
 
-    @mute_logger("odoo.addons.base.models.ir_model", "odoo.addons.base.models.ir_access")
+    @mute_logger(
+        "odoo.addons.base.models.ir_model", "odoo.addons.base.models.ir_access"
+    )
     def test_access_controller(self):
         private_so = self.sale_order
         portal_so = self.sale_order.copy()

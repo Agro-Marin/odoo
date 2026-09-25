@@ -3,6 +3,8 @@ from odoo.exceptions import UserError
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, float_compare, float_is_zero
 
+from odoo.addons.trade.tools import TradeDirection, direction_of
+
 SPLITTABLE_STATES = ("waiting", "confirmed", "partially_available", "assigned")
 
 
@@ -16,8 +18,7 @@ class MixinOrderLineStockMatch(models.AbstractModel):
     _order_line_table = ""
     _order_table = ""
     _link_column = ""
-    _move_usage = ""
-    _move_usage_side = ""
+    _direction: TradeDirection | None = None
     _date_expected_field = ""
 
     company_id = fields.Many2one(
@@ -434,7 +435,7 @@ class MixinOrderLineStockMatch(models.AbstractModel):
             """,
             column=SQL.identifier(
                 "location_id"
-                if self._move_usage_side == "source"
+                if direction_of(self).partner_side == "source"
                 else "location_dest_id"
             ),
         )
@@ -450,5 +451,5 @@ class MixinOrderLineStockMatch(models.AbstractModel):
             AND NOT COALESCE(sm.is_inventory, FALSE)
             """,
             link=SQL.identifier(self._link_column),
-            usage=self._move_usage,
+            usage=direction_of(self).partner_usage,
         )

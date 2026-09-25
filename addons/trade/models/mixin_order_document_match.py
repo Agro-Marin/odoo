@@ -2,6 +2,8 @@ from odoo import api, fields, models
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, formatLang
 
+from odoo.addons.trade.tools import TradeDirection, direction_of
+
 _debug = DebugLog(__name__)
 
 
@@ -10,7 +12,7 @@ class MixinOrderDocumentMatch(models.AbstractModel):
     _description = "Orders & Invoices Union"
 
     _order_table = ""
-    _move_types = ()
+    _direction: TradeDirection | None = None
     _order_reference_column = "partner_ref"
 
     company_id = fields.Many2one(
@@ -113,20 +115,13 @@ class MixinOrderDocumentMatch(models.AbstractModel):
         return SQL("account_move am")
 
     @api.model
-    def _get_move_types(self):
-        if not self._move_types:
-            _debug.logic("move_types_undeclared", model=self._name)
-            raise NotImplementedError(f"{self._name} must declare _move_types")
-        return self._move_types
-
-    @api.model
     def _where_moves(self):
         return SQL(
             """
             am.move_type IN %(move_types)s
             AND am.state = 'posted'
             """,
-            move_types=tuple(self._get_move_types()),
+            move_types=direction_of(self).move_types,
         )
 
     @api.model

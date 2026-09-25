@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from odoo.addons.trade.tools import PURCHASE
+
 
 class PurchaseBillMatch(models.Model):
     _name = "purchase.bill.match"
@@ -10,7 +12,7 @@ class PurchaseBillMatch(models.Model):
     _order = "date desc, name desc"
 
     _order_table = "purchase_order"
-    _move_types = ("in_invoice", "in_refund")
+    _direction = PURCHASE
 
     move_id = fields.Many2one(
         comodel_name="account.move",

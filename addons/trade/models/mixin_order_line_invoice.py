@@ -7,6 +7,7 @@ from odoo.libs.debug_log import DebugLog
 from odoo.libs.numbers import float_compare, float_is_zero
 
 from .mixin_order_invoice import INVOICE_STATE
+from odoo.addons.trade.tools import TradeDirection, direction_of
 
 _debug = DebugLog(__name__)
 
@@ -14,9 +15,7 @@ _debug = DebugLog(__name__)
 class MixinOrderLineInvoice(models.AbstractModel):
     _name = "mixin.order.line.invoice"
     _description = "Order Line Invoice Integration"
-
-    _invoice_move_direction = ""
-    _invoice_policy_field = ""
+    _direction: TradeDirection | None = None
 
     currency_id = fields.Many2one(comodel_name="res.currency")
 
@@ -78,11 +77,7 @@ class MixinOrderLineInvoice(models.AbstractModel):
     )
 
     def _get_invoice_move_types(self):
-        direction = self._invoice_move_direction
-        return (f"{direction}_invoice", f"{direction}_refund")
-
-    def _get_invoice_policy_field(self):
-        return self._invoice_policy_field
+        return direction_of(self).move_types
 
     def _get_invoice_lines(self):
         self.check_singleton()
@@ -169,7 +164,7 @@ class MixinOrderLineInvoice(models.AbstractModel):
 
     def _compute_invoice_state(self):
         precision = self.env["decimal.precision"].get_precision("Product Unit")
-        policy_field = self._get_invoice_policy_field()
+        policy_field = direction_of(self).invoice_policy_field
         _debug.perf.count("line_invoice_state", lines=len(self), policy=policy_field)
         for line in self.filtered(lambda l: not l.display_type):
             policy = line.product_id[policy_field]

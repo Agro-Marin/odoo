@@ -1,28 +1,21 @@
 from odoo.tests import TransactionCase, tagged
 
+from odoo.addons.trade.tools import TradeDirection, direction_of
+
 #: Every model that mixes in `mixin.order`, and the line model beside it.
 ORDER_MODELS = ["sale.order", "purchase.order", "test_trade.order"]
 ORDER_LINE_MODELS = ["sale.order.line", "purchase.order.line", "test_trade.order.line"]
 
-#: What `mixin.order` reads off a concrete order model instead of deriving it
-#: from the order type. `_auto_lock_group` is deliberately absent: empty is a
-#: meaningful value there, and `test_trade.order` uses it.
+#: What `mixin.order` reads off a concrete order model beside its direction:
+#: the model's own identity, which no direction can derive. `_auto_lock_group`
+#: is deliberately absent: empty is a meaningful value there, and
+#: `test_trade.order` uses it.
 ORDER_DECLARATIONS = [
-    "_order_type",
     "_sequence_code",
-    "_invoice_move_direction",
-    "_partner_payment_term_field",
     "_lock_setting_field",
     "_mark_sent_context_key",
     "_display_name_context_key",
     "_portal_url_prefix",
-    "_product_ok_field",
-]
-LINE_DECLARATIONS = [
-    "_order_type",
-    "_product_ok_field",
-    "_analytic_business_domain",
-    "_product_tax_field",
 ]
 
 
@@ -47,45 +40,28 @@ class TestOrderTypeDeclarations(TransactionCase):
                         f"{model_name} does not declare {attribute}",
                     )
 
-    def test_every_order_line_model_declares_what_the_mixin_reads(self):
-        for model_name in ORDER_LINE_MODELS:
-            model = self.env[model_name]
-            for attribute in LINE_DECLARATIONS:
-                with self.subTest(model=model_name, attribute=attribute):
-                    self.assertTrue(
-                        getattr(model, attribute, ""),
-                        f"{model_name} does not declare {attribute}",
-                    )
-
-    def test_order_type_is_a_direction_and_only_a_direction(self):
+    def test_every_order_and_line_model_declares_its_direction(self):
         for model_name in ORDER_MODELS + ORDER_LINE_MODELS:
             with self.subTest(model=model_name):
-                self.assertIn(self.env[model_name]._order_type, ("sale", "purchase"))
+                self.assertIsInstance(self.env[model_name]._direction, TradeDirection)
 
-    def test_price_direction_agrees_with_the_order_type(self):
-        for model_name in ORDER_LINE_MODELS:
-            model = self.env[model_name]
-            with self.subTest(model=model_name):
-                expected = 1 if model._order_type == "sale" else -1
-                self.assertEqual(model._price_direction, expected)
+    def test_an_order_and_its_lines_trade_the_same_way(self):
+        for order_name, line_name in zip(ORDER_MODELS, ORDER_LINE_MODELS, strict=True):
+            with self.subTest(order=order_name):
+                self.assertEqual(
+                    direction_of(self.env[order_name]).key,
+                    direction_of(self.env[line_name]).key,
+                )
 
-    def test_invoice_move_direction_agrees_with_the_order_type(self):
-        for model_name in ORDER_MODELS + ORDER_LINE_MODELS:
-            model = self.env[model_name]
-            if not getattr(model, "_invoice_move_direction", ""):
-                continue
-            with self.subTest(model=model_name):
-                expected = "out" if model._order_type == "sale" else "in"
-                self.assertEqual(model._invoice_move_direction, expected)
-
-    def test_a_model_that_declares_no_order_type_is_refused(self):
+    def test_a_model_that_declares_no_direction_is_refused(self):
         order = self.env["test_trade.order"]
-        with self.subTest("order"), self.assertRaises(NotImplementedError):
-            order.with_context(_=1).__class__._order_type = ""
-            try:
+        direction = order.__class__._direction
+        order.__class__._direction = None
+        try:
+            with self.assertRaises(NotImplementedError):
                 order._get_order_type()
-            finally:
-                order.__class__._order_type = "sale"
+        finally:
+            order.__class__._direction = direction
 
     def test_no_two_order_models_share_a_sequence_code(self):
         """The defect this contract exists to prevent.

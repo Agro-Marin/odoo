@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from odoo.addons.trade.tools import SALE
+
 
 class SaleInvoiceMatch(models.Model):
     _name = "sale.invoice.match"
@@ -10,7 +12,7 @@ class SaleInvoiceMatch(models.Model):
     _order = "date desc, name desc"
 
     _order_table = "sale_order"
-    _move_types = ("out_invoice", "out_refund")
+    _direction = SALE
     _order_reference_column = "client_order_ref"
 
     move_id = fields.Many2one(

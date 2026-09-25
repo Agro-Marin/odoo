@@ -2,6 +2,7 @@ from odoo import fields
 from odoo.tests import tagged
 
 from .common import TestTradeOrderCase
+from odoo.addons.trade.tools import direction_of
 
 
 @tagged("post_install", "-at_install")
@@ -129,8 +130,8 @@ class TestPriceHistory(TestTradeOrderCase):
         self.assertAlmostEqual(wizard.divergence_pct, 0.2, places=4)
 
     def test_a_higher_price_is_favorable_when_selling(self):
-        """`_price_direction` is 1 on a sale-facing model, -1 on a buying one."""
-        self.assertEqual(self.env["test_trade.order.line"]._price_direction, 1)
+        """The direction's price sign is 1 on a sale-facing model, -1 on a buying one."""
+        self.assertEqual(direction_of(self.env["test_trade.order.line"]).price_sign, 1)
         self._confirmed_line(price=100.0)
 
         above = self._wizard(self._confirmed_line(price=120.0))

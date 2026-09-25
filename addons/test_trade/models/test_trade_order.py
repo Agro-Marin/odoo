@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from odoo.addons.trade.tools import SALE
+
 
 class TestTradeOrder(models.Model):
     _name = "test_trade.order"
@@ -26,11 +28,8 @@ class TestTradeOrder(models.Model):
     # A third order type: it behaves like a sale, and it is not sale.order.
     # Direction is shared; identity is its own -- that split is the whole
     # reason these are separate declarations.
-    _order_type = "sale"
-    _invoice_move_direction = "out"
-    _partner_payment_term_field = "property_payment_term_id"
+    _direction = SALE
     _lock_setting_field = "order_lock_so"
-    _product_ok_field = "sale_ok"
 
     _sequence_code = "test_trade.order"
     _mark_sent_context_key = "mark_test_trade_order_as_sent"

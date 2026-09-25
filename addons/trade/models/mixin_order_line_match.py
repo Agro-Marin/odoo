@@ -3,6 +3,8 @@ from odoo.exceptions import UserError
 from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL
 
+from odoo.addons.trade.tools import TradeDirection, direction_of
+
 _debug = DebugLog(__name__)
 
 
@@ -14,7 +16,7 @@ class MixinOrderLineMatch(models.AbstractModel):
     _order_table = ""
     _link_rel_table = ""
     _link_field = ""
-    _move_types = ()
+    _direction: TradeDirection | None = None
     _add_wizard_model = ""
     _add_wizard_view = ""
     _add_order_context_key = ""
@@ -183,7 +185,7 @@ class MixinOrderLineMatch(models.AbstractModel):
             currency = self.env.company.currency_id
         move = self.env["account.move"].create(
             {
-                "move_type": self._move_types[0],
+                "move_type": direction_of(self).move_types[0],
                 "partner_id": partner.id,
                 "currency_id": currency.id,
             }
@@ -463,6 +465,6 @@ class MixinOrderLineMatch(models.AbstractModel):
                 WHERE rel.move_line_id = aml.id
             )
             """,
-            move_types=tuple(self._move_types),
+            move_types=direction_of(self).move_types,
             rel=SQL.identifier(self._link_rel_table),
         )

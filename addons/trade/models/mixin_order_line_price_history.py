@@ -4,6 +4,8 @@ from odoo import api, fields, models
 from odoo.fields import Command
 from odoo.libs.debug_log import DebugLog
 
+from odoo.addons.trade.tools import direction_of
+
 STATS_SAMPLE_LIMIT = 500
 
 HISTORY_RESULT_LIMIT = 20
@@ -120,7 +122,7 @@ class MixinOrderLinePriceHistory(models.AbstractModel):
     )
 
     def _get_price_direction(self) -> int:
-        return self.env[self._price_history_line_model]._price_direction
+        return direction_of(self.env[self._price_history_line_model]).price_sign
 
     @api.depends("line_id")
     def _compute_currency_id(self):

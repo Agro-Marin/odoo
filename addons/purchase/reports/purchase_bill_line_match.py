@@ -1,5 +1,7 @@
 from odoo import fields, models
 
+from odoo.addons.trade.tools import PURCHASE
+
 
 class PurchaseBillLineMatch(models.Model):
     _name = "purchase.bill.line.match"
@@ -12,7 +14,7 @@ class PurchaseBillLineMatch(models.Model):
     _order_table = "purchase_order"
     _link_rel_table = "account_move_line_purchase_order_line_rel"
     _link_field = "purchase_line_ids"
-    _move_types = ("in_invoice", "in_refund")
+    _direction = PURCHASE
     _add_wizard_model = "bill.to.po.wizard"
     _add_wizard_view = "purchase.bill_to_po_wizard_form"
     _add_order_context_key = "default_purchase_order_id"
