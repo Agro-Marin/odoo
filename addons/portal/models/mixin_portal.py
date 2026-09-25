@@ -22,6 +22,7 @@ class MixinPortal(models.AbstractModel):
     access_token = fields.Char(
         string="Security Token",
         copy=False,
+        write_groups=fields.NO_ACCESS,
     )
 
     access_warning = fields.Text(

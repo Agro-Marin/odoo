@@ -663,3 +663,24 @@ class TestPortalMixin(TestPortal):
 
         record_portal._portal_get_or_create_token()
         self.assertTrue(record_portal.access_token)
+
+    @users("employee")
+    def test_access_token_is_the_servers(self):
+        record = self.record_portal.with_env(self.env)
+        minted = record.sudo().access_token
+        chosen = "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"
+
+        with self.assertRaises(AccessError):
+            record.write({"access_token": chosen})
+        with self.assertRaises(AccessError):
+            self.env["mail.test.portal"].create(
+                {"name": "Chosen", "access_token": chosen}
+            )
+        with self.assertRaises(AccessError):
+            self.env["mail.test.portal"].with_context(
+                default_access_token=chosen
+            ).create({"name": "Chosen by default"})
+        self.assertEqual(record.sudo().access_token, minted)
+
+        fresh = self.env["mail.test.portal"].create({"name": "Fresh"})
+        self.assertTrue(fresh._portal_get_or_create_token())
