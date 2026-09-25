@@ -70,10 +70,17 @@ def _removed_paths_by_bundle(installed):
     return removed
 
 
+def _reinlined(removed_paths, seeds, closure, stubbed):
+    for path in sorted(removed_paths):
+        spec = url_to_module_path("/" + path.lstrip("/"))
+        if spec and spec in closure and spec not in seeds | stubbed:
+            yield path.lstrip("/").split("/", 1)[0], spec
+
+
 @tagged("post_install", "-at_install")
 class TestBundleDoubleEvaluation(lint_case.LintCase):
     def test_a_removed_file_does_not_come_back_as_an_import(self):
-        findings = []
+        findings = {}
         with self.superuser_env() as env:
             installed = (
                 env["ir.module.module"]
@@ -88,8 +95,13 @@ class TestBundleDoubleEvaluation(lint_case.LintCase):
             qweb = env["ir.qweb"]
             params = ir_asset._prepare_assets_params()
             ext = external_libs()
+            # served module by module through the page's import map, so an
+            # import resolves to whatever the map names and nothing is inlined
+            by_import_map = esm_registry().import_map_included_bundles
 
             for bundle, removed_paths in sorted(removed_by_bundle.items()):
+                if bundle in by_import_map:
+                    continue
                 try:
                     paths = ir_asset._get_asset_paths(bundle, params)
                 except Exception:
@@ -105,26 +117,37 @@ class TestBundleDoubleEvaluation(lint_case.LintCase):
                     discover_transitive_import_specifiers(seeds, seeds, ext, bundle)
                 )
                 stubbed = set(qweb._get_secondary_shared_specs(bundle, params))
-                for path in sorted(removed_paths):
-                    spec = url_to_module_path("/" + path.lstrip("/"))
-                    if spec and spec in closure and spec not in stubbed:
-                        findings.append(f"{bundle}: {spec} (removed, still inlined)")
+                for owner, spec in _reinlined(removed_paths, seeds, closure, stubbed):
+                    findings.setdefault(owner, []).append(
+                        f"{bundle}: {spec} (removed, still inlined)"
+                    )
 
-        self.assert_ratchet(
-            findings,
-            "bundle_double_eval",
-            "module(s) removed from a bundle and re-inlined by an import",
-            "Declare the providing bundle a secondary parent of this one under "
-            "`esm.secondary_import_map_includes`, so the import is stubbed to "
-            "the shared loader instead of inlined; or give the module a "
-            "specifier esbuild leaves external. Why the floor exists and is "
-            "scoped: web/machine_doc_v1/ESM_BUNDLING.md, section 'Public pages "
-            "evaluate modules twice'.",
-            exact=False,
-        )
+        # keyed by the addon the module lives in, so each floor is graded
+        # wherever that addon is installed and no install can lend another
+        # addon's debt as slack
+        owners = set(findings) | {
+            name
+            for name in installed
+            if lint_case.baseline_floor(f"bundle_double_eval_{name}")
+        }
+        for owner in sorted(owners):
+            with self.subTest(addon=owner):
+                self.assert_ratchet(
+                    findings.get(owner, []),
+                    f"bundle_double_eval_{owner}",
+                    f"module(s) of {owner} removed from a bundle and re-inlined "
+                    f"by an import",
+                    "Declare the providing bundle a secondary parent of this one "
+                    "under `esm.secondary_import_map_includes`, so the import is "
+                    "stubbed to the shared loader instead of inlined; or give the "
+                    "module a specifier esbuild leaves external. Why the floors "
+                    "exist and how they are keyed: web/machine_doc_v1/"
+                    "ESM_BUNDLING.md, section 'Public pages evaluate modules "
+                    "twice'.",
+                )
         _logger.info(
             "%s removed-but-reinlined module(s) across %s bundle(s) with removes",
-            len(findings),
+            sum(map(len, findings.values())),
             len(removed_by_bundle),
         )
 
@@ -194,4 +217,38 @@ class TestBundleDoubleEvaluation(lint_case.LintCase):
             "Name the bundle that holds the removed files (for web.assets_frontend_"
             "lazy, web.assets_frontend_minimal) as a parent of the child under "
             "`esm.secondary_import_map_includes`, beside the split one.",
+        )
+
+    def test_a_removed_file_back_in_the_bundle_is_not_reinlined(self):
+        self.assertEqual(
+            list(
+                _reinlined(
+                    {"website/static/src/interactions/multirange_input.js"},
+                    seeds={"@website/interactions/multirange_input"},
+                    closure={"@website/interactions/multirange_input"},
+                    stubbed=set(),
+                )
+            ),
+            [],
+        )
+
+    def test_a_reinlined_module_is_owned_by_the_addon_it_lives_in(self):
+        self.assertEqual(
+            list(
+                _reinlined(
+                    {
+                        "web/static/src/session.js",
+                        "website/static/src/utils/misc.js",
+                        "web/static/src/core/browser/cookie.js",
+                    },
+                    seeds={"@web/core/utils/urls"},
+                    closure={
+                        "@web/core/utils/urls",
+                        "@web/session",
+                        "@website/utils/misc",
+                    },
+                    stubbed={"@web/core/browser/cookie"},
+                )
+            ),
+            [("web", "@web/session"), ("website", "@website/utils/misc")],
         )

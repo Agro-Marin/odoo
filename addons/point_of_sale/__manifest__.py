@@ -137,10 +137,6 @@
             ),
             (
                 "remove",
-                "web/static/src/core/browser/router.js",
-            ),
-            (
-                "remove",
                 "web/static/src/webclient/debug/**/*",
             ),
             "web/static/src/libs/fontawesome7/css/fontawesome.css",
@@ -208,7 +204,6 @@
             "account/static/src/helpers/*.js",
             "account/static/src/services/account_move_service.js",
             "mail/static/src/core/common/sound_effects_service.js",
-            "web/static/src/core/browser/router.js",
             "web/static/src/webclient/session_service.js",
             "web/static/src/webclient/debug/**/*",
             "web/static/src/model/**/*",

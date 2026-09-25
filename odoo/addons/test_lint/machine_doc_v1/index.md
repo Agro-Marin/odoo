@@ -28,8 +28,10 @@ This module was edited as a shared ledger: 24 of its last 40 commits changed
 nothing in it but an integer and the comment above it.
 
 Seven gates carry a floor: `lint_docstring` (a one-sided ratchet that
-reads 32 only on a fuller install), `bundle_double_eval` (ESM bundles that
-evaluate twice), the migration ledger `lint_credential_storage`, whose floor
+reads 32 only on a fuller install), the ESM modules a bundle removes and an
+import inlines again, keyed by the addon they live in and graded wherever it is
+installed (`bundle_double_eval_web`, `bundle_double_eval_website`: the page's
+lazy frontend bundle re-inlines what the minimal one carries), the migration ledger `lint_credential_storage`, whose floor
 is the columns still to move into the vault, `lint_stored_related`, the stored
 copies of a related value still to convert, and
 `lint_company_field_outside_config`, the fields still bolted onto
