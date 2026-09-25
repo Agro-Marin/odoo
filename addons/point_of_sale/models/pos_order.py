@@ -320,6 +320,9 @@ class PosOrder(models.Model):
         "unique (uuid)", "An order with this uuid already exists"
     )
 
+    def _pos_bus_get_or_create_token(self) -> str:
+        return self._portal_get_or_create_token()
+
     def _get_replacement_open_session(self, order):
         PosSession = self.env["pos.session"]
         closed_session = PosSession.browse(order.get("session_id"))
@@ -2355,7 +2358,7 @@ class PosOrder(models.Model):
         config = pos_order_ids.config_id[0] if pos_order_ids else False
 
         for order in pos_order_ids:
-            order._get_access_token()
+            order._pos_bus_get_or_create_token()
         if not self.env.context.get("preparation"):
             for order_config in pos_order_ids.config_id:
                 order_config.notify_synchronisation(

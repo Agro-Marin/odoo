@@ -135,3 +135,13 @@ class TestSelfOrderCommon(SelfOrderCommonTest):
             self.pos_config._get_self_order_route(floor.table_ids[0].id),
             "test_self_order_product_availability",
         )
+
+    def test_rotating_the_self_order_token_keeps_the_minted_shape(self):
+        minted = self.pos_config.access_token
+        settings = self.env["res.config.settings"].create(
+            {"pos_config_id": self.pos_config.id}
+        )
+        settings.update_access_tokens()
+        rotated = self.pos_config.access_token
+        self.assertNotEqual(rotated, minted)
+        self.assertEqual(len(rotated), len(minted))

@@ -24,18 +24,24 @@ class MixinPosBus(models.AbstractModel):
         copy=False,
     )
 
-    def _get_access_token(self):
+    def _pos_bus_get_or_create_token(self) -> str:
         self.check_singleton()
         if self.access_token:
             return self.access_token
         token = _new_access_token()
         dbg.lifecycle.debug("access token minted for %s", dbg.rec(self))
+        # a cashier opens the channel of a pos.config it may not write
         self.sudo().access_token = token
         return token
 
+    def _pos_bus_rotate_token(self) -> None:
+        for record in self:
+            dbg.lifecycle.debug("access token rotated for %s", dbg.rec(record))
+            record.access_token = _new_access_token()
+
     def _notify(self, *notifications, private=True) -> None:
         self.check_singleton()
-        token = self._get_access_token()
+        token = self._pos_bus_get_or_create_token()
         if isinstance(notifications[0], str):
             if len(notifications) != 2:
                 raise ValueError(

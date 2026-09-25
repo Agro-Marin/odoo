@@ -66,3 +66,4 @@ from . import test_pos_session_amounts
 from . import test_pos_session_challenge
 from . import test_pos_tax_report
 from . import test_pos_lock_dates
+from . import test_pos_bus_token

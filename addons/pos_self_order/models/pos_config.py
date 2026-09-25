@@ -1,5 +1,4 @@
 import base64
-import uuid
 import zipfile
 from io import BytesIO
 from itertools import batched
@@ -110,7 +109,7 @@ class PosConfig(models.Model):
     )
 
     def _update_access_token(self):
-        self.access_token = uuid.uuid4().hex[:16]
+        self._pos_bus_rotate_token()
         self.floor_ids.table_ids._update_identifier()
 
     @api.model_create_multi

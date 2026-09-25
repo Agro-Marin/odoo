@@ -66,7 +66,7 @@ class TestPosAccessRights(CommonPosTest):
     def test_cashier_can_still_mint_the_bus_token(self):
         config = self.pos_config_usd
         config.sudo().access_token = False
-        token = config.with_user(self.cashier)._get_access_token()
+        token = config.with_user(self.cashier)._pos_bus_get_or_create_token()
         self.assertTrue(token)
         self.assertEqual(config.sudo().access_token, token)
 
