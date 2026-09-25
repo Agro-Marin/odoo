@@ -808,9 +808,11 @@ class PosConfig(models.Model):
             },
             "date": {
                 "is_started": bool(session.start_at),
-                "start_date": fields.Datetime.context_timestamp(
-                    self, session.start_at
-                ).strftime("%b %d")
+                "start_date": tools.format_date(
+                    self.env,
+                    fields.Datetime.context_timestamp(self, session.start_at),
+                    date_format="MMM dd",
+                )
                 if session.start_at
                 else False,
             },
