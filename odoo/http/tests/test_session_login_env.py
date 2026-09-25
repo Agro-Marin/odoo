@@ -43,7 +43,7 @@ def finalize(context):
     store = MemorySessionStore(Session)
     session = store.new()
     session.update(prepare_default_session(), pre_login="user", pre_uid=7)
-    seen = []
+    seen: list[tuple[int, dict]] = []
     session.finalize_login(LoginEnv(3, context, seen))
     return session, seen
 
