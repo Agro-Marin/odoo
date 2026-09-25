@@ -109,7 +109,7 @@
                         name="%(template_open_bom)d"
                         type="action"
                         icon="fa-flask"
-                        groups="mrp.group_mrp_user"
+                        groups="mrp.group_mrp_readonly"
                         invisible="type != 'consu'"
                         class="oe_stat_button">
                         <field
@@ -123,7 +123,7 @@
                         name="action_used_in_bom"
                         type="object"
                         icon="fa-level-up"
-                        groups="mrp.group_mrp_user"
+                        groups="mrp.group_mrp_readonly"
                         invisible="type != 'consu' or used_in_bom_count == 0"
                         class="oe_stat_button">
                         <field
@@ -136,7 +136,7 @@
                         type="object"
                         help="Manufactured in the last 365 days"
                         icon="fa-list-alt"
-                        groups="mrp.group_mrp_user"
+                        groups="mrp.group_mrp_readonly"
                         invisible="type != 'consu' or bom_count == 0 or mrp_product_qty == 0"
                         class="oe_stat_button">
                         <div class="o_field_widget o_stat_info">
@@ -160,13 +160,13 @@
             <field name="inherit_id" ref="stock.product_form_view_procurement_button" />
             <field name="arch" type="xml">
                 <xpath
-                    expr="//button[@name='action_view_product_lot']"
+                    expr="//div[@name='button_box']/t[@groups='stock.group_stock_user']"
                     position="after">
                     <button
                         name="action_view_bom"
                         type="object"
                         icon="fa-flask"
-                        groups="mrp.group_mrp_user"
+                        groups="mrp.group_mrp_readonly"
                         invisible="type != 'consu'"
                         class="oe_stat_button">
                         <field
@@ -178,7 +178,7 @@
                         name="action_used_in_bom"
                         type="object"
                         icon="fa-level-up"
-                        groups="mrp.group_mrp_user"
+                        groups="mrp.group_mrp_readonly"
                         invisible="type != 'consu' or used_in_bom_count == 0"
                         class="oe_stat_button">
                         <field
@@ -191,7 +191,7 @@
                         type="object"
                         help="Manufactured in the last 365 days"
                         icon="fa-list-alt"
-                        groups="mrp.group_mrp_user"
+                        groups="mrp.group_mrp_readonly"
                         invisible="type != 'consu' or bom_count == 0 or mrp_product_qty == 0"
                         class="oe_stat_button">
                         <div class="o_field_widget o_stat_info">

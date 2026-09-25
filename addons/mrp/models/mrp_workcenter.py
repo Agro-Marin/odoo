@@ -513,6 +513,68 @@ class MrpWorkcenter(models.Model):
         ]
         return action
 
+    def _get_oee_domain(self):
+        return Domain(
+            [
+                ("workcenter_id", "in", self.ids),
+                ("date_start", ">=", self._get_oee_window_start()),
+                ("date_end", "!=", False),
+            ]
+        )
+
+    def _get_lost_time_domain(self):
+        return self._get_oee_domain() & Domain(
+            "loss_type",
+            "not in",
+            list(self.env["mrp.workcenter.productivity.loss"].WALL_CLOCK_LOSS_TYPES),
+        )
+
+    def _get_load_domain(self):
+        return Domain(
+            [
+                ("workcenter_id", "in", self.ids),
+                ("state", "in", self.env["mrp.workorder"].OPEN_STATES),
+            ]
+        )
+
+    def _get_performance_domain(self):
+        return Domain(
+            [
+                ("workcenter_id", "in", self.ids),
+                ("date_start", ">=", self._get_oee_window_start()),
+                ("state", "=", "done"),
+            ]
+        )
+
+    def _get_stat_report_action(self, xml_id, domain, context=None):
+        self.check_singleton()
+        action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(xml_id)
+        action["domain"] = list(domain)
+        action["context"] = context or {}
+        return action
+
+    def action_view_oee_report(self):
+        return self._get_stat_report_action(
+            "mrp.mrp_workcenter_productivity_report_oee", self._get_oee_domain()
+        )
+
+    def action_view_lost_time_report(self):
+        return self._get_stat_report_action(
+            "mrp.mrp_workcenter_productivity_report_blocked",
+            self._get_lost_time_domain(),
+            {"default_workcenter_id": self.id},
+        )
+
+    def action_view_load_report(self):
+        return self._get_stat_report_action(
+            "mrp.action_mrp_workcenter_load_report_graph", self._get_load_domain()
+        )
+
+    def action_view_performance_report(self):
+        return self._get_stat_report_action(
+            "mrp.mrp_workorder_workcenter_report", self._get_performance_domain()
+        )
+
     def _get_working_intervals(self, start, stop):
         self.check_singleton()
         resource = self.resource_id
@@ -1292,7 +1354,6 @@ class MrpWorkcenterProductivity(models.Model):
 class MrpWorkcenterCapacity(models.Model):
     _name = "mrp.workcenter.capacity"
     _description = "Work Center Capacity"
-    _check_company_auto = True
 
     workcenter_id = fields.Many2one(
         comodel_name="mrp.workcenter",

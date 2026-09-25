@@ -583,6 +583,11 @@ class MrpProduction(models.Model):
         compute="_compute_is_delayed",
         search="_search_is_delayed",
     )
+    is_late = fields.Boolean(
+        string="Late",
+        compute="_compute_is_late",
+        search="_search_is_late",
+    )
     serial_numbers_count = fields.Integer(
         string="Count of serial numbers",
         compute="_compute_serial_numbers_count",
@@ -1763,6 +1768,29 @@ class MrpProduction(models.Model):
                         or record.date_deadline < record.date_end
                     )
                 )
+            )
+
+    LATE_STATES = ("confirmed",)
+
+    @api.model
+    def _get_domain_late(self):
+        return Domain("state", "in", self.LATE_STATES) & Domain(
+            "date_start", "<", fields.Datetime.now()
+        )
+
+    def _search_is_late(self, operator, value):
+        if operator not in ("in", "not in"):
+            return NotImplemented
+        return [("id", operator, self._get_domain_late())]
+
+    @api.depends("state", "date_start")
+    def _compute_is_late(self):
+        now = fields.Datetime.now()
+        for production in self:
+            production.is_late = bool(
+                production.state in self.LATE_STATES
+                and production.date_start
+                and production.date_start < now
             )
 
     def _search_date_category(self, operator, value):

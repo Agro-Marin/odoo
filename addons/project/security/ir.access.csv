@@ -34,9 +34,6 @@ project_task_rule_portal,"Project/Task: portal users: tasks of projects they col
 project_task_rule_portal_2,"Project/Task: portal users: tasks of projects they collaborate on, or tasks they follow (2)",model_project_task,base.group_portal,permission,r,predicate,,base.access_predicate_user_has_access,"{""at"": ""project_id.""}","[('active', '=', True)]"
 project_public_members_rule,Project: internal users: projects they can access,model_project_project,base.group_user,permission,r,predicate,,base.access_predicate_user_has_access,"{""at"": """"}",
 project_project_rule_portal,Project: portal users: projects they collaborate on,model_project_project,base.group_portal,permission,r,predicate,,base.access_predicate_user_has_access,"{""at"": """"}",
-resource_schedule_exception_rule_group_user_create_group_project_user,resource.schedule.exception: employee reads own or global,resource.model_resource_schedule_exception,group_project_user,permission,r,all,,,,"[('resource_id', '=', False)]"
-resource_schedule_exception_rule_group_user_create_group_project_user_2,resource.schedule.exception: employee reads own or global (2),resource.model_resource_schedule_exception,group_project_user,permission,r,own,owner_or_unset,,,
-resource_schedule_exception_rule_group_user_modify_group_project_user,resource.schedule.exception: employee modifies own,resource.model_resource_schedule_exception,group_project_user,permission,cud,own,,,,
 access_project_tags_all,project.project_tags_all,model_project_tags,base.group_user,permission,r,,,,,
 access_project_tags_manager,project.project_tags_manager,model_project_tags,group_project_manager,permission,cud,,,,,
 access_project_tags_portal,project_tags_portal,model_project_tags,base.group_portal,permission,r,,,,,

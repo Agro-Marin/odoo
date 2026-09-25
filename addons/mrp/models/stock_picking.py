@@ -160,11 +160,8 @@ class StockPickingType(models.Model):
         late = {
             picking_type.id: count
             for picking_type, count in self.env["mrp.production"]._read_group(
-                [
-                    ("state", "=", "confirmed"),
-                    ("date_start", "<", fields.Date.today()),
-                    ("picking_type_id", "in", mrp_picking_types.ids),
-                ],
+                Domain("picking_type_id", "in", mrp_picking_types.ids)
+                & self.env["mrp.production"]._get_domain_late(),
                 ["picking_type_id"],
                 ["__count"],
             )
@@ -179,7 +176,7 @@ class StockPickingType(models.Model):
 
     def action_view_productions(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
-            "mrp.mrp_production_action_picking_deshboard"
+            "mrp.mrp_production_action_picking_dashboard"
         )
         if self:
             action["display_name"] = self.display_name

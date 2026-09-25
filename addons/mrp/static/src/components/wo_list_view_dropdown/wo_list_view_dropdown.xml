@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <t t-name="mrp.MOViewListDropdown" style="btn" t-if="this.props.record.data.state !== 'done' and !['draft', 'done', 'cancel'].includes(this.props.record.data.production_state)">
-        <Dropdown>
+    <t t-name="mrp.WorkorderStateDropdown" style="btn" t-if="this.props.record.data.state !== 'done' and !['draft', 'done', 'cancel'].includes(this.props.record.data.production_state)">
+        <span t-if="!this.canSetState" t-attf-class="o_status {{this.statusColor}}"/>
+        <Dropdown t-else="">
             <button t-attf-class="btn btn-link d-flex p-0 pb-1 {{!this.props.record.resId ? 'invisible': ''}}">
                 <div class="d-flex align-items-center">
                     <span t-attf-class="o_status {{this.statusColor}}"/>

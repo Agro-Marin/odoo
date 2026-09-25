@@ -14,13 +14,13 @@
                                 <span>Orders</span>
                             </h5>
                             <div role="menuitem">
-                                <a name="%(mrp_production_action_picking_deshboard)d" type="action">All</a>
+                                <a name="%(mrp_production_action_picking_dashboard)d" type="action">All</a>
                             </div>
                             <div role="menuitem">
-                                <a name="%(mrp_production_action_picking_deshboard)d" type="action" context="{'search_default_inprogress': 1}">In Progress</a>
+                                <a name="%(mrp_production_action_picking_dashboard)d" type="action" context="{'search_default_inprogress': 1}">In Progress</a>
                             </div>
                             <div role="menuitem">
-                                <a name="%(mrp_production_action_picking_deshboard)d" type="action" context="{'search_default_planned': 1}">Planned</a>
+                                <a name="%(mrp_production_action_picking_dashboard)d" type="action" context="{'search_default_planned': 1}">Planned</a>
                             </div>
                         </div>
                         <div name="kanban_menu_section" class="col-6">
@@ -73,9 +73,9 @@
                     <div t-if="!selection_mode" class="row mt-3">
                         <div class="col-6">
                             <button
-                                name="%(mrp_production_action_picking_deshboard)d"
+                                name="%(mrp_production_action_picking_dashboard)d"
                                 type="action"
-                                context="{'search_default_filter_confirmed': 1, 'default_picking_type_id': id}"
+                                context="{'search_default_filter_confirmed': 1}"
                                 class="btn btn-primary">
                                 <span t-if="record.count_mo_todo.raw_value &gt; 0">
                                     <field name="count_mo_todo" /> To Manufacture
@@ -89,7 +89,7 @@
                                 class="row">
                                 <a
                                     class="col-8 offset-4 text-truncate"
-                                    name="%(mrp_production_action_picking_deshboard)d"
+                                    name="%(mrp_production_action_picking_dashboard)d"
                                     type="action"
                                     context="{'search_default_waiting': 1}">
                                     <div class="row">
@@ -105,9 +105,9 @@
                                 class="row">
                                 <a
                                     class="col-8 offset-4 text-truncate"
-                                    name="%(mrp_production_action_picking_deshboard)d"
+                                    name="%(mrp_production_action_picking_dashboard)d"
                                     type="action"
-                                    context="{'search_default_filter_late_mo': 1, 'default_picking_type_id': id}">
+                                    context="{'search_default_filter_late_mo': 1}">
                                     <div class="row">
                                         <span class="col-6">Late</span>
                                         <field
@@ -121,9 +121,9 @@
                                 class="row">
                                 <a
                                     class="col-8 offset-4 text-truncate"
-                                    name="%(mrp_production_action_picking_deshboard)d"
+                                    name="%(mrp_production_action_picking_dashboard)d"
                                     type="action"
-                                    context="{'search_default_filter_in_progress': 1, 'default_picking_type_id': id}">
+                                    context="{'search_default_filter_in_progress': 1}">
                                     <div class="row">
                                         <span class="col-6">In Progress</span>
                                         <field
@@ -137,9 +137,9 @@
                                 class="row">
                                 <a
                                     class="col-8 offset-4 text-truncate"
-                                    name="%(mrp_production_action_picking_deshboard)d"
+                                    name="%(mrp_production_action_picking_dashboard)d"
                                     type="action"
-                                    context="{'search_default_filter_to_close': 1, 'default_picking_type_id': id}">
+                                    context="{'search_default_filter_to_close': 1}">
                                     <div class="row">
                                         <span class="col-6">To Close</span>
                                         <field

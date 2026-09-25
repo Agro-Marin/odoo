@@ -1,11 +1,14 @@
+import re
 from datetime import datetime, timedelta
 
 from freezegun import freeze_time
+from lxml import etree
 
 from odoo import Command, fields
 from odoo.exceptions import ValidationError
 from odoo.fields import Domain
 from odoo.tests import Form, tagged
+from odoo.tools.safe_eval import safe_eval
 
 from . import common
 
@@ -396,6 +399,268 @@ class TestWorkcenterLate(common.TestMrpCommon):
             "searching the negative must be the complement, not the same set: "
             "'= False' on a boolean reaches the search method as 'not in [True]'",
         )
+
+
+@tagged("-at_install", "post_install")
+class TestProductionLate(common.TestMrpCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.picking_type = cls.env.ref("stock.warehouse0").manu_type_id
+        product = cls.env["product.product"].create({"name": "Late MO probe"})
+        cls.productions = cls.env["mrp.production"].create(
+            [
+                {
+                    "product_id": product.id,
+                    "product_qty": 1,
+                    "picking_type_id": cls.picking_type.id,
+                }
+                for _ in range(3)
+            ]
+        )
+        cls.productions.action_confirm()
+        for production, date_start in zip(
+            cls.productions,
+            (
+                datetime(2026, 8, 21, 9, 0),
+                datetime(2026, 8, 22, 10, 0),
+                datetime(2026, 8, 23, 9, 0),
+            ),
+            strict=True,
+        ):
+            production.date_start = date_start
+
+    def _listed_under_the_late_link(self):
+        arch = self.env.ref("mrp.view_mrp_production_filter").arch
+        [late] = etree.fromstring(arch).iterfind(".//filter[@name='filter_late_mo']")
+        return self.env["mrp.production"].search(
+            Domain("picking_type_id", "=", self.picking_type.id)
+            & Domain(safe_eval(late.get("domain")))
+        )
+
+    @freeze_time("2026-08-22 16:00:00")
+    def test_the_late_count_matches_the_list_it_opens(self):
+        listed = self._listed_under_the_late_link()
+        self.assertIn(
+            self.productions[1],
+            listed,
+            "an order due earlier today is late",
+        )
+        self.picking_type.invalidate_recordset()
+        self.assertEqual(self.picking_type.count_mo_late, len(listed))
+
+    @freeze_time("2026-08-22 16:00:00")
+    def test_reading_is_late_agrees_with_searching_it(self):
+        late = self.env["mrp.production"].search(
+            [("id", "in", self.productions.ids), ("is_late", "=", True)]
+        )
+        self.assertEqual(late, self.productions[:2])
+        self.assertEqual(self.productions.mapped("is_late"), [True, True, False])
+        self.assertEqual(
+            self.env["mrp.production"].search(
+                [("id", "in", self.productions.ids), ("is_late", "=", False)]
+            ),
+            self.productions[2],
+        )
+
+
+@tagged("-at_install", "post_install")
+class TestWorkcenterStatReports(common.TestMrpCommon):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.workcenter = cls.workcenter_1
+        cls.workcenter.resource_calendar_id.leave_ids.unlink()
+        Productivity = cls.env["mrp.workcenter.productivity"]
+        Productivity.search([("workcenter_id", "=", cls.workcenter.id)]).unlink()
+        cls.env["mrp.workorder"].search(
+            [("workcenter_id", "=", cls.workcenter.id)]
+        ).unlink()
+        Loss = cls.env["mrp.workcenter.productivity.loss"]
+        now = fields.Datetime.now()
+        cls.rows = Productivity.create(
+            [
+                {
+                    "workcenter_id": cls.workcenter.id,
+                    "loss_id": Loss._get_loss_of_type(loss_type).id,
+                    "date_start": now - timedelta(days=days, minutes=minutes),
+                    "date_end": now - timedelta(days=days),
+                }
+                for loss_type, days, minutes in (
+                    ("productive", 3, 120),
+                    ("performance", 2, 60),
+                    ("availability", 1, 15),
+                    ("quality", 1, 10),
+                    ("availability", 70, 30),
+                )
+            ]
+        )
+        product = cls.env["product.product"].create({"name": "Stat probe"})
+        bom = cls.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": product.product_tmpl_id.id,
+                "product_qty": 1,
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": name,
+                            "workcenter_id": cls.workcenter.id,
+                            "time_cycle_manual": minutes,
+                        }
+                    )
+                    for name, minutes in (("First", 10), ("Second", 20))
+                ],
+            }
+        )
+        cls.env.user.group_ids += cls.env.ref("mrp.group_mrp_workorder_dependencies")
+        bom.allow_operation_dependencies = True
+        first, second = bom.operation_ids
+        second.blocked_by_operation_ids = first
+        production = cls.env["mrp.production"].create(
+            {"product_id": product.id, "bom_id": bom.id, "product_qty": 1}
+        )
+        production.action_confirm()
+        cls.open_workorders = production.workorder_ids
+        done = cls.env["mrp.production"].create(
+            {"product_id": product.id, "bom_id": bom.id, "product_qty": 1}
+        )
+        done.action_confirm()
+        for workorder, minutes in zip(done.workorder_ids, (15, 25), strict=True):
+            workorder.duration = minutes
+        done.workorder_ids.button_finish()
+        cls.done_workorders = done.workorder_ids
+
+    def _click_stat(self, stat_field):
+        workcenter = self.workcenter
+        arch = workcenter.get_views([(False, "form")])["views"]["form"]["arch"]
+        [button] = [
+            node
+            for node in etree.fromstring(arch).iter("button")
+            if node.find(f".//field[@name='{stat_field}']") is not None
+        ]
+        eval_context = {"id": workcenter.id, "active_id": workcenter.id}
+        eval_context["uid"] = self.env.uid
+        button_context = safe_eval(button.get("context") or "{}", eval_context)
+        if button.get("type") == "object":
+            action = getattr(workcenter, button.get("name"))()
+            return action, {**button_context, **(action.get("context") or {})}
+        act = self.env["ir.actions.act_window"].browse(int(button.get("name")))
+        action = {
+            "res_model": act.res_model,
+            "search_view_id": act.search_view_id.id,
+            "domain": safe_eval(act.domain or "[]", eval_context),
+        }
+        return action, {
+            **button_context,
+            **safe_eval(act.context or "{}", eval_context),
+        }
+
+    def _listed(self, stat_field):
+        action, context = self._click_stat(stat_field)
+        Model = self.env[action["res_model"]]
+        search_view = action.get("search_view_id")
+        if isinstance(search_view, (list, tuple)):
+            search_view = search_view[0]
+        arch = Model.get_views([(search_view or False, "search")])["views"]["search"]
+        root = etree.fromstring(arch["arch"])
+        filter_names = {node.get("name") for node in root.iter("filter")}
+        filter_groups, group = [], []
+        for node in root:
+            if node.tag == "separator" and group:
+                filter_groups.append(group)
+                group = []
+            elif node.tag == "filter" and node.get("domain"):
+                group.append(node)
+        filter_groups.append(group)
+        domain = Domain(action.get("domain") or [])
+        for group in filter_groups:
+            chosen = [
+                n for n in group if context.get(f"search_default_{n.get('name')}")
+            ]
+            if chosen:
+                domain &= Domain.OR(
+                    Domain(safe_eval(n.get("domain"), {"uid": self.env.uid}))
+                    for n in chosen
+                )
+        for key, value in context.items():
+            if not key.startswith("search_default_") or not value:
+                continue
+            name = key.removeprefix("search_default_")
+            if name in filter_names:
+                continue
+            self.assertTrue(
+                name in Model._fields,
+                f"{key} matches no filter and no field of {Model._name}",
+            )
+            domain &= Domain(name, "in", value if isinstance(value, list) else [value])
+        return Model.search(domain)
+
+    def test_the_oee_report_lists_what_the_oee_counts(self):
+        rows = self._listed("oee")
+        productive = sum(
+            rows.filtered(
+                lambda r: r.loss_type in ("productive", "performance")
+            ).mapped("duration")
+        )
+        window = self.env["mrp.workcenter.productivity"].search(
+            [
+                ("workcenter_id", "=", self.workcenter.id),
+                ("date_start", ">=", fields.Datetime.now() - timedelta(days=30)),
+            ]
+        )
+        self.assertNotIn(
+            self.rows[-1], rows, "the 70-day-old row is outside the window"
+        )
+        self.assertEqual(rows, window)
+        self.assertAlmostEqual(
+            self.workcenter.oee,
+            round(productive * 100.0 / sum(rows.mapped("duration")), 2),
+        )
+
+    def test_the_lost_report_lists_the_lost_hours(self):
+        rows = self._listed("blocked_time")
+        self.assertEqual(
+            set(rows.mapped("loss_type")),
+            {"availability", "quality"},
+            "performance losses are counted as productive time",
+        )
+        self.assertAlmostEqual(
+            self.workcenter.blocked_time, sum(rows.mapped("duration")) / 60.0, places=2
+        )
+
+    def test_the_load_report_lists_the_open_workorders(self):
+        self.assertEqual(
+            set(self.open_workorders.mapped("state")), {"ready", "blocked"}
+        )
+        rows = self._listed("workcenter_load")
+        self.assertEqual(rows, self.open_workorders)
+        self.assertAlmostEqual(
+            self.workcenter.workcenter_load, sum(rows.mapped("duration_expected"))
+        )
+
+    def test_the_performance_report_lists_the_done_workorders(self):
+        rows = self._listed("performance")
+        self.assertEqual(rows, self.done_workorders)
+        self.assertAlmostEqual(
+            self.workcenter.performance,
+            100 * sum(rows.mapped("duration_expected")) / sum(rows.mapped("duration")),
+            delta=1,
+        )
+
+    def test_every_workorder_link_names_a_filter(self):
+        search = self.env["mrp.workorder"].get_views(
+            [(self.env.ref("mrp.view_mrp_production_work_order_search").id, "search")]
+        )["views"]["search"]["arch"]
+        names = {
+            node.get("name")
+            for node in etree.fromstring(search).iter("filter", "field")
+        }
+        for view in ("mrp.mrp_workcenter_kanban", "mrp.mrp_workcenter_view"):
+            arch = etree.fromstring(self.env.ref(view).arch)
+            for node in arch.iter("a", "button"):
+                context = node.get("context") or ""
+                for key in re.findall(r"search_default_(\w+)", context):
+                    self.assertIn(key, names, f"{view} {node.get('name')}: {context}")
 
 
 @tagged("-at_install", "post_install")

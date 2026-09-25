@@ -65,6 +65,10 @@ class ProductTemplate(models.Model):
         bom_query = Bom._search(Bom._get_domain_kit())
         return [("id", "in", bom_query.subselect("product_tmpl_id"))]
 
+    def get_forecast_bom_id(self):
+        self.check_singleton()
+        return self.bom_ids[:1].id
+
     def action_archive(self):
         still_used = self._get_still_used_bom_lines()
         res = super().action_archive()

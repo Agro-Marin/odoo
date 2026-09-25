@@ -1,13 +1,14 @@
 /** @odoo-module native */
-import { Component } from "@odoo/owl";
+import { Component, onWillStart } from "@odoo/owl";
 import { Dropdown, DropdownItem } from "@web/components/dropdown";
 import { registry } from "@web/core/registry";
+import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { useViewModel } from "@web/model/model";
 import { standardWidgetProps } from "@web/views/widgets";
 
-export class MOListViewDropdown extends Component {
-    static template = "mrp.MOViewListDropdown";
+export class WorkorderStateDropdown extends Component {
+    static template = "mrp.WorkorderStateDropdown";
     static components = {
         Dropdown,
         DropdownItem,
@@ -17,7 +18,6 @@ export class MOListViewDropdown extends Component {
     setup() {
         this.model = useViewModel();
         this.orm = useService("orm");
-        this.action = useService("action");
         this.colorIcons = {
             blocked: "bg-warning",
             ready: "bg-muted",
@@ -25,55 +25,32 @@ export class MOListViewDropdown extends Component {
             cancel: "bg-danger",
             done: "bg-success",
         };
-    }
-
-    async reload() {
-        await this.model.root.load();
-        this.model.notify();
+        onWillStart(async () => {
+            this.canSetState = await user.hasGroup("mrp.group_mrp_user");
+        });
     }
 
     get statusColor() {
         return this.colorIcons[this.props.record.data.state] || "";
     }
 
-    async setState(state) {
-        let selectedWorkorders = this.props.record.model.root.selection;
-        if (!selectedWorkorders || selectedWorkorders.length === 0) {
-            selectedWorkorders = [this.props.record];
-        }
-        const ids = selectedWorkorders
-            .filter(
-                (wo) =>
-                    !(
-                        [state, "done"].includes(wo.data.state) ||
-                        wo.data.production_state === "done"
-                    ),
-            )
-            .map((wo) => wo.resId);
-        if (ids.length > 0) {
-            await this.callOrm("set_state", [state], ids);
-        }
+    targetIds() {
+        const selection = this.props.record.model.root.selection;
+        return selection?.length
+            ? selection.map((workorder) => workorder.resId)
+            : [this.props.record.resId];
     }
 
-    async callOrm(functionName, args, ids = undefined) {
-        if (!ids) {
-            ids = this.props.record.model.root.selection?.map((wo) => wo.resId);
-        }
-        if (!ids || ids.length === 0) {
-            ids = [this.props.record.resId];
-        }
-        if (args !== undefined) {
-            await this.orm.call("mrp.workorder", functionName, [ids, ...args]);
-        } else {
-            await this.orm.call("mrp.workorder", functionName, [ids]);
-        }
-        await this.reload();
+    async setState(state) {
+        await this.orm.call("mrp.workorder", "set_state", [this.targetIds(), state]);
+        await this.model.root.load();
+        this.model.notify();
     }
 }
 
-export const moListViewDropdown = {
+export const workorderStateDropdown = {
     listViewWidth: 20,
-    component: MOListViewDropdown,
+    component: WorkorderStateDropdown,
 };
 
-registry.category("view_widgets").add("mo_view_list_dropdown", moListViewDropdown);
+registry.category("view_widgets").add("wo_list_view_dropdown", workorderStateDropdown);

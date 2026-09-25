@@ -10,10 +10,6 @@ access_mrp_bom_line_manager,mrp.bom.line.manager,model_mrp_bom_line,group_mrp_ma
 access_mrp_bom_byproduct_manager,mrp.bom.byproduct manager,model_mrp_bom_byproduct,group_mrp_manager,permission,cud,,,
 access_mrp_production_stock_worker,mrp.production stock_worker,model_mrp_production,stock.group_stock_user,permission,r,,,
 access_mrp_workorder_mrp_user,mrp.workorder.user,model_mrp_workorder,group_mrp_user,permission,cud,,,
-resource_schedule_exception_rule_group_user_create_group_mrp_user,resource.schedule.exception: employee reads own or global,resource.model_resource_schedule_exception,group_mrp_user,permission,r,all,,"[('resource_id', '=', False)]"
-resource_schedule_exception_rule_group_user_create_group_mrp_user_2,resource.schedule.exception: employee reads own or global (2),resource.model_resource_schedule_exception,group_mrp_user,permission,r,own,owner_or_unset,
-resource_schedule_exception_rule_group_user_modify_group_mrp_user,resource.schedule.exception: employee modifies own,resource.model_resource_schedule_exception,group_mrp_user,permission,cud,own,,
-access_resource_calendar_attendance_mrp_user,mrp.resource.calendar.attendance.mrp.user,resource.model_resource_calendar_attendance,group_mrp_user,permission,cud,,,
 access_resource_resource_manager,resource.resource.manager,resource.model_resource_resource,group_mrp_manager,permission,cud,,,
 access_mrp_bom_stockuser,mrp.bom,model_mrp_bom,stock.group_stock_user,permission,r,,,
 access_mrp_bom_line_stockuser,mrp.bom.line,model_mrp_bom_line,stock.group_stock_user,permission,r,,,
@@ -62,4 +58,5 @@ mrp_bom_line_rule,mrp_bom_line multi-company,model_mrp_bom_line,base.group_every
 mrp_bom_byproduct_rule,mrp_bom_byproduct multi-company,model_mrp_bom_byproduct,base.group_everyone,guard,crud,company,,
 mrp_routing_workcenter_rule,mrp_routing_workcenter multi-company,model_mrp_routing_workcenter,base.group_everyone,guard,crud,company,,
 mrp_workcenter_productivity,mrp_workcenter_productivity multi-company,model_mrp_workcenter_productivity,base.group_everyone,guard,crud,company,,
+mrp_workcenter_capacity_rule,mrp.workcenter.capacity: follow the work center,model_mrp_workcenter_capacity,base.group_everyone,guard,crud,all,,"[('workcenter_id', 'access', 'read')]"
 privilege_read_forecast_production_mrp_production,Privilege: count the draft manufacturing orders a product's forecast expects,model_mrp_production,privilege_read_forecast_production,permission,r,,,

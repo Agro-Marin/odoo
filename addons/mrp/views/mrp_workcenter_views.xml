@@ -81,8 +81,6 @@
             <field name="res_model">mrp.workcenter.productivity</field>
             <field name="view_mode">graph,pivot,list,form</field>
             <field name="view_id" ref="oee_pie_view" />
-            <field name="domain">[('workcenter_id','=',active_id)]</field>
-            <field name="context">{'search_default_thismonth':True}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
                     Overall Equipment Effectiveness: no working or blocked time
@@ -95,12 +93,6 @@
             <field name="name">Productivity Losses</field>
             <field name="res_model">mrp.workcenter.productivity</field>
             <field name="view_mode">list,form,graph,pivot</field>
-            <field
-                name="context">{'search_default_availability': '1',
-                                   'search_default_performance': '1',
-                                   'search_default_quality': '1',
-                                   'default_workcenter_id': active_id,
-                                   'search_default_workcenter_id': [active_id]}</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_empty_folder">
                     No productivity loss for this equipment
@@ -111,8 +103,6 @@
             <field name="name">Work Orders Performance</field>
             <field name="res_model">mrp.workorder</field>
             <field name="view_mode">graph,pivot,list,form</field>
-            <field
-                name="domain">[('workcenter_id','=', active_id),('state','=','done')]</field>
             <field name="help" type="html">
                 <p class="o_view_nocontent_smiling_face">
                     Create a new work orders performance
@@ -171,18 +161,13 @@
                                             <span>Reporting</span>
                                         </h5>
                                         <div role="menuitem">
-                                            <a name="%(mrp_workcenter_productivity_report_oee)d" type="action">OEE</a>
+                                            <a name="action_view_oee_report" type="object">OEE</a>
                                         </div>
                                         <div role="menuitem">
-                                            <a
-                                                name="%(mrp_workorder_workcenter_report)d"
-                                                type="action"
-                                                context="{'search_default_thisyear':True}">
-                                                Performance
-                                            </a>
+                                            <a name="action_view_performance_report" type="object">Performance</a>
                                         </div>
                                         <div role="menuitem">
-                                            <a name="action_work_order" type="object" context="{'search_default_waiting': 1}">Waiting Availability</a>
+                                            <a name="action_work_order" type="object" context="{'search_default_blocked': 1, 'desktop_list_view': 1}">Waiting Availability</a>
                                         </div>
                                     </div>
                                 </div>
@@ -210,6 +195,7 @@
                                     <a
                                         name="%(act_mrp_block_workcenter)d"
                                         type="action"
+                                        groups="mrp.group_mrp_user"
                                         class="o_status float-end"
                                         title="No workorder currently in progress. Click to mark work center as blocked."
                                         aria-label="No workorder currently in progress. Click to mark work center as blocked."
@@ -217,6 +203,7 @@
                                     <a
                                         name="action_unblock"
                                         type="object"
+                                        groups="mrp.group_mrp_user"
                                         class=" o_status o_status_red float-end"
                                         title="Workcenter blocked, click to unblock."
                                         aria-label="Workcenter blocked, click to unblock."
@@ -224,10 +211,15 @@
                                     <a
                                         name="%(act_mrp_block_workcenter)d"
                                         type="action"
+                                        groups="mrp.group_mrp_user"
                                         class="o_status o_status_green float-end"
                                         title="Work orders in progress. Click to block work center."
                                         aria-label="Work orders in progress. Click to block work center."
                                         invisible="working_state in ('normal', 'blocked')" />
+                                    <span
+                                        groups="!mrp.group_mrp_user"
+                                        class="o_status float-end"
+                                        t-att-class="{'o_status_red': record.working_state.raw_value == 'blocked', 'o_status_green': record.working_state.raw_value == 'done'}" />
                                 </div>
                                 <field name="name" class="fw-bold fs-4 ms-2" />
                             </div>
@@ -296,9 +288,9 @@
                                     </div>
                                     <div class="row" t-if="record.oee.raw_value &gt; 0">
                                         <a
-                                            name="%(mrp_workcenter_productivity_report_oee)d"
+                                            name="action_view_oee_report"
                                             class="col-6"
-                                            type="action">
+                                            type="object">
                                             OEE
                                         </a>
                                         <div class="col-6">
@@ -341,8 +333,8 @@
                                 </div>
                             </button>
                             <button
-                                name="%(mrp_workcenter_productivity_report_oee)d"
-                                type="action"
+                                name="action_view_oee_report"
+                                type="object"
                                 icon="fa-pie-chart"
                                 class="oe_stat_button">
                                 <div class="o_field_widget o_stat_info">
@@ -351,8 +343,8 @@
                                 </div>
                             </button>
                             <button
-                                name="%(mrp_workcenter_productivity_report_blocked)d"
-                                type="action"
+                                name="action_view_lost_time_report"
+                                type="object"
                                 icon="fa-bar-chart"
                                 class="oe_stat_button">
                                 <div class="o_field_widget o_stat_info">
@@ -361,10 +353,9 @@
                                 </div>
                             </button>
                             <button
-                                name="%(action_mrp_workcenter_load_report_graph)d"
-                                type="action"
+                                name="action_view_load_report"
+                                type="object"
                                 icon="fa-bar-chart"
-                                context="{'search_default_workcenter_id': id,                                           'search_default_ready': True,                                           'search_default_waiting': True,                                           'search_default_pending': True,                                           'search_default_progress': True}"
                                 class="oe_stat_button">
                                 <div class="o_field_widget o_stat_info">
                                     <span class="o_stat_value"><field name="workcenter_load" /> Minutes</span>
@@ -372,10 +363,9 @@
                                 </div>
                             </button>
                             <button
-                                name="%(mrp_workorder_report)d"
-                                type="action"
+                                name="action_view_performance_report"
+                                type="object"
                                 icon="fa-bar-chart"
-                                context="{'search_default_workcenter_id': id, 'search_default_thisyear': True}"
                                 class="oe_stat_button">
                                 <div class="o_field_widget o_stat_info">
                                     <span class="o_stat_value"><field name="performance" />%</span>

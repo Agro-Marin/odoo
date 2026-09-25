@@ -286,6 +286,10 @@ class ProductProduct(models.Model):
             for field, values in ratios.items()
         }
 
+    def get_forecast_bom_id(self):
+        self.check_singleton()
+        return self.env["mrp.bom"]._get_bom_by_product(self)[self].id
+
     def action_view_bom(self):
         action = self.env["ir.actions.actions"]._get_action_dict_by_xml_id(
             "mrp.product_open_bom"

@@ -285,6 +285,46 @@ class TestMrpProductActions(TestMrpCommon):
             (product.action_archive() or {}).get("tag"), "display_notification"
         )
 
+    def test_the_forecast_opens_the_bom_the_variant_would_use(self):
+        attribute = self.env["product.attribute"].create(
+            {
+                "name": "Forecast size",
+                "value_ids": [
+                    Command.create({"name": "S"}),
+                    Command.create({"name": "L"}),
+                ],
+            }
+        )
+        template = self.env["product.template"].create(
+            {
+                "name": "Forecast sized",
+                "is_storable": True,
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": attribute.id,
+                            "value_ids": [Command.set(attribute.value_ids.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        small, large = template.product_variant_ids
+        bom_small = self.env["mrp.bom"].create(
+            {"product_tmpl_id": template.id, "product_id": small.id}
+        )
+        self.assertIn(
+            bom_small,
+            large.bom_ids,
+            "a variant's bom_ids are its template's, siblings' BoMs included",
+        )
+        self.assertEqual(small.get_forecast_bom_id(), bom_small.id)
+        self.assertFalse(large.get_forecast_bom_id())
+        self.assertEqual(template.get_forecast_bom_id(), bom_small.id)
+        bom_template = self.env["mrp.bom"].create({"product_tmpl_id": template.id})
+        self.assertEqual(large.get_forecast_bom_id(), bom_template.id)
+        self.assertEqual(small.get_forecast_bom_id(), bom_small.id)
+
 
 @tagged("post_install", "-at_install")
 class TestMrpProductRoutes(TestMrpCommon):

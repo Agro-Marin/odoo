@@ -269,3 +269,95 @@ class TestMrpGroupReadonly(TransactionCase):
             ),
             self.user_readonly,
         )
+
+    MUTATING_CONTROLS = (
+        (
+            "mrp.mrp_production_tree_view",
+            ("button_plan", "action_assign", "action_cancel"),
+        ),
+        (
+            "mrp.mrp_production_form_view",
+            (
+                "action_update_bom",
+                "action_generate_serial",
+                "action_clear_lot_producing_ids",
+                "action_add_from_catalog_raw",
+                "action_add_from_catalog_byproduct",
+            ),
+        ),
+        (
+            "mrp.mrp_production_workorder_tree_editable_view",
+            ("button_start", "button_pending", "button_finish"),
+        ),
+        ("mrp.mrp_unbuild_form_view", ("action_validate",)),
+        ("mrp.mrp_unbuild_form_view_simplified", ("action_validate",)),
+        (
+            "mrp.mrp_bom_form_view",
+            ("action_add_from_catalog", "action_compute_bom_days"),
+        ),
+        ("mrp.mrp_workcenter_kanban", ("action_unblock",)),
+    )
+
+    def _rendered(self, user, view_xmlid):
+        view = self.env.ref(view_xmlid)
+        rendered = (
+            self.env[view.model]
+            .with_user(user)
+            .get_views([(view.id, view.type)], {"toolbar": True})["views"][view.type]
+        )
+        names = {
+            node.get("name")
+            for node in etree.fromstring(rendered["arch"]).iter("button", "a")
+            if node.get("name")
+        }
+        bound = self.env["ir.actions.server"].browse(
+            action["id"]
+            for action in rendered.get("toolbar", {}).get("action", [])
+            if action.get("type") == "ir.actions.server"
+        )
+        return names, bound
+
+    def test_readonly_is_shown_no_control_that_writes(self):
+        user = self.env["res.users"].create(
+            {
+                "name": "Test MRP User",
+                "login": "test_mrp_user_controls",
+                "group_ids": [
+                    Command.set(
+                        [
+                            self.env.ref("mrp.group_mrp_user").id,
+                            self.env.ref("mrp.group_mrp_byproducts").id,
+                        ]
+                    )
+                ],
+            }
+        )
+        change_qty = str(self.env.ref("mrp.action_change_production_qty").id)
+        block = str(self.env.ref("mrp.act_mrp_block_workcenter").id)
+        for view_xmlid, controls in (
+            *self.MUTATING_CONTROLS,
+            ("mrp.mrp_production_form_view", (change_qty,)),
+            ("mrp.mrp_workcenter_kanban", (block,)),
+        ):
+            with self.subTest(view=view_xmlid):
+                shown, bound = self._rendered(self.user_readonly, view_xmlid)
+                self.assertFalse(shown & set(controls))
+                self.assertFalse(bound.mapped("name"))
+                shown, bound = self._rendered(user, view_xmlid)
+                self.assertEqual(shown & set(controls), set(controls))
+
+    def test_readonly_is_shown_the_bom_smart_buttons(self):
+        template_bom = str(self.env.ref("mrp.template_open_bom").id)
+        for view_xmlid, buttons in (
+            (
+                "product.view_product_template_form_only",
+                {template_bom, "action_used_in_bom", "action_view_mos"},
+            ),
+            (
+                "product.view_product_product_form_normal",
+                {"action_view_bom", "action_used_in_bom", "action_view_mos"},
+            ),
+        ):
+            with self.subTest(view=view_xmlid):
+                shown, _bound = self._rendered(self.user_readonly, view_xmlid)
+                self.assertEqual(shown & buttons, buttons)

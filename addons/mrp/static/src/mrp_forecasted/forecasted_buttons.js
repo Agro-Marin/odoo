@@ -7,16 +7,9 @@ patch(ForecastedButtons.prototype, {
     setup() {
         super.setup();
         onWillStart(async () => {
-            const fields =
-                this.resModel === "product.template"
-                    ? ["bom_ids"]
-                    : ["bom_ids", "variant_bom_ids"];
-            const res = (
-                await this.orm.call(this.resModel, "read", [this.productId], { fields })
-            )[0];
-            this.bomId = res.variant_bom_ids
-                ? res.variant_bom_ids[0] || res.bom_ids[0]
-                : res.bom_ids[0];
+            this.bomId = await this.orm.call(this.resModel, "get_forecast_bom_id", [
+                [this.productId],
+            ]);
         });
     },
 

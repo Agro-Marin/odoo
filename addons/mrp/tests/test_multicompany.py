@@ -1,4 +1,4 @@
-from odoo.exceptions import UserError
+from odoo.exceptions import AccessError, UserError
 from odoo.fields import Command
 from odoo.tests import Form, common
 
@@ -393,3 +393,48 @@ class TestMrpMulticompany(common.TransactionCase):
         self.assertRecordValues(
             delivery.move_ids, [{"state": "confirmed", "quantity": 0.0}]
         )
+
+    def test_a_capacity_follows_its_workcenters_company(self):
+        workcenter_b = self.env["mrp.workcenter"].create(
+            {"name": "WC B", "company_id": self.company_b.id}
+        )
+        capacity_b = self.env["mrp.workcenter.capacity"].create(
+            {"workcenter_id": workcenter_b.id, "capacity": 7}
+        )
+        self.user_a.company_ids = self.company_a
+        as_a = self.env["mrp.workcenter.capacity"].with_user(self.user_a)
+        self.assertFalse(as_a.search([("id", "=", capacity_b.id)]))
+        with self.assertRaises(AccessError):
+            as_a.browse(capacity_b.id).write({"capacity": 99})
+        product_b = self.env["product.product"].create(
+            {"name": "Capacity B", "company_id": self.company_b.id}
+        )
+        with self.assertRaises(AccessError):
+            as_a.create(
+                {
+                    "workcenter_id": workcenter_b.id,
+                    "product_id": product_b.id,
+                    "capacity": 3,
+                }
+            )
+
+    def test_an_mrp_user_cannot_edit_working_schedules(self):
+        calendar_b = self.env["resource.calendar"].create(
+            {"name": "Schedule B", "company_id": self.company_b.id}
+        )
+        attendance = calendar_b.attendance_ids[:1]
+        self.assertTrue(attendance)
+        user = self.env["res.users"].create(
+            {
+                "name": "MRP user A",
+                "login": "mrp user a schedules",
+                "group_ids": [Command.set([self.env.ref("mrp.group_mrp_user").id])],
+                "company_id": self.company_a.id,
+                "company_ids": [Command.set(self.company_a.ids)],
+            }
+        )
+        as_user = attendance.with_user(user)
+        with self.assertRaises(AccessError):
+            as_user.write({"hour_from": 6})
+        with self.assertRaises(AccessError):
+            as_user.unlink()

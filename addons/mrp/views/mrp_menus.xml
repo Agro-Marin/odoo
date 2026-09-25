@@ -5,7 +5,7 @@
         id="menu_mrp_root"
         name="Manufacturing"
         sequence="145"
-        groups="group_mrp_user,group_mrp_manager,group_mrp_readonly"
+        groups="group_mrp_readonly"
         web_icon="mrp,static/description/icon.png"
         web_keywords="manufacturing order, bom, bill of materials, work order, production, routing, unbuild">
         <menuitem id="menu_mrp_manufacturing" name="Operations" sequence="10" />
@@ -52,7 +52,7 @@
         parent="stock.menu_stock_transfers"
         action="action_picking_tree_mrp_operation"
         sequence="25"
-        groups="stock.group_stock_manager,stock.group_stock_user" />
+        groups="stock.group_stock_user" />
 
     <menuitem
         id="menu_procurement_compute_mrp"

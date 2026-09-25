@@ -148,6 +148,7 @@
                                             type="object"
                                             string="Catalog"
                                             context="{'order_id': parent.id}"
+                                            groups="mrp.group_mrp_user"
                                             class="px-4 btn-link" />
                                     </control>
                                     <field name="company_id" column_invisible="True" />
@@ -270,6 +271,7 @@
                                             type="object"
                                             string="Catalog"
                                             context="{'order_id': parent.id}"
+                                            groups="mrp.group_mrp_user"
                                             class="px-4 btn-link" />
                                     </control>
                                     <field name="company_id" column_invisible="True" />
@@ -340,6 +342,7 @@
                                                 type="object"
                                                 string="Compute"
                                                 help="Compute the days required to resupply all components from BoM, by either buying or manufacturing the components and/or subassemblies."
+                                                groups="mrp.group_mrp_user"
                                                 class="oe_link pt-0" />
                                         </div>
                                         <label

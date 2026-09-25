@@ -7,16 +7,6 @@
             <field name="tag">account_report</field>
             <field name="context" eval="{'report_id': ref('mrp.mo_overview_report')}" />
         </record>
-        <record id="action_mrp_display" model="ir.actions.client">
-            <field name="name">Mrp Display</field>
-            <field name="res_model">mrp.production</field>
-            <field name="tag">mrp_display</field>
-        </record>
-        <record id="action_mrp_display_fullscreen" model="ir.actions.client">
-            <field name="name">Manufacturing</field>
-            <field name="tag">mrp_display</field>
-            <field name="target">fullscreen</field>
-        </record>
         <record id="mrp_production_view_activity" model="ir.ui.view">
             <field name="name">mrp.production.view.activity</field>
             <field name="model">mrp.production</field>
@@ -44,16 +34,22 @@
                     sample="1"
                     decoration-info="state == 'draft'">
                     <header>
-                        <button name="button_plan" type="object" string="Plan" />
+                        <button
+                            name="button_plan"
+                            type="object"
+                            string="Plan"
+                            groups="mrp.group_mrp_user" />
                         <button
                             name="action_assign"
                             type="object"
-                            string="Check availability" />
+                            string="Check availability"
+                            groups="mrp.group_mrp_user" />
                         <button
                             name="action_cancel"
                             type="object"
                             string="Cancel"
-                            confirm="Are you sure you want to cancel these manufacturing orders?" />
+                            confirm="Are you sure you want to cancel these manufacturing orders?"
+                            groups="mrp.group_mrp_user" />
                     </header>
                     <field name="company_id" column_invisible="True" />
                     <field
@@ -170,6 +166,7 @@
             <field name="binding_model_id" ref="mrp.model_mrp_production" />
             <field name="binding_view_types">list,kanban,form</field>
             <field name="binding_icon">fa-solid fa-code-branch</field>
+            <field name="group_ids" eval="[Command.link(ref('mrp.group_mrp_user'))]" />
             <field name="state">code</field>
             <field name="code">action = records.action_split()</field>
         </record>
@@ -191,6 +188,7 @@
             <field name="binding_model_id" ref="mrp.model_mrp_production" />
             <field name="binding_view_types">form</field>
             <field name="binding_icon">fa-solid fa-lock</field>
+            <field name="group_ids" eval="[Command.link(ref('mrp.group_mrp_user'))]" />
             <field name="state">code</field>
             <field
                 name="code">if records:
@@ -202,6 +200,7 @@
             <field name="binding_model_id" ref="mrp.model_mrp_production" />
             <field name="binding_view_types">form</field>
             <field name="binding_icon">fa-solid fa-recycle</field>
+            <field name="group_ids" eval="[Command.link(ref('mrp.group_mrp_user'))]" />
             <field name="state">code</field>
             <field
                 name="code">if records:
@@ -212,6 +211,7 @@
             <field name="model_id" ref="mrp.model_mrp_production" />
             <field name="binding_model_id" ref="mrp.model_mrp_production" />
             <field name="binding_view_types">list,kanban,form</field>
+            <field name="group_ids" eval="[Command.link(ref('mrp.group_mrp_user'))]" />
             <field name="state">code</field>
             <field
                 name="code">action = records.action_plan_with_components_availability()</field>
@@ -222,6 +222,7 @@
             <field name="binding_model_id" ref="mrp.model_mrp_production" />
             <field name="binding_view_types">list,kanban</field>
             <field name="binding_icon">fa-solid fa-code-merge</field>
+            <field name="group_ids" eval="[Command.link(ref('mrp.group_mrp_user'))]" />
             <field name="state">code</field>
             <field name="code">action = records.action_merge()</field>
         </record>
@@ -231,6 +232,7 @@
             <field name="binding_model_id" ref="mrp.model_mrp_production" />
             <field name="binding_view_types">list,kanban</field>
             <field name="binding_icon">fa-solid fa-check</field>
+            <field name="group_ids" eval="[Command.link(ref('mrp.group_mrp_user'))]" />
             <field name="state">code</field>
             <field
                 name="code">if records:
@@ -524,6 +526,7 @@
                                     name="%(mrp.action_change_production_qty)d"
                                     type="action"
                                     context="{'default_mo_id': id}"
+                                    groups="mrp.group_mrp_user"
                                     invisible="state in ('draft', 'done', 'cancel') or not id"
                                     class="oe_link oe_inline"
                                     style="margin: 0px; padding: 0px;">
@@ -532,6 +535,13 @@
                                         readonly="state != 'draft'"
                                         class="oe_inline" />
                                 </button>
+                                <field
+                                    name="product_qty"
+                                    groups="!mrp.group_mrp_user"
+                                    invisible="state in ('draft', 'done')"
+                                    readonly="1"
+                                    class="oe_inline text-start text-truncate"
+                                    style="width:auto!important" />
                                 <label
                                     for="product_uom_id"
                                     string=""
@@ -581,6 +591,7 @@
                                     type="object"
                                     string="Update BoM"
                                     title="Note that another version of this BOM is available."
+                                    groups="mrp.group_mrp_user"
                                     invisible="not is_outdated_bom or state not in ['draft', 'confirmed']"
                                     class="text-danger" />
                             </div>
@@ -603,6 +614,7 @@
                                     type="object"
                                     string="Generate Serial"
                                     title="Creates a new serial number"
+                                    groups="mrp.group_mrp_user"
                                     invisible="product_tracking in ('none', 'lot', False) or lot_producing_ids"
                                     class="btn btn-primary o_right_alignment"
                                     aria-label="Creates a new serial number"
@@ -612,6 +624,7 @@
                                     type="object"
                                     string="Generate Serial"
                                     title="Creates a new serial number"
+                                    groups="mrp.group_mrp_user"
                                     invisible="product_tracking in ('none', 'lot', False) or not lot_producing_ids or product_qty == 1"
                                     class="btn btn-secondary o_right_alignment"
                                     aria-label="Creates a new serial number"
@@ -621,6 +634,7 @@
                                     type="object"
                                     string="Generate Lot"
                                     title="Creates a new lot number"
+                                    groups="mrp.group_mrp_user"
                                     invisible="product_tracking in ('none', 'serial', False) or lot_producing_ids"
                                     class="btn btn-primary o_right_alignment"
                                     aria-label="Creates a new lot number"
@@ -630,6 +644,7 @@
                                     type="object"
                                     string="Clear"
                                     title="Clears the selected lot/serial number"
+                                    groups="mrp.group_mrp_user"
                                     invisible="state == 'done' or  (product_tracking == 'serial' and product_qty &gt; 1) or not lot_producing_ids"
                                     class="btn btn-secondary o_right_alignment"
                                     aria-label="Clears the selected lot/serial number"
@@ -723,6 +738,7 @@
                                             type="object"
                                             string="Catalog"
                                             context="{'order_id': parent.id}"
+                                            groups="mrp.group_mrp_user"
                                             class="px-4 btn-link" />
                                     </control>
                                     <field
@@ -895,6 +911,7 @@
                                             type="object"
                                             string="Catalog"
                                             context="{'order_id': parent.id}"
+                                            groups="mrp.group_mrp_user"
                                             class="px-4 btn-link" />
                                     </control>
                                     <field
@@ -1236,7 +1253,7 @@
                         name="filter_late_mo"
                         string="Late"
                         help="Late"
-                        domain="[('date_start', '&lt;', 'now'), ('state', '=', 'confirmed')]" />
+                        domain="[('is_late', '=', True)]" />
                     <filter
                         name="planning_issues"
                         string="Delayed Productions"
@@ -1331,7 +1348,7 @@
             </field>
         </record>
         <record
-            id="mrp_production_action_picking_deshboard"
+            id="mrp_production_action_picking_dashboard"
             model="ir.actions.act_window">
             <field name="name">Manufacturing Orders</field>
             <field name="res_model">mrp.production</field>
@@ -1346,6 +1363,7 @@
             <field name="model_id" ref="mrp.model_mrp_production" />
             <field name="binding_model_id" ref="mrp.model_mrp_production" />
             <field name="binding_view_types">list,kanban</field>
+            <field name="group_ids" eval="[Command.link(ref('mrp.group_mrp_user'))]" />
             <field name="state">code</field>
             <field
                 name="code">if records:

@@ -30,4 +30,3 @@ from . import stock_scrap
 from . import stock_warehouse
 from . import stock_quant
 from . import mixin_stock_replenish
-from . import access_anchors
