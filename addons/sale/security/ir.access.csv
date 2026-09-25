@@ -64,3 +64,4 @@ sale_advance_payment_inv_rule,Sales Advance Payment Invoice Rule,model_sale_adva
 sale_mass_cancel_orders_rule,Sales Mass Cancel Orders: access only your own wizard,model_sale_mass_cancel_orders,base.group_everyone,guard,crud,"[('create_uid', '=', user.id)]"
 sale_order_line_price_history_rule,Sale Order Line Price History: access only your own wizard,model_sale_order_line_price_history,base.group_everyone,guard,crud,"[('create_uid', '=', user.id)]"
 sale_order_line_price_history_line_rule,Sale Order Line Price History Line: access only your own wizard,model_sale_order_line_price_history_line,base.group_everyone,guard,crud,"[('create_uid', '=', user.id)]"
+access_sale_advance_payment_inv_invoicing,sale.advance.payment.inv invoicing,model_sale_advance_payment_inv,account.group_account_invoice,permission,cru,

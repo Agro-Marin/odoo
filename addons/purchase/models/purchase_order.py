@@ -574,6 +574,12 @@ class PurchaseOrder(models.Model):
     def _create_downpayments(self, line_vals):
         return self._create_down_payment_lines(line_vals)
 
+    def _prepare_down_payment_line_values_from_base_line(self, base_line):
+        return {
+            **super()._prepare_down_payment_line_values_from_base_line(base_line),
+            "name": self.env._("Down Payment"),
+        }
+
     def _get_invoiceable_lines(self, final=False):
         self.check_singleton()
         return self.line_ids

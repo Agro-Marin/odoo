@@ -53,3 +53,6 @@ purchase_order_report_comp_rule,Purchase Order Report multi-company,model_purcha
 purchase_mass_cancel_orders_rule,Purchase Mass Cancel Orders: access only your own wizard,model_purchase_mass_cancel_orders,base.group_everyone,guard,crud,"[('create_uid', '=', user.id)]"
 purchase_bill_match_comp_rule,Purchases & Bills Union multi-company,model_purchase_bill_match,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
 purchase_bill_line_match_comp_rule,Purchase Bill Line Match multi-company,model_purchase_bill_line_match,base.group_everyone,guard,crud,"[('company_id', 'in', company_ids + [False])]"
+access_purchase_advance_payment_inv,access.purchase.advance.payment.inv,model_purchase_advance_payment_inv,group_purchase_user,permission,cru,
+purchase_advance_payment_inv_rule,Purchase Advance Payment Bill Rule,model_purchase_advance_payment_inv,base.group_everyone,guard,crud,"[('create_uid', '=', user.id)]"
+access_purchase_advance_payment_inv_invoicing,purchase.advance.payment.inv invoicing,model_purchase_advance_payment_inv,account.group_account_invoice,permission,cru,

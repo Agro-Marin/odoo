@@ -1,0 +1,65 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* trade_account
+#
+# Translators:
+# Artjoms Ustinovs <artyom.ustinov2010@yandex.ru>, 2022
+# JanisJanis <jbojars@gmail.com>, 2022
+# ievaputnina <ievai.putninai@gmail.com>, 2022
+# Anzelika Adejanova, 2022
+# Martin Trigaux, 2022
+# Konstantins Zabogonskis <inculin4ik@gmail.com>, 2022
+# InfernalLV <karlisdreizis@gmail.com>, 2023
+# Arnis Putniņš <arnis@allegro.lv>, 2023
+# Armīns Jeltajevs <armins.jeltajevs@gmail.com>, 2023
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-06 18:36+0000\n"
+"PO-Revision-Date: 2022-09-22 05:54+0000\n"
+"Last-Translator: Armīns Jeltajevs <armins.jeltajevs@gmail.com>, 2023\n"
+"Language-Team: Latvian (https://app.transifex.com/odoo/teams/41243/lv/)\n"
+"Language: lv\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n != 0 ? 1 : "
+"2);\n"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "%s has been created"
+msgstr ""
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Down Payment"
+msgstr "Avansa maksājums"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Down payment invoice"
+msgstr ""
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Down payment of %s%%"
+msgstr "Avansa maksājums par %s%%"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Draft Invoices"
+msgstr ""
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "The value of the down payment amount must be positive."
+msgstr "Avansa maksājuma daudzuma vērtībai jābūt pozitīvai."

@@ -1,0 +1,90 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * trade_account
+#
+# Translators:
+# Miika Nissi <miika.nissi@tawasta.fi>, 2022
+# Henri Komulainen <henri.komulainen@web-veistamo.fi>, 2022
+# Sanna Edelman <direct@generare.com>, 2022
+# Jussi Lehto <jussi@gulfeo.com>, 2022
+# Sari Mäyrä <sari.mayra@sv-oy.fi>, 2022
+# Eppu Tuominen <eppu.tuominen@emsystems.fi>, 2022
+# Jussi Heikkilä <jussi.heikkila@panimo.com>, 2022
+# Jukka Paulin <jukka.paulin@gmail.com>, 2022
+# Jenni Heikkilä <jenni.heikkila@sv-oy.fi>, 2022
+# Marko Happonen <marko.happonen@sprintit.fi>, 2022
+# Atte Isopuro <atte.isopuro@web-veistamo.fi>, 2022
+# Joni Winsten, 2022
+# Kari Lindgren <kari.lindgren@emsystems.fi>, 2022
+# Mikko Virtanen <mikko.virtanen2013@gmail.com>, 2022
+# Janne Rättyä <janne.rattya@web-veistamo.fi>, 2022
+# Mikko Närjänen <mikko.narjanen@web-veistamo.fi>, 2022
+# Eino Mäkitalo <eino.makitalo@netitbe.fi>, 2022
+# Johanna Valkonen <miujohanna@gmail.com>, 2022
+# Svante Suominen <svante.suominen@web-veistamo.fi>, 2022
+# Miku Laitinen <miku.laitinen@gmail.com>, 2022
+# Simo Suurla <simo@suurla.fi>, 2022
+# Pekko Tuomisto <pekko.tuomisto@web-veistamo.fi>, 2022
+# Antti Oksman <antti.oksman@web-veistamo.fi>, 2022
+# Martin Trigaux, 2022
+# Veikko Väätäjä <veikko.vaataja@gmail.com>, 2022
+# Tuomo Aura <tuomo.aura@web-veistamo.fi>, 2022
+# Jarmo Kortetjärvi <jarmo.kortetjarvi@gmail.com>, 2022
+# Tuomas Lyyra <tuomas.lyyra@legenda.fi>, 2022
+# Konsta Aavaranta, 2023
+# Ossi Mantylahti <ossi.mantylahti@obs-solutions.fi>, 2023
+# Mikko Salmela <salmemik@gmail.com>, 2023
+# "Tiffany Chang (tic)" <tic@odoo.com>, 2025.
+# Saara Hakanen <sahak@odoo.com>, 2025, 2026.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-06 18:36+0000\n"
+"PO-Revision-Date: 2026-02-13 09:17+0000\n"
+"Last-Translator: Saara Hakanen <sahak@odoo.com>\n"
+"Language-Team: Finnish <https://translate.odoo.com/projects/odoo-19/sale/fi/>"
+"\n"
+"Language: fi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "%s has been created"
+msgstr "%s on luotu"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Down Payment"
+msgstr "Ennakkomaksu"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Down payment invoice"
+msgstr "Ennakkomaksulasku"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Down payment of %s%%"
+msgstr "Ennakkomaksu: %s%%"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Draft Invoices"
+msgstr "Luonnoslaskut"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "The value of the down payment amount must be positive."
+msgstr "Ennakkomaksun on olatava positiivinen."

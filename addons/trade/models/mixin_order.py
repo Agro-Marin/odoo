@@ -1149,6 +1149,16 @@ class MixinOrder(models.AbstractModel):
     def _catalog_on_line_created(self, line, **kwargs):
         return line
 
+    def _get_lang(self):
+        if not self:
+            return self.env.lang
+        self.check_singleton()
+
+        if self.partner_id.lang and not self.partner_id.is_public:
+            return self.partner_id.lang
+
+        return self.env.lang
+
     def _get_edi_builders(self):
         return []
 

@@ -1506,12 +1506,6 @@ msgid "Done"
 msgstr "ຈົບເເລັວ"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "Down Payment"
-msgstr ""
-
-#. module: sale
 #: model:ir.model.fields,field_description:sale.field_sale_advance_payment_inv__amount
 msgid "Down Payment Amount"
 msgstr ""
@@ -1541,12 +1535,6 @@ msgid "Down Payments"
 msgstr ""
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "Down payment"
-msgstr ""
-
-#. module: sale
 #: model:ir.model.fields.selection,name:sale.selection__sale_advance_payment_inv__advance_payment_method__fixed
 msgid "Down payment (fixed amount)"
 msgstr ""
@@ -1554,12 +1542,6 @@ msgstr ""
 #. module: sale
 #: model:ir.model.fields.selection,name:sale.selection__sale_advance_payment_inv__advance_payment_method__percentage
 msgid "Down payment (percentage)"
-msgstr ""
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "Down payment of %s%%"
 msgstr ""
 
 #. module: sale
@@ -1574,7 +1556,6 @@ msgstr ""
 
 #. module: sale
 #. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
 #: model_terms:ir.ui.view,arch_db:sale.view_sale_advance_payment_inv
 msgid "Draft Invoices"
 msgstr ""
@@ -3858,12 +3839,6 @@ msgstr ""
 #. odoo-python
 #: code:addons/sale/controllers/portal.py:0
 msgid "The provided parameters are invalid."
-msgstr ""
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "The value of the down payment amount must be positive."
 msgstr ""
 
 #. module: sale

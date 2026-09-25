@@ -71,12 +71,6 @@ msgid "%(attribute)s: %(values)s"
 msgstr "%(attribute)s: %(values)s"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "%s has been created"
-msgstr "%s wurde erstellt"
-
-#. module: sale
 #: model_terms:ir.ui.view,arch_db:sale.portal_my_orders
 msgid "&amp;nbsp;"
 msgstr "&amp;nbsp;"
@@ -2675,7 +2669,6 @@ msgstr "Bereich"
 #. module: sale
 #. odoo-python
 #: code:addons/sale/models/sale_order_line.py:0
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
 #: model:ir.model.fields,field_description:sale.field_sale_advance_payment_inv__amount
 msgid "Down Payment"
 msgstr "Anzahlung"
@@ -2731,18 +2724,6 @@ msgid "Down payment <br/>"
 msgstr "Anzahlung <br/>"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "Down payment invoice"
-msgstr "Abschlagsrechnung"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "Down payment of %s%%"
-msgstr "Anzahlung von %s %%"
-
-#. module: sale
 #: model:ir.model.fields,help:sale.field_sale_order_line__is_downpayment
 msgid ""
 "Down payments are made when creating invoices from a sales order. They are "
@@ -2760,7 +2741,6 @@ msgstr "Anzahlungskonto"
 
 #. module: sale
 #. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
 #: model_terms:ir.ui.view,arch_db:sale.view_sale_advance_payment_inv
 msgid "Draft Invoices"
 msgstr "Rechnungsentwürfe"
@@ -5615,12 +5595,6 @@ msgstr "Das Produkt (%(product)s) hat inkompatible Werte: %(value_list)s"
 #: code:addons/sale/wizard/payment_link_wizard.py:0
 msgid "The sale order has expired."
 msgstr "Der Verkaufsauftrag ist abgelaufen."
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "The value of the down payment amount must be positive."
-msgstr "Der Betrag der Anzahlung muss positiv sein."
 
 #. module: sale
 #: model_terms:ir.ui.view,arch_db:sale.portal_my_quotations

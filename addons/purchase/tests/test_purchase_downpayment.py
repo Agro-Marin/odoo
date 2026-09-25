@@ -1,4 +1,5 @@
 from odoo import Command, fields
+from odoo.exceptions import UserError
 from odoo.tests import tagged
 
 from odoo.addons.purchase.tests.test_purchase_invoice import TestPurchaseToInvoiceCommon
@@ -227,3 +228,64 @@ class TestPurchaseDownpayment(TestPurchaseToInvoiceCommon):
             lambda l: l.display_type != "line_section" and l.is_downpayment
         )
         self.assertEqual(po_dp_line.price_unit, 66.67)
+
+
+@tagged("-at_install", "post_install")
+class TestPurchaseDownpaymentWizard(TestPurchaseToInvoiceCommon):
+    def _order(self):
+        po = self.init_purchase(
+            confirm=False, products=[self.product_order], taxes=self.env["account.tax"]
+        )
+        po.line_ids.product_qty = 10.0
+        po.action_confirm()
+        return po
+
+    def _wizard(self, po, **vals):
+        return (
+            self.env["purchase.advance.payment.inv"]
+            .with_context(active_model="purchase.order", active_ids=po.ids)
+            .create(vals)
+        )
+
+    def test_percentage_down_payment_bill_is_deducted_by_the_final_bill(self):
+        po = self._order()
+        total = po.amount_untaxed
+
+        self._wizard(
+            po, advance_payment_method="percentage", amount=20
+        ).create_invoices()
+        dp_bill = po.invoice_ids
+        self.assertEqual(dp_bill.move_type, "in_invoice")
+        self.assertAlmostEqual(dp_bill.amount_untaxed, total * 0.2)
+        dp_line = po.line_ids.filtered(
+            lambda line: line.is_downpayment and not line.display_type
+        )
+        self.assertEqual(len(dp_line), 1)
+        self.assertEqual(dp_bill.invoice_line_ids.purchase_line_ids, dp_line)
+        dp_bill.invoice_date = fields.Date.today()
+        dp_bill.action_post()
+
+        final_bill = po.create_invoice()
+        deduction = final_bill.invoice_line_ids.filtered(
+            lambda line: line.is_downpayment and line.display_type == "product"
+        )
+        self.assertEqual(deduction.quantity, -1)
+        self.assertAlmostEqual(final_bill.amount_untaxed, total * 0.8)
+
+    def test_fixed_down_payment_bill(self):
+        po = self._order()
+        self._wizard(
+            po, advance_payment_method="fixed", fixed_amount=100
+        ).create_invoices()
+        self.assertAlmostEqual(po.invoice_ids.amount_total, 100)
+
+    def test_down_payment_amount_must_be_positive_and_at_most_the_whole(self):
+        po = self._order()
+        with self.assertRaisesRegex(UserError, "must be positive"):
+            self._wizard(
+                po, advance_payment_method="percentage", amount=0
+            ).create_invoices()
+        with self.assertRaisesRegex(UserError, "cannot exceed 100%"):
+            self._wizard(
+                po, advance_payment_method="percentage", amount=120
+            ).create_invoices()

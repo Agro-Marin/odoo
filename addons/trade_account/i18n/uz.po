@@ -1,0 +1,67 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* trade_account
+#
+#
+# Translated by:
+# Deepvision - info@deepvision.uz | +998 77-093-0007
+# Amon Olimov - amon.bars@gmail.com
+# Jonibek Yorqulov - j.yorqulov@deepvision.uz
+# Mirzohidkhon Ulugkhujaev ulugkhujayevmirzohidxon@gmail.com
+#
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-06 18:36+0000\n"
+"PO-Revision-Date: 2025-10-08 18:38+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: uz\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+#, fuzzy
+msgid "%s has been created"
+msgstr "%s yaratildi"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+#, fuzzy
+msgid "Down Payment"
+msgstr "Boshlang‘ich to‘lov"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+#, fuzzy
+msgid "Down payment invoice"
+msgstr "Boshlang‘ich to‘lov hisobvaraqasi"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+#, fuzzy
+msgid "Down payment of %s%%"
+msgstr "%s%% boshlang‘ich to‘lov"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+#, fuzzy
+msgid "Draft Invoices"
+msgstr "Hisob-faktura loyihalari"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+#, fuzzy
+msgid "The value of the down payment amount must be positive."
+msgstr "Boshlang‘ich to‘lov summasi qiymati musbat bo‘lishi shart."

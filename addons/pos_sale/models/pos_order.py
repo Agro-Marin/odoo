@@ -129,7 +129,7 @@ class PosOrder(models.Model):
                 )
 
                 sale_order_sudo = sale_order.sudo()
-                sale_order_sudo._create_down_payment_section_line_if_needed()
+                sale_order_sudo._get_down_payment_section_line()
                 sale_order_sudo._create_down_payment_lines_from_base_lines(
                     down_payment_base_lines
                 )

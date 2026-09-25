@@ -440,6 +440,26 @@ class MixinOrderInvoice(models.AbstractModel):
             [self._prepare_down_payment_line_section_values()],
         )
 
+    def _prepare_down_payment_line_values_from_base_line(self, base_line):
+        self.check_singleton()
+        return {
+            "order_id": self.id,
+            "is_downpayment": True,
+            "product_qty": 0.0,
+            "price_unit": base_line["price_unit"],
+            "tax_ids": [Command.set(base_line["tax_ids"].ids)],
+            "analytic_distribution": base_line["analytic_distribution"],
+        }
+
+    def _create_down_payment_lines_from_base_lines(self, down_payment_base_lines):
+        self.check_singleton()
+        return self._create_down_payment_lines(
+            [
+                self._prepare_down_payment_line_values_from_base_line(base_line)
+                for base_line in down_payment_base_lines
+            ],
+        )
+
     def _create_down_payment_lines(self, vals_list):
         self.check_singleton()
         section = self._get_down_payment_section_line()

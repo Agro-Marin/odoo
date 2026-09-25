@@ -1654,16 +1654,6 @@ class SaleOrder(models.Model):
             ),
         )
 
-    def _get_lang(self):
-        if not self:
-            return self.env.lang
-        self.check_singleton()
-
-        if self.partner_id.lang and not self.partner_id.is_public:
-            return self.partner_id.lang
-
-        return self.env.lang
-
     def _get_import_template_label(self):
         return self.env._("Import Template for Quotations")
 
@@ -1719,19 +1709,6 @@ class SaleOrder(models.Model):
                     ),
                 )
         return epd_lines
-
-    def _create_down_payment_lines_from_base_lines(self, down_payment_base_lines):
-        self.check_singleton()
-        return self._create_down_payment_lines(
-            [
-                self._prepare_down_payment_line_values_from_base_line(base_line)
-                for base_line in down_payment_base_lines
-            ],
-        )
-
-    def _create_down_payment_section_line_if_needed(self):
-        self.check_singleton()
-        return self._get_down_payment_section_line()
 
     @api.model
     def _cron_send_pending_emails(self):
@@ -1880,19 +1857,11 @@ class SaleOrder(models.Model):
         }
 
     def _prepare_down_payment_line_values_from_base_line(self, base_line):
-        self.check_singleton()
-        extra_tax_data = self.env["account.tax"]._export_base_line_extra_tax_data(
-            base_line,
-        )
-        return {
-            "order_id": self.id,
-            "is_downpayment": True,
-            "product_qty": 0.0,
-            "price_unit": base_line["price_unit"],
-            "tax_ids": [Command.set(base_line["tax_ids"].ids)],
-            "analytic_distribution": base_line["analytic_distribution"],
-            "extra_tax_data": extra_tax_data,
-        }
+        values = super()._prepare_down_payment_line_values_from_base_line(base_line)
+        values["extra_tax_data"] = self.env[
+            "account.tax"
+        ]._export_base_line_extra_tax_data(base_line)
+        return values
 
     def _recompute_prices(self):
         lines_to_recompute = self._get_order_lines_price_updatable()

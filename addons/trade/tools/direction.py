@@ -10,6 +10,7 @@ class TradeDirection:
     partner_usage: Literal["customer", "supplier"]
     partner_side: Literal["destination", "source"]
     product_ok_field: str
+    product_account_key: Literal["income", "expense"]
     product_taxes_field: str
     partner_payment_term_field: str
     invoice_policy_field: str
@@ -37,6 +38,7 @@ SALE = TradeDirection(
     partner_usage="customer",
     partner_side="destination",
     product_ok_field="sale_ok",
+    product_account_key="income",
     product_taxes_field="taxes_id",
     partner_payment_term_field="property_payment_term_id",
     invoice_policy_field="invoice_policy",
@@ -50,6 +52,7 @@ PURCHASE = TradeDirection(
     partner_usage="supplier",
     partner_side="source",
     product_ok_field="purchase_ok",
+    product_account_key="expense",
     product_taxes_field="supplier_taxes_id",
     partner_payment_term_field="property_supplier_payment_term_id",
     invoice_policy_field="bill_policy",

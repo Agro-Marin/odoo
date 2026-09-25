@@ -567,6 +567,12 @@
                         string="Acknowledge"
                         groups="purchase.group_purchase_user"
                         invisible="acknowledged or state != 'done'" />
+                    <button
+                        name="%(purchase.action_view_purchase_advance_payment_inv)d"
+                        type="action"
+                        string="Down Payment"
+                        context="{'default_advance_payment_method': 'percentage'}"
+                        invisible="state != 'done' or invoice_state == 'done'" />
                     <widget name="purchase_file_uploader" invisible="state != 'done'" />
                     <separator name="operations" />
                     <button

@@ -68,13 +68,6 @@ msgid "%(attribute)s: %(values)s"
 msgstr "%(attribute)s: %(values)s"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-#, fuzzy
-msgid "%s has been created"
-msgstr "%s yaratildi"
-
-#. module: sale
 #: model_terms:ir.ui.view,arch_db:sale.portal_my_orders
 #, fuzzy
 msgid "&amp;nbsp;"
@@ -2586,7 +2579,6 @@ msgstr "Domen"
 #. module: sale
 #. odoo-python
 #: code:addons/sale/models/sale_order_line.py:0
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
 #: model:ir.model.fields,field_description:sale.field_sale_advance_payment_inv__amount
 #, fuzzy
 msgid "Down Payment"
@@ -2652,20 +2644,6 @@ msgid "Down payment <br/>"
 msgstr "Boshlang‘ich to‘lov <br/>"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-#, fuzzy
-msgid "Down payment invoice"
-msgstr "Boshlang‘ich to‘lov hisobvaraqasi"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-#, fuzzy
-msgid "Down payment of %s%%"
-msgstr "%s%% boshlang‘ich to‘lov"
-
-#. module: sale
 #: model:ir.model.fields,help:sale.field_sale_order_line__is_downpayment
 #, fuzzy
 msgid ""
@@ -2684,7 +2662,6 @@ msgstr "Boshlang‘ich to‘lov hisobi"
 
 #. module: sale
 #. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
 #: model_terms:ir.ui.view,arch_db:sale.view_sale_advance_payment_inv
 #, fuzzy
 msgid "Draft Invoices"
@@ -6168,13 +6145,6 @@ msgstr "Mahsulot (%(product)s) mos kelmaydigan qiymatlarga ega: %(value_list)s"
 #: code:addons/sale/wizard/payment_link_wizard.py:0
 msgid "The sale order has expired."
 msgstr ""
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-#, fuzzy
-msgid "The value of the down payment amount must be positive."
-msgstr "Boshlang‘ich to‘lov summasi qiymati musbat bo‘lishi shart."
 
 #. module: sale
 #: model_terms:ir.ui.view,arch_db:sale.portal_my_quotations

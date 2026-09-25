@@ -1011,7 +1011,7 @@ class L10nMyEDITestFileGeneration(AccountTestInvoicingCommon):
                 }
             )
         )
-        invoice = downpayment_wizard._create_invoices(sale_orders=so)
+        invoice = downpayment_wizard._create_invoices(so)
         invoice.action_post()
         myinvois_document = invoice._create_myinvois_document()
 

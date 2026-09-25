@@ -73,12 +73,6 @@ msgid "%(attribute)s: %(values)s"
 msgstr "%(attribute)s: %(values)s"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "%s has been created"
-msgstr "Se ha creado %s"
-
-#. module: sale
 #: model_terms:ir.ui.view,arch_db:sale.portal_my_orders
 msgid "&amp;nbsp;"
 msgstr "&amp;nbsp;"
@@ -2669,7 +2663,6 @@ msgstr "Dominio"
 #. module: sale
 #. odoo-python
 #: code:addons/sale/models/sale_order_line.py:0
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
 #: model:ir.model.fields,field_description:sale.field_sale_advance_payment_inv__amount
 msgid "Down Payment"
 msgstr "Anticipo"
@@ -2725,18 +2718,6 @@ msgid "Down payment <br/>"
 msgstr "Anticipo <br/>"
 
 #. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "Down payment invoice"
-msgstr "Factura del anticipo"
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "Down payment of %s%%"
-msgstr "Anticipo de %s%%"
-
-#. module: sale
 #: model:ir.model.fields,help:sale.field_sale_order_line__is_downpayment
 msgid ""
 "Down payments are made when creating invoices from a sales order. They are "
@@ -2753,7 +2734,6 @@ msgstr "Cuenta de anticipos"
 
 #. module: sale
 #. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
 #: model_terms:ir.ui.view,arch_db:sale.view_sale_advance_payment_inv
 msgid "Draft Invoices"
 msgstr "Borrador de facturas"
@@ -5588,12 +5568,6 @@ msgstr "El producto (%(product)s) tiene valores incompatibles: %(value_list)s"
 #: code:addons/sale/wizard/payment_link_wizard.py:0
 msgid "The sale order has expired."
 msgstr "El pedido de venta ha expirado."
-
-#. module: sale
-#. odoo-python
-#: code:addons/sale/wizard/sale_make_invoice_advance.py:0
-msgid "The value of the down payment amount must be positive."
-msgstr "El valor del importe del anticipo debe ser positivo."
 
 #. module: sale
 #: model_terms:ir.ui.view,arch_db:sale.portal_my_quotations

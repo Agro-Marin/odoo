@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_purchase_advance_payment_inv" model="ir.ui.view">
+        <field name="name">Bill Orders</field>
+        <field name="model">purchase.advance.payment.inv</field>
+        <field name="arch" type="xml">
+            <form string="Bill Purchase Order">
+                <field name="display_draft_invoice_warning" invisible="1" />
+                <field name="has_down_payments" invisible="1" />
+                <div
+                    class="alert alert-warning pb-1"
+                    role="alert"
+                    invisible="not display_draft_invoice_warning">
+                    <p>There are existing <a name="view_draft_invoices" type="object">Draft Bills</a>
+                        for this Purchase Order.</p>
+                    <p invisible="advance_payment_method != 'delivered'">
+                        The new bill will deduct draft bills linked to this purchase order.
+                    </p>
+                </div>
+                <group>
+                    <field name="purchase_order_ids" invisible="1" />
+                    <field name="count" invisible="count == 1" />
+                    <field name="consolidated_billing" invisible="count == 1" />
+                    <field
+                        name="advance_payment_method"
+                        widget="radio"
+                        invisible="count &gt; 1"
+                        class="oe_inline" />
+                </group>
+                <group
+                    name="down_payment_specification"
+                    invisible="advance_payment_method not in ('fixed', 'percentage')">
+                    <field name="company_id" invisible="1" />
+                    <label
+                        for="fixed_amount"
+                        invisible="advance_payment_method != 'fixed'" />
+                    <label
+                        for="amount"
+                        invisible="advance_payment_method != 'percentage'" />
+                    <div id="payment_method_details">
+                        <field name="currency_id" invisible="1" />
+                        <field
+                            name="fixed_amount"
+                            invisible="advance_payment_method != 'fixed'"
+                            required="advance_payment_method == 'fixed'"
+                            class="oe_inline" />
+                        <field
+                            name="amount"
+                            invisible="advance_payment_method != 'percentage'"
+                            required="advance_payment_method == 'percentage'"
+                            class="oe_inline" />
+                        <span invisible="advance_payment_method != 'percentage'" class="oe_inline">% </span>
+                    </div>
+                </group>
+                <group invisible="not has_down_payments">
+                    <field name="amount_taxinc_invoiced" />
+                </group>
+                <footer>
+                    <button
+                        name="create_invoices"
+                        id="create_bill_open"
+                        type="object"
+                        string="Create Draft"
+                        class="btn-primary"
+                        data-hotkey="q" />
+                    <button
+                        special="cancel"
+                        string="Cancel"
+                        class="btn-secondary"
+                        data-hotkey="x" />
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_view_purchase_advance_payment_inv" model="ir.actions.act_window">
+        <field name="name">Create Bill…</field>
+        <field name="res_model">purchase.advance.payment.inv</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

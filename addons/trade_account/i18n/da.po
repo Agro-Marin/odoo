@@ -1,0 +1,63 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * trade_account
+#
+# Translators:
+# lhmflexerp <lhm@flexerp.dk>, 2022
+# Mads Søndergaard, 2022
+# Sanne Kristensen <sanne@vkdata.dk>, 2023
+# Martin Trigaux, 2023
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Kira Petersen François (peti)" <peti@odoo.com>, 2025, 2026.
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-02-06 18:36+0000\n"
+"PO-Revision-Date: 2026-01-27 08:09+0000\n"
+"Last-Translator: \"Kira Petersen François (peti)\" <peti@odoo.com>\n"
+"Language-Team: Danish <https://translate.odoo.com/projects/odoo-19/sale/da/"
+">\n"
+"Language: da\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "%s has been created"
+msgstr "%s er blevet oprettet"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Down Payment"
+msgstr "Forudbetaling"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Down payment invoice"
+msgstr "Acontofaktura"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Down payment of %s%%"
+msgstr "Forudbetaling på %s%%"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "Draft Invoices"
+msgstr "Udkast til fakturaer"
+
+#. module: trade_account
+#. odoo-python
+#: code:addons/trade_account/wizards/mixin_order_advance_payment.py:0
+msgid "The value of the down payment amount must be positive."
+msgstr "Værdien af det forudbetalte beløb skal være positivt."
