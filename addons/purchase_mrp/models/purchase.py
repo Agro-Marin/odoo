@@ -1,7 +1,4 @@
-from collections import defaultdict
-
 from odoo import api, fields, models
-from odoo.tools import OrderedSet
 
 
 class PurchaseOrder(models.Model):
@@ -53,81 +50,6 @@ class PurchaseOrder(models.Model):
 
 class PurchaseOrderLine(models.Model):
     _inherit = "purchase.order.line"
-
-    def _get_kit_bom_per_line(self):
-        product_by_company = defaultdict(OrderedSet)
-        for line in self:
-            product_by_company[line.company_id].add(line.product_id.id)
-        kits_by_company = {
-            company: self.env["mrp.bom"]._get_bom_by_product(
-                self.env["product.product"].browse(product_ids),
-                company_id=company.id,
-                bom_type="phantom",
-            )
-            for company, product_ids in product_by_company.items()
-        }
-        return {
-            line: kit_bom
-            for line in self
-            if (kit_bom := kits_by_company[line.company_id].get(line.product_id))
-        }
-
-    def _get_kit_transferred_qty(self, kit_bom):
-        self.check_singleton()
-        moves = self._get_kit_moves().filtered(
-            lambda m: m.state == "done" and m.location_dest_usage != "inventory"
-        )
-        order_qty = self.product_uom_id._get_quantity_reconcile(
-            self.product_qty, kit_bom.product_uom_id
-        )
-        filters = {
-            "incoming_moves": lambda m: (
-                m._is_incoming()
-                and (
-                    not m.origin_returned_move_id
-                    or (m.origin_returned_move_id and m.to_refund)
-                )
-            ),
-            "outgoing_moves": lambda m: m._is_outgoing() and m.to_refund,
-        }
-        return moves._get_kit_quantity(self.product_id, order_qty, kit_bom, filters)
-
-    def _get_kit_moves(self):
-        self.check_singleton()
-        accrual_date = self.env.context.get("accrual_entry_date")
-        if not accrual_date:
-            return self.move_ids
-        accrual_date = fields.Date.from_string(accrual_date)
-        return self.move_ids.filtered(
-            lambda move: fields.Date.context_today(move, move.date) <= accrual_date
-        )
-
-    def _get_kit_lines_transferred_qty(self):
-        from_stock = self.filtered(
-            lambda l: l.qty_transferred_method == "stock_move" and l.state != "cancel"
-        )
-        from_stock.fetch(["move_ids"])
-        lines_stock = from_stock.filtered("move_ids")
-        return {
-            line: line._get_kit_transferred_qty(kit_bom)
-            for line, kit_bom in lines_stock._get_kit_bom_per_line().items()
-        }
-
-    def _compute_qty_transferred(self):
-        kit_qties = self._get_kit_lines_transferred_qty()
-        for line, qty in kit_qties.items():
-            line.qty_transferred = qty
-        non_kit_lines = self - self.browse([line.id for line in kit_qties])
-        super(PurchaseOrderLine, non_kit_lines)._compute_qty_transferred()
-
-    def _prepare_qty_transferred(self):
-        kit_qties = self._get_kit_lines_transferred_qty()
-        non_kit_lines = self - self.browse([line.id for line in kit_qties])
-        transferred_qties = super(
-            PurchaseOrderLine, non_kit_lines
-        )._prepare_qty_transferred()
-        transferred_qties.update(kit_qties)
-        return transferred_qties
 
     def _prepare_stock_move_vals_list(self, picking):
         res = super()._prepare_stock_move_vals_list(picking)

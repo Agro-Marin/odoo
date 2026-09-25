@@ -14,6 +14,7 @@ from purchase order.
     "depends": [
         "mrp",
         "purchase_stock",
+        "trade_mrp",
     ],
     "data": [
         "views/mrp_bom_views.xml",

@@ -90,6 +90,23 @@ class TestKitQtyTransferred(AccountTestInvoicingCommon):
         res = po.line_ids._prepare_qty_transferred()
         self.assertEqual(res[po.line_ids], 0.0)
 
+    def test_a_received_kit_keeps_its_quantity_once_its_bom_is_archived(self):
+        po = self._make_confirmed_kit_po()
+        picking = po.picking_ids
+        for move in picking.move_ids:
+            move.quantity = move.product_uom_qty
+        picking.move_ids.picked = True
+        picking.button_validate()
+        self.assertEqual(po.line_ids.qty_transferred, 1.0)
+
+        self.env["mrp.bom"].search(
+            [("product_tmpl_id", "=", self.kit.product_tmpl_id.id)]
+        ).active = False
+        self.env.invalidate_all()
+        po.line_ids._compute_qty_transferred()
+
+        self.assertEqual(po.line_ids.qty_transferred, 1.0)
+
 
 @tagged("post_install", "-at_install")
 class TestMoPurchaseLinks(AccountTestInvoicingCommon):

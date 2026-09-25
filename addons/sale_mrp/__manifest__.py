@@ -14,6 +14,7 @@ from sales order. It adds sales name and sales Reference on production order.
     "depends": [
         "mrp",
         "sale_stock",
+        "trade_mrp",
     ],
     "data": [
         "security/ir.access.csv",
