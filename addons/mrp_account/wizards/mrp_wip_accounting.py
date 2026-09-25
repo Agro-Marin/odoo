@@ -58,26 +58,26 @@ class MrpAccountWipAccounting(models.TransientModel):
     _description = "Wizard to post Manufacturing WIP account move"
 
     @api.model
-    def default_get(self, fields_list):
-        res = super().default_get(fields_list)
+    def default_get(self, fields):
+        res = super().default_get(fields)
         productions = self.env["mrp.production"].browse(
             self.env.context.get("active_ids")
         )
         productions = productions.filtered(
             lambda mo: mo.state in ["progress", "to_close", "confirmed"]
         )
-        if "journal_id" in fields_list:
+        if "journal_id" in fields:
             journal = self._get_company_or_category_default(
                 "account_stock_journal_id", "property_stock_journal"
             )
             if journal:
                 res["journal_id"] = journal.id
-        if "reference" in fields_list:
+        if "reference" in fields:
             res["reference"] = self.env._(
                 "Manufacturing WIP - %(orders_list)s",
                 orders_list=productions.mapped("name") or self.env._("Manual Entry"),
             )
-        if "mo_ids" in fields_list:
+        if "mo_ids" in fields:
             res["mo_ids"] = [Command.set(productions.ids)]
         return res
 
