@@ -166,15 +166,42 @@ def _recompute_singly(
         records.browse(computed_ids)._check_computed(field)
 
 
+def _get_ids_mid_compute(field: Field, records: ModelLike) -> set[IdType]:
+    core = records.env.core
+    if not core.has_any_protected():
+        return set()
+    model_fields = records._fields
+    held: set[IdType] = set()
+    for path in records.pool.field_depends.get(field, ()):
+        dependency = model_fields.get(path.split(".", 1)[0])
+        if dependency is not None:
+            held.update(core.get_protected_ids(dependency))
+    return held
+
+
 def _recompute_batched(
     field: Field,
     records: ModelLike,
     to_compute_ids: Collection[IdType],
     apply_except_missing: Callable,
 ) -> None:
+    # like _recompute_singly's guard: a record whose dependency is being computed
+    # reads the value being replaced, so it stays pending unless it was asked for
+    held = {
+        id_ for id_ in _get_ids_mid_compute(field, records) if id_ in to_compute_ids
+    }
+    if held:
+        _debug.logic(
+            "field.recompute.expansion_held_back",
+            model=field.model_name,
+            field=field.name,
+            held=len(held),
+        )
     for record in records:
         if record.id in to_compute_ids:
             ids = _expand_ids(record.id, to_compute_ids)
+            if held:
+                ids = (id_ for id_ in ids if id_ == record.id or id_ not in held)
             recs = record.browse(itertools.islice(ids, PREFETCH_MAX))
             try:
                 apply_except_missing(field.compute_value, recs)
