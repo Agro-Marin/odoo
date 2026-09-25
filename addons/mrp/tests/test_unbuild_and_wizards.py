@@ -61,6 +61,38 @@ class TestUnbuildAndWizards(TestMrpCommon):
             0,
         )
 
+    def test_unbuilding_more_than_was_produced_is_refused(self):
+        mo, _bom, p_final, p1, p2 = self.generate_mo()
+        self._stock(p1, 100)
+        self._stock(p2, 5)
+        self._produce(mo)
+        self.env["mrp.unbuild"].create(
+            {"mo_id": mo.id, "product_qty": 3}
+        ).action_unbuild()
+        too_many = self.env["mrp.unbuild"].create({"mo_id": mo.id, "product_qty": 3})
+        with self.assertRaisesRegex(UserError, "at most 2"):
+            too_many.action_unbuild()
+        self.assertEqual(too_many.state, "draft")
+        self.assertEqual(
+            self.env["stock.quant"]._get_available_quantity(
+                p_final, self.stock_location
+            ),
+            2,
+        )
+
+    def test_the_unbuild_limit_is_read_in_the_order_unit(self):
+        mo, _bom, _p_final, p1, p2 = self.generate_mo(qty_final=12)
+        self._stock(p1, 100)
+        self._stock(p2, 20)
+        self._produce(mo)
+        self.env["mrp.unbuild"].create(
+            {"mo_id": mo.id, "product_qty": 1, "product_uom_id": self.uom_dozen.id}
+        ).action_unbuild()
+        with self.assertRaises(UserError):
+            self.env["mrp.unbuild"].create(
+                {"mo_id": mo.id, "product_qty": 1, "product_uom_id": self.uom_unit.id}
+            ).action_unbuild()
+
     def test_unbuild_links_the_unbuilt_lot_to_the_released_components(self):
         mo, _bom, p_final, p1, p2 = self.generate_mo(
             tracking_final="lot", tracking_base_1="lot"
@@ -420,7 +452,9 @@ class TestUnbuildAndWizards(TestMrpCommon):
     def test_unbuild_statements_per_component_are_bounded(self):
         small = self._unbuild_statements(3)
         large = self._unbuild_statements(12)
-        self.assertLessEqual(large - small, 12 - 3, (small, large))
+        # One quant lookup per component, plus one UPDATE the flush splits off
+        # when the lines' done date straddles a second.
+        self.assertLessEqual(large - small, (12 - 3) + 1, (small, large))
 
     def test_quantity_changes_back_and_forth_do_not_drift(self):
         product, component = self.env["product.product"].create(

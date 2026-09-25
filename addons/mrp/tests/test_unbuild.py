@@ -371,26 +371,25 @@ class TestUnbuild(TestMrpCommon):
         x.bom_id = bom
         x.mo_id = mo
         x.product_qty = 5
-        x.save().action_unbuild()
+        with self.assertRaises(UserError):
+            x.save().action_unbuild()
 
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 p_final, self.stock_location, allow_negative=True
             ),
-            -5,
-            "You should have negative quantity for final product in stock",
+            0,
+            "An order unbuilt in full cannot be unbuilt again",
         )
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 p1, self.stock_location, lot_id=lot
             ),
-            120,
-            "You should have 80 products in stock",
+            100,
         )
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(p2, self.stock_location),
-            10,
-            "You should have consumed all the 5 product in stock",
+            5,
         )
 
     def test_unbuild_with_everything_tracked(self):
@@ -565,28 +564,27 @@ class TestUnbuild(TestMrpCommon):
         x.mo_id = mo
         x.lot_id = lot_final
         x.product_qty = 5
-        x.save().action_unbuild()
+        with self.assertRaises(UserError):
+            x.save().action_unbuild()
 
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 p_final, self.stock_location, lot_id=lot_final, allow_negative=True
             ),
-            -5,
-            "You should have negative quantity for final product in stock",
+            0,
+            "An order unbuilt in full cannot be unbuilt again",
         )
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 p1, self.stock_location, lot_id=lot_1
             ),
-            120,
-            "You should have 80 products in stock",
+            100,
         )
         self.assertEqual(
             self.env["stock.quant"]._get_available_quantity(
                 p2, self.stock_location, lot_id=lot_2
             ),
-            10,
-            "You should have consumed all the 5 product in stock",
+            5,
         )
 
     def test_unbuild_with_duplicate_move(self):

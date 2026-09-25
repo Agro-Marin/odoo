@@ -1007,8 +1007,8 @@ class StockMove(models.Model):
             ml.location_dest_id = loc_dest
 
     def _inverse_picked(self):
-        for move in self:
-            move.move_line_ids.picked = move.picked
+        for picked, moves in self.grouped("picked").items():
+            moves.move_line_ids.picked = picked
 
     def _inverse_quantity(self):
         def decrease_move_line_quantities(move, quantity):

@@ -39,9 +39,8 @@ class StockMoveLine(models.Model):
                 if ml.move_id.is_in or ml.move_id.is_out
             }
         res = super().write(vals)
-        survivors = self.exists()
         if valuation_trigger:
-            survivors._update_stock_move_value(qty_by_ml)
+            self.exists()._update_stock_move_value(qty_by_ml)
         if analytic_move_to_recompute:
             self.env["stock.move"].browse(
                 analytic_move_to_recompute

@@ -1,5 +1,4 @@
 from collections import defaultdict
-from itertools import chain
 
 from odoo import Command, api, fields, models
 from odoo.exceptions import UserError
@@ -196,23 +195,27 @@ class MrpUnbuild(models.Model):
                 order.product_qty = 1.0
                 continue
             production = order.mo_id
-            unbuilt = sum(
-                unbuild.product_uom_id._get_quantity_in_unit(
-                    unbuild.product_qty, production.product_uom_id, round=False
-                )
-                for unbuild in production.unbuild_ids
-                if unbuild.state == "done" and unbuild != order
-            )
             remaining = production.product_uom_id.round(
-                production.qty_produced - unbuilt
+                production.qty_produced - order._get_quantity_unbuilt_before()
             )
-            # Over-unbuilding an order is supported: once nothing remains, the
-            # default falls back to the whole order rather than to zero.
+            # Zero would break the positive-quantity constraint on save; the
+            # whole order is refused with a message at validation instead.
             order.product_qty = (
                 remaining
                 if production.product_uom_id.compare(remaining, 0) > 0
                 else production.qty_produced
             )
+
+    def _get_quantity_unbuilt_before(self):
+        self.check_singleton()
+        production = self.mo_id
+        return sum(
+            unbuild.product_uom_id._get_quantity_in_unit(
+                unbuild.product_qty, production.product_uom_id, round=False
+            )
+            for unbuild in production.unbuild_ids
+            if unbuild.state == "done" and unbuild != self
+        )
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -280,6 +283,9 @@ class MrpUnbuild(models.Model):
                     "You cannot unbuild a manufacturing order that produced nothing."
                 )
             )
+
+        if self.mo_id:
+            self._check_quantity_left_to_unbuild()
 
         if not self.mo_id and not self.bom_id:
             _debug.logic("unbuild_refused", reason="no_bom_no_mo", unbuild=self.id)
@@ -387,12 +393,7 @@ class MrpUnbuild(models.Model):
                 returned = min(returned_before[key], move_line.quantity)
                 returned_before[key] -= returned
                 not_returned[move_line] = move_line.quantity - returned
-            # What earlier unbuilds of the order already returned is taken
-            # last, not never: an unbuild larger than the order is allowed.
-            for move_line, limit in chain(
-                not_returned.items(),
-                ((move_line, move_line.quantity) for move_line in moves_lines),
-            ):
+            for move_line, limit in not_returned.items():
                 taken_quantity = min(
                     needed_quantity, limit - qty_already_used[move_line]
                 )
@@ -444,6 +445,37 @@ class MrpUnbuild(models.Model):
                 subtype_xmlid="mail.mt_note",
             )
         return self.write({"state": "done"})
+
+    def _check_quantity_left_to_unbuild(self):
+        self.check_singleton()
+        production = self.mo_id
+        unit = production.product_uom_id
+        unbuilt_before = self._get_quantity_unbuilt_before()
+        requested = self.product_uom_id._get_quantity_in_unit(
+            self.product_qty, unit, round=False
+        )
+        if unit.compare(unbuilt_before + requested, production.qty_produced) <= 0:
+            return
+        _debug.logic(
+            "unbuild_refused",
+            reason="more_than_produced",
+            unbuild=self.id,
+            produced=production.qty_produced,
+            unbuilt_before=unbuilt_before,
+            requested=requested,
+        )
+        raise UserError(
+            self.env._(
+                "%(order)s produced %(produced)s %(unit)s and %(unbuilt)s %(unit)s"
+                " of it are already unbuilt: at most %(left)s %(unit)s can still"
+                " be unbuilt.",
+                order=production.display_name,
+                produced=production.qty_produced,
+                unbuilt=unit.round(unbuilt_before),
+                left=unit.round(max(production.qty_produced - unbuilt_before, 0)),
+                unit=unit.name,
+            )
+        )
 
     def _get_quantities_returned_before(self):
         self.check_singleton()
