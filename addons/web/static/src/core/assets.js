@@ -159,8 +159,49 @@ function addFreshImportMapEntries(targetDoc, importMap, injected) {
         mapEl.type = "importmap";
         mapEl.textContent = JSON.stringify({ imports: freshEntries });
         (targetDoc.head || targetDoc.documentElement).appendChild(mapEl);
+        if (targetDoc === document) {
+            warnIfImportMapIgnored(Object.keys(freshEntries)[0]);
+        }
     }
     return { fresh, dup, conflicts };
+}
+
+/**
+ * Whether the browser dropped an import map added after the first one.
+ * Chrome 133+ and Safari 18.4+ merge them; Firefox stable does not, and then
+ * every bare specifier the map carries fails to resolve.
+ *
+ * @param {string} specifier a specifier only the added map declares
+ * @param {(specifier: string) => string} [resolve]
+ * @returns {boolean}
+ */
+export function importMapWasIgnored(
+    specifier,
+    resolve = (spec) => import.meta.resolve(spec),
+) {
+    try {
+        resolve(specifier);
+        return false;
+    } catch {
+        return true;
+    }
+}
+
+let importMapIgnoredReported = false;
+
+/**
+ * @param {string} specifier
+ */
+function warnIfImportMapIgnored(specifier) {
+    if (importMapIgnoredReported || !importMapWasIgnored(specifier)) {
+        return;
+    }
+    importMapIgnoredReported = true;
+    console.error(
+        "[assets] This browser ignores import maps added after the first one, so " +
+            `modules loaded now cannot resolve "${specifier}" and its siblings. ` +
+            "Supported browsers: Chrome/Edge 133+, Safari 18.4+ (see ESM_BUNDLING.md).",
+    );
 }
 
 /**
