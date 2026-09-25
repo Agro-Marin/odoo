@@ -126,6 +126,16 @@ class TestIrAccessReached(models.Model):
         return Domain("name", "=", args["name"])
 
 
+class TestIrAccessReachedReport(models.AbstractModel):
+    _name = "test_ir_access.reached_report"
+    _description = "A report read from a query, as project's analyses are"
+    _auto = False
+    _table_query = "SELECT id, name, company_id FROM test_ir_access_reached"
+
+    name = fields.Char(readonly=True)
+    company_id = fields.Many2one(comodel_name="res.company", readonly=True)
+
+
 class TestIrAccessDocument(models.Model):
     _name = "test_ir_access.document"
     _description = "A document with a declared verb"

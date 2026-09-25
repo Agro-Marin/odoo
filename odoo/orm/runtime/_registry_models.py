@@ -90,11 +90,15 @@ class _RegistryModelsMixin(_RegistryStubs):
         result: dict[str, dict[str, Anchor]] = {}
         errors = []
         for name, model_cls in self.models.items():
-            if model_cls._abstract:
-                continue
+            # an abstract model can have records all the same (a report read
+            # from a query, or by its own search), so its anchors are
+            # collected; one a mixin's fields cannot follow is left to its heirs
             anchors = collect_anchors(model_cls)
-            for key, anchor in anchors.items():
+            for key, anchor in list(anchors.items()):
                 if error := anchor_path_error(model_cls, key, anchor, self.models):
+                    if model_cls._abstract:
+                        del anchors[key]
+                        continue
                     errors.append(f"{name}: anchor {key!r} ({anchor.path}): {error}")
             if anchors:
                 result[name] = anchors
