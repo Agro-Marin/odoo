@@ -1,6 +1,8 @@
 import typing
 
 if typing.TYPE_CHECKING:
+    from contextlib import AbstractContextManager
+
     from odoo.db import BaseCursor, FunctionStatus
     from odoo.models import BaseModel
 
@@ -17,6 +19,8 @@ class _RegistryStubs:
         @property
         def init_phase(self) -> InitModelsPhase:
             pass
+
+        def ensure_init_models_window(self) -> AbstractContextManager[None]: ...
 
         unaccent_status: FunctionStatus
 

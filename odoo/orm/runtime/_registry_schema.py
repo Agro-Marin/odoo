@@ -378,11 +378,12 @@ class _RegistrySchemaMixin(_RegistryStubs):
         if missing_tables:
             missing = {table2model[table] for table in missing_tables}
             _logger.info("Models have no table: %s.", ", ".join(missing))
-            for name in missing:
-                _logger.info("Recreate table of model %s.", name)
-                env[name]._auto_init()
-                env[name].init()
-            env.flush_all()
+            with self.ensure_init_models_window():
+                for name in missing:
+                    _logger.info("Recreate table of model %s.", name)
+                    env[name]._auto_init()
+                    env[name].init()
+                env.flush_all()
             missing_tables = set(table2model).difference(
                 sql.get_tables_existing(cr, table2model)
             )

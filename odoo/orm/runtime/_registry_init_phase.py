@@ -56,6 +56,14 @@ class _RegistryInitPhaseMixin(_RegistryStubs):
             )
             self._init_phase = None
 
+    @contextmanager
+    def ensure_init_models_window(self) -> Iterator[None]:
+        if self._init_phase is not None:
+            yield
+            return
+        with self.init_models_window(install=False):
+            yield
+
     def drain_post_init(self) -> None:
         post_init_queue = self.init_phase.post_init_queue
         _debug.pipeline("registry.init_phase.drain", queued=len(post_init_queue))

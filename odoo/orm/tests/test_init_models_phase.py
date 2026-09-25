@@ -15,6 +15,7 @@ class _FakeRegistry:
     post_init: typing.Any = _R.post_init
     register_relation_table: typing.Any = _R.register_relation_table
     init_models_window: typing.Any = _R.init_models_window
+    ensure_init_models_window: typing.Any = _R.ensure_init_models_window
     drain_post_init: typing.Any = _R.drain_post_init
     del _R
 
@@ -87,6 +88,27 @@ class TestPhaseWhileOpen:
         assert not second.post_init_queue
         assert not second.foreign_keys
         assert not second.relation_reflections
+
+
+class TestEnsuringTheWindow:
+    def test_it_opens_one_when_none_is_open_and_drains_it_on_exit(self):
+        registry = _FakeRegistry()
+        ran: list[str] = []
+        with registry.ensure_init_models_window():
+            registry.post_init(ran.append, "foreign key")
+            assert ran == []
+        assert ran == ["foreign key"]
+        assert registry._init_phase is None
+
+    def test_it_joins_an_open_window_and_leaves_its_queue_to_it(self):
+        registry = _FakeRegistry()
+        ran: list[str] = []
+        with registry.init_models_window(install=False) as phase:
+            with registry.ensure_init_models_window():
+                registry.post_init(ran.append, "foreign key")
+            assert registry.init_phase is phase
+            assert ran == []
+        assert ran == ["foreign key"]
 
 
 class TestTheWindow:
