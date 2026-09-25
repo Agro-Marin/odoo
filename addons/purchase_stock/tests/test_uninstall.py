@@ -5,7 +5,7 @@ from odoo.tests.common import tagged
 
 from .common import PurchaseTestCommon
 from odoo.addons.base.models.ir_model_common import MODULE_UNINSTALL_FLAG
-from odoo.addons.purchase_stock.models.purchase_order_line import PurchaseOrderLine
+from odoo.addons.trade_stock.models.mixin_order_line_stock import MixinOrderLineStock
 
 
 @tagged("post_install", "-at_install")
@@ -44,7 +44,7 @@ class TestUninstallPurchaseStock(PurchaseTestCommon):
             ]
         )
 
-        original_compute = PurchaseOrderLine._compute_qty_transferred
+        original_compute = MixinOrderLineStock._compute_qty_transferred
 
         def _compute_qty_transferred(records):
             records.read()
@@ -53,7 +53,7 @@ class TestUninstallPurchaseStock(PurchaseTestCommon):
                 records.flush_recordset()
 
         with patch.object(
-            PurchaseOrderLine, "_compute_qty_transferred", _compute_qty_transferred
+            MixinOrderLineStock, "_compute_qty_transferred", _compute_qty_transferred
         ):
             stock_moves_option.sudo().with_context(
                 **{MODULE_UNINSTALL_FLAG: True}

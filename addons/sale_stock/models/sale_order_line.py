@@ -192,22 +192,6 @@ class SaleOrderLine(models.Model):
                 line.product_readonly = True
 
     @api.depends(
-        "product_qty",
-        "move_ids.state",
-        "move_ids.location_dest_usage",
-        "move_ids.product_uom_id",
-        "move_ids.quantity",
-    )
-    def _compute_qty_transferred(self):
-        lines_by_stock_move = self.filtered(
-            lambda line: line.qty_transferred_method == "stock_move",
-        )
-        super(SaleOrderLine, self - lines_by_stock_move)._compute_qty_transferred()
-
-        for line in lines_by_stock_move:
-            line.qty_transferred = line._get_transferred_qty_from_moves()
-
-    @api.depends(
         "state",
         "product_id.is_storable",
         "move_ids",
@@ -619,13 +603,6 @@ class SaleOrderLine(models.Model):
             },
         )
         return values
-
-    def _prepare_qty_transferred(self):
-        delivered_qties = super()._prepare_qty_transferred()
-        for line in self:
-            if line.qty_transferred_method == "stock_move":
-                delivered_qties[line] = line._get_transferred_qty_from_moves()
-        return delivered_qties
 
     def _prepare_reference_vals(self):
         return {

@@ -124,25 +124,6 @@ class PurchaseOrderLine(models.Model):
 
         return super().unlink()
 
-    @api.depends(
-        "product_qty",
-        "move_ids.state",
-        "move_ids.product_uom_id",
-        "move_ids.quantity",
-    )
-    def _compute_qty_transferred(self):
-        _debug.perf.count("po_line_qty_transferred_compute", lines=self)
-        lines_by_stock_move = self.filtered(
-            lambda line: line.qty_transferred_method == "stock_move",
-        )
-        super(PurchaseOrderLine, self - lines_by_stock_move)._compute_qty_transferred()
-
-        if not lines_by_stock_move:
-            return
-
-        for line in lines_by_stock_move:
-            line.qty_transferred = line._get_transferred_qty_from_moves()
-
     @api.depends("product_uom_qty", "date_commitment")
     def _compute_forecasted_issue(self):
         _debug.perf.count("po_line_forecast_compute", lines=self)
@@ -468,17 +449,6 @@ class PurchaseOrderLine(models.Model):
             "never_product_template_attribute_value_ids",
         )
         return res
-
-    def _prepare_qty_transferred(self):
-        from_stock_lines = self.filtered(
-            lambda order_line: order_line.qty_transferred_method == "stock_move",
-        )
-        received_qties = super(
-            PurchaseOrderLine, self - from_stock_lines
-        )._prepare_qty_transferred()
-        for line in from_stock_lines:
-            received_qties[line] = line._get_transferred_qty_from_moves()
-        return received_qties
 
     def _prepare_stock_move_vals_list(self, picking):
         self.check_singleton()

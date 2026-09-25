@@ -648,6 +648,9 @@ class SaleOrderLine(models.Model):
         lines_by_analytic = self.filtered(
             lambda line: line.qty_transferred_method == "analytic",
         )
+        super(
+            SaleOrderLine, self - lines_by_analytic - self._filtered_manual_transfer()
+        )._compute_qty_transferred()
         mapping = lines_by_analytic._get_qty_delivered_by_analytic(
             [("amount", "<=", 0.0)],
         )
@@ -1443,10 +1446,21 @@ class SaleOrderLine(models.Model):
             },
         )
 
+    def _filtered_manual_transfer(self):
+        # a sales line keeps the transferred quantity entered by hand, where
+        # the kernel resets it
+        return self.filtered(lambda line: line.qty_transferred_method == "manual")
+
     def _prepare_qty_transferred(self):
-        delivered_qties = defaultdict(float)
         lines_by_analytic = self.filtered(
             lambda sol: sol.qty_transferred_method == "analytic"
+        )
+        delivered_qties = defaultdict(
+            float,
+            super(
+                SaleOrderLine,
+                self - lines_by_analytic - self._filtered_manual_transfer(),
+            )._prepare_qty_transferred(),
         )
         mapping = lines_by_analytic._get_qty_delivered_by_analytic(
             [("amount", "<=", 0.0)]

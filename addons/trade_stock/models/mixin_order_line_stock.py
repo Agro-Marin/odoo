@@ -9,6 +9,7 @@ _debug = DebugLog(__name__)
 
 class MixinOrderLineStock(models.AbstractModel):
     _name = "mixin.order.line.stock"
+    _inherit = ["mixin.order.line.transfer"]
     _description = "Order Line Stock Integration"
 
     product_id = fields.Many2one(comodel_name="product.product")
@@ -65,6 +66,37 @@ class MixinOrderLineStock(models.AbstractModel):
     def _compute_qty_to_transfer(self):
         for line in self:
             line.qty_to_transfer = max(0.0, line.product_qty - line.qty_transferred)
+
+    @api.depends(
+        "product_qty",
+        "move_ids.state",
+        "move_ids.location_dest_usage",
+        "move_ids.product_uom_id",
+        "move_ids.quantity",
+    )
+    def _compute_qty_transferred(self):
+        lines_by_stock_move = self.filtered(
+            lambda line: line.qty_transferred_method == "stock_move",
+        )
+        super(MixinOrderLineStock, self - lines_by_stock_move)._compute_qty_transferred()
+        for line in lines_by_stock_move:
+            line.qty_transferred = line._get_transferred_qty_from_moves()
+
+    def _prepare_qty_transferred(self):
+        from_stock_lines = self.filtered(
+            lambda line: line.qty_transferred_method == "stock_move",
+        )
+        transferred_qties = super(
+            MixinOrderLineStock, self - from_stock_lines
+        )._prepare_qty_transferred()
+        for line in from_stock_lines:
+            transferred_qties[line] = line._get_transferred_qty_from_moves()
+        return transferred_qties
+
+    def _get_transferred_qty_from_moves(self):
+        raise NotImplementedError(
+            f"{self._name} must implement _get_transferred_qty_from_moves()",
+        )
 
     def _get_stock_moves_outgoing_incoming(self, **kwargs):
         raise NotImplementedError(
