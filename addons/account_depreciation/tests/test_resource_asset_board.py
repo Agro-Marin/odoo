@@ -75,9 +75,16 @@ class TestResourceAssetBoard(TestAccountAssetCommon):
         employee = new_test_user(
             self.env, login="asset_board_employee", groups="base.group_user"
         )
-        self.assertEqual(board.with_user(employee).name, board.name)
+        # read through the access rules, not through what creating the board
+        # left in the cache
+        self.env.invalidate_all()
+        asset = board.asset_id.with_user(employee)
+        self.assertEqual(asset.name, "nice asset")
+        self.assertEqual(asset.depreciation_state, "draft")
         with self.assertRaises(AccessError):
-            board.with_user(employee).read(["value_book"])
+            asset.read(["value_book"])
+        with self.assertRaises(AccessError):
+            board.with_user(employee).read(["name"])
 
     def test_an_asset_user_without_accounting_rights_creates_an_asset(self):
         asset_user = new_test_user(
