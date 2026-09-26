@@ -4,6 +4,7 @@ from collections.abc import Collection
 from datetime import datetime, timedelta
 
 from odoo import Command, api, fields, models
+from odoo.db.errors import PG_RETRY_EXCEPTIONS
 from odoo.exceptions import UserError
 from odoo.fields import Domain
 from odoo.http import request
@@ -460,9 +461,19 @@ class WebsiteVisitor(models.Model):
             website_track_values["page_id"] = website_page.id
         _debug.pipeline("webpage_dispatch_tracked", page=website_page or None, url=url)
 
-        self._get_visitor_from_request(
-            force_create=True, force_track_values=website_track_values
-        )
+        # Tracking runs after the page is rendered, and every concurrent
+        # request of one cookie-less client upserts the same visitor row: a
+        # burst of them exhausts retrying() and turns a rendered page into a
+        # 500. Losing one track row or visit_count bump is the cheaper outcome.
+        # No flush: _upsert_visitor flushes the fields it reads itself.
+        try:
+            with self.env.cr.savepoint(flush=False):
+                self._get_visitor_from_request(
+                    force_create=True, force_track_values=website_track_values
+                )
+        except PG_RETRY_EXCEPTIONS as e:
+            _logger.debug("Visitor tracking skipped for %s: %s", url, e)
+            _debug.logic("webpage_dispatch_skipped", url=url, error=type(e).__name__)
 
     def _add_tracking(self, domain, website_track_values):
         self.check_singleton()
