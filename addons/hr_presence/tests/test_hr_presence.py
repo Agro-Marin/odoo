@@ -735,19 +735,29 @@ class TestTheMirrorIsRightFromBirth(HrPresenceCase):
         self.assertEqual(employee.hr_presence_state_display, "out_of_working_hour")
 
     def test_a_batch_is_mirrored_in_one_pass(self):
+        # With a login each: this module abstains for an employee without one,
+        # and hr reads nothing but the default for one out of contract.
+        users = [self._make_user(f"u_batch{index}", self.company) for index in range(8)]
         before = self.env.cr.sql_statement_count
         employees = self.env["hr.employee"].create(
             [
                 {
                     "name": f"batch{index}",
                     "company_id": self.company.id,
+                    "user_id": user.id,
                     "resource_calendar_id": self.calendar.id,
                     "tz": "UTC",
                 }
-                for index in range(8)
+                for index, user in enumerate(users)
             ]
         )
         self.env.flush_all()
+        self.assertEqual(
+            set(employees.mapped("hr_presence_state")),
+            {"absent"},
+            "fixture: the live state must differ from the field default, or this "
+            "test would pass against a mirror that was never written",
+        )
         self.assertEqual(
             set(employees.mapped("hr_presence_state_display")),
             {"absent"},
