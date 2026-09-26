@@ -173,6 +173,7 @@ class StockPicking(models.Model):
             or subcontract_move.quantity,
             "picking_type_id": warehouse.subcontracting_type_id.id,
             "date_start": subcontract_move.date - relativedelta(days=bom.produce_delay),
+            "date_end": subcontract_move.date,
             "origin": self.name,
             "reference_ids": [Command.link(ref.id) for ref in references],
         }
@@ -223,7 +224,6 @@ class StockPicking(models.Model):
                 self._get_subcontract_mo_confirmation_ctx(create_proc)
             ).action_confirm()
             for mo, move in zip(grouped_mo, moves, strict=True):
-                mo.date_end = move.date
                 finished_move = mo.move_finished_ids.filtered_domain(
                     [("product_id", "=", move.product_id.id)]
                 )

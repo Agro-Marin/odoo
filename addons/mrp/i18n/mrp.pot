@@ -157,7 +157,9 @@ msgstr ""
 #. module: mrp
 #. odoo-python
 #: code:addons/mrp/models/mrp_production.py:0
-msgid "%s cannot be deleted. Try to cancel them before."
+msgid ""
+"%s cannot be deleted: only draft or cancelled manufacturing orders can be. "
+"Cancel them first."
 msgstr ""
 
 #. module: mrp

@@ -618,7 +618,7 @@ class TestProductionIntegrity(TestMrpCommon):
         self.assertEqual(byproduct.location_id, mo.production_location_id)
         self.assertEqual(byproduct.date, mo.date_end)
 
-    def test_deleting_a_done_order_is_refused_by_the_cancel(self):
+    def test_deleting_a_done_order_is_refused(self):
         mo, _bom, _product, c1, c2 = self.generate_mo()
         self._stock(c1, 100)
         self._stock(c2, 100)
@@ -628,7 +628,7 @@ class TestProductionIntegrity(TestMrpCommon):
         mo.button_mark_done()
         self.assertEqual(mo.state, "done")
 
-        with self.assertRaisesRegex(UserError, "cannot cancel a manufacturing order"):
+        with self.assertRaisesRegex(UserError, "only draft or cancelled"):
             mo.unlink()
 
         draft = mo.copy()

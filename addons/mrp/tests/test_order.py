@@ -7037,3 +7037,90 @@ class TestProductionCreateRules(TestMrpCommon):
         for production in confirmed | draft:
             self.assertEqual(production.move_finished_ids.date_deadline, deadline)
             self.assertEqual(production.date_deadline, deadline)
+
+    def _bom_with_an_operation(self):
+        bom = self.bom.copy()
+        bom.operation_ids = [
+            Command.create(
+                {
+                    "name": "Rule operation",
+                    "workcenter_id": self.workcenter_1.id,
+                    "time_cycle": 30,
+                }
+            )
+        ]
+        return bom
+
+    def test_a_given_end_date_stands_through_creation(self):
+        start = datetime(2031, 12, 1, 8, 0)
+        end = datetime(2031, 12, 5, 8, 0)
+        for bom in self.bom | self._bom_with_an_operation():
+            for date_start, date_end in (
+                (start, end),
+                (fields.Datetime.to_string(start), fields.Datetime.to_string(end)),
+            ):
+                with self.subTest(operations=bool(bom.operation_ids), rpc=date_end):
+                    production = self.env["mrp.production"].create(
+                        {
+                            "product_id": self.finished.id,
+                            "bom_id": bom.id,
+                            "date_start": date_start,
+                            "date_end": date_end,
+                        }
+                    )
+                    self.assertEqual(
+                        len(production.workorder_ids), len(bom.operation_ids)
+                    )
+                    self.assertEqual(production.date_end, end)
+                    self.assertEqual(production.move_finished_ids.date, end)
+                    self.assertEqual(production.move_raw_ids.date, start)
+            with self.subTest(operations=bool(bom.operation_ids), form=True):
+                form = Form(
+                    self.env["mrp.production"].with_context(
+                        default_product_id=self.finished.id,
+                        default_bom_id=bom.id,
+                        default_date_start=start,
+                        default_date_end=end,
+                    )
+                )
+                production = form.save()
+                self.assertEqual(production.date_end, end)
+                self.assertEqual(production.move_finished_ids.date, end)
+
+    def test_a_start_date_change_recomputes_a_given_end_date(self):
+        start = datetime(2031, 12, 1, 8, 0)
+        moved = datetime(2031, 12, 2, 8, 0)
+        for bom in self.bom | self._bom_with_an_operation():
+            with self.subTest(operations=bool(bom.operation_ids)):
+                production, reference = self.env["mrp.production"].create(
+                    [
+                        {
+                            "product_id": self.finished.id,
+                            "bom_id": bom.id,
+                            "date_start": start,
+                            "date_end": datetime(2031, 12, 5, 8, 0),
+                        },
+                        {
+                            "product_id": self.finished.id,
+                            "bom_id": bom.id,
+                            "date_start": moved,
+                        },
+                    ]
+                )
+                production.date_start = moved
+                self.assertEqual(production.date_end, reference.date_end)
+                self.assertLess(production.date_end, datetime(2031, 12, 5, 8, 0))
+                self.assertEqual(production.move_finished_ids.date, reference.date_end)
+
+    def test_moves_follow_the_dates_set_in_a_form(self):
+        start = datetime(2031, 12, 1, 8, 0)
+        for bom in self.bom | self._bom_with_an_operation():
+            with self.subTest(operations=bool(bom.operation_ids)):
+                form = Form(self.env["mrp.production"])
+                form.product_id = self.finished
+                form.bom_id = bom
+                form.date_start = start
+                production = form.save()
+                self.assertEqual(production.move_raw_ids.date, start)
+                self.assertEqual(production.move_raw_ids.date_deadline, start)
+                self.assertEqual(production.move_finished_ids.date, production.date_end)

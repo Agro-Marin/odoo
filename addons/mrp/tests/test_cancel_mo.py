@@ -96,8 +96,17 @@ class TestMrpCancelMO(TestMrpCommon):
     def test_unlink_mo(self):
         manufacturing_order = self.generate_mo()[0]
         self.assertEqual(manufacturing_order.exists().state, "confirmed")
+        with self.assertRaisesRegex(UserError, "only draft or cancelled"):
+            manufacturing_order.unlink()
+        self.assertEqual(manufacturing_order.exists().state, "confirmed")
+        manufacturing_order.action_cancel()
         manufacturing_order.unlink()
         self.assertEqual(manufacturing_order.exists().state, False)
+
+        draft = self.generate_mo()[0].copy()
+        self.assertEqual(draft.state, "draft")
+        draft.unlink()
+        self.assertFalse(draft.exists())
 
         manufacturing_order = self.generate_mo()[0]
         mo_form = Form(manufacturing_order)

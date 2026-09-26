@@ -68,15 +68,6 @@ class MrpProduction(models.Model):
         return fields.Datetime.now()
 
     @api.model
-    def _default_date_end(self):
-        if self.env.context.get("default_date_deadline"):
-            return fields.Datetime.to_datetime(
-                self.env.context.get("default_date_deadline")
-            )
-        date_start = fields.Datetime.now()
-        return date_start + relativedelta(hours=1)
-
-    @api.model
     def _default_is_locked(self):
         return not self.env.user.has_group("mrp.group_unlocked_by_default")
 
@@ -255,9 +246,9 @@ class MrpProduction(models.Model):
     date_end = fields.Datetime(
         string="End",
         compute="_compute_date_end",
-        default=lambda self: self._default_date_end(),
         store=True,
         copy=False,
+        readonly=False,
         help="Date you expect to finish production or actual date you finished production.",
     )
     duration_expected = fields.Float(
@@ -2152,6 +2143,16 @@ class MrpProduction(models.Model):
             productions=res,
             new_groups=len(vals_needing_group),
         )
+        given_date_end = res.browse(
+            rec.id
+            for rec, vals in zip(res, vals_list, strict=True)
+            if vals.get("date_end")
+        )
+        # the work orders are computed after the insert, and creating them
+        # modifies their duration, a dependency of date_end: a given date_end
+        # would not survive its own creation
+        with self.env.protecting([self._fields["date_end"]], given_date_end):
+            given_date_end.workorder_ids.mapped("duration_expected")
         reference_vals_list = []
         # One write per distinct value rather than one per order: a procurement
         # run creates orders that share a start date, and the moves the compute
@@ -2180,40 +2181,28 @@ class MrpProduction(models.Model):
                         ],
                     }
                 )
-            if (
-                rec.move_raw_ids
-                and rec.move_raw_ids[0].date
-                and vals.get("date_start")
-                and rec.move_raw_ids[0].date != vals["date_start"]
-            ):
-                raw_moves_by_date[vals["date_start"]] |= rec.move_raw_ids
-            if (
-                rec.move_finished_ids
-                and rec.move_finished_ids[0].date
-                and vals.get("date_end")
-                and rec.move_finished_ids[0].date != vals["date_end"]
-            ):
-                finished_moves_by_date[vals["date_end"]] |= rec.move_finished_ids
-            elif (
-                rec.move_finished_ids
-                and rec.date_end
-                and rec.move_finished_ids[0].date != rec.date_end
-                and not vals.get("date_end")
-            ):
-                finished_moves_by_date[rec.date_end] |= rec.move_finished_ids
+            # a form builds the move commands before its user sets the dates
+            raw_moves_by_date[rec.date_start] |= rec.move_raw_ids.filtered(
+                lambda move, date=rec.date_start: move.date != date
+            )
+            if rec.date_end:
+                finished_moves_by_date[rec.date_end] |= rec.move_finished_ids.filtered(
+                    lambda move, date=rec.date_end: move.date != date
+                )
         for group_id, moves in moves_by_group.items():
             moves.production_group_id = group_id
         for date, moves in raw_moves_by_date.items():
-            moves.write({"date": date, "date_deadline": date})
+            if moves:
+                moves.write({"date": date, "date_deadline": date})
         for date, moves in finished_moves_by_date.items():
-            moves.write({"date": date})
+            if moves:
+                moves.write({"date": date})
         if reference_vals_list:
             _debug.lifecycle("references_created", count=len(reference_vals_list))
             self.env["stock.reference"].sudo().create(reference_vals_list)
         return res
 
     def unlink(self):
-        self.action_cancel()
         workorders_to_delete = self.workorder_ids.filtered(
             lambda wo: wo.state != "done"
         )
@@ -2759,18 +2748,21 @@ class MrpProduction(models.Model):
         return update_info
 
     @api.ondelete(at_uninstall=False)
-    def _unlink_except_not_cancelled(self):
-        not_cancel = self.filtered(lambda m: m.state != "cancel")
-        if not_cancel:
+    def _unlink_except_draft_or_cancel(self):
+        refused = self.filtered(
+            lambda production: production.state not in ("draft", "cancel")
+        )
+        if refused:
             _debug.logic(
                 "production_refused",
-                reason="delete_not_cancelled",
-                productions=not_cancel,
+                reason="delete_not_draft_or_cancelled",
+                productions=refused,
             )
-            productions_name = ", ".join([prod.display_name for prod in not_cancel])
             raise UserError(
                 self.env._(
-                    "%s cannot be deleted. Try to cancel them before.", productions_name
+                    "%s cannot be deleted: only draft or cancelled manufacturing "
+                    "orders can be. Cancel them first.",
+                    ", ".join(refused.mapped("display_name")),
                 )
             )
 
