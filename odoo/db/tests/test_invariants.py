@@ -550,11 +550,11 @@ class TestOneConnectionOptionsAssembler(unittest.TestCase):
         ):
             self.assertEqual(
                 pool._prepare_connection_options("", {}, 5, session_gucs="a=1"),
-                "-c a=1 -c idle_session_timeout=5",
+                "-c a=1 -c idle_session_timeout=5 -c TimeZone=UTC",
             )
             self.assertEqual(
                 pool._prepare_connection_options("", {}, 5, session_gucs=None),
-                "-c idle_session_timeout=5",
+                "-c idle_session_timeout=5 -c TimeZone=UTC",
             )
 
     def test_both_borrow_paths_use_it(self):
@@ -603,8 +603,20 @@ class TestFaketimePinsTheSearchPathAtStartup(unittest.TestCase):
         self.assertEqual(
             rendered,
             "-c search_path=mine -c idle_session_timeout=5 "
-            "-c search_path=public,pg_catalog",
+            "-c search_path=public,pg_catalog -c TimeZone=UTC",
             "libpq lets the last -c win, so a forced GUC comes last",
+        )
+
+    def test_the_session_zone_is_forced_after_an_operator_zone(self):
+        rendered = pool._prepare_connection_options(
+            "",
+            {"options": "-c TimeZone=America/Mexico_City"},
+            5,
+            session_gucs="TimeZone=Asia/Kathmandu",
+        )
+        self.assertEqual(
+            rendered,
+            "-c TimeZone=America/Mexico_City -c idle_session_timeout=5 -c TimeZone=UTC",
         )
 
     def test_only_a_configured_database_in_faketime_mode_is_pinned(self):

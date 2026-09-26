@@ -586,6 +586,21 @@ one exception, and the scanner has a control showing it tells the two apart.
   not follow administrative DDL. The duplication was still worth removing: what
   it cost was the ability to *see* the exemption. `idle_session_timeout` is
   outside it and still applied to both.
+- **Every connection's session runs in UTC, forced**: `_prepare_connection_options`
+  appends `-c TimeZone=UTC` last, on both borrow paths, over any operator
+  `PGOPTIONS`/`options` zone. The ORM stores naive UTC in `timestamp` columns,
+  and `now()`, `CURRENT_DATE`, `LOCALTIMESTAMP` and every `timestamp` ↔
+  `timestamptz` cast resolve through the session zone, so a session left in the
+  cluster's zone (this workspace's is `America/Mexico_City`) shifted all of them
+  by its offset: `CURRENT_DATE` was the Mexico date, a day behind UTC between
+  00:00 and 06:00 UTC. Neither upstream nor the fork ever set it; the process
+  `TZ=UTC` in `_monkeypatches` reaches Python only, libpq reads `PGTZ`. A startup
+  GUC is what `RESET ALL`/`DISCARD ALL` return to, where a `SET` in the configure
+  hook would be undone at the first give-back. Pinned live in
+  `tests/contract/test_session_timezone.py` against a database whose own default
+  zone is `Asia/Kathmandu`. The reader's calendar day is not the session's: SQL
+  that buckets by "today" for a user takes that day as a parameter
+  (`fields.Date.context_today`).
 - **A stale cached plan is recoverable, and is recovered one layer up**: after a
   committed schema change, a sibling connection re-executing an auto-prepared
   statement gets `FeatureNotSupported: cached plan must not change result type`.

@@ -1,7 +1,9 @@
+from datetime import date
+
 from dateutil.relativedelta import relativedelta
 
 from odoo import fields
-from odoo.tests import Form, tagged
+from odoo.tests import Form, freeze_time, tagged
 
 from .test_project_base import TestProjectCommon
 
@@ -593,3 +595,21 @@ class TestMilestoneCopyAndCompletion(TestProjectCommon):
         self.assertFalse(task.has_late_and_unreached_milestone)
         milestone.date_deadline = fields.Date.today() - relativedelta(days=1)
         self.assertTrue(task.has_late_and_unreached_milestone)
+
+    @freeze_time("2026-03-10 02:00:00")
+    def test_the_exceeded_search_reads_the_readers_day_like_the_compute(self) -> None:
+        project = self.env["project.project"].create(
+            {"name": "TzEdge", "allow_milestones": True}
+        )
+        self.env["project.milestone"].create(
+            {"name": "M", "project_id": project.id, "date_deadline": date(2026, 3, 10)}
+        )
+        exceeded = [("is_milestone_exceeded", "=", True)]
+        for tz, expected in (("America/Mexico_City", False), ("UTC", True)):
+            with self.subTest(tz=tz):
+                projects = self.env["project.project"].with_context(tz=tz)
+                projects.invalidate_model(["is_milestone_exceeded"])
+                self.assertEqual(
+                    projects.browse(project.id).is_milestone_exceeded, expected
+                )
+                self.assertEqual(project in projects.search(exceeded), expected)

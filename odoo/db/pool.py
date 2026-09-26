@@ -80,6 +80,13 @@ _GUC_SEPARATOR_RE = re.compile(r",(?=\s*[A-Za-z_][A-Za-z0-9_.]*\s*=)")
 
 _FAKETIME_GUCS: tuple[str, ...] = ("search_path=public,pg_catalog",)
 
+# The ORM stores naive UTC in `timestamp` columns, and `now()`, `CURRENT_DATE`
+# and every timestamp <-> timestamptz cast resolve through the session zone, so
+# a session in the cluster's zone shifts them by its offset. Last on the line so
+# it beats an operator's PGOPTIONS; a startup GUC is what RESET/DISCARD ALL
+# return to, where a SET on configure would be undone at the first give-back.
+_SESSION_ZONE_GUC = "TimeZone=UTC"
+
 
 def _prepare_session_gucs(base_options: str, configured: str) -> str:
     already_set = set(_GUC_NAME_RE.findall(base_options))
@@ -115,7 +122,7 @@ def _prepare_connection_options(
         f"-c idle_in_transaction_session_timeout={idle_in_transaction_ms}"
         if idle_in_transaction_ms > 0
         else "",
-        *(f"-c {guc}" for guc in forced_gucs),
+        *(f"-c {guc}" for guc in (*forced_gucs, _SESSION_ZONE_GUC)),
     ]
     return " ".join(p for p in parts if p)
 

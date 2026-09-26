@@ -1481,14 +1481,17 @@ class ProjectProject(models.Model):
         if operator != "in":
             return NotImplemented
 
-        sql = SQL("""(
+        sql = SQL(
+            """(
             SELECT P.id
               FROM project_project P
          LEFT JOIN project_milestone M ON P.id = M.project_id
              WHERE M.is_reached IS false
                AND P.allow_milestones IS true
-               AND M.date_deadline <= CAST(now() AS date)
-        )""")
+               AND M.date_deadline <= %s
+        )""",
+            fields.Date.context_today(self),
+        )
         return [("id", "any", sql)]
 
     @api.depends("collaborator_ids", "privacy_visibility")
