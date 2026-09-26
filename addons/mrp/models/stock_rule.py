@@ -235,34 +235,41 @@ class StockRule(models.Model):
                     )
                     continue
                 vals = rule._prepare_mo_vals(procurement, bom)
-                for batch_qty in rule._get_manufacture_batches(
+                for batch_qty, batch_uom in rule._get_manufacture_batches(
                     procurement, bom, is_batch_size
                 ):
                     new_productions_values_by_company[procurement.company_id.id][
                         "values"
-                    ].append({**vals, "product_qty": batch_qty})
+                    ].append(
+                        {
+                            **vals,
+                            "product_qty": batch_qty,
+                            "product_uom_id": batch_uom.id,
+                        }
+                    )
                     new_productions_values_by_company[procurement.company_id.id][
                         "procurements"
                     ].append(procurement)
             else:
-                procurement_product_uom_qty = (
-                    procurement.product_uom_id._get_quantity_in_unit(
-                        procurement.product_qty, procurement.product_id.uom_id
-                    )
+                merged = mo._get_merged_quantity_vals(
+                    mo.product_id,
+                    [
+                        (mo.product_qty, mo.product_uom_id),
+                        (procurement.product_qty, procurement.product_uom_id),
+                    ],
                 )
+                if merged["product_uom_id"] != mo.product_uom_id.id:
+                    mo._convert_to_product_uom(round=False)
                 self.env["change.production.qty"].sudo().with_context(
                     skip_activity=True
                 ).create(
-                    {
-                        "mo_id": mo.id,
-                        "product_qty": mo.product_id.uom_id._get_quantity_in_unit(
-                            (mo.product_uom_qty + procurement_product_uom_qty),
-                            mo.product_uom_id,
-                        ),
-                    }
+                    {"mo_id": mo.id, "product_qty": merged["product_qty"]}
                 ).change_prod_qty()
                 _debug.lifecycle(
-                    "production_qty_increased", mo=mo, qty=procurement_product_uom_qty
+                    "production_qty_increased",
+                    mo=mo,
+                    qty=procurement.product_qty,
+                    unit=procurement.product_uom_id,
                 )
                 if procurement.values.get("move_dest_ids"):
                     mo.move_finished_ids.filtered_domain(
@@ -293,29 +300,33 @@ class StockRule(models.Model):
         return True
 
     def _get_manufacture_batches(self, procurement, bom, is_batch_size):
-        """Yield the quantity of each manufacturing order a procurement becomes.
+        """Yield `(quantity, unit)` of each manufacturing order a procurement becomes.
 
-        Every figure is in the BoM's unit, because that is the unit
-        `batch_size` is written in. Converting the batch into the procurement's
-        unit first and counting down there rounds the batch to the procurement
-        unit's precision: a 0.4 kg batch procured in tonnes becomes 0.01 t,
-        which is 10 kg, so the orders come out twenty-five times the size the
-        BoM asked for and the count explodes to match.
+        Without a batch size the order is the procurement itself, in its own
+        unit: converting it into the BoM's unit rounds it up to that unit's
+        precision, so one Unit against a per-Dozen BoM would make 0.09 Dozen,
+        1.08 Units. The explosion is unit-independent, so any unit of the
+        category manufactures.
+
+        Batches are in the BoM's unit, because that is the unit `batch_size` is
+        written in. Converting the batch into the procurement's unit first and
+        counting down there rounds the batch to the procurement unit's
+        precision: a 0.4 kg batch procured in tonnes becomes 0.01 t, which is
+        10 kg, so the orders come out twenty-five times the size the BoM asked
+        for and the count explodes to match.
 
         The count is capped the way `mrp.production.split` caps its own, and
         for the same reason: a batch size small against the demand is a
         configuration mistake, and answering it with thousands of orders is
         worse than refusing it.
         """
+        if not is_batch_size:
+            yield procurement.product_qty, procurement.product_uom_id
+            return
         uom = bom.product_uom_id
         quantity = procurement.product_uom_id._get_quantity_in_unit(
             procurement.product_qty, uom, round=False
         )
-        if not is_batch_size:
-            yield procurement.product_uom_id._get_quantity_in_unit(
-                procurement.product_qty, uom
-            )
-            return
         batch_size = bom.batch_size
         if uom.compare(batch_size, 0) <= 0:
             _debug.logic(
@@ -368,7 +379,7 @@ class StockRule(models.Model):
             # HALF-UP; sizing a record wants the unit's own `rounding`, rounded
             # UP, which is what `_get_quantity_in_unit` does and what the caller
             # this replaced did.
-            yield uom._get_quantity_in_unit(batch_size, uom)
+            yield uom._get_quantity_in_unit(batch_size, uom), uom
 
     def _prepare_stock_move_vals(self, procurement):
         res = super()._prepare_stock_move_vals(procurement)
@@ -468,12 +479,8 @@ class StockRule(models.Model):
             "never_product_template_attribute_value_ids": values.get(
                 "never_product_template_attribute_value_ids"
             ),
-            "product_qty": product_uom_id._get_quantity_in_unit(
-                procurement.product_qty, bom.product_uom_id
-            )
-            if bom
-            else procurement.product_qty,
-            "product_uom_id": bom.product_uom_id.id if bom else product_uom_id.id,
+            "product_qty": procurement.product_qty,
+            "product_uom_id": product_uom_id.id,
             "location_src_id": picking_type.default_location_src_id.id,
             "location_dest_id": picking_type.default_location_dest_id.id
             or location_dest_id.id,

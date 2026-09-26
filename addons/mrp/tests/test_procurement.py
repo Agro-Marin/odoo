@@ -58,12 +58,12 @@ class TestProcurement(TestMrpCommon):
         ).action_apply_inventory()
         produce_product_4.action_assign()
         self.assertEqual(
-            produce_product_4.product_qty, 96, "Wrong quantity of finish product."
+            produce_product_4.product_qty, 8, "Wrong quantity of finish product."
         )
         self.assertEqual(
             produce_product_4.product_uom_id,
-            self.uom_unit,
-            "Wrong quantity of finish product.",
+            self.uom_dozen,
+            "the order is in the unit its component line procured it in",
         )
         self.assertEqual(
             produce_product_4.reservation_state,
@@ -1321,7 +1321,7 @@ class TestProcurement(TestMrpCommon):
             self.assertEqual(len(mo), i, "One mo per picking")
             self.assertEqual(delta_hours(mo[i - 1].date_end - mo[i - 1].date_start), 15)
 
-    def _run_batched_manufacture(self, product, quantity, uom):
+    def _run_batched_manufacture(self, product, quantity, uom, values=None):
         rule = self.warehouse_1.manufacture_pull_id
         self.env["stock.rule"]._run_manufacture(
             [
@@ -1339,6 +1339,7 @@ class TestProcurement(TestMrpCommon):
                             "date_planned": fields.Datetime.now(),
                             "date_deadline": fields.Datetime.now(),
                             "company_id": self.warehouse_1.company_id,
+                            **(values or {}),
                         },
                     ),
                     rule,
@@ -1346,6 +1347,30 @@ class TestProcurement(TestMrpCommon):
             ]
         )
         return self.env["mrp.production"].search([("product_id", "=", product.id)])
+
+    def _create_per_dozen_product(self):
+        product = self.env["product.product"].create(
+            {
+                "name": "Sold by the unit",
+                "is_storable": True,
+                "uom_id": self.uom_unit.id,
+            }
+        )
+        component = self.env["product.product"].create(
+            {"name": "One per unit", "is_storable": True, "uom_id": self.uom_unit.id}
+        )
+        self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": product.product_tmpl_id.id,
+                "product_uom_id": self.uom_dozen.id,
+                "product_qty": 1.0,
+                "type": "normal",
+                "bom_line_ids": [
+                    Command.create({"product_id": component.id, "product_qty": 12})
+                ],
+            }
+        )
+        return product, component
 
     def test_a_batch_size_is_honoured_in_the_unit_it_is_written_in(self):
         """`batch_size` belongs to the BoM, so the split must be done in its unit.
@@ -1387,34 +1412,15 @@ class TestProcurement(TestMrpCommon):
         )
         self.assertEqual(sum(orders.mapped("product_qty")), 1000.0)
 
-    def test_an_unbatched_procurement_rounds_the_way_it_always_did(self):
-        """The path almost every procurement takes must not have moved.
-
-        `uom.round` rounds HALF-UP at the 'Product Unit' decimal precision and
-        never reads the unit; `_get_quantity_in_unit` rounds UP at the unit's own
-        `rounding`. Sizing a record wants the second -- `uom_uom.py` says so in
-        as many words -- and a first draft of this method used the first, which
-        rounds a converted quantity below the unit's precision DOWN TO ZERO
-        where the original rounded it up. Across every convertible unit pair in
-        the database the two disagreed on 176 of 536 conversions.
-
-        A gram of a kilogram-based product is one of them, and the point of
-        choosing it is that it discriminates: 1 g is 0.001 kg, which rounds UP
-        to 0.01 kg and HALF-UP to nothing. An hour/minute pair, which was this
-        test's first draft, agrees under both and pins nothing.
-        """
+    def test_an_unbatched_procurement_is_not_converted(self):
+        """A gram of a kilogram-based product is a gram, not 0.01 kg (10 g)."""
         kg = self.env.ref("uom.product_uom_kgm")
         gram = self.env.ref("uom.product_uom_gram")
-        self.assertEqual(gram._get_quantity_in_unit(1.0, kg), 0.01)
-        self.assertEqual(
-            kg.round(gram._get_quantity_in_unit(1.0, kg, round=False)), 0.0
-        )
-
         product = self.env["product.product"].create(
             {"name": "Rounded", "is_storable": True, "uom_id": kg.id}
         )
         component = self.env["product.product"].create(
-            {"name": "Rounded component", "is_storable": True}
+            {"name": "Rounded component", "is_storable": True, "uom_id": gram.id}
         )
         self.env["mrp.bom"].create(
             {
@@ -1423,18 +1429,83 @@ class TestProcurement(TestMrpCommon):
                 "product_qty": 1.0,
                 "type": "normal",
                 "bom_line_ids": [
-                    Command.create({"product_id": component.id, "product_qty": 1})
+                    Command.create({"product_id": component.id, "product_qty": 1000})
                 ],
             }
         )
         orders = self._run_batched_manufacture(product, 1.0, gram)
-        self.assertEqual(orders.product_uom_id, kg)
-        self.assertEqual(
-            orders.mapped("product_qty"),
-            [0.01],
-            "a gram of a kilogram-based product must round up to the unit's own"
-            " precision, not down to nothing",
+        self.assertEqual(orders.move_raw_ids.product_uom_qty, 1.0)
+        self.assertEqual(orders.product_uom_id, gram)
+        self.assertEqual(orders.mapped("product_qty"), [1.0])
+
+    def test_procured_orders_keep_the_procurement_unit(self):
+        product, component = self._create_per_dozen_product()
+        for _procurement in range(3):
+            orders = self._run_batched_manufacture(product, 1.0, self.uom_unit)
+        components = orders.move_raw_ids.filtered(
+            lambda move: move.product_id == component
         )
+        self.assertEqual(components.product_uom_id, self.uom_unit)
+        self.assertEqual(sum(components.mapped("product_uom_qty")), 3.0)
+        self.assertEqual(sum(orders.mapped("product_uom_qty")), 3.0)
+        self.assertEqual(orders.product_uom_id, self.uom_unit)
+        self.assertEqual(orders.mapped("product_qty"), [1.0, 1.0, 1.0])
+
+    def test_a_procurement_merged_in_another_unit_sums_exactly_in_the_product_unit(
+        self,
+    ):
+        product, component = self._create_per_dozen_product()
+        reference = self.env["stock.reference"].create({"name": "Mixed units"})
+        values = {"reference_ids": reference}
+        first = self._run_batched_manufacture(product, 1.0, self.uom_dozen, values)
+        self.assertEqual(first.product_uom_id, self.uom_dozen)
+        order = self._run_batched_manufacture(product, 1.0, self.uom_unit, values)
+        self.assertEqual(order, first, "the second procurement joins the first order")
+        components = order.move_raw_ids.filtered(
+            lambda move: move.product_id == component
+        )
+        self.assertEqual(sum(components.mapped("product_uom_qty")), 13.0)
+        self.assertEqual(order.product_uom_qty, 13.0)
+        self.assertEqual(order.product_uom_id, self.uom_unit)
+        self.assertEqual(order.product_qty, 13.0)
+        finished = order._get_main_finished_moves()
+        self.assertEqual(finished.product_uom_id, self.uom_unit)
+        self.assertEqual(finished.product_uom_qty, 13.0)
+
+    def test_a_procurement_merged_in_the_same_unit_is_added_unconverted(self):
+        product, component = self._create_per_dozen_product()
+        reference = self.env["stock.reference"].create({"name": "Same unit"})
+        values = {"reference_ids": reference}
+        self._run_batched_manufacture(product, 1.0, self.uom_unit, values)
+        order = self._run_batched_manufacture(product, 2.0, self.uom_unit, values)
+        self.assertEqual(len(order), 1)
+        components = order.move_raw_ids.filtered(
+            lambda move: move.product_id == component
+        )
+        self.assertEqual(sum(components.mapped("product_uom_qty")), 3.0)
+        self.assertEqual(order.product_uom_id, self.uom_unit)
+        self.assertEqual(order.product_qty, 3.0)
+
+    def test_orderpoint_replenishment_is_ordered_in_the_orderpoint_unit(self):
+        product, component = self._create_per_dozen_product()
+        orderpoint = self.env["stock.warehouse.orderpoint"].create(
+            {
+                "product_id": product.id,
+                "location_id": self.warehouse_1.lot_stock_id.id,
+                "product_min_qty": 5.0,
+                "product_max_qty": 5.0,
+                "replenishment_uom_id": self.uom_unit.id,
+                "route_id": self.warehouse_1.manufacture_pull_id.route_id.id,
+            }
+        )
+        orderpoint.action_replenish()
+        order = self.env["mrp.production"].search([("product_id", "=", product.id)])
+        components = order.move_raw_ids.filtered(
+            lambda move: move.product_id == component
+        )
+        self.assertEqual(sum(components.mapped("product_uom_qty")), 5.0)
+        self.assertEqual(order.product_uom_id, self.uom_unit)
+        self.assertEqual(order.product_qty, 5.0)
 
     def test_a_batch_size_too_small_for_the_demand_is_refused_not_obeyed(self):
         """A thousand-order answer is worse than saying the configuration is wrong.
@@ -1636,8 +1707,8 @@ class TestProcurement(TestMrpCommon):
         mo_child = mo._get_children()
 
         self.assertEqual(mo.move_raw_ids.product_uom_id, self.uom_unit)
-        self.assertEqual(mo_child.product_uom_id, self.uom_dozen)
-        self.assertEqual(mo_child.product_qty, 0.5)
+        self.assertEqual(mo_child.product_uom_id, self.uom_unit)
+        self.assertEqual(mo_child.product_qty, 6.0)
 
         update_quantity_wizard = self.env["change.production.qty"].create(
             {
@@ -1647,4 +1718,4 @@ class TestProcurement(TestMrpCommon):
         )
         update_quantity_wizard.change_prod_qty()
 
-        self.assertEqual(mo_child.product_qty, 1.0)
+        self.assertEqual(mo_child.product_qty, 12.0)

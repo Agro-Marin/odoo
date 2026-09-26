@@ -189,13 +189,20 @@ class StockPicking(models.Model):
         for move, bom in subcontract_details:
             if move.move_orig_ids.production_id:
                 if len(move.move_orig_ids.move_dest_ids) > 1:
-                    production_to_split = move.move_orig_ids[0].production_id
-                    original_qty = move.move_orig_ids[0].product_qty
+                    origin = move.move_orig_ids[0]
+                    production_to_split = origin.production_id
+                    unit = production_to_split.product_uom_id
+                    original_qty = origin.product_uom_id._get_quantity_in_unit(
+                        origin.product_uom_qty, unit, round=False
+                    )
+                    split_qty = move.product_uom_id._get_quantity_in_unit(
+                        move.product_uom_qty, unit, round=False
+                    )
                     move.move_orig_ids = False
                     _, new_mo = production_to_split.with_context(
                         allow_more=True
                     )._split_productions(
-                        {production_to_split: [original_qty, move.product_qty]}
+                        {production_to_split: [original_qty, split_qty]}
                     )
                     _debug.lifecycle(
                         "subcontract_production_split",

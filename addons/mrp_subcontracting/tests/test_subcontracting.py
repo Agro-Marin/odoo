@@ -590,6 +590,91 @@ class TestSubcontractingFlows(TestMrpSubcontractingCommon):
         mo = self.env["mrp.production"].search([("bom_id", "=", self.bom.id)])
         self.assertEqual(len(mo), 1)
 
+    def test_receipt_in_units_of_a_per_dozen_bom_is_made_in_units(self):
+        dozen = self.env.ref("uom.product_uom_dozen")
+        self.bom.write(
+            {
+                "product_uom_id": dozen.id,
+                "product_qty": 1.0,
+                "bom_line_ids": [
+                    Command.update(line.id, {"product_qty": 12})
+                    for line in self.bom.bom_line_ids
+                ],
+            }
+        )
+        picking_form = Form(self.env["stock.picking"])
+        picking_form.picking_type_id = self.env.ref("stock.picking_type_in")
+        picking_form.partner_id = self.subcontractor_partner1
+        with picking_form.move_ids.new() as move:
+            move.product_id = self.finished
+            move.product_uom_qty = 1
+        receipt = picking_form.save()
+        receipt.action_confirm()
+
+        mo = self.env["mrp.production"].search([("bom_id", "=", self.bom.id)])
+        self.assertEqual(mo.product_uom_id, self.finished.uom_id)
+        self.assertEqual(mo.product_qty, 1.0)
+        self.assertEqual(mo.move_raw_ids.mapped("product_uom_qty"), [1.0, 1.0])
+
+        receipt.move_ids.quantity = 1
+        receipt.move_ids.picked = True
+        receipt.button_validate()
+        self.assertEqual(mo.state, "done")
+        self.assertEqual(
+            self.env["stock.quant"]._get_available_quantity(
+                self.comp1,
+                self.subcontractor_partner1.property_stock_subcontractor,
+                allow_negative=True,
+            ),
+            -1,
+        )
+
+    def test_backorder_of_a_receipt_in_dozens_splits_the_order_in_dozens(self):
+        dozen = self.env.ref("uom.product_uom_dozen")
+        receipt_type = self.env.ref("stock.picking_type_in")
+        supplier = self.env.ref("stock.stock_location_suppliers")
+        receipt = self.env["stock.picking"].create(
+            {
+                "picking_type_id": receipt_type.id,
+                "partner_id": self.subcontractor_partner1.id,
+                "location_id": supplier.id,
+                "location_dest_id": receipt_type.default_location_dest_id.id,
+                "move_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.finished.id,
+                            "product_uom_qty": 2,
+                            "product_uom_id": dozen.id,
+                            "location_id": supplier.id,
+                            "location_dest_id": receipt_type.default_location_dest_id.id,
+                        }
+                    )
+                ],
+            }
+        )
+        receipt.action_confirm()
+
+        receipt.move_ids.quantity = 1
+        receipt.move_ids.picked = True
+        Form.from_action(self.env, receipt.button_validate()).save().process()
+        backorder = receipt.backorder_ids
+        backorder.move_ids.quantity = 1
+        backorder.move_ids.picked = True
+        backorder.button_validate()
+
+        productions = self.env["mrp.production"].search([("bom_id", "=", self.bom.id)])
+        self.assertEqual(productions.mapped("state"), ["done", "done"])
+        self.assertEqual(productions.product_uom_id, dozen)
+        self.assertEqual(productions.mapped("product_qty"), [1.0, 1.0])
+        self.assertEqual(
+            self.env["stock.quant"]._get_available_quantity(
+                self.comp1,
+                self.subcontractor_partner1.property_stock_subcontractor,
+                allow_negative=True,
+            ),
+            -24,
+        )
+
     def test_flow_flexible_bom_1(self):
         self.bom.consumption = "flexible"
         picking_form = Form(self.env["stock.picking"])

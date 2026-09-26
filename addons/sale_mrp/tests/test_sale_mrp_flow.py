@@ -280,13 +280,13 @@ class TestSaleMrpFlow(TestSaleMrpFlowCommon):
         self.assertTrue(mnf_product_a, "Manufacturing order not created.")
         self.assertEqual(
             mnf_product_a.product_qty,
-            10,
+            120,
             "Wrong product quantity in manufacturing order.",
         )
         self.assertEqual(
             mnf_product_a.product_uom_id,
-            self.uom_dozen,
-            "Wrong unit of measure in manufacturing order.",
+            self.uom_unit,
+            "the order is in the unit the sale procured it in",
         )
         self.assertEqual(
             mnf_product_a.state, "confirmed", "Manufacturing order should be confirmed."

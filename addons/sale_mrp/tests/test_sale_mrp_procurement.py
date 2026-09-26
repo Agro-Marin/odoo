@@ -369,12 +369,12 @@ class TestSaleMrpProcurement(TransactionCase):
             [("product_id", "=", product.id)], order="id desc", limit=1
         )
         self.assertIn(so.name, mo.origin)
-        self.assertEqual(mo.product_uom_id, uom_gram)
-        self.assertEqual(mo.product_qty, 510)
+        self.assertEqual(mo.product_uom_id, uom_kg)
+        self.assertEqual(mo.product_qty, 0.51)
 
         so.line_ids.product_qty = 510 * 2
-        self.assertEqual(mo.product_uom_id, uom_gram)
-        self.assertEqual(mo.product_qty, 1020)
+        self.assertEqual(mo.product_uom_id, uom_kg)
+        self.assertEqual(mo.product_qty, 1.02)
 
     def test_sale_mrp_avoid_multiple_pickings(self):
         warehouse = self.env["stock.warehouse"].search(

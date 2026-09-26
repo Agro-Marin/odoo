@@ -2940,6 +2940,27 @@ class MrpProduction(models.Model):
             return action
         return None
 
+    def _convert_to_product_uom(self, round=True):
+        self.check_singleton()
+        unit = self.product_id.uom_id
+        self.write(
+            {
+                "product_qty": self.product_uom_id._get_quantity_in_unit(
+                    self.product_qty, unit, round=round
+                ),
+                "product_uom_id": unit.id,
+            }
+        )
+        for move in self._get_main_finished_moves():
+            move.write(
+                {
+                    "product_uom_qty": move.product_uom_id._get_quantity_in_unit(
+                        move.product_uom_qty, unit, round=round
+                    ),
+                    "product_uom_id": unit.id,
+                }
+            )
+
     def action_confirm(self):
         self._check_company()
         moves_ids_to_confirm = set()
@@ -2956,24 +2977,7 @@ class MrpProduction(models.Model):
                 production.product_tracking == "serial"
                 and production.product_uom_id != production.product_id.uom_id
             ):
-                production.write(
-                    {
-                        "product_qty": production.product_uom_id._get_quantity_in_unit(
-                            production.product_qty, production.product_id.uom_id
-                        ),
-                        "product_uom_id": production.product_id.uom_id,
-                    }
-                )
-                for move_finish in production._get_main_finished_moves():
-                    move_finish.write(
-                        {
-                            "product_uom_qty": move_finish.product_uom_id._get_quantity_in_unit(
-                                move_finish.product_uom_qty,
-                                move_finish.product_id.uom_id,
-                            ),
-                            "product_uom_id": move_finish.product_id.uom_id,
-                        }
-                    )
+                production._convert_to_product_uom()
             move_raws_ids_to_adjust.update(production.move_raw_ids.ids)
             moves_ids_to_confirm.update(
                 (production.move_raw_ids | production.move_finished_ids).ids
@@ -4311,7 +4315,13 @@ class MrpProduction(models.Model):
                     "product_id": product_id.id,
                     "bom_id": bom_id.id,
                     "picking_type_id": self.picking_type_id.id,
-                    **self._get_merged_quantity_vals(product_id),
+                    **self._get_merged_quantity_vals(
+                        product_id,
+                        [
+                            (production.product_qty, production.product_uom_id)
+                            for production in self
+                        ],
+                    ),
                     "location_final_id": all(mo.location_final_id for mo in self)
                     and len(self.location_final_id) == 1
                     and self.location_final_id.id,
@@ -4381,18 +4391,18 @@ class MrpProduction(models.Model):
             "res_id": production.id,
         }
 
-    def _get_merged_quantity_vals(self, product):
-        if len(self.product_uom_id) == 1:
+    @api.model
+    def _get_merged_quantity_vals(self, product, quantities):
+        units = {unit for _quantity, unit in quantities}
+        if len(units) == 1:
             return {
-                "product_qty": sum(self.mapped("product_qty")),
-                "product_uom_id": self.product_uom_id.id,
+                "product_qty": sum(quantity for quantity, _unit in quantities),
+                "product_uom_id": units.pop().id,
             }
         return {
             "product_qty": sum(
-                production.product_uom_id._get_quantity_in_unit(
-                    production.product_qty, product.uom_id, round=False
-                )
-                for production in self
+                unit._get_quantity_in_unit(quantity, product.uom_id, round=False)
+                for quantity, unit in quantities
             ),
             "product_uom_id": product.uom_id.id,
         }
