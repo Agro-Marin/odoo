@@ -102,6 +102,7 @@ class CertificateCertificate(models.Model):
         comodel_name="certificate.key",
         compute="_compute_private_key_id",
         store=True,
+        index="btree_not_null",
         readonly=False,
         domain=[("public", "=", False)],
         check_company=True,

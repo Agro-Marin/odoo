@@ -137,7 +137,7 @@ class ProductProduct(models.Model):
         domain,
         groupby=(),
         aggregates=(),
-        having=(),
+        having=None,
         offset=0,
         limit=None,
         order=None,
