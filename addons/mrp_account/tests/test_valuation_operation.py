@@ -2,7 +2,7 @@ from odoo.tests import Form
 
 from odoo.addons.mrp_account.tests.common import TestBomPriceOperationCommon
 
-PRICE = 718.75 + 2 * 321.25 - 100
+PRICE = 718.75 + 321.25 + 306.25 - 100
 
 
 class TestMrpValuationOperationStandard(TestBomPriceOperationCommon):

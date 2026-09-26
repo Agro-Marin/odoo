@@ -1125,11 +1125,22 @@ class TestBoM(TestMrpCommon):
                     0,
                 )
             if component_line["product"].id == crumble.id:
-                crumble_cost = self.env[
-                    "report.mrp.report_bom_structure"
-                ]._get_report_data(
+                crumble_report = self.env["report.mrp.report_bom_structure"]
+                needed = crumble_report._get_report_data(
                     bom_id=bom_crumble.id, searchQty=5.4, searchVariant=False
-                )["lines"]["bom_cost"]
+                )["lines"]
+                batch = crumble_report._get_report_data(
+                    bom_id=bom_crumble.id,
+                    searchQty=bom_crumble.product_qty,
+                    searchVariant=False,
+                )["lines"]
+                # A made sub-assembly pays its components for what is needed and
+                # its share of one batch of its own operations.
+                crumble_cost = (
+                    needed["bom_cost"]
+                    - needed["operations_cost"]
+                    + batch["operations_cost"] * 5.4 / bom_crumble.product_qty
+                )
                 self.assertEqual(
                     float_compare(
                         component_line["bom_cost"], crumble_cost, precision_digits=2
@@ -1138,7 +1149,7 @@ class TestBoM(TestMrpCommon):
                 )
         self.assertEqual(
             float_compare(
-                report_values["lines"]["bom_cost"], 270.31, precision_digits=2
+                report_values["lines"]["bom_cost"], 258.17, precision_digits=2
             ),
             0,
             "Product Bom Price is not correct",
@@ -1668,7 +1679,11 @@ class TestBoM(TestMrpCommon):
             bom_id=bom_finished.id, searchQty=80
         )
 
-        self.assertAlmostEqual(report_values["lines"]["bom_cost"], 2.92)
+        self.assertAlmostEqual(
+            report_values["lines"]["bom_cost"],
+            2.91,
+            msg="4 kg of semi-finished need 8/11 dozen assemblies, 32/55 L at 5",
+        )
 
     def test_bom_report_capacity_with_quantity_of_0(self):
         target = self.env["product.product"].create(

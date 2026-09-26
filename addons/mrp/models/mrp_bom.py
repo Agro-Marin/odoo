@@ -4,7 +4,7 @@ from odoo import api, fields, models
 from odoo.exceptions import UserError, ValidationError
 from odoo.fields import Command, Domain
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import TransactionMemo, float_compare
+from odoo.tools import TransactionMemo, float_compare, float_round
 from odoo.tools.misc import OrderedSet, clean_context
 
 BOM_BY_PRODUCT = TransactionMemo("mrp.bom.by_product", invalidated_by=("mrp.bom",))
@@ -882,6 +882,121 @@ class MrpBom(models.Model):
         return (
             unit._get_quantity_in_unit(quantity, self.product_uom_id, round=False)
             / self.product_qty
+        )
+
+    @api.model
+    def _get_operation_demands(self, boms_done, never_attribute_values=False):
+        demands = {}
+        for bom, bom_data in boms_done:
+            product = bom_data["parent_line"].product_id or bom_data["product"]
+            quantity = bom_data["qty"] * bom.product_qty
+            for operation in bom.operation_ids:
+                if operation._is_bom_line_skipped(product, never_attribute_values):
+                    continue
+                if operation in demands:
+                    quantity += demands[operation][2]
+                demands[operation] = (bom, product, quantity)
+        return demands
+
+    def _get_standard_cost_breakdown(
+        self, product, quantity, unit, company, never_attribute_values=False
+    ):
+        self.check_singleton()
+        boms_done, lines_done = self._explode(
+            product,
+            self._get_explode_factor(quantity, unit),
+            picking_type=self.picking_type_id,
+            never_attribute_values=never_attribute_values,
+        )
+        demands = defaultdict(float)
+        for line, line_data in lines_done:
+            demands[line] += line_data["qty"]
+        operation_demands = self._get_operation_demands(
+            boms_done, never_attribute_values
+        )
+        return {
+            "demands": demands,
+            "components": {
+                line: line.product_id._get_standard_cost(
+                    line_quantity, line.product_uom_id, company
+                )
+                for line, line_quantity in demands.items()
+            },
+            "operation_demands": operation_demands,
+            "operations": {
+                operation: operation._for_demand(
+                    bom_product, bom_quantity, bom.product_uom_id
+                ).cost
+                for operation, (
+                    bom,
+                    bom_product,
+                    bom_quantity,
+                ) in operation_demands.items()
+            },
+        }
+
+    def _get_rolled_up_cost(self, product, quantity, as_component=False):
+        self.check_singleton()
+        company = self.company_id or self.env.company
+        currency = company.currency_id
+        factor = quantity / (self.product_qty or 1.0)
+        cost = 0.0
+        for line in self.bom_line_ids:
+            if product and line._is_bom_line_skipped(product):
+                continue
+            line_quantity = factor * line.product_qty
+            child_bom = line.child_bom_id
+            if child_bom:
+                child_quantity = line.product_uom_id._get_quantity_estimate(
+                    line_quantity, child_bom.product_uom_id, round=False
+                )
+                cost += child_bom._get_rolled_up_cost(
+                    line.product_id, child_quantity, as_component=True
+                ) * child_bom._get_finished_cost_share(line.product_id)
+            else:
+                cost += currency.round(
+                    line.product_id._get_standard_cost(
+                        line_quantity, line.product_uom_id, company
+                    )
+                )
+        if product:
+            operation_quantity, scale = self._get_costing_quantity(
+                quantity, as_component
+            )
+            for operation in self.operation_ids:
+                if operation._is_bom_line_skipped(product):
+                    continue
+                cost += currency.round(
+                    operation._for_demand(
+                        product, operation_quantity, self.product_uom_id
+                    ).cost
+                    * scale
+                )
+        return cost
+
+    def _get_costing_quantity(self, quantity, as_component):
+        # Operation cycles are counted in the order that runs them: a kit's run
+        # in its parent's order, at the quantity the parent needs; a
+        # manufactured sub-assembly is made in its own orders, so a parent pays
+        # its share of one batch of the sub-assembly's BoM. Components and a
+        # subcontractor's price are bought at the quantity needed.
+        self.check_singleton()
+        if as_component and self.type != "phantom":
+            batch = self.product_qty or 1.0
+            return batch, quantity / batch
+        return quantity, 1.0
+
+    def _get_byproduct_cost_shares(self, product):
+        return {
+            byproduct: byproduct.cost_share / 100 if byproduct.product_qty > 0 else 0
+            for byproduct in self.byproduct_ids
+            if not byproduct._is_bom_line_skipped(product)
+        }
+
+    def _get_finished_cost_share(self, product):
+        return float_round(
+            1 - sum(self._get_byproduct_cost_shares(product).values()),
+            precision_rounding=0.0001,
         )
 
     def _get_kit_component_qty(self, product):

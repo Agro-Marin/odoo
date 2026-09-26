@@ -85,7 +85,7 @@ class TestBomOverviewReport(TestMrpCommon):
     def test_the_forecast_columns_are_offered_and_start_out_hidden(self):
         options = self._options()
         labels = [column["expression_label"] for column in options["columns"]]
-        self.assertEqual(labels, ["quantity", "bom_cost"])
+        self.assertEqual(labels, ["quantity", "bom_cost", "standard_cost"])
         self.assertEqual(
             [column["name"] for column in options["optional_columns"]],
             [

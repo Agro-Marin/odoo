@@ -112,3 +112,35 @@ class MrpBom(models.Model):
                     "You can not set a Bill of Material with operations or by-product line as subcontracting."
                 )
             )
+
+    def _get_subcontracting_seller(self, product, quantity):
+        self.check_singleton()
+        if not product:
+            return self.product_tmpl_id.seller_ids.filtered(
+                lambda seller: seller.partner_id in self.subcontractor_ids
+            )[:1]
+        return product._select_seller(
+            quantity=quantity,
+            uom_id=self.product_uom_id,
+            params={"subcontractor_ids": self.subcontractor_ids},
+        )
+
+    def _get_subcontracting_cost(self, seller, quantity):
+        self.check_singleton()
+        company = self.company_id or self.env.company
+        price = seller.currency_id._convert(
+            seller.price, company.currency_id, company, fields.Date.today()
+        )
+        return company.currency_id.round(
+            seller.product_uom_id._get_price_in_unit(price, self.product_uom_id)
+            * quantity
+        )
+
+    def _get_rolled_up_cost(self, product, quantity, as_component=False):
+        cost = super()._get_rolled_up_cost(product, quantity, as_component)
+        if self.type != "subcontract":
+            return cost
+        seller = self._get_subcontracting_seller(product, quantity)
+        if seller:
+            cost += self._get_subcontracting_cost(seller, quantity)
+        return cost

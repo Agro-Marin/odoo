@@ -1197,25 +1197,16 @@ class MrpProduction(models.Model):
                 Command.link(wo.id)
                 for wo in production.workorder_ids.filtered(lambda wo: wo.ids)
             ]
-            exploded_boms = []
-            if (
+            explodable = bool(
                 production.bom_id
                 and production.product_id
                 and production.product_qty > 0
-            ):
-                exploded_boms, _dummy = production.bom_id._explode(
-                    production.product_id,
-                    production.bom_id._get_explode_factor(
-                        production.product_qty, production.product_uom_id
-                    ),
-                    picking_type=production.bom_id.picking_type_id,
-                    never_attribute_values=production.never_product_template_attribute_value_ids,
-                )
-            relevant_boms = [bom for bom, _bom_data in exploded_boms]
+            )
+            operation_demands = production._get_operation_demands()
             deleted_workorders_ids = [
                 wo.id
                 for wo in production.workorder_ids
-                if wo.operation_id and wo.operation_id.bom_id not in relevant_boms
+                if wo.operation_id and wo.operation_id not in operation_demands
             ]
             workorders_list += [
                 Command.delete(wo_id) for wo_id in deleted_workorders_ids
@@ -1234,44 +1225,18 @@ class MrpProduction(models.Model):
                 )
             ):
                 production.workorder_ids = [Command.clear()]
-            if exploded_boms:
-                workorders_values = []
-                for bom, bom_data in exploded_boms:
-                    if not (
-                        bom.operation_ids
-                        and (
-                            not bom_data["parent_line"]
-                            or bom_data["parent_line"].bom_id.operation_ids
-                            != bom.operation_ids
-                        )
-                    ):
-                        continue
-                    for operation in bom.operation_ids:
-                        if operation._is_bom_line_skipped(
-                            bom_data["product"]
-                            if not bom_data["parent_line"]
-                            else bom_data["parent_line"]["product_id"],
-                            production.never_product_template_attribute_value_ids,
-                        ):
-                            workorder = production.workorder_ids.filtered_domain(
-                                [
-                                    ("operation_id", "=", operation.id),
-                                    ("operation_id.bom_id", "=", bom.id),
-                                ]
-                            )
-                            if workorder:
-                                workorders_list += [Command.delete(workorder.id)]
-                            continue
-                        workorders_values += [
-                            {
-                                "name": operation.name,
-                                "production_id": production.id,
-                                "workcenter_id": operation.workcenter_id.id,
-                                "product_uom_id": production.product_uom_id.id,
-                                "operation_id": operation.id,
-                                "state": "ready",
-                            }
-                        ]
+            if explodable:
+                workorders_values = [
+                    {
+                        "name": operation.name,
+                        "production_id": production.id,
+                        "workcenter_id": operation.workcenter_id.id,
+                        "product_uom_id": production.product_uom_id.id,
+                        "operation_id": operation.id,
+                        "state": "ready",
+                    }
+                    for operation in operation_demands
+                ]
                 workorders_dict = {
                     wo.operation_id.id: wo
                     for wo in production.workorder_ids.filtered(
@@ -4668,6 +4633,36 @@ class MrpProduction(models.Model):
     def _get_ratio_between_mo_and_bom_quantities(self, bom):
         self.check_singleton()
         return 1 / bom._get_explode_factor(self.product_qty, self.product_uom_id)
+
+    def _get_operation_demands(self):
+        self.check_singleton()
+        if not (self.bom_id and self.product_id and self.product_qty > 0):
+            return {}
+        never_attribute_values = self.never_product_template_attribute_value_ids
+        scratch = self.env.context.get("bom_cost_share_cache")
+        key = (
+            "operation_demands",
+            self.id,
+            self.bom_id.id,
+            self.product_id.id,
+            self.product_qty,
+            self.product_uom_id.id,
+            frozenset(never_attribute_values.ids),
+        )
+        if scratch is not None and key in scratch:
+            return scratch[key]
+        boms_done, _lines = self.bom_id._explode(
+            self.product_id,
+            self.bom_id._get_explode_factor(self.product_qty, self.product_uom_id),
+            picking_type=self.bom_id.picking_type_id,
+            never_attribute_values=never_attribute_values,
+        )
+        demands = self.env["mrp.bom"]._get_operation_demands(
+            boms_done, never_attribute_values
+        )
+        if scratch is not None:
+            scratch[key] = demands
+        return demands
 
     def _check_sn_uniqueness(self):
         self.check_singleton()

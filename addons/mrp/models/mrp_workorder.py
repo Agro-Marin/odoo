@@ -664,7 +664,10 @@ class MrpWorkorder(models.Model):
         "operation_id", "workcenter_id", "qty_producing", "qty_production", "product_id"
     )
     def _compute_duration_expected(self):
-        for workorder in self:
+        batch = self.with_context(
+            bom_cost_share_cache=self.env["mrp.bom"]._get_explosion_scratch()
+        )
+        for workorder in batch:
             if workorder.state in ("done", "cancel"):
                 continue
             qty_changed = workorder.qty_producing != workorder.qty_production or (
@@ -1448,12 +1451,7 @@ class MrpWorkorder(models.Model):
                 * 100.0
                 / workcenter.time_efficiency
             )
-        product, unit, bom = (
-            self.product_id,
-            self.product_uom_id,
-            self.production_bom_id,
-        )
-        quantity = self.qty_producing or self.qty_production
+        product, unit, quantity, bom = self._get_operation_demand()
         time_cycle = self.operation_id.time_cycle
         if alternative_workcenter:
             cycles, working_minutes = (
@@ -1466,6 +1464,23 @@ class MrpWorkorder(models.Model):
             product, unit, quantity, time_cycle, bom
         )
         return duration
+
+    def _get_operation_demand(self):
+        self.check_singleton()
+        demand = self.production_id and self.production_id._get_operation_demands().get(
+            self.operation_id
+        )
+        if not demand:
+            return (
+                self.product_id,
+                self.product_uom_id,
+                self.qty_producing or self.qty_production,
+                self.production_bom_id,
+            )
+        bom, product, quantity = demand
+        if self.qty_producing and self.qty_production:
+            quantity *= self.qty_producing / self.qty_production
+        return product, bom.product_uom_id, quantity, bom
 
     def _get_conflicted_workorder_ids(self):
         self.flush_model(["state", "date_start", "date_end", "workcenter_id"])

@@ -337,7 +337,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         if bom_line:
             current_quantity = (
                 bom_line.product_uom_id._get_quantity_report(
-                    line_qty, bom.product_uom_id
+                    line_qty, bom.product_uom_id, round=False
                 )
                 or 0
             )
@@ -414,7 +414,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             simulated_leaves_per_workcenter,
         )
         for component in components:
-            bom_report_line["bom_cost"] += component["bom_cost"]
             if not component["is_storable"]:
                 continue
             if status := self._get_missing_qty_status(
@@ -463,17 +462,12 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             operations = self._get_operation_line(
                 product,
                 bom,
-                float_round(
-                    current_quantity,
-                    precision_digits=self.env["decimal.precision"].get_precision(
-                        "Product Unit"
-                    ),
-                    rounding_method="UP",
-                ),
+                current_quantity,
                 level + 1,
                 index,
                 bom_report_line,
                 simulated_leaves_per_workcenter,
+                as_component=bool(bom_line),
             )
             bom_report_line["operations"] = operations
             bom_report_line["operations_cost"] = sum(
@@ -496,27 +490,36 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     bom_report_line["availability_state"],
                     bom_report_line["availability_delay"],
                 )
-            bom_report_line["bom_cost"] += bom_report_line["operations_cost"]
-
-            byproducts, byproduct_cost_portion = self._get_byproducts_lines(
+            rolled_up_cost = bom._get_rolled_up_cost(
+                product, current_quantity, as_component=bool(bom_line)
+            )
+            byproducts = self._get_byproducts_lines(
                 product,
                 bom,
                 current_quantity,
                 level + 1,
-                bom_report_line["bom_cost"],
+                rolled_up_cost,
                 index,
             )
             bom_report_line["byproducts"] = byproducts
-            bom_report_line["cost_share"] = float_round(
-                1 - byproduct_cost_portion, precision_rounding=0.0001
-            )
+            bom_report_line["cost_share"] = bom._get_finished_cost_share(product)
             bom_report_line["byproducts_cost"] = sum(
                 byproduct["bom_cost"] for byproduct in byproducts
             )
             bom_report_line["byproducts_total"] = sum(
                 byproduct["quantity"] for byproduct in byproducts
             )
-            bom_report_line["bom_cost"] *= bom_report_line["cost_share"]
+            bom_report_line["bom_cost"] = rolled_up_cost * bom_report_line["cost_share"]
+            if bom_line and bom.type != "phantom":
+                standard_cost = company.currency_id.round(
+                    product._get_standard_cost(
+                        current_quantity, bom.product_uom_id, company
+                    )
+                )
+                if company.currency_id.compare_amounts(
+                    standard_cost, bom_report_line["bom_cost"]
+                ):
+                    bom_report_line["standard_cost"] = standard_cost
 
         bom_report_line["foldable"] = (
             len(bom.operation_ids) > 0
@@ -550,14 +553,11 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         ignore_stock=False,
     ):
         company = parent_bom.company_id or self.env.company
-        price = (
-            bom_line.product_id.uom_id._get_price_in_unit(
-                bom_line.product_id.with_company(company).standard_price,
-                bom_line.product_uom_id,
+        rounded_price = company.currency_id.round(
+            bom_line.product_id._get_standard_cost(
+                line_quantity, bom_line.product_uom_id, company
             )
-            * line_quantity
         )
-        rounded_price = company.currency_id.round(price)
 
         key = bom_line.product_id.id
         bom_key = parent_bom.id
@@ -676,17 +676,13 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     @api.model
     def _get_byproducts_lines(self, product, bom, bom_quantity, level, total, index):
         byproducts = []
-        byproduct_cost_portion = 0
         company = bom.company_id or self.env.company
-        byproduct_index = 0
-        for byproduct in bom.byproduct_ids:
-            if byproduct._is_bom_line_skipped(product):
-                continue
+        for byproduct_index, (byproduct, cost_share) in enumerate(
+            bom._get_byproduct_cost_shares(product).items()
+        ):
             line_quantity = (
                 bom_quantity / (bom.product_qty or 1.0)
             ) * byproduct.product_qty
-            cost_share = byproduct.cost_share / 100 if byproduct.product_qty > 0 else 0
-            byproduct_cost_portion += cost_share
             byproducts.append(
                 {
                     "id": byproduct.id,
@@ -703,8 +699,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     "cost_share": cost_share,
                 }
             )
-            byproduct_index += 1
-        return byproducts, byproduct_cost_portion
+        return byproducts
 
     @api.model
     def _get_operation_line(
@@ -716,9 +711,11 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         index,
         bom_report_line,
         simulated_leaves_per_workcenter,
+        as_component=False,
     ):
         operations = []
         company = bom.company_id or self.env.company
+        costed_qty, scale = bom._get_costing_quantity(qty, as_component)
         operations_planning = {}
         if (
             bom_report_line["availability_state"] in ["unavailable", "estimated"]
@@ -755,9 +752,9 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         for operation in bom.operation_ids:
             if not product or operation._is_bom_line_skipped(product):
                 continue
-            op = operation.with_context(product=product, quantity=qty)
-            duration_expected = op.time_total
-            bom_cost = company.currency_id.round(op.cost)
+            op = operation._for_demand(product, costed_qty, bom.product_uom_id)
+            duration_expected = op.time_total * scale
+            bom_cost = company.currency_id.round(op.cost * scale)
             if planning := operations_planning.get(operation, None):
                 availability_state = "estimated"
                 availability_delay = (planning["date_end"].date() - date_today).days
@@ -825,6 +822,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                     "quantity": bom_line["quantity"],
                     "uom": bom_line["uom_name"],
                     "bom_cost": bom_line["bom_cost"],
+                    "standard_cost": bom_line.get("standard_cost"),
                     "level": bom_line["level"],
                 }
             )
@@ -1213,9 +1211,11 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
         best, reasons = workcenters._get_earliest_slot_and_reasons(
             date_start,
             {
-                workcenter: operation.with_context(
-                    product=product, quantity=quantity, workcenter=workcenter
-                ).time_total
+                workcenter: operation._for_demand(
+                    product, quantity, operation.bom_id.product_uom_id
+                )
+                .with_context(workcenter=workcenter)
+                .time_total
                 for workcenter in workcenters
             },
             extra_leaves_by_workcenter=simulated_leaves_per_workcenter,

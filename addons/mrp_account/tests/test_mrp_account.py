@@ -206,13 +206,28 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         )
         self.dining_table.button_bom_cost()
         self.assertEqual(
-            float_round(self.dining_table.standard_price, precision_digits=2), 757.99
+            float_round(self.dining_table.standard_price, precision_digits=2), 1171.24
         )
         self.Product.browse(
             [self.dining_table.id, self.table_head.id]
         ).action_bom_cost()
         self.assertEqual(
-            float_compare(self.dining_table.standard_price, 927, precision_digits=2), 0
+            float_compare(
+                self.dining_table.standard_price, 1171.24, precision_digits=2
+            ),
+            0,
+            "the kit is rolled up from its BoM whether or not it is selected too",
+        )
+
+    def test_compute_price_from_bom_writes_the_rolled_up_cost_of_the_bom_overview(
+        self,
+    ):
+        rolled_up = self.env["report.mrp.report_bom_structure"]._get_report_data(
+            self.bom_1.id
+        )["lines"]["bom_cost"]
+        self.dining_table.button_bom_cost()
+        self.assertAlmostEqual(
+            self.dining_table.standard_price, rolled_up / self.bom_1.product_qty
         )
 
     def test_each_variant_is_costed_at_its_own_capacity(self):
@@ -305,11 +320,7 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
             "Initial price of the By-Product should be 30",
         )
         self.scrap_wood.button_bom_cost()
-        self.assertAlmostEqual(
-            self.scrap_wood.standard_price,
-            5.663125,
-            "After computing price from BoM price should be 20.63",
-        )
+        self.assertAlmostEqual(self.scrap_wood.standard_price, 8.750625)
 
     def test_wip_accounting_00(self):
         self.glass.qty_available = 2

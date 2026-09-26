@@ -437,6 +437,9 @@ class MrpRoutingWorkcenter(models.Model):
             return True
         return super()._is_bom_line_skipped(product, never_attribute_values)
 
+    def _for_demand(self, product, quantity, unit):
+        return self.with_context(product=product, quantity=quantity, unit=unit)
+
     def action_view_operation_form(self):
         return {
             "type": "ir.actions.act_window",

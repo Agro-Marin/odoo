@@ -113,6 +113,135 @@ class TestBomAndReports(TestMrpCommon):
             "the kit line is exploded into its components, not missing from the order",
         )
 
+    def test_a_kit_operation_is_measured_in_the_kit_s_own_terms(self):
+        self.maxDiff = None
+        workcenter = self.env["mrp.workcenter"].create(
+            {"name": "Kit bench", "costs_hour": 60, "time_start": 0, "time_stop": 0}
+        )
+        kit = self.env["product.product"].create({"name": "Kit"})
+        finished = self._storable("Finished")
+        self._bom(
+            kit,
+            [(self._storable("Kit part"), 1, {})],
+            type="phantom",
+            operation_ids=[
+                Command.create(
+                    {
+                        "name": "Assemble kit",
+                        "workcenter_id": workcenter.id,
+                        "time_mode": "manual",
+                        "time_cycle_manual": 60,
+                    }
+                )
+            ],
+        )
+        bom = self._bom(finished, [(kit, 2, {})], product_qty=4)
+        [kit_row] = self._structure(bom)["components"]
+        [operation_row] = kit_row["operations"]
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 4}
+        )
+        draft_minutes = production.workorder_ids.duration_expected
+        draft = self.mo_overview._get_report_data(production.id)
+        production.action_confirm()
+        confirmed = self.mo_overview._get_report_data(production.id)
+        confirmed_minutes = production.workorder_ids.duration_expected
+        production.workorder_ids.unlink()
+        without_work_order = self.mo_overview._get_report_data(production.id)
+        self.assertEqual(
+            {
+                "BoM structure minutes": operation_row["quantity"],
+                "BoM structure cost": operation_row["bom_cost"],
+                "draft work order minutes": draft_minutes,
+                "confirmed work order minutes": confirmed_minutes,
+                "MO overview draft": draft["operations"]["details"][0]["bom_cost"],
+                "MO overview confirmed": confirmed["operations"]["details"][0][
+                    "bom_cost"
+                ],
+                "MO overview missing operation": without_work_order["summary"][
+                    "bom_cost"
+                ],
+            },
+            {
+                "BoM structure minutes": 120,
+                "BoM structure cost": 120,
+                "draft work order minutes": 120,
+                "confirmed work order minutes": 120,
+                "MO overview draft": 120,
+                "MO overview confirmed": 120,
+                "MO overview missing operation": 120,
+            },
+            "two kits of one per batch at one hour each: two hours, wherever read",
+        )
+
+    def test_the_bom_structure_rolls_up_and_flags_a_stale_sub_assembly_price(self):
+        raw = self._storable("Raw", standard_price=10)
+        sub_assembly = self._storable("Sub-assembly", standard_price=5)
+        finished = self._storable("Finished")
+        self._bom(sub_assembly, [(raw, 2, {})])
+        bom = self._bom(finished, [(sub_assembly, 3, {})])
+        production = self.env["mrp.production"].create(
+            {"product_id": finished.id, "bom_id": bom.id, "product_qty": 1}
+        )
+        production.action_confirm()
+
+        lines = self._structure(bom)
+        [sub_row] = lines["components"]
+        overview = self.mo_overview._get_report_data(production.id)
+        self.assertEqual(
+            (
+                lines["bom_cost"],
+                sub_row["bom_cost"],
+                sub_row.get("standard_cost"),
+                overview["summary"]["bom_cost"],
+            ),
+            (60, 60, 15, 15),
+            "rolled up from the sub-assembly's BoM, standard at its standard price",
+        )
+
+        sub_assembly.standard_price = 20
+        [sub_row] = self._structure(bom)["components"]
+        self.assertNotIn("standard_cost", sub_row)
+
+    def test_a_sub_level_pays_the_operation_cycles_of_the_order_that_runs_them(self):
+        workcenter = self.env["mrp.workcenter"].create(
+            {"name": "Saw", "costs_hour": 60, "time_efficiency": 100}
+        )
+        finished = self._storable("Finished")
+        sub_assembly = self._storable("Sub-assembly")
+        sub_bom = self._bom(
+            sub_assembly,
+            [(self._storable("Raw"), 12, {})],
+            product_qty=12,
+            operation_ids=[
+                Command.create(
+                    {
+                        "name": "Cut",
+                        "workcenter_id": workcenter.id,
+                        "time_mode": "manual",
+                        "time_cycle_manual": 60,
+                    }
+                )
+            ],
+        )
+        bom = self._bom(finished, [(sub_assembly, 1, {})])
+
+        def costs():
+            [sub_row] = self._structure(bom)["components"]
+            return (
+                bom._get_rolled_up_cost(finished, 1),
+                sub_row["bom_cost"],
+                sub_row["operations_cost"],
+            )
+
+        self.assertEqual(
+            costs(), (5, 5, 5), "made in its own orders: a twelfth of one batch"
+        )
+        sub_bom.type = "phantom"
+        self.assertEqual(
+            costs(), (60, 60, 60), "a kit runs in the parent's order: one full cycle"
+        )
+
     def test_a_no_variant_by_product_counts_in_the_cost_share(self):
         template, [values] = self._no_variant_template("Finish")
         first, second = (self._storable(name) for name in ("First", "Second"))

@@ -1,6 +1,5 @@
 from odoo import fields, models
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import float_round
 
 _debug = DebugLog(__name__)
 
@@ -48,25 +47,14 @@ class ProductProduct(models.Model):
         self._update_standard_price_from_bom()
 
     def action_bom_cost(self):
-        boms_to_recompute = self.env["mrp.bom"].search(
-            [
-                "|",
-                ("product_id", "in", self.ids),
-                "&",
-                ("product_id", "=", False),
-                ("product_tmpl_id", "in", self.mapped("product_tmpl_id").ids),
-            ]
-        )
         for product in self:
-            product._update_standard_price_from_bom(boms_to_recompute)
+            product._update_standard_price_from_bom()
 
-    def _update_standard_price_from_bom(self, boms_to_recompute=False):
+    def _update_standard_price_from_bom(self):
         self.check_singleton()
         bom = self.env["mrp.bom"]._get_bom_by_product(self)[self]
         if bom:
-            self.standard_price = self._get_bom_price(
-                bom, boms_to_recompute=boms_to_recompute
-            )
+            self.standard_price = self._get_bom_price(bom)
         else:
             bom = self.env["mrp.bom"].search(
                 [("byproduct_ids.product_id", "=", self.id)],
@@ -74,87 +62,50 @@ class ProductProduct(models.Model):
                 limit=1,
             )
             if bom:
-                price = self._get_bom_price(
-                    bom, boms_to_recompute=boms_to_recompute, byproduct_bom=True
-                )
+                price = self._get_bom_price(bom, byproduct_bom=True)
                 if price:
                     self.standard_price = price
 
-    def _get_bom_price(self, bom, boms_to_recompute=False, byproduct_bom=False):
+    def _get_bom_price(self, bom, byproduct_bom=False):
         self.check_singleton()
         if not bom:
             _debug.logic("bom_price", product=self.id, by="no_bom")
             return 0
-        if not boms_to_recompute:
-            boms_to_recompute = []
-        total = 0
-        operations = bom.operation_ids.with_context(
-            product=self.browse() if byproduct_bom else self
-        )
-        for opt in operations:
-            if opt._is_bom_line_skipped(self):
-                continue
-
-            total += opt.cost
-
-        for line in bom.bom_line_ids:
-            if line._is_bom_line_skipped(self):
-                continue
-
-            if line.child_bom_id and line.child_bom_id in boms_to_recompute:
-                child_total = line.product_id._get_bom_price(
-                    line.child_bom_id, boms_to_recompute=boms_to_recompute
-                )
-                total += (
-                    line.product_id.uom_id._get_price_in_unit(
-                        child_total, line.product_uom_id
-                    )
-                    * line.product_qty
-                )
-            else:
-                total += (
-                    line.product_id.uom_id._get_price_in_unit(
-                        line.product_id.standard_price, line.product_uom_id
-                    )
-                    * line.product_qty
-                )
-        if byproduct_bom:
-            byproduct_lines = bom.byproduct_ids.filtered(
-                lambda b: b.product_id == self and b.cost_share != 0
-            )
-            product_uom_qty = 0
-            for line in byproduct_lines:
-                product_uom_qty += line.product_uom_id._get_quantity_in_unit(
-                    line.product_qty, self.uom_id, round=False
-                )
-            byproduct_cost_share = sum(byproduct_lines.mapped("cost_share"))
-            _debug.logic(
-                "bom_price",
-                product=self.id,
-                bom=bom.id,
-                by="byproduct_share",
-                total=total,
-                share=byproduct_cost_share,
-            )
-            if byproduct_cost_share and product_uom_qty:
-                return total * byproduct_cost_share / 100 / product_uom_qty
-        else:
-            byproduct_cost_share = sum(bom.byproduct_ids.mapped("cost_share"))
-            if byproduct_cost_share:
-                total *= float_round(
-                    1 - byproduct_cost_share / 100, precision_rounding=0.0001
-                )
+        if not byproduct_bom:
+            total = bom._get_rolled_up_cost(self, bom.product_qty)
+            share = bom._get_finished_cost_share(self)
             _debug.logic(
                 "bom_price",
                 product=self.id,
                 bom=bom.id,
                 by="rolled_up",
                 total=total,
-                byproduct_share=byproduct_cost_share,
+                share=share,
             )
             return bom.product_uom_id._get_price_in_unit(
-                total / bom.product_qty, self.uom_id
+                total * share / bom.product_qty, self.uom_id
             )
+        product = bom.product_id or bom.product_tmpl_id.product_variant_id
+        byproduct_lines = bom.byproduct_ids.filtered(
+            lambda b: b.product_id == self and b.cost_share != 0
+        )
+        product_uom_qty = 0
+        for line in byproduct_lines:
+            product_uom_qty += line.product_uom_id._get_quantity_in_unit(
+                line.product_qty, self.uom_id, round=False
+            )
+        byproduct_cost_share = sum(byproduct_lines.mapped("cost_share"))
+        total = bom._get_rolled_up_cost(product, bom.product_qty)
+        _debug.logic(
+            "bom_price",
+            product=self.id,
+            bom=bom.id,
+            by="byproduct_share",
+            total=total,
+            share=byproduct_cost_share,
+        )
+        if byproduct_cost_share and product_uom_qty:
+            return total * byproduct_cost_share / 100 / product_uom_qty
         return 0.0
 
     def _compute_value(self):

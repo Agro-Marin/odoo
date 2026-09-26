@@ -427,8 +427,8 @@ class TestSubcontractingBOMCost(TestBomPriceCommon):
         self.dining_table.button_bom_cost()
         self.assertEqual(
             float_round(self.dining_table.standard_price, precision_digits=2),
-            700.0,
-            "After computing price from BoM price should be 700",
+            878.75,
+            "the subcontracted table head is rolled up from its own BoM",
         )
 
         self.assertEqual(
@@ -480,7 +480,7 @@ class TestSubcontractingBOMCost(TestBomPriceCommon):
         )
         self.assertEqual(self.dining_table.standard_price, 1000)
         self.dining_table.button_bom_cost()
-        self.assertEqual(self.dining_table.standard_price, 790)
+        self.assertEqual(self.dining_table.standard_price, 958.75)
 
 
 @tagged("post_install", "-at_install")

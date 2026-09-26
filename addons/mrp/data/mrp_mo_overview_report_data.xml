@@ -84,7 +84,7 @@
             <record
                 id="mo_overview_report_column_bom_cost"
                 model="report.formula.column">
-                <field name="name">BoM Cost</field>
+                <field name="name">Standard Cost</field>
                 <field name="expression_label">bom_cost</field>
                 <field name="figure_type">monetary</field>
                 <field name="sequence">90</field>

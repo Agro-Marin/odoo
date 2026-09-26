@@ -156,6 +156,15 @@ class ProductProduct(models.Model):
             ),
         }
 
+    def _get_standard_cost(self, quantity, unit, company):
+        self.check_singleton()
+        return (
+            self.uom_id._get_price_in_unit(
+                self.with_company(company).standard_price, unit
+            )
+            * quantity
+        )
+
     def _get_components(self):
         self.check_singleton()
         bom_kit = self.env["mrp.bom"]._get_bom_by_product(

@@ -160,6 +160,7 @@ class MrpBomOverviewReportHandler(models.AbstractModel):
             "lead_time": row.get("lead_time"),
             "route": row.get("route_name") or "",
             "bom_cost": row.get("bom_cost"),
+            "standard_cost": row.get("standard_cost"),
         }
 
     def action_manufacture_from_bom(self, options):

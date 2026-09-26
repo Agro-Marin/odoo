@@ -1,4 +1,4 @@
-from odoo import api, fields, models
+from odoo import api, models
 from odoo.libs.debug_log import DebugLog
 
 _debug = DebugLog(__name__)
@@ -8,19 +8,12 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
     _inherit = "report.mrp.report_bom_structure"
 
     def _get_subcontracting_line(self, bom, seller, level, bom_quantity):
-        ratio_uom_seller = seller.product_uom_id.factor / bom.product_uom_id.factor
-        price = seller.currency_id._convert(
-            seller.price,
-            self.env.company.currency_id,
-            (bom.company_id or self.env.company),
-            fields.Date.today(),
-        )
         return {
             "name": seller.partner_id.display_name,
             "partner_id": seller.partner_id.id,
             "quantity": bom_quantity,
             "uom": bom.product_uom_id.name,
-            "bom_cost": price / ratio_uom_seller * bom_quantity,
+            "bom_cost": bom._get_subcontracting_cost(seller, bom_quantity),
             "level": level or 0,
         }
 
@@ -54,16 +47,7 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
             simulated_leaves_per_workcenter,
         )
         if bom.type == "subcontract" and not self.env.context.get("minimized", False):
-            if not res["product"]:
-                seller = bom.product_tmpl_id.seller_ids.filtered(
-                    lambda s: s.partner_id in bom.subcontractor_ids
-                )[:1]
-            else:
-                seller = res["product"]._select_seller(
-                    quantity=res["quantity"],
-                    uom_id=bom.product_uom_id,
-                    params={"subcontractor_ids": bom.subcontractor_ids},
-                )
+            seller = bom._get_subcontracting_seller(res["product"], res["quantity"])
             _debug.logic(
                 "subcontract_report_seller",
                 bom=bom.id,
@@ -74,8 +58,6 @@ class ReportMrpReport_Bom_Structure(models.AbstractModel):
                 res["subcontracting"] = self._get_subcontracting_line(
                     bom, seller, level + 1, res["quantity"]
                 )
-                if not self.env.context.get("minimized", False):
-                    res["bom_cost"] += res["subcontracting"]["bom_cost"]
         return res
 
     def _get_bom_array_lines(self, data, level):

@@ -80,10 +80,18 @@
             <record
                 id="bom_overview_report_column_bom_cost"
                 model="report.formula.column">
-                <field name="name">Cost</field>
+                <field name="name">Rolled-up Cost</field>
                 <field name="expression_label">bom_cost</field>
                 <field name="figure_type">monetary</field>
                 <field name="sequence">80</field>
+            </record>
+            <record
+                id="bom_overview_report_column_standard_cost"
+                model="report.formula.column">
+                <field name="name">Standard Cost</field>
+                <field name="expression_label">standard_cost</field>
+                <field name="figure_type">monetary</field>
+                <field name="sequence">90</field>
             </record>
         </field>
     </record>
