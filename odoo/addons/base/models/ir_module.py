@@ -1727,6 +1727,9 @@ class IrModuleModule(models.Model):
         ):
             self._load_module_terms_into(translation_importer, module_names, langs)
             translation_importer.save(overwrite=overwrite)
+            self.env["ir.model.fields"]._update_inherited_translations(
+                module_names, langs
+            )
 
     def _load_module_terms_into(
         self,

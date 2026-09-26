@@ -1626,6 +1626,102 @@ class IrModelFields(models.Model):
         _debug.pipeline("reflect_fields_xmlids", module=module, xmlids=len(data_list))
         self.env["ir.model.data"]._update_xmlids(data_list)
 
+    def _update_inherited_translations(
+        self, module_names: list[str], langs: list[str]
+    ) -> None:
+        # A catalogue names only the models of its module's dependency closure,
+        # so the label a mixin gives a model outside it (calendar's
+        # activity_calendar_event_id on account.move) has no entry of its own.
+        # Whichever of the two loads last reflects the row that lacks it.
+        langs = [lang for lang in langs if lang != "en_US"]
+        if not langs or not module_names:
+            _debug.logic(
+                "inherited_translations.skipped",
+                reason="no_lang" if not langs else "no_module",
+            )
+            return
+        models_ = self.env.registry.models
+
+        def lineage(model_name):
+            model_cls = models_[model_name]
+            yield from (
+                cls._name
+                for cls in model_cls.mro()
+                if isinstance(getattr(cls, "_name", None), str)
+            )
+            for parent in model_cls._inherits:
+                yield from lineage(parent)
+
+        heirs, ancestors, ranks = [], [], []
+        for model_name in models_:
+            for rank, ancestor in enumerate(
+                name for name in unique(lineage(model_name)) if name != model_name
+            ):
+                heirs.append(model_name)
+                ancestors.append(ancestor)
+                ranks.append(rank)
+        updated = 0
+        with _debug.perf(
+            "inherited_translations",
+            cr=self.env.cr,
+            modules=len(module_names),
+            langs=langs,
+            pairs=len(heirs),
+        ) as span:
+            for column in ("field_description", "help"):
+                self.env.cr.execute(
+                    SQL(
+                        """
+                        WITH ancestry(heir, ancestor, rank) AS (
+                            SELECT * FROM unnest(
+                                %(heirs)s::text[], %(ancestors)s::text[], %(ranks)s::int[]
+                            )
+                        ),
+                        heir AS MATERIALIZED (
+                            SELECT field.id, field.model, field.name, field.%(column)s AS value
+                            FROM ir_model_fields AS field
+                            WHERE field.id IN (
+                                SELECT res_id FROM ir_model_data
+                                WHERE model = 'ir.model.fields'
+                                  AND module = ANY(%(modules)s::text[])
+                            )
+                        ),
+                        inherited AS (
+                            SELECT DISTINCT ON (heir.id, lang.code)
+                                   heir.id, lang.code, donor.%(column)s -> lang.code AS value
+                            FROM heir
+                            JOIN ancestry ON ancestry.heir = heir.model
+                            JOIN ir_model_fields AS donor
+                              ON donor.model = ancestry.ancestor AND donor.name = heir.name
+                            CROSS JOIN unnest(%(langs)s::text[]) AS lang(code)
+                            WHERE donor.%(column)s ->> 'en_US' = heir.value ->> 'en_US'
+                              AND donor.%(column)s -> lang.code IS NOT NULL
+                              AND heir.value -> lang.code IS NULL
+                            ORDER BY heir.id, lang.code, ancestry.rank
+                        )
+                        UPDATE ir_model_fields AS field
+                        SET %(column)s = field.%(column)s || merged.value
+                        FROM (
+                            SELECT id, jsonb_object_agg(code, value) AS value
+                            FROM inherited
+                            GROUP BY id
+                        ) AS merged
+                        WHERE field.id = merged.id
+                        """,
+                        heirs=heirs,
+                        ancestors=ancestors,
+                        ranks=ranks,
+                        modules=list(module_names),
+                        langs=langs,
+                        column=SQL.identifier(column),
+                    )
+                )
+                updated += self.env.cr.rowcount
+            span.set(updated=updated)
+        if updated:
+            self.invalidate_model(["field_description", "help"])
+            self.env.registry.clear_cache("stable")
+
     @tools.ormcache(cache="stable")
     def _get_manual_field_data_by_model(self) -> dict[str, dict[str, Any]]:
         cr = self.env.cr

@@ -159,3 +159,4 @@ from . import test_mixin_company_config
 from . import test_mixin_lifecycle
 from . import test_mixin_recurrence_anchored
 from . import test_view_depends
+from . import test_ir_model_fields_inherited_translation
