@@ -34,10 +34,14 @@ const getTheLayoutChildren = {
 const checkThatLayoutChanged = {
     content: "Ensure that the navbar layout has changed",
     trigger: ":iframe #o_main_nav ul[role='menu']",
-    async run() {
-        if (this.anchor.children.length === numNavChildren) {
-            throw new Error("Navbar layout should change");
-        }
+    async run({ anchor, waitUntil }) {
+        // The menu is re-laid out by a ResizeObserver on a later frame.
+        await waitUntil(
+            () =>
+                anchor.ownerDocument.querySelector("#o_main_nav ul[role='menu']")
+                    ?.children.length !== numNavChildren,
+            { timeout: 5000 },
+        );
     },
 };
 
