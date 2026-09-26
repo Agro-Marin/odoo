@@ -200,6 +200,12 @@ msgid "Connection"
 msgstr "Forbindelse"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "Forbindelse til IoT boks slog fejl"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -337,6 +343,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
+msgstr ""
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
 msgstr ""
 
 #. module: iot
@@ -1356,9 +1368,6 @@ msgstr "for at tilføje en IoT boks."
 
 #~ msgid "Connect an IoT Box"
 #~ msgstr "Forbind til en IoT boks"
-
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "Forbindelse til IoT boks slog fejl"
 
 #~ msgid "Connection to printer failed"
 #~ msgstr "Forbindelse til printer slog fejl"

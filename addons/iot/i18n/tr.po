@@ -221,6 +221,12 @@ msgid "Connection"
 msgstr "Bağlantı"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "IoT Kutusu ile bağlantı kurulamadı"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -360,6 +366,12 @@ msgstr "Günlükler indirilemedi %s"
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
 msgstr "Yazdırma başlatılamadı"
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr "IoT Box'a şu adresten ulaşılamadı %s"
 
 #. module: iot
 #. odoo-javascript
@@ -1438,9 +1450,6 @@ msgstr "IoT kutusu eklemek için."
 #~ msgid "Connect an IoT Box"
 #~ msgstr "IoT Kutusu Bağlama"
 
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "IoT Kutusu ile bağlantı kurulamadı"
-
 #~ msgid "Connection to printer failed"
 #~ msgstr "Yazıcıya bağlantı başarısız"
 
@@ -1513,15 +1522,3 @@ msgstr "IoT kutusu eklemek için."
 #~ msgstr ""
 #~ "IoT Kutunuzu eşleştirmede sorun yaşadık. Lütfen daha sonra tekrar "
 #~ "deneyiniz."
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Connection to IoT Box failed"
-msgstr "IoT Kutusu ile bağlantı kurulamadı"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Failed to reach IoT Box at %s"
-msgstr "IoT Box'a şu adresten ulaşılamadı %s"

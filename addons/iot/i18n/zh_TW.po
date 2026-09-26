@@ -204,6 +204,12 @@ msgid "Connection"
 msgstr "連接"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "連接到IoT Box失敗"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -342,6 +348,12 @@ msgstr "未能從 %s 下載系統日誌"
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
 msgstr "啟動列印失敗"
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr ""
 
 #. module: iot
 #. odoo-javascript
@@ -1383,9 +1395,3 @@ msgstr "添加一個物聯網盒子"
 #~ msgstr ""
 #~ "你的 IoT Box 正在連線至你的資料庫，應該不用很久 <span class=\"spinner-"
 #~ "border spinner-border-sm\"/>"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Connection to IoT Box failed"
-msgstr "連接到IoT Box失敗"

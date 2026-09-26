@@ -204,6 +204,12 @@ msgid "Connection"
 msgstr "连接"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "连接到物联网盒子失败"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -342,6 +348,12 @@ msgstr "未能从 %s 下载系统日志"
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
 msgstr "启动打印失败"
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr "无法到达 %s 的物联网盒子"
 
 #. module: iot
 #. odoo-javascript
@@ -1382,9 +1394,6 @@ msgstr "添加一个IOT 盒子"
 #~ msgid "Connect an IoT Box"
 #~ msgstr "连接一个IOT 盒子"
 
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "连接到IoT Box失败"
-
 #~ msgid "Connection to printer failed"
 #~ msgstr "与打印机的连接失败"
 
@@ -1448,15 +1457,3 @@ msgstr "添加一个IOT 盒子"
 
 #~ msgid "We had troubles pairing your IoT Box. Please try again later."
 #~ msgstr "我们在与您的IOT 盒子配对时遇到麻烦。请稍后再试。"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Connection to IoT Box failed"
-msgstr "连接到物联网盒子失败"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Failed to reach IoT Box at %s"
-msgstr "无法到达 %s 的物联网盒子"

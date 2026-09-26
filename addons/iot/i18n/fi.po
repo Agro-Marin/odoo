@@ -221,6 +221,12 @@ msgid "Connection"
 msgstr "Yhteys"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "Yhteys IoT-boksiin epäonnistui"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -361,6 +367,12 @@ msgstr "Kirjausten lataaminen kohteesta %s epäonnistui"
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
 msgstr "Tulostuksen aloitus epäonnistui"
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr "IoT-boksiin ei saatu yhteyttä %s:ssa"
 
 #. module: iot
 #. odoo-javascript
@@ -1432,9 +1444,6 @@ msgstr "lisätäksesi IoT-boxin."
 #~ msgid "Connect an IoT Box"
 #~ msgstr "Yhdistä IoT-Box"
 
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "Yhteys IoT Boxiin epäonnistui"
-
 #~ msgid "Connection to printer failed"
 #~ msgstr "Yhteys tulostimeen epäonnistui"
 
@@ -1503,15 +1512,3 @@ msgstr "lisätäksesi IoT-boxin."
 #~ msgid "We had troubles pairing your IoT Box. Please try again later."
 #~ msgstr ""
 #~ "Meillä oli ongelmia IoT Boxin yhdistämisessä. Yritä myöhemmin uudelleen."
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Connection to IoT Box failed"
-msgstr "Yhteys IoT-boksiin epäonnistui"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Failed to reach IoT Box at %s"
-msgstr "IoT-boksiin ei saatu yhteyttä %s:ssa"

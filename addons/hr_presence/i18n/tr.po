@@ -43,14 +43,9 @@ msgid ""
 "<div>\n"
 "                    Dear <t t-out=\"object.name or ''\">Abigail Peterson</t>,"
 "<br/><br/>\n"
-"We hope this message finds you well. It has come to our attention that you "
-"are currently not present at work, and there is no record of a time off "
-"request from you. If this absence is due to an oversight on our part, we "
-"sincerely apologize for any confusion.\n"
-"Please take the necessary steps to address this unplanned absence. Should "
-"you have any questions or need assistance, do not hesitate to reach out to "
-"your manager or the HR department at your earliest convenience.\n"
-"Thank you for your prompt attention to this matter.\n"
+"                We hope this message finds you well. It has come to our attention that you are currently not present at work, and there is no record of a time off request from you. If this absence is due to an oversight on our part, we sincerely apologize for any confusion.\n"
+"                Please take the necessary steps to address this unplanned absence. Should you have any questions or need assistance, do not hesitate to reach out to your manager or the HR department at your earliest convenience.\n"
+"                Thank you for your prompt attention to this matter.\n"
 "                    <br/>Best Regards,<br/><br/>\n"
 "                </div>\n"
 "            "
@@ -58,29 +53,34 @@ msgstr ""
 "<div>\n"
 "                    Sayın <t t-out=\"object.name or ''\">Abigail Peterson</"
 "t>,<br/><br/>\n"
-"Umarız her şey yolundadır. Şu anda iş yerinde bulunmadığınızı ve sizden "
-"gelen bir izin talebi kaydı olmadığını fark ettik. Bu durum bizim "
-"tarafımızdan bir dikkatsizlikten kaynaklanıyorsa, karışıklık için içtenlikle "
-"özür dileriz.\n"
-"Lütfen bu planlanmamış devamsızlığı ele almak için gerekli adımları atın. "
-"Herhangi bir sorunuz olması veya yardıma ihtiyaç duymanız halinde, en kısa "
-"sürede yöneticinize veya İK departmanına ulaşmaktan çekinmeyin.\n"
-"Bu konu ile acilen ilgilendiğiniz için teşekkür ederiz.\n"
+"                Umarız her şey yolundadır. Şu anda iş yerinde bulunmadığınızı ve sizden gelen bir izin talebi kaydı olmadığını fark ettik. Bu durum bizim tarafımızdan bir dikkatsizlikten kaynaklanıyorsa, karışıklık için içtenlikle özür dileriz.\n"
+"                Lütfen bu planlanmamış devamsızlığı ele almak için gerekli adımları atın. Herhangi bir sorunuz olması veya yardıma ihtiyaç duymanız halinde, en kısa sürede yöneticinize veya İK departmanına ulaşmaktan çekinmeyin.\n"
+"                Bu konu ile acilen ilgilendiğiniz için teşekkür ederiz.\n"
 "                    <br/>Saygılarımızla,<br/><br/>\n"
 "                </div>\n"
 "            "
 
 #. module: hr_presence
+#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_manual_state__absent
 #: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_state_display__absent
-#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee_public__hr_presence_state_display__absent
 #: model_terms:ir.ui.view,arch_db:hr_presence.hr_employee_view_search
 msgid "Absent"
 msgstr "Mevcut Değil"
 
 #. module: hr_presence
+#: model:ir.model,name:hr_presence.model_ir_actions_actions
+msgid "Actions"
+msgstr ""
+
+#. module: hr_presence
 #: model:ir.actions.server,name:hr_presence.action_hr_employee_presence_log
 msgid "Add a Log Note"
 msgstr "Kayıt notu ekleyin"
+
+#. module: hr_presence
+#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_state_display__archive
+msgid "Archived"
+msgstr ""
 
 #. module: hr_presence
 #: model:ir.model,name:hr_presence.model_res_company
@@ -99,19 +99,13 @@ msgstr "İzin oluşturun"
 
 #. module: hr_presence
 #: model:ir.model.fields,field_description:hr_presence.field_hr_employee__display_name
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__display_name
+#: model:ir.model.fields,field_description:hr_presence.field_ir_actions_actions__display_name
+#: model:ir.model.fields,field_description:hr_presence.field_ir_actions_server__display_name
 #: model:ir.model.fields,field_description:hr_presence.field_ir_websocket__display_name
 #: model:ir.model.fields,field_description:hr_presence.field_res_company__display_name
 #: model:ir.model.fields,field_description:hr_presence.field_res_config_settings__display_name
-#: model:ir.model.fields,field_description:hr_presence.field_res_users_log__display_name
 msgid "Display Name"
 msgstr "İsim Göster"
-
-#. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__email_sent
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__email_sent
-msgid "Email Sent"
-msgstr "E-posta gönderildi"
 
 #. module: hr_presence
 #: model:ir.model,name:hr_presence.model_hr_employee
@@ -119,9 +113,22 @@ msgid "Employee"
 msgstr "Çalışan"
 
 #. module: hr_presence
-#: model:sms.template,name:hr_presence.sms_template_data_hr_presence
+#: model:sms.template,name:hr_presence.sms_template_presence
 msgid "Employee: Presence Reminder"
 msgstr "Personel: Hazır Bulunma Hatırlatması"
+
+#. module: hr_presence
+#: model:ir.model.fields.selection,name:hr_presence.selection__ir_actions_server__hr_presence_section__follow_up
+msgid "Follow it up"
+msgstr ""
+
+#. module: hr_presence
+#: model:ir.model.fields,help:hr_presence.field_ir_actions_server__hr_presence_section
+#: model:ir.model.fields,help:hr_presence.field_ir_cron__hr_presence_section
+msgid ""
+"Groups this action under the gear menu's Presence Control submenu, in the "
+"named section."
+msgstr ""
 
 #. module: hr_presence
 #: model:ir.actions.server,name:hr_presence.ir_cron_presence_control_ir_actions_server
@@ -134,7 +141,9 @@ msgid "HR: Employee Absence email"
 msgstr "İK: Çalışan Devamsızlığı e-postası"
 
 #. module: hr_presence
-#: model:sms.template,body:hr_presence.sms_template_data_hr_presence
+#. odoo-python
+#: code:addons/hr_presence/models/hr_employee.py:0
+#: model:sms.template,body:hr_presence.sms_template_presence
 msgid ""
 "Hi, we noticed you're not at work and no time-off was submitted. If this is "
 "an oversight from us, we apologize. Please contact your manager or HR ASAP. "
@@ -145,61 +154,78 @@ msgstr ""
 "veya İK departmanına başvurun. Teşekkürler."
 
 #. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_res_company__hr_presence_last_compute_date
-msgid "Hr Presence Last Compute Date"
-msgstr "İk Hazır Bulunma Son İşlem Tarihi"
-
-#. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_state_display
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__hr_presence_state_display
-msgid "Hr Presence State Display"
-msgstr "İk Hazır Bulunma Durumu Ekranı"
-
-#. module: hr_presence
 #: model:ir.model.fields,field_description:hr_presence.field_hr_employee__id
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__id
+#: model:ir.model.fields,field_description:hr_presence.field_ir_actions_actions__id
+#: model:ir.model.fields,field_description:hr_presence.field_ir_actions_server__id
 #: model:ir.model.fields,field_description:hr_presence.field_ir_websocket__id
 #: model:ir.model.fields,field_description:hr_presence.field_res_company__id
 #: model:ir.model.fields,field_description:hr_presence.field_res_config_settings__id
-#: model:ir.model.fields,field_description:hr_presence.field_res_users_log__id
 msgid "ID"
 msgstr "ID"
 
 #. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_res_users_log__ip
-msgid "IP Address"
-msgstr "IP Adresi"
+#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_ip_date
+msgid "Last Company-IP Connection"
+msgstr ""
 
 #. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__ip_connected
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__ip_connected
-msgid "Ip Connected"
-msgstr "IP Bağlantılı"
+#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_email_date
+msgid "Last Day Emails Were Sent"
+msgstr ""
 
 #. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__manually_set_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__manually_set_presence
-msgid "Manually Set Presence"
-msgstr "Manuel Olarak Ayarlanmış Mevcudiyet"
+#: model:ir.model.fields,help:hr_presence.field_hr_employee__hr_presence_ip_date
+msgid ""
+"Last day this employee reached the server from an address listed in their "
+"company's valid IP addresses."
+msgstr ""
 
 #. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__manually_set_present
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__manually_set_present
-msgid "Manually Set Present"
-msgstr "Manuel olarak Ayarla"
+#: model:ir.model.fields,help:hr_presence.field_hr_employee__hr_presence_email_date
+msgid ""
+"Last day this employee sent at least the number of emails their company "
+"requires as proof of presence."
+msgstr ""
+
+#. module: hr_presence
+#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_manual_state
+msgid "Manual Presence"
+msgstr ""
+
+#. module: hr_presence
+#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_manual_date
+msgid "Manual Presence Date"
+msgstr ""
 
 #. module: hr_presence
 #: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_state_display__out_of_working_hour
-#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee_public__hr_presence_state_display__out_of_working_hour
 #: model_terms:ir.ui.view,arch_db:hr_presence.hr_employee_view_search
 msgid "Off-Hours"
 msgstr "Mesai Dışı"
 
 #. module: hr_presence
+#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_state_display
+msgid "Presence"
+msgstr "Hazır Bulunma"
+
+#. module: hr_presence
 #. odoo-javascript
-#: code:addons/hr_presence/static/src/search/hr_presence_cog_menu/hr_presence_cog_menu.xml:0
+#: code:addons/hr_presence/static/src/search/hr_presence_sub_menu/hr_presence_sub_menu.xml:0
 msgid "Presence Control"
 msgstr "Çalışan Mevcudiyet Kontrolü"
+
+#. module: hr_presence
+#: model:ir.model.fields,field_description:hr_presence.field_ir_actions_server__hr_presence_section
+#: model:ir.model.fields,field_description:hr_presence.field_ir_cron__hr_presence_section
+msgid "Presence Menu Section"
+msgstr ""
+
+#. module: hr_presence
+#: model:ir.model.fields,help:hr_presence.field_hr_employee__hr_presence_manual_state
+msgid ""
+"Presence set by hand by an HR manager. It applies to the day in Manual "
+"Presence Date and is ignored on any other day."
+msgstr ""
 
 #. module: hr_presence
 #: model_terms:ir.ui.view,arch_db:hr_presence.hr_employee_view_search
@@ -207,15 +233,21 @@ msgid "Presence/Absence"
 msgstr "Varlık/Yokluk"
 
 #. module: hr_presence
+#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_manual_state__present
 #: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_state_display__present
-#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee_public__hr_presence_state_display__present
 msgid "Present"
 msgstr "Mevcut"
 
 #. module: hr_presence
-#: model:ir.model,name:hr_presence.model_hr_employee_public
-msgid "Public Employee"
-msgstr "Herkese Açık Personel"
+#. odoo-python
+#: code:addons/hr_presence/models/hr_employee.py:0
+msgid "Send Email"
+msgstr ""
+
+#. module: hr_presence
+#: model:ir.actions.server,name:hr_presence.action_hr_employee_presence_email
+msgid "Send Email…"
+msgstr ""
 
 #. module: hr_presence
 #. odoo-python
@@ -238,6 +270,11 @@ msgstr ""
 "modülünde manuel olarak gönderilir."
 
 #. module: hr_presence
+#: model:ir.model,name:hr_presence.model_ir_actions_server
+msgid "Server Action"
+msgstr ""
+
+#. module: hr_presence
 #: model:ir.actions.server,name:hr_presence.action_hr_employee_presence_absent
 msgid "Set Absent"
 msgstr "'Mevcut Değil' olarak ayarlayın"
@@ -246,6 +283,11 @@ msgstr "'Mevcut Değil' olarak ayarlayın"
 #: model:ir.actions.server,name:hr_presence.action_hr_employee_presence_present
 msgid "Set Present"
 msgstr "'Mevcut' olarak ayarlayın"
+
+#. module: hr_presence
+#: model:ir.model.fields.selection,name:hr_presence.selection__ir_actions_server__hr_presence_section__state
+msgid "Set the presence"
+msgstr ""
 
 #. module: hr_presence
 #: model:mail.template,subject:hr_presence.mail_template_presence
@@ -259,33 +301,6 @@ msgid "Unplanned Absence"
 msgstr "Önceden Planlanmamış Devamsızlık"
 
 #. module: hr_presence
-#: model:ir.model,name:hr_presence.model_res_users_log
-msgid "Users Log"
-msgstr "Kullanıcı Kayıtları"
-
-#. module: hr_presence
-#. odoo-python
-#: code:addons/hr_presence/models/hr_employee.py:0
-msgid ""
-"We hope this message finds you well. It has come to our attention that you "
-"are currently not present at work, and there is no record of a time off "
-"request from you. If this absence is due to an oversight on our part, we "
-"sincerely apologize for any confusion.\n"
-"Please take the necessary steps to address this unplanned absence. Should "
-"you have any questions or need assistance, do not hesitate to reach out to "
-"your manager or the HR department at your earliest convenience.\n"
-"Thank you for your prompt attention to this matter."
-msgstr ""
-"Umarız her şey yolundadır. Şu anda iş yerinde bulunmadığınızı ve sizden "
-"gelen bir izin talebi kaydı olmadığını fark ettik. Bu durum bizim "
-"tarafımızdan bir dikkatsizlikten kaynaklanıyorsa, karışıklık için içtenlikle "
-"özür dileriz.\n"
-"Lütfen bu planlanmamış devamsızlığı ele almak için gerekli adımları atın. "
-"Herhangi bir sorunuz olması veya yardıma ihtiyaç duymanız halinde, en kısa "
-"sürede yöneticinize veya İK  departmanına ulaşmaktan çekinmeyin.\n"
-"Bu konu ile acilen ilgilendiğiniz için teşekkür ederiz."
-
-#. module: hr_presence
 #. odoo-python
 #: code:addons/hr_presence/models/hr_employee.py:0
 msgid "You don't have the right to do this. Please contact an Administrator."
@@ -295,6 +310,83 @@ msgstr "Bunu yapma hakkınız yok. Lütfen bir Yöneticiye başvurun."
 #: model:ir.model,name:hr_presence.model_ir_websocket
 msgid "websocket message handling"
 msgstr "websocket mesaj işleme"
+
+#~ msgid ""
+#~ "<div>\n"
+#~ "                    Dear <t t-out=\"object.name or ''\">Abigail Peterson</t>,"
+#~ "<br/><br/>\n"
+#~ "We hope this message finds you well. It has come to our attention that you "
+#~ "are currently not present at work, and there is no record of a time off "
+#~ "request from you. If this absence is due to an oversight on our part, we "
+#~ "sincerely apologize for any confusion.\n"
+#~ "Please take the necessary steps to address this unplanned absence. Should "
+#~ "you have any questions or need assistance, do not hesitate to reach out to "
+#~ "your manager or the HR department at your earliest convenience.\n"
+#~ "Thank you for your prompt attention to this matter.\n"
+#~ "                    <br/>Best Regards,<br/><br/>\n"
+#~ "                </div>\n"
+#~ "            "
+#~ msgstr ""
+#~ "<div>\n"
+#~ "                    Sayın <t t-out=\"object.name or ''\">Abigail Peterson</"
+#~ "t>,<br/><br/>\n"
+#~ "Umarız her şey yolundadır. Şu anda iş yerinde bulunmadığınızı ve sizden "
+#~ "gelen bir izin talebi kaydı olmadığını fark ettik. Bu durum bizim "
+#~ "tarafımızdan bir dikkatsizlikten kaynaklanıyorsa, karışıklık için içtenlikle "
+#~ "özür dileriz.\n"
+#~ "Lütfen bu planlanmamış devamsızlığı ele almak için gerekli adımları atın. "
+#~ "Herhangi bir sorunuz olması veya yardıma ihtiyaç duymanız halinde, en kısa "
+#~ "sürede yöneticinize veya İK departmanına ulaşmaktan çekinmeyin.\n"
+#~ "Bu konu ile acilen ilgilendiğiniz için teşekkür ederiz.\n"
+#~ "                    <br/>Saygılarımızla,<br/><br/>\n"
+#~ "                </div>\n"
+#~ "            "
+
+#~ msgid "Email Sent"
+#~ msgstr "E-posta gönderildi"
+
+#~ msgid "Hr Presence Last Compute Date"
+#~ msgstr "İk Hazır Bulunma Son İşlem Tarihi"
+
+#~ msgid "Hr Presence State Display"
+#~ msgstr "İk Hazır Bulunma Durumu Ekranı"
+
+#~ msgid "IP Address"
+#~ msgstr "IP Adresi"
+
+#~ msgid "Ip Connected"
+#~ msgstr "IP Bağlantılı"
+
+#~ msgid "Manually Set Presence"
+#~ msgstr "Manuel Olarak Ayarlanmış Mevcudiyet"
+
+#~ msgid "Manually Set Present"
+#~ msgstr "Manuel olarak Ayarla"
+
+#~ msgid "Public Employee"
+#~ msgstr "Herkese Açık Personel"
+
+#~ msgid "Users Log"
+#~ msgstr "Kullanıcı Kayıtları"
+
+#~ msgid ""
+#~ "We hope this message finds you well. It has come to our attention that you "
+#~ "are currently not present at work, and there is no record of a time off "
+#~ "request from you. If this absence is due to an oversight on our part, we "
+#~ "sincerely apologize for any confusion.\n"
+#~ "Please take the necessary steps to address this unplanned absence. Should "
+#~ "you have any questions or need assistance, do not hesitate to reach out to "
+#~ "your manager or the HR department at your earliest convenience.\n"
+#~ "Thank you for your prompt attention to this matter."
+#~ msgstr ""
+#~ "Umarız her şey yolundadır. Şu anda iş yerinde bulunmadığınızı ve sizden "
+#~ "gelen bir izin talebi kaydı olmadığını fark ettik. Bu durum bizim "
+#~ "tarafımızdan bir dikkatsizlikten kaynaklanıyorsa, karışıklık için içtenlikle "
+#~ "özür dileriz.\n"
+#~ "Lütfen bu planlanmamış devamsızlığı ele almak için gerekli adımları atın. "
+#~ "Herhangi bir sorunuz olması veya yardıma ihtiyaç duymanız halinde, en kısa "
+#~ "sürede yöneticinize veya İK  departmanına ulaşmaktan çekinmeyin.\n"
+#~ "Bu konu ile acilen ilgilendiğiniz için teşekkür ederiz."
 
 #~ msgid "Absence/Presence"
 #~ msgstr "Devamsızlık/Varlık"
@@ -331,9 +423,6 @@ msgstr "websocket mesaj işleme"
 
 #~ msgid "Log"
 #~ msgstr "Kayıt"
-
-#~ msgid "Presence"
-#~ msgstr "Hazır Bulunma"
 
 #~ msgid "SMS"
 #~ msgstr "SMS"

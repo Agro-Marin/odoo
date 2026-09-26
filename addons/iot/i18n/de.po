@@ -212,6 +212,12 @@ msgid "Connection"
 msgstr "Verbindung"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "Verbindung zur IoT-Box fehlgeschlagen"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -352,6 +358,12 @@ msgstr "Protokolle von %s konnten nicht heruntergeladen werden"
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
 msgstr "Druck konnte nicht gestartet werden"
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr "IoT-Box in %s konnte nicht erreicht werden"
 
 #. module: iot
 #. odoo-javascript
@@ -1450,9 +1462,6 @@ msgstr ", um eine IoT-Box hinzuzufügen."
 #~ msgid "Connect an IoT Box"
 #~ msgstr "Schließen Sie eine IoT-Box an"
 
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "Verbindung zur IoT Box fehlgeschlagen"
-
 #~ msgid "Connection to printer failed"
 #~ msgstr "Verbindung mit Drucker fehlgeschlagen"
 
@@ -1522,15 +1531,3 @@ msgstr ", um eine IoT-Box hinzuzufügen."
 #~ msgstr ""
 #~ "Bei der Kopplung Ihrer IoT-Box sind Probleme aufgetreten. Bitte versuchen "
 #~ "Sie es später noch einmal."
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Connection to IoT Box failed"
-msgstr "Verbindung zur IoT-Box fehlgeschlagen"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Failed to reach IoT Box at %s"
-msgstr "IoT-Box in %s konnte nicht erreicht werden"

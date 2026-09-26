@@ -215,6 +215,12 @@ msgid "Connection"
 msgstr "Conexiune"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "Conexiunea la IoT Box a eșuat"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -355,6 +361,12 @@ msgstr "Eșec la descărcarea jurnalelor de la %s"
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
 msgstr "Eșec la inițierea imprimării"
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr "Nu s-a putut conecta la IoT Box la %s"
 
 #. module: iot
 #. odoo-javascript
@@ -1417,9 +1429,6 @@ msgstr "pentru a adăuga o casetă IoT."
 #~ msgid "Connect an IoT Box"
 #~ msgstr "Conectați o casetă IoT"
 
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "Conectarea la caseta IoT a eșuat"
-
 #~ msgid "Connection to printer failed"
 #~ msgstr "Conectarea la imprimantă eșuat"
 
@@ -1488,15 +1497,3 @@ msgstr "pentru a adăuga o casetă IoT."
 #~ msgstr ""
 #~ "Am întâmpinat probleme la asocierea casetei dvs. IoT. Vă rugăm să "
 #~ "încercați din nou mai târziu."
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Connection to IoT Box failed"
-msgstr "Conexiunea la IoT Box a eșuat"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Failed to reach IoT Box at %s"
-msgstr "Nu s-a putut conecta la IoT Box la %s"

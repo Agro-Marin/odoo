@@ -203,6 +203,12 @@ msgid "Connection"
 msgstr "연결"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "IoT Box에 연결하지 못했습니다"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -341,6 +347,12 @@ msgstr "%s 에서 로그 다운로드 실패"
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
 msgstr "인쇄 시작에 실패했습니다."
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr "%s 위치에서 IoT 박스 연결 실패"
 
 #. module: iot
 #. odoo-javascript
@@ -1357,9 +1369,6 @@ msgstr "IoT 박스에 추가하기."
 #~ msgid "Connect an IoT Box"
 #~ msgstr "IoT 박스 연결"
 
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "IoT Box에 연결하지 못했습니다"
-
 #~ msgid "Device type"
 #~ msgstr "장치 유형"
 
@@ -1403,15 +1412,3 @@ msgstr "IoT 박스에 추가하기."
 
 #~ msgid "There is no device connected to this IoT Box"
 #~ msgstr "이 IoT Box에 연결된 장치가 없습니다"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Connection to IoT Box failed"
-msgstr "IoT Box에 연결하지 못했습니다"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Failed to reach IoT Box at %s"
-msgstr "%s 위치에서 IoT 박스 연결 실패"

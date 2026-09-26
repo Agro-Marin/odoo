@@ -211,6 +211,12 @@ msgid "Connection"
 msgstr "Подключение"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "Не удалось подключиться к IoT-коробке"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -351,6 +357,12 @@ msgstr "Не удалось загрузить логи из %s"
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
 msgstr "Не удалось инициировать печать"
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr ""
 
 #. module: iot
 #. odoo-javascript
@@ -1436,9 +1448,6 @@ msgstr "для добавления IoT-коробки."
 
 #~ msgid "Connect an IoT Box"
 #~ msgstr "Подключите IoT Box"
-
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "Не удалось подключиться к IoT-коробке"
 
 #~ msgid "Device type"
 #~ msgstr "Тип устройства"

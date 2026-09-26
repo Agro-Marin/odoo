@@ -212,6 +212,12 @@ msgid "Connection"
 msgstr "Connessione"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "Connessione al box IoT non riuscita"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -352,6 +358,12 @@ msgstr "Impossibile scaricare i registri da %s"
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
 msgstr "Impossibile avviare la stampa"
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr "Impossibile raggiungere la box IoT su %s"
 
 #. module: iot
 #. odoo-javascript
@@ -1433,9 +1445,6 @@ msgstr "per aggiungere un box IoT."
 #~ msgid "Connect an IoT Box"
 #~ msgstr "Collegare una IoT Box"
 
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "Connessione al box IoT non riuscita"
-
 #~ msgid "Connection to printer failed"
 #~ msgstr "Connessione alla stampante fallita"
 
@@ -1505,15 +1514,3 @@ msgstr "per aggiungere un box IoT."
 #~ msgstr ""
 #~ "Abbiamo avuto problemi ad abbinare la tua IoT Box. Per favore riprova più "
 #~ "tardi."
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Connection to IoT Box failed"
-msgstr "Connessione al box IoT non riuscita"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Failed to reach IoT Box at %s"
-msgstr "Impossibile raggiungere la box IoT su %s"

@@ -32,14 +32,9 @@ msgid ""
 "<div>\n"
 "                    Dear <t t-out=\"object.name or ''\">Abigail Peterson</t>,"
 "<br/><br/>\n"
-"We hope this message finds you well. It has come to our attention that you "
-"are currently not present at work, and there is no record of a time off "
-"request from you. If this absence is due to an oversight on our part, we "
-"sincerely apologize for any confusion.\n"
-"Please take the necessary steps to address this unplanned absence. Should "
-"you have any questions or need assistance, do not hesitate to reach out to "
-"your manager or the HR department at your earliest convenience.\n"
-"Thank you for your prompt attention to this matter.\n"
+"                We hope this message finds you well. It has come to our attention that you are currently not present at work, and there is no record of a time off request from you. If this absence is due to an oversight on our part, we sincerely apologize for any confusion.\n"
+"                Please take the necessary steps to address this unplanned absence. Should you have any questions or need assistance, do not hesitate to reach out to your manager or the HR department at your earliest convenience.\n"
+"                Thank you for your prompt attention to this matter.\n"
 "                    <br/>Best Regards,<br/><br/>\n"
 "                </div>\n"
 "            "
@@ -47,27 +42,34 @@ msgstr ""
 "<div>\n"
 "                    안녕하세요, <t t-out=\"object.name or ''\">Abigail "
 "Peterson</t>님.<br/><br/>\n"
-"귀하께서 현재 휴가 요청 기록 없이 회사에 출근하지 않고 있는 것으로 확인되었습"
-"니다. 저희측의 시스템 오류인 경우, 혼란을 드린 점 사과드리겠습니다.\n"
-"미리 계획되지 않은 결근 문제를 해결하기 위해 필요한 조치를 취해주시기 바랍니"
-"다.\n"
-"궁금한 점이 있거나 도움이 필요하시다면 최대한 빠른 시일 내에 관리자 또는 인사"
-"팀에 문의해 주십시오.\n"
+"                귀하께서 현재 휴가 요청 기록 없이 회사에 출근하지 않고 있는 것으로 확인되었습니다. 저희측의 시스템 오류인 경우, 혼란을 드린 점 사과드리겠습니다.\n"
+"                미리 계획되지 않은 결근 문제를 해결하기 위해 필요한 조치를 취해주시기 바랍니다.\n"
+"                궁금한 점이 있거나 도움이 필요하시다면 최대한 빠른 시일 내에 관리자 또는 인사팀에 문의해 주십시오.\n"
 "                    <br/>감사합니다.<br/><br/>\n"
 "                </div>\n"
 "            "
 
 #. module: hr_presence
+#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_manual_state__absent
 #: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_state_display__absent
-#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee_public__hr_presence_state_display__absent
 #: model_terms:ir.ui.view,arch_db:hr_presence.hr_employee_view_search
 msgid "Absent"
 msgstr "부재중"
 
 #. module: hr_presence
+#: model:ir.model,name:hr_presence.model_ir_actions_actions
+msgid "Actions"
+msgstr ""
+
+#. module: hr_presence
 #: model:ir.actions.server,name:hr_presence.action_hr_employee_presence_log
 msgid "Add a Log Note"
 msgstr "로그 노트 추가"
+
+#. module: hr_presence
+#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_state_display__archive
+msgid "Archived"
+msgstr ""
 
 #. module: hr_presence
 #: model:ir.model,name:hr_presence.model_res_company
@@ -86,19 +88,13 @@ msgstr "휴가 만들기"
 
 #. module: hr_presence
 #: model:ir.model.fields,field_description:hr_presence.field_hr_employee__display_name
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__display_name
+#: model:ir.model.fields,field_description:hr_presence.field_ir_actions_actions__display_name
+#: model:ir.model.fields,field_description:hr_presence.field_ir_actions_server__display_name
 #: model:ir.model.fields,field_description:hr_presence.field_ir_websocket__display_name
 #: model:ir.model.fields,field_description:hr_presence.field_res_company__display_name
 #: model:ir.model.fields,field_description:hr_presence.field_res_config_settings__display_name
-#: model:ir.model.fields,field_description:hr_presence.field_res_users_log__display_name
 msgid "Display Name"
 msgstr "표시명"
-
-#. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__email_sent
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__email_sent
-msgid "Email Sent"
-msgstr "보낸 이메일"
 
 #. module: hr_presence
 #: model:ir.model,name:hr_presence.model_hr_employee
@@ -106,9 +102,22 @@ msgid "Employee"
 msgstr "직원"
 
 #. module: hr_presence
-#: model:sms.template,name:hr_presence.sms_template_data_hr_presence
+#: model:sms.template,name:hr_presence.sms_template_presence
 msgid "Employee: Presence Reminder"
 msgstr "임직원 : 출석 현황 미리 알림"
+
+#. module: hr_presence
+#: model:ir.model.fields.selection,name:hr_presence.selection__ir_actions_server__hr_presence_section__follow_up
+msgid "Follow it up"
+msgstr ""
+
+#. module: hr_presence
+#: model:ir.model.fields,help:hr_presence.field_ir_actions_server__hr_presence_section
+#: model:ir.model.fields,help:hr_presence.field_ir_cron__hr_presence_section
+msgid ""
+"Groups this action under the gear menu's Presence Control submenu, in the "
+"named section."
+msgstr ""
 
 #. module: hr_presence
 #: model:ir.actions.server,name:hr_presence.ir_cron_presence_control_ir_actions_server
@@ -121,7 +130,9 @@ msgid "HR: Employee Absence email"
 msgstr "인사: 직원 부재 이메일"
 
 #. module: hr_presence
-#: model:sms.template,body:hr_presence.sms_template_data_hr_presence
+#. odoo-python
+#: code:addons/hr_presence/models/hr_employee.py:0
+#: model:sms.template,body:hr_presence.sms_template_presence
 msgid ""
 "Hi, we noticed you're not at work and no time-off was submitted. If this is "
 "an oversight from us, we apologize. Please contact your manager or HR ASAP. "
@@ -133,61 +144,78 @@ msgstr ""
 "다."
 
 #. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_res_company__hr_presence_last_compute_date
-msgid "Hr Presence Last Compute Date"
-msgstr "인사 출석 현황 최근 계산일"
-
-#. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_state_display
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__hr_presence_state_display
-msgid "Hr Presence State Display"
-msgstr "인사 출석 현황 표시"
-
-#. module: hr_presence
 #: model:ir.model.fields,field_description:hr_presence.field_hr_employee__id
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__id
+#: model:ir.model.fields,field_description:hr_presence.field_ir_actions_actions__id
+#: model:ir.model.fields,field_description:hr_presence.field_ir_actions_server__id
 #: model:ir.model.fields,field_description:hr_presence.field_ir_websocket__id
 #: model:ir.model.fields,field_description:hr_presence.field_res_company__id
 #: model:ir.model.fields,field_description:hr_presence.field_res_config_settings__id
-#: model:ir.model.fields,field_description:hr_presence.field_res_users_log__id
 msgid "ID"
 msgstr "ID"
 
 #. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_res_users_log__ip
-msgid "IP Address"
-msgstr "IP 주소"
+#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_ip_date
+msgid "Last Company-IP Connection"
+msgstr ""
 
 #. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__ip_connected
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__ip_connected
-msgid "Ip Connected"
-msgstr "연결된 IP"
+#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_email_date
+msgid "Last Day Emails Were Sent"
+msgstr ""
 
 #. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__manually_set_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__manually_set_presence
-msgid "Manually Set Presence"
-msgstr "수동으로 출근 설정"
+#: model:ir.model.fields,help:hr_presence.field_hr_employee__hr_presence_ip_date
+msgid ""
+"Last day this employee reached the server from an address listed in their "
+"company's valid IP addresses."
+msgstr ""
 
 #. module: hr_presence
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__manually_set_present
-#: model:ir.model.fields,field_description:hr_presence.field_hr_employee_public__manually_set_present
-msgid "Manually Set Present"
-msgstr "수동으로 출근 설정"
+#: model:ir.model.fields,help:hr_presence.field_hr_employee__hr_presence_email_date
+msgid ""
+"Last day this employee sent at least the number of emails their company "
+"requires as proof of presence."
+msgstr ""
+
+#. module: hr_presence
+#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_manual_state
+msgid "Manual Presence"
+msgstr ""
+
+#. module: hr_presence
+#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_manual_date
+msgid "Manual Presence Date"
+msgstr ""
 
 #. module: hr_presence
 #: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_state_display__out_of_working_hour
-#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee_public__hr_presence_state_display__out_of_working_hour
 #: model_terms:ir.ui.view,arch_db:hr_presence.hr_employee_view_search
 msgid "Off-Hours"
 msgstr "근무 외 시간"
 
 #. module: hr_presence
+#: model:ir.model.fields,field_description:hr_presence.field_hr_employee__hr_presence_state_display
+msgid "Presence"
+msgstr "출석"
+
+#. module: hr_presence
 #. odoo-javascript
-#: code:addons/hr_presence/static/src/search/hr_presence_cog_menu/hr_presence_cog_menu.xml:0
+#: code:addons/hr_presence/static/src/search/hr_presence_sub_menu/hr_presence_sub_menu.xml:0
 msgid "Presence Control"
 msgstr "근태 관리"
+
+#. module: hr_presence
+#: model:ir.model.fields,field_description:hr_presence.field_ir_actions_server__hr_presence_section
+#: model:ir.model.fields,field_description:hr_presence.field_ir_cron__hr_presence_section
+msgid "Presence Menu Section"
+msgstr ""
+
+#. module: hr_presence
+#: model:ir.model.fields,help:hr_presence.field_hr_employee__hr_presence_manual_state
+msgid ""
+"Presence set by hand by an HR manager. It applies to the day in Manual "
+"Presence Date and is ignored on any other day."
+msgstr ""
 
 #. module: hr_presence
 #: model_terms:ir.ui.view,arch_db:hr_presence.hr_employee_view_search
@@ -195,15 +223,21 @@ msgid "Presence/Absence"
 msgstr "출근/결근"
 
 #. module: hr_presence
+#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_manual_state__present
 #: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee__hr_presence_state_display__present
-#: model:ir.model.fields.selection,name:hr_presence.selection__hr_employee_public__hr_presence_state_display__present
 msgid "Present"
 msgstr "출근"
 
 #. module: hr_presence
-#: model:ir.model,name:hr_presence.model_hr_employee_public
-msgid "Public Employee"
-msgstr "일반 직원"
+#. odoo-python
+#: code:addons/hr_presence/models/hr_employee.py:0
+msgid "Send Email"
+msgstr ""
+
+#. module: hr_presence
+#: model:ir.actions.server,name:hr_presence.action_hr_employee_presence_email
+msgid "Send Email…"
+msgstr ""
 
 #. module: hr_presence
 #. odoo-python
@@ -226,6 +260,11 @@ msgstr ""
 "수동으로 전송"
 
 #. module: hr_presence
+#: model:ir.model,name:hr_presence.model_ir_actions_server
+msgid "Server Action"
+msgstr ""
+
+#. module: hr_presence
 #: model:ir.actions.server,name:hr_presence.action_hr_employee_presence_absent
 msgid "Set Absent"
 msgstr "부재 설정"
@@ -234,6 +273,11 @@ msgstr "부재 설정"
 #: model:ir.actions.server,name:hr_presence.action_hr_employee_presence_present
 msgid "Set Present"
 msgstr "근태 설정"
+
+#. module: hr_presence
+#: model:ir.model.fields.selection,name:hr_presence.selection__ir_actions_server__hr_presence_section__state
+msgid "Set the presence"
+msgstr ""
 
 #. module: hr_presence
 #: model:mail.template,subject:hr_presence.mail_template_presence
@@ -247,31 +291,6 @@ msgid "Unplanned Absence"
 msgstr "무단 결근"
 
 #. module: hr_presence
-#: model:ir.model,name:hr_presence.model_res_users_log
-msgid "Users Log"
-msgstr "사용자 로그"
-
-#. module: hr_presence
-#. odoo-python
-#: code:addons/hr_presence/models/hr_employee.py:0
-msgid ""
-"We hope this message finds you well. It has come to our attention that you "
-"are currently not present at work, and there is no record of a time off "
-"request from you. If this absence is due to an oversight on our part, we "
-"sincerely apologize for any confusion.\n"
-"Please take the necessary steps to address this unplanned absence. Should "
-"you have any questions or need assistance, do not hesitate to reach out to "
-"your manager or the HR department at your earliest convenience.\n"
-"Thank you for your prompt attention to this matter."
-msgstr ""
-"귀하께서 현재 회사에 출근하지 않은 상태이며, 휴가 신청을 한 기록이 없는 것으"
-"로 확인되고 있습니다. 이 내용이 회사 시스템 오류로 인해 발생한 경우라면, 혼란"
-"을 드린 점을 미리 양해 부탁드립니다.\n"
-"다만 부득이하게 결근하게 된 경우라면 해당 사항을 해결하기 위해 필요한 조치를 "
-"취해 주시기 바랍니다. 추가적으로 문의 사항이 있거나 지원이 필요한 경우\n"
-"최대한 빠른 시일 내에 관리자 또는 인사팀에 문의해 주세요."
-
-#. module: hr_presence
 #. odoo-python
 #: code:addons/hr_presence/models/hr_employee.py:0
 msgid "You don't have the right to do this. Please contact an Administrator."
@@ -282,11 +301,81 @@ msgstr "귀하는 이를 수행할 권리가 없습니다. 관리자에게 문�
 msgid "websocket message handling"
 msgstr "웹소켓 메시지 처리"
 
+#~ msgid ""
+#~ "<div>\n"
+#~ "                    Dear <t t-out=\"object.name or ''\">Abigail Peterson</t>,"
+#~ "<br/><br/>\n"
+#~ "We hope this message finds you well. It has come to our attention that you "
+#~ "are currently not present at work, and there is no record of a time off "
+#~ "request from you. If this absence is due to an oversight on our part, we "
+#~ "sincerely apologize for any confusion.\n"
+#~ "Please take the necessary steps to address this unplanned absence. Should "
+#~ "you have any questions or need assistance, do not hesitate to reach out to "
+#~ "your manager or the HR department at your earliest convenience.\n"
+#~ "Thank you for your prompt attention to this matter.\n"
+#~ "                    <br/>Best Regards,<br/><br/>\n"
+#~ "                </div>\n"
+#~ "            "
+#~ msgstr ""
+#~ "<div>\n"
+#~ "                    안녕하세요, <t t-out=\"object.name or ''\">Abigail "
+#~ "Peterson</t>님.<br/><br/>\n"
+#~ "귀하께서 현재 휴가 요청 기록 없이 회사에 출근하지 않고 있는 것으로 확인되었습"
+#~ "니다. 저희측의 시스템 오류인 경우, 혼란을 드린 점 사과드리겠습니다.\n"
+#~ "미리 계획되지 않은 결근 문제를 해결하기 위해 필요한 조치를 취해주시기 바랍니"
+#~ "다.\n"
+#~ "궁금한 점이 있거나 도움이 필요하시다면 최대한 빠른 시일 내에 관리자 또는 인사"
+#~ "팀에 문의해 주십시오.\n"
+#~ "                    <br/>감사합니다.<br/><br/>\n"
+#~ "                </div>\n"
+#~ "            "
+
+#~ msgid "Email Sent"
+#~ msgstr "보낸 이메일"
+
+#~ msgid "Hr Presence Last Compute Date"
+#~ msgstr "인사 출석 현황 최근 계산일"
+
+#~ msgid "Hr Presence State Display"
+#~ msgstr "인사 출석 현황 표시"
+
+#~ msgid "IP Address"
+#~ msgstr "IP 주소"
+
+#~ msgid "Ip Connected"
+#~ msgstr "연결된 IP"
+
+#~ msgid "Manually Set Presence"
+#~ msgstr "수동으로 출근 설정"
+
+#~ msgid "Manually Set Present"
+#~ msgstr "수동으로 출근 설정"
+
+#~ msgid "Public Employee"
+#~ msgstr "일반 직원"
+
+#~ msgid "Users Log"
+#~ msgstr "사용자 로그"
+
+#~ msgid ""
+#~ "We hope this message finds you well. It has come to our attention that you "
+#~ "are currently not present at work, and there is no record of a time off "
+#~ "request from you. If this absence is due to an oversight on our part, we "
+#~ "sincerely apologize for any confusion.\n"
+#~ "Please take the necessary steps to address this unplanned absence. Should "
+#~ "you have any questions or need assistance, do not hesitate to reach out to "
+#~ "your manager or the HR department at your earliest convenience.\n"
+#~ "Thank you for your prompt attention to this matter."
+#~ msgstr ""
+#~ "귀하께서 현재 회사에 출근하지 않은 상태이며, 휴가 신청을 한 기록이 없는 것으"
+#~ "로 확인되고 있습니다. 이 내용이 회사 시스템 오류로 인해 발생한 경우라면, 혼란"
+#~ "을 드린 점을 미리 양해 부탁드립니다.\n"
+#~ "다만 부득이하게 결근하게 된 경우라면 해당 사항을 해결하기 위해 필요한 조치를 "
+#~ "취해 주시기 바랍니다. 추가적으로 문의 사항이 있거나 지원이 필요한 경우\n"
+#~ "최대한 빠른 시일 내에 관리자 또는 인사팀에 문의해 주세요."
+
 #~ msgid "Create Uid"
 #~ msgstr "Uid 만들기"
 
 #~ msgid "Out of Working Hours"
 #~ msgstr "근무 시간 외"
-
-#~ msgid "Presence"
-#~ msgstr "출석"

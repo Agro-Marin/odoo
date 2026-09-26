@@ -210,6 +210,12 @@ msgid "Connection"
 msgstr "Connexió"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "Ha fallat la connexió a la IoT Box"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -347,6 +353,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
+msgstr ""
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
 msgstr ""
 
 #. module: iot
@@ -1391,9 +1403,6 @@ msgstr "per afegir una caixa d'IoT."
 
 #~ msgid "Connect an IoT Box"
 #~ msgstr "Connectar una caixa IoT"
-
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "Ha fallat la connexió a la IoT Box"
 
 #~ msgid "Connection to printer failed"
 #~ msgstr "Ha fallat la connexió a la impressora"

@@ -214,6 +214,12 @@ msgid "Connection"
 msgstr "Připojení"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "Připojení k IoT Boxu selhalo"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -354,6 +360,12 @@ msgstr "Nepodařilo se stáhnout protokoly z %s"
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
 msgstr "Nepodařilo se zahájit tisk"
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr ""
 
 #. module: iot
 #. odoo-javascript
@@ -1317,9 +1329,6 @@ msgstr ""
 
 #~ msgid "Close this window and try again"
 #~ msgstr "Zavřete toto okno a zkuste to znovu"
-
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "Připojení k IoT Boxu selhalo"
 
 #~ msgid "Device type"
 #~ msgstr "Typ zařízení"

@@ -199,6 +199,12 @@ msgid "Connection"
 msgstr "การเชื่อมต่อ"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "การเชื่อมต่อกับกล่องไอโอทีล้มเหลว"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -336,6 +342,12 @@ msgstr ""
 #. odoo-javascript
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
+msgstr ""
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
 msgstr ""
 
 #. module: iot
@@ -1325,9 +1337,6 @@ msgstr "เพื่อเพิ่มกล่อง IoT"
 
 #~ msgid "Close this window and try again"
 #~ msgstr "ปิดหน้าต่างและลองใหม่อีกครั้ง"
-
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "การเชื่อมต่อกับกล่องไอโอทีล้มเหลว"
 
 #~ msgid "Group By"
 #~ msgstr "กลุ่มโดย"

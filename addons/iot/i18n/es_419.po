@@ -210,6 +210,12 @@ msgid "Connection"
 msgstr "Conexión"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "Falló la conexión a la caja IoT"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -350,6 +356,12 @@ msgstr "Ocurrió un error al descargar los registros de %s"
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
 msgstr "Hubo un error al iniciar la impresión"
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr "No fue posible contactar a la caja IoT en %s"
 
 #. module: iot
 #. odoo-javascript
@@ -1375,15 +1387,3 @@ msgstr "para agregar una caja IoT."
 
 #~ msgid "Last Sent Value"
 #~ msgstr "Último valor enviado"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Connection to IoT Box failed"
-msgstr "Falló la conexión a la caja IoT"
-
-#. module: iot
-#. odoo-javascript
-#: code:addons/iot/static/src/network_utils/longpolling.js:0
-msgid "Failed to reach IoT Box at %s"
-msgstr "No fue posible contactar a la caja IoT en %s"

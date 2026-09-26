@@ -233,6 +233,12 @@ msgid "Connection"
 msgstr "Ulanish"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr ""
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -391,6 +397,12 @@ msgstr "%s dan jurnallarni yuklab olish amalga oshmadi"
 #, fuzzy
 msgid "Failed to initiate print"
 msgstr "Chop etishni boshlash amalga oshmadi"
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
+msgstr ""
 
 #. module: iot
 #. odoo-javascript

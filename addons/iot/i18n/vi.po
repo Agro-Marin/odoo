@@ -210,6 +210,12 @@ msgid "Connection"
 msgstr "Kết nối"
 
 #. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Connection to IoT Box failed"
+msgstr "Kết nối đến IoT Box thất bại"
+
+#. module: iot
 #: model:ir.model.fields,field_description:iot.field_add_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_box__create_uid
 #: model:ir.model.fields,field_description:iot.field_iot_device__create_uid
@@ -347,6 +353,12 @@ msgstr "Không thể tải xuống nhật ký từ %s"
 #. odoo-javascript
 #: code:addons/iot/static/src/network_utils/iot_http_service.js:0
 msgid "Failed to initiate print"
+msgstr ""
+
+#. module: iot
+#. odoo-javascript
+#: code:addons/iot/static/src/network_utils/longpolling.js:0
+msgid "Failed to reach IoT Box at %s"
 msgstr ""
 
 #. module: iot
@@ -1359,9 +1371,6 @@ msgstr "để thêm một Hộp IoT."
 
 #~ msgid "Connect an IoT Box"
 #~ msgstr "Kết nối IoT Box"
-
-#~ msgid "Connection to IoT Box failed"
-#~ msgstr "Kết nối đến IoT Box thất bại"
 
 #~ msgid "Connection to printer failed"
 #~ msgstr "Kết nối với máy in thất bại"
