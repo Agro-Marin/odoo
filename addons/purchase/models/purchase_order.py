@@ -1074,37 +1074,5 @@ class PurchaseOrder(models.Model):
                 ),
             )
 
-    def _get_cancel_validation_methods(self):
-        return [
-            *super()._get_cancel_validation_methods(),
-            "_check_cancel_except_invoiced",
-        ]
-
-    def _check_cancel_except_invoiced(self):
-        orders_with_posted_invoices = self.filtered(
-            lambda order: order.invoice_ids.filtered(lambda inv: inv.state == "posted"),
-        )
-
-        if orders_with_posted_invoices:
-            error_details = []
-            for order in orders_with_posted_invoices:
-                posted_bills = order.invoice_ids.filtered(lambda i: i.state == "posted")
-                bill_names = ", ".join(posted_bills.mapped("name"))
-                error_details.append(
-                    self.env._(
-                        "• %(order)s has posted bills: %(bills)s",
-                        order=order.display_name,
-                        bills=bill_names,
-                    ),
-                )
-
-            raise UserError(
-                self.env._(
-                    "Cannot cancel purchase orders with posted vendor bills:\n\n%s\n\n"
-                    "Please cancel or reset the bills to draft first.",
-                    "\n".join(error_details),
-                ),
-            )
-
     def _is_date_commitment_removed_by(self, field_name):
         return field_name == "line_ids"

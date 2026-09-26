@@ -635,6 +635,49 @@ class MixinOrderInvoice(models.AbstractModel):
     def _compute_journal_id(self):
         self.journal_id = False
 
+    def _get_cancel_validation_methods(self):
+        return [
+            *super()._get_cancel_validation_methods(),
+            "_check_cancel_except_invoiced",
+        ]
+
+    def _get_invoices_blocking_cancel(self):
+        self.check_singleton()
+        invoice_type = self._get_invoice_move_types()[0]
+        return self.invoice_ids.filtered(
+            lambda invoice: (
+                invoice.state == "posted"
+                and invoice.move_type == invoice_type
+                and invoice.payment_state != "reversed"
+            )
+        )
+
+    def _check_cancel_except_invoiced(self):
+        blocking = {
+            order: invoices
+            for order in self
+            if (invoices := order._get_invoices_blocking_cancel())
+        }
+        if not blocking:
+            return
+        _debug.logic("cancel_refused", orders=list(blocking), reason="posted_invoices")
+        details = "\n".join(
+            self.env._(
+                "• %(order)s: %(invoices)s",
+                order=order.display_name,
+                invoices=", ".join(invoices.mapped("name")),
+            )
+            for order, invoices in blocking.items()
+        )
+        raise UserError(
+            self.env._(
+                "Cannot cancel an order whose invoices are posted and not fully "
+                "refunded:\n\n%(details)s\n\nRefund them in full, cancel them or "
+                "reset them to draft first.",
+                details=details,
+            )
+        )
+
     def _action_cancel(self):
         draft_invoices = self.invoice_ids.filtered(
             lambda invoice: invoice.state == "draft",

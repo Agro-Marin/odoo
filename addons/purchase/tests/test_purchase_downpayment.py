@@ -338,3 +338,20 @@ class TestPurchaseDownpaymentWizard(TestPurchaseToInvoiceCommon):
         dp_bill.action_draft()
         dp_bill.action_cancel()
         self.assertEqual(dp_line.name, "Down Payment (Cancelled)")
+
+
+@tagged("-at_install", "post_install")
+class TestPurchaseCancelGuard(TestPurchaseToInvoiceCommon):
+    def test_a_fully_refunded_bill_no_longer_blocks_cancelling_the_order(self):
+        po = self.init_purchase(confirm=True, products=[self.product_order])
+        bill = po.create_invoice()
+        bill.invoice_date = fields.Date.today()
+        bill.action_post()
+
+        with self.assertRaisesRegex(UserError, bill.name):
+            po.action_cancel()
+        bill._reverse_moves([{"invoice_date": fields.Date.today()}], cancel=True)
+        self.assertEqual(bill.payment_state, "reversed")
+
+        po.action_cancel()
+        self.assertEqual(po.state, "cancel")

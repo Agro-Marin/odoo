@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from odoo import Command, fields
+from odoo.exceptions import UserError
 from odoo.tests import Form, tagged
 from odoo.tools import float_is_zero
 
@@ -300,6 +301,32 @@ class TestSaleToInvoice(TestSaleCommon):
             50,
             "The down payment unit price should not change on SO",
         )
+
+    def test_an_order_with_a_posted_invoice_cannot_be_cancelled(self):
+        sale_order = self.env["sale.order"].create(
+            {
+                "partner_id": self.partner_a.id,
+                "line_ids": [
+                    Command.create(
+                        {
+                            "product_id": self.company_data["product_order_no"].id,
+                            "product_qty": 2,
+                        }
+                    ),
+                ],
+            }
+        )
+        sale_order.action_confirm()
+        invoice = sale_order._create_invoices()
+        invoice.action_post()
+
+        with self.assertRaisesRegex(UserError, invoice.name):
+            sale_order.action_cancel()
+        self.assertEqual(sale_order.state, "done")
+
+        invoice.action_draft()
+        sale_order.action_cancel()
+        self.assertEqual(sale_order.state, "cancel")
 
     def test_deleting_a_draft_down_payment_invoice_removes_its_order_lines(self):
         sale_order = self.env["sale.order"].create(

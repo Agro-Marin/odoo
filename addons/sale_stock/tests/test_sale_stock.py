@@ -1168,7 +1168,13 @@ class TestSaleStock(TestSaleStockCommon, ValuationReconciliationTestCommon):
         inv_2 = so._create_invoices()
         self.assertEqual(inv_2.state, "draft", "invoice should be in draft state")
 
+        with self.assertRaisesRegex(UserError, inv_1.name):
+            so.action_cancel()
+        inv_1._reverse_moves(cancel=True)
+        self.assertEqual(inv_1.payment_state, "reversed")
+
         so.action_cancel()
+        self.assertEqual(so.state, "cancel")
         self.assertEqual(
             inv_1.state, "posted", "A posted invoice state should remain posted"
         )
