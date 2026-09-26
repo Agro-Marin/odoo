@@ -30,23 +30,23 @@ msgid "\" or someone from the same company can give it a rating."
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__rating_count
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__rating_child_count
 msgid "# Ratings"
 msgstr "# Ocena"
 
 #. module: rating
+#: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_kanban_stars
+msgid "<i class=\"fa-regular fa-clock me-2\" aria-label=\"Create date\"/>"
+msgstr ""
+
+#. module: rating
 #: model_terms:ir.ui.view,arch_db:rating.rating_external_page_view
-msgid "<i class=\"fa fa-arrow-left me-1\"/> Back to the Homepage"
+msgid "<i class=\"fa-solid fa-arrow-left me-1\"/> Back to the Homepage"
 msgstr ""
 
 #. module: rating
 #: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_kanban_stars
-msgid "<i class=\"fa fa-clock-o me-2\" aria-label=\"Create date\"/>"
-msgstr ""
-
-#. module: rating
-#: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_kanban_stars
-msgid "<i class=\"fa fa-folder me-2\" aria-label=\"Open folder\"/>"
+msgid "<i class=\"fa-solid fa-folder me-2\" aria-label=\"Open folder\"/>"
 msgstr ""
 
 #. module: rating
@@ -55,23 +55,23 @@ msgid "A star"
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_needaction
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_needaction
 msgid "Action Needed"
 msgstr "Potrebna akcija"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_attachment_count
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_attachment_count
 msgid "Attachment Count"
 msgstr "Brojač priloga"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_avg
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__rating_avg
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_avg
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__rating_child_avg
 msgid "Average Rating"
 msgstr "Prosečna ocena"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__rating_avg_percentage
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__rating_child_avg_percentage
 msgid "Average Rating (%)"
 msgstr "Prosečna ocena (%)"
 
@@ -93,9 +93,9 @@ msgstr "Kupac"
 
 #. module: rating
 #: model:ir.model.fields,field_description:rating.field_mail_message__display_name
-#: model:ir.model.fields,field_description:rating.field_mail_thread__display_name
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__display_name
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__display_name
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread__display_name
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__display_name
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__display_name
 #: model:ir.model.fields,field_description:rating.field_rating_rating__display_name
 msgid "Display Name"
 msgstr "Naziv za prikaz"
@@ -112,7 +112,7 @@ msgid "Document Model"
 msgstr "Model dokumenta"
 
 #. module: rating
-#: model:ir.model,name:rating.model_mail_thread
+#: model:ir.model,name:rating.model_mixin_mail_thread
 msgid "Email Thread"
 msgstr "Email niz"
 
@@ -127,12 +127,12 @@ msgid "Filled Rating"
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_follower_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_follower_ids
 msgid "Followers"
 msgstr "Pratioci"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_partner_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_partner_ids
 msgid "Followers (Partners)"
 msgstr "Pratioci (Partneri)"
 
@@ -144,18 +144,14 @@ msgstr ""
 #. module: rating
 #. odoo-python
 #: code:addons/rating/controllers/main.py:0
-#: model:ir.model.fields.selection,name:rating.selection__discuss_channel__rating_avg_text__top
-#: model:ir.model.fields.selection,name:rating.selection__product_template__rating_avg_text__top
-#: model:ir.model.fields.selection,name:rating.selection__project_task__rating_avg_text__top
-#: model:ir.model.fields.selection,name:rating.selection__rating_mixin__rating_avg_text__top
+#: model:ir.model.fields.selection,name:rating.selection__mixin_rating__rating_avg_text__top
 #: model:ir.model.fields.selection,name:rating.selection__rating_rating__rating_text__top
-#: model:ir.model.fields.selection,name:rating.selection__slide_channel__rating_avg_text__top
 #: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_search
 msgid "Happy"
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__has_message
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__has_message
 msgid "Has Message"
 msgstr "Ima poruku"
 
@@ -172,20 +168,20 @@ msgstr "Početak"
 
 #. module: rating
 #: model:ir.model.fields,field_description:rating.field_mail_message__id
-#: model:ir.model.fields,field_description:rating.field_mail_thread__id
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__id
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__id
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread__id
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__id
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__id
 #: model:ir.model.fields,field_description:rating.field_rating_rating__id
 msgid "ID"
 msgstr "ID"
 
 #. module: rating
-#: model:ir.model.fields,help:rating.field_rating_mixin__message_needaction
+#: model:ir.model.fields,help:rating.field_mixin_rating__message_needaction
 msgid "If checked, new messages require your attention."
 msgstr "Ako je označeno, nove poruke zahtevaju vašu pažnju."
 
 #. module: rating
-#: model:ir.model.fields,help:rating.field_rating_mixin__message_has_error
+#: model:ir.model.fields,help:rating.field_mixin_rating__message_has_error
 msgid "If checked, some messages have a delivery error."
 msgstr "Ako je označeno, neke poruke imaju grešku u isporuci."
 
@@ -200,21 +196,7 @@ msgid "Image URL"
 msgstr "URL slike"
 
 #. module: rating
-#. odoo-python
-#: code:addons/rating/controllers/main.py:0
-msgid ""
-"Incorrect rating: should be %(rating_unhappy)d, %(rating_neutral)d or %"
-"(rating_happy)d (received %(rate)d)"
-msgstr ""
-
-#. module: rating
-#. odoo-python
-#: code:addons/rating/models/mail_thread.py:0
-msgid "Invalid token or rating."
-msgstr ""
-
-#. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_is_follower
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_is_follower
 msgid "Is Follower"
 msgstr "Je Pratilac"
 
@@ -250,12 +232,12 @@ msgid "Message"
 msgstr "Poruka"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_has_error
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_has_error
 msgid "Message Delivery error"
 msgstr "Greška u isporuci poruke"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_ids
 msgid "Messages"
 msgstr "Poruke"
 
@@ -272,12 +254,8 @@ msgstr "Ime"
 #. module: rating
 #. odoo-python
 #: code:addons/rating/controllers/main.py:0
-#: model:ir.model.fields.selection,name:rating.selection__discuss_channel__rating_avg_text__ok
-#: model:ir.model.fields.selection,name:rating.selection__product_template__rating_avg_text__ok
-#: model:ir.model.fields.selection,name:rating.selection__project_task__rating_avg_text__ok
-#: model:ir.model.fields.selection,name:rating.selection__rating_mixin__rating_avg_text__ok
+#: model:ir.model.fields.selection,name:rating.selection__mixin_rating__rating_avg_text__ok
 #: model:ir.model.fields.selection,name:rating.selection__rating_rating__rating_text__ok
-#: model:ir.model.fields.selection,name:rating.selection__slide_channel__rating_avg_text__ok
 #: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_search
 msgid "Neutral"
 msgstr ""
@@ -288,32 +266,28 @@ msgid "No rating yet"
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields.selection,name:rating.selection__discuss_channel__rating_avg_text__none
-#: model:ir.model.fields.selection,name:rating.selection__product_template__rating_avg_text__none
-#: model:ir.model.fields.selection,name:rating.selection__project_task__rating_avg_text__none
-#: model:ir.model.fields.selection,name:rating.selection__rating_mixin__rating_avg_text__none
+#: model:ir.model.fields.selection,name:rating.selection__mixin_rating__rating_avg_text__none
 #: model:ir.model.fields.selection,name:rating.selection__rating_rating__rating_text__none
-#: model:ir.model.fields.selection,name:rating.selection__slide_channel__rating_avg_text__none
 msgid "Not Rated yet"
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_needaction_counter
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_needaction_counter
 msgid "Number of Actions"
 msgstr "Broj akcija"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_has_error_counter
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_has_error_counter
 msgid "Number of errors"
 msgstr "Broj grešaka"
 
 #. module: rating
-#: model:ir.model.fields,help:rating.field_rating_mixin__message_needaction_counter
+#: model:ir.model.fields,help:rating.field_mixin_rating__message_needaction_counter
 msgid "Number of messages requiring action"
 msgstr "Broj poruka koje zahtevaju akciju"
 
 #. module: rating
-#: model:ir.model.fields,help:rating.field_rating_mixin__message_has_error_counter
+#: model:ir.model.fields,help:rating.field_mixin_rating__message_has_error_counter
 msgid "Number of messages with delivery error"
 msgstr "Broj poruka sa greškom u isporuci"
 
@@ -353,7 +327,7 @@ msgid "Parent Related Document Model"
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields,help:rating.field_rating_parent_mixin__rating_percentage_satisfaction
+#: model:ir.model.fields,help:rating.field_mixin_rating_parent__rating_child_percentage_satisfaction
 msgid "Percentage of happy ratings"
 msgstr "Procenat zadovoljnih ocena"
 
@@ -386,43 +360,43 @@ msgid "Rating (/5)"
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_avg_text
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_avg_text
 msgid "Rating Avg Text"
 msgstr "Tekst prosečne ocene"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_last_feedback
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_last_feedback
 msgid "Rating Last Feedback"
 msgstr "Poslednja povratna informacija ocene"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_last_image
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_last_image
 msgid "Rating Last Image"
 msgstr "Poslednja slika ocene"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_last_value
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_last_value
 msgid "Rating Last Value"
 msgstr "Poslednja vrednost ocene"
 
 #. module: rating
-#: model:ir.model,name:rating.model_rating_mixin
+#: model:ir.model,name:rating.model_mixin_rating
 msgid "Rating Mixin"
 msgstr ""
 
 #. module: rating
-#: model:ir.model,name:rating.model_rating_parent_mixin
+#: model:ir.model,name:rating.model_mixin_rating_parent
 msgid "Rating Parent Mixin"
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_percentage_satisfaction
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__rating_percentage_satisfaction
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_percentage_satisfaction
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__rating_child_percentage_satisfaction
 msgid "Rating Satisfaction"
 msgstr "Ocena zadovoljstva"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_last_text
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_last_text
 msgid "Rating Text"
 msgstr "Tekst ocene"
 
@@ -434,7 +408,7 @@ msgid "Rating Value"
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_count
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_count
 msgid "Rating count"
 msgstr "Brojač ocena"
 
@@ -451,37 +425,24 @@ msgstr ""
 
 #. module: rating
 #: model:ir.actions.act_window,name:rating.rating_rating_action
-#: model:ir.model.fields,field_description:rating.field_account_analytic_account__rating_ids
-#: model:ir.model.fields,field_description:rating.field_calendar_event__rating_ids
+#: model:ir.model.fields,field_description:rating.field_base_module_install_request__rating_ids
 #: model:ir.model.fields,field_description:rating.field_discuss_channel__rating_ids
-#: model:ir.model.fields,field_description:rating.field_fleet_vehicle__rating_ids
-#: model:ir.model.fields,field_description:rating.field_fleet_vehicle_log_contract__rating_ids
-#: model:ir.model.fields,field_description:rating.field_fleet_vehicle_log_services__rating_ids
-#: model:ir.model.fields,field_description:rating.field_fleet_vehicle_model__rating_ids
-#: model:ir.model.fields,field_description:rating.field_gamification_badge__rating_ids
-#: model:ir.model.fields,field_description:rating.field_gamification_badge_user__rating_ids
-#: model:ir.model.fields,field_description:rating.field_gamification_challenge__rating_ids
 #: model:ir.model.fields,field_description:rating.field_iap_account__rating_ids
+#: model:ir.model.fields,field_description:rating.field_ir_access_exception__rating_ids
 #: model:ir.model.fields,field_description:rating.field_ir_actions_server__rating_ids
 #: model:ir.model.fields,field_description:rating.field_ir_cron__rating_ids
-#: model:ir.model.fields,field_description:rating.field_lunch_supplier__rating_ids
 #: model:ir.model.fields,field_description:rating.field_mail_blacklist__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_thread__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_thread_blacklist__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_thread_cc__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_thread_main_attachment__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_thread_phone__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_tracking_duration_mixin__rating_ids
-#: model:ir.model.fields,field_description:rating.field_maintenance_equipment__rating_ids
-#: model:ir.model.fields,field_description:rating.field_maintenance_request__rating_ids
-#: model:ir.model.fields,field_description:rating.field_maintenance_team__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread_blacklist__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread_cc__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread_main_attachment__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread_phone__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_tracking_duration__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__rating_child_ids
 #: model:ir.model.fields,field_description:rating.field_phone_blacklist__rating_ids
-#: model:ir.model.fields,field_description:rating.field_product_category__rating_ids
-#: model:ir.model.fields,field_description:rating.field_product_pricelist__rating_ids
-#: model:ir.model.fields,field_description:rating.field_product_product__rating_ids
-#: model:ir.model.fields,field_description:rating.field_product_template__rating_ids
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_ids
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__rating_ids
+#: model:ir.model.fields,field_description:rating.field_res_bank__rating_ids
+#: model:ir.model.fields,field_description:rating.field_res_company__rating_ids
 #: model:ir.model.fields,field_description:rating.field_res_partner__rating_ids
 #: model:ir.model.fields,field_description:rating.field_res_users__rating_ids
 #: model:ir.ui.menu,name:rating.rating_rating_menu_technical
@@ -554,12 +515,8 @@ msgstr ""
 #. module: rating
 #. odoo-python
 #: code:addons/rating/controllers/main.py:0
-#: model:ir.model.fields.selection,name:rating.selection__discuss_channel__rating_avg_text__ko
-#: model:ir.model.fields.selection,name:rating.selection__product_template__rating_avg_text__ko
-#: model:ir.model.fields.selection,name:rating.selection__project_task__rating_avg_text__ko
-#: model:ir.model.fields.selection,name:rating.selection__rating_mixin__rating_avg_text__ko
+#: model:ir.model.fields.selection,name:rating.selection__mixin_rating__rating_avg_text__ko
 #: model:ir.model.fields.selection,name:rating.selection__rating_rating__rating_text__ko
-#: model:ir.model.fields.selection,name:rating.selection__slide_channel__rating_avg_text__ko
 #: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_search
 msgid "Unhappy"
 msgstr ""
@@ -567,12 +524,6 @@ msgstr ""
 #. module: rating
 #: model:ir.model.fields,field_description:rating.field_rating_rating__is_internal
 msgid "Visible Internally Only"
-msgstr ""
-
-#. module: rating
-#. odoo-python
-#: code:addons/rating/models/mail_thread.py:0
-msgid "Wrong rating value. A rate should be between 0 and 5 (received %d)."
 msgstr ""
 
 #. module: rating

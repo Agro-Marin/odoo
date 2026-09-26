@@ -30,24 +30,24 @@ msgid "\" or someone from the same company can give it a rating."
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__rating_count
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__rating_child_count
 msgid "# Ratings"
 msgstr "# Bedømmelser"
 
 #. module: rating
+#: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_kanban_stars
+msgid "<i class=\"fa-regular fa-clock me-2\" aria-label=\"Create date\"/>"
+msgstr ""
+
+#. module: rating
 #: model_terms:ir.ui.view,arch_db:rating.rating_external_page_view
-msgid "<i class=\"fa fa-arrow-left me-1\"/> Back to the Homepage"
+msgid "<i class=\"fa-solid fa-arrow-left me-1\"/> Back to the Homepage"
 msgstr ""
 
 #. module: rating
 #: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_kanban_stars
-msgid "<i class=\"fa fa-clock-o me-2\" aria-label=\"Create date\"/>"
-msgstr "<i class=\"fa fa-clock-o me-2\" aria-label=\"Create date\"/>"
-
-#. module: rating
-#: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_kanban_stars
-msgid "<i class=\"fa fa-folder me-2\" aria-label=\"Open folder\"/>"
-msgstr "<i class=\"fa fa-folder me-2\" aria-label=\"Open folder\"/>"
+msgid "<i class=\"fa-solid fa-folder me-2\" aria-label=\"Open folder\"/>"
+msgstr ""
 
 #. module: rating
 #: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_kanban_stars
@@ -55,23 +55,23 @@ msgid "A star"
 msgstr "En stjerne"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_needaction
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_needaction
 msgid "Action Needed"
 msgstr "Handling påkrævet"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_attachment_count
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_attachment_count
 msgid "Attachment Count"
 msgstr "Antal vedhæftninger"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_avg
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__rating_avg
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_avg
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__rating_child_avg
 msgid "Average Rating"
 msgstr "Gennemsnitsvurdering"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__rating_avg_percentage
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__rating_child_avg_percentage
 msgid "Average Rating (%)"
 msgstr "Gennemsnitsvurdering (%)"
 
@@ -93,9 +93,9 @@ msgstr "Kunde"
 
 #. module: rating
 #: model:ir.model.fields,field_description:rating.field_mail_message__display_name
-#: model:ir.model.fields,field_description:rating.field_mail_thread__display_name
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__display_name
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__display_name
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread__display_name
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__display_name
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__display_name
 #: model:ir.model.fields,field_description:rating.field_rating_rating__display_name
 msgid "Display Name"
 msgstr "Vis navn"
@@ -112,7 +112,7 @@ msgid "Document Model"
 msgstr "Dokument model"
 
 #. module: rating
-#: model:ir.model,name:rating.model_mail_thread
+#: model:ir.model,name:rating.model_mixin_mail_thread
 msgid "Email Thread"
 msgstr "E-mail-tråd"
 
@@ -127,12 +127,12 @@ msgid "Filled Rating"
 msgstr "Udfyldt bedømmelse"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_follower_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_follower_ids
 msgid "Followers"
 msgstr "Følgere"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_partner_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_partner_ids
 msgid "Followers (Partners)"
 msgstr "Følgere (partnere)"
 
@@ -144,18 +144,14 @@ msgstr "Halv stjerne"
 #. module: rating
 #. odoo-python
 #: code:addons/rating/controllers/main.py:0
-#: model:ir.model.fields.selection,name:rating.selection__discuss_channel__rating_avg_text__top
-#: model:ir.model.fields.selection,name:rating.selection__product_template__rating_avg_text__top
-#: model:ir.model.fields.selection,name:rating.selection__project_task__rating_avg_text__top
-#: model:ir.model.fields.selection,name:rating.selection__rating_mixin__rating_avg_text__top
+#: model:ir.model.fields.selection,name:rating.selection__mixin_rating__rating_avg_text__top
 #: model:ir.model.fields.selection,name:rating.selection__rating_rating__rating_text__top
-#: model:ir.model.fields.selection,name:rating.selection__slide_channel__rating_avg_text__top
 #: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_search
 msgid "Happy"
 msgstr "Glad"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__has_message
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__has_message
 msgid "Has Message"
 msgstr "Har besked"
 
@@ -173,20 +169,20 @@ msgstr "Startside"
 
 #. module: rating
 #: model:ir.model.fields,field_description:rating.field_mail_message__id
-#: model:ir.model.fields,field_description:rating.field_mail_thread__id
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__id
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__id
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread__id
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__id
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__id
 #: model:ir.model.fields,field_description:rating.field_rating_rating__id
 msgid "ID"
 msgstr "ID"
 
 #. module: rating
-#: model:ir.model.fields,help:rating.field_rating_mixin__message_needaction
+#: model:ir.model.fields,help:rating.field_mixin_rating__message_needaction
 msgid "If checked, new messages require your attention."
 msgstr "Hvis dette felt er markeret, kræver nye beskeder din opmærksomhed."
 
 #. module: rating
-#: model:ir.model.fields,help:rating.field_rating_mixin__message_has_error
+#: model:ir.model.fields,help:rating.field_mixin_rating__message_has_error
 msgid "If checked, some messages have a delivery error."
 msgstr ""
 "Hvis dette felt er markeret, indeholder nogle beskeder en leveringsfejl."
@@ -202,21 +198,7 @@ msgid "Image URL"
 msgstr "Billede URL"
 
 #. module: rating
-#. odoo-python
-#: code:addons/rating/controllers/main.py:0
-msgid ""
-"Incorrect rating: should be %(rating_unhappy)d, %(rating_neutral)d or %"
-"(rating_happy)d (received %(rate)d)"
-msgstr ""
-
-#. module: rating
-#. odoo-python
-#: code:addons/rating/models/mail_thread.py:0
-msgid "Invalid token or rating."
-msgstr ""
-
-#. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_is_follower
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_is_follower
 msgid "Is Follower"
 msgstr "Er følger"
 
@@ -252,12 +234,12 @@ msgid "Message"
 msgstr "Besked"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_has_error
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_has_error
 msgid "Message Delivery error"
 msgstr "Besked ved leveringsfejl"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_ids
 msgid "Messages"
 msgstr "Beskeder"
 
@@ -274,12 +256,8 @@ msgstr "Navn"
 #. module: rating
 #. odoo-python
 #: code:addons/rating/controllers/main.py:0
-#: model:ir.model.fields.selection,name:rating.selection__discuss_channel__rating_avg_text__ok
-#: model:ir.model.fields.selection,name:rating.selection__product_template__rating_avg_text__ok
-#: model:ir.model.fields.selection,name:rating.selection__project_task__rating_avg_text__ok
-#: model:ir.model.fields.selection,name:rating.selection__rating_mixin__rating_avg_text__ok
+#: model:ir.model.fields.selection,name:rating.selection__mixin_rating__rating_avg_text__ok
 #: model:ir.model.fields.selection,name:rating.selection__rating_rating__rating_text__ok
-#: model:ir.model.fields.selection,name:rating.selection__slide_channel__rating_avg_text__ok
 #: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_search
 msgid "Neutral"
 msgstr "Neutral"
@@ -290,32 +268,28 @@ msgid "No rating yet"
 msgstr "Endnu ikke bedømt"
 
 #. module: rating
-#: model:ir.model.fields.selection,name:rating.selection__discuss_channel__rating_avg_text__none
-#: model:ir.model.fields.selection,name:rating.selection__product_template__rating_avg_text__none
-#: model:ir.model.fields.selection,name:rating.selection__project_task__rating_avg_text__none
-#: model:ir.model.fields.selection,name:rating.selection__rating_mixin__rating_avg_text__none
+#: model:ir.model.fields.selection,name:rating.selection__mixin_rating__rating_avg_text__none
 #: model:ir.model.fields.selection,name:rating.selection__rating_rating__rating_text__none
-#: model:ir.model.fields.selection,name:rating.selection__slide_channel__rating_avg_text__none
 msgid "Not Rated yet"
 msgstr ""
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_needaction_counter
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_needaction_counter
 msgid "Number of Actions"
 msgstr "Antal handlinger"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__message_has_error_counter
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__message_has_error_counter
 msgid "Number of errors"
 msgstr "Antal fejl"
 
 #. module: rating
-#: model:ir.model.fields,help:rating.field_rating_mixin__message_needaction_counter
+#: model:ir.model.fields,help:rating.field_mixin_rating__message_needaction_counter
 msgid "Number of messages requiring action"
 msgstr "Antal meddelelser, der kræver handling"
 
 #. module: rating
-#: model:ir.model.fields,help:rating.field_rating_mixin__message_has_error_counter
+#: model:ir.model.fields,help:rating.field_mixin_rating__message_has_error_counter
 msgid "Number of messages with delivery error"
 msgstr "Antal beskeder med leveringsfejl"
 
@@ -355,7 +329,7 @@ msgid "Parent Related Document Model"
 msgstr "Ophavene relateret dokument model"
 
 #. module: rating
-#: model:ir.model.fields,help:rating.field_rating_parent_mixin__rating_percentage_satisfaction
+#: model:ir.model.fields,help:rating.field_mixin_rating_parent__rating_child_percentage_satisfaction
 msgid "Percentage of happy ratings"
 msgstr "Procentdel af tilfredse bedømmelser"
 
@@ -388,43 +362,43 @@ msgid "Rating (/5)"
 msgstr "Bedømmelse (/5)"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_avg_text
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_avg_text
 msgid "Rating Avg Text"
 msgstr "Bedømmelse af gns. tekst"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_last_feedback
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_last_feedback
 msgid "Rating Last Feedback"
 msgstr "Bedømmelse af seneste feedback"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_last_image
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_last_image
 msgid "Rating Last Image"
 msgstr "Bedømmelse af seneste billede"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_last_value
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_last_value
 msgid "Rating Last Value"
 msgstr "Sidste bedømmelse"
 
 #. module: rating
-#: model:ir.model,name:rating.model_rating_mixin
+#: model:ir.model,name:rating.model_mixin_rating
 msgid "Rating Mixin"
 msgstr "Bedømmelse mixin"
 
 #. module: rating
-#: model:ir.model,name:rating.model_rating_parent_mixin
+#: model:ir.model,name:rating.model_mixin_rating_parent
 msgid "Rating Parent Mixin"
 msgstr "Bedømmelse ophavene mixin"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_percentage_satisfaction
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__rating_percentage_satisfaction
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_percentage_satisfaction
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__rating_child_percentage_satisfaction
 msgid "Rating Satisfaction"
 msgstr "Tilfredshedsbedømmelse"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_last_text
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_last_text
 msgid "Rating Text"
 msgstr "Bedømmelsestekst"
 
@@ -436,7 +410,7 @@ msgid "Rating Value"
 msgstr "Bedømmelse værdi"
 
 #. module: rating
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_count
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_count
 msgid "Rating count"
 msgstr "Antal bedømmelser"
 
@@ -453,37 +427,24 @@ msgstr ""
 
 #. module: rating
 #: model:ir.actions.act_window,name:rating.rating_rating_action
-#: model:ir.model.fields,field_description:rating.field_account_analytic_account__rating_ids
-#: model:ir.model.fields,field_description:rating.field_calendar_event__rating_ids
+#: model:ir.model.fields,field_description:rating.field_base_module_install_request__rating_ids
 #: model:ir.model.fields,field_description:rating.field_discuss_channel__rating_ids
-#: model:ir.model.fields,field_description:rating.field_fleet_vehicle__rating_ids
-#: model:ir.model.fields,field_description:rating.field_fleet_vehicle_log_contract__rating_ids
-#: model:ir.model.fields,field_description:rating.field_fleet_vehicle_log_services__rating_ids
-#: model:ir.model.fields,field_description:rating.field_fleet_vehicle_model__rating_ids
-#: model:ir.model.fields,field_description:rating.field_gamification_badge__rating_ids
-#: model:ir.model.fields,field_description:rating.field_gamification_badge_user__rating_ids
-#: model:ir.model.fields,field_description:rating.field_gamification_challenge__rating_ids
 #: model:ir.model.fields,field_description:rating.field_iap_account__rating_ids
+#: model:ir.model.fields,field_description:rating.field_ir_access_exception__rating_ids
 #: model:ir.model.fields,field_description:rating.field_ir_actions_server__rating_ids
 #: model:ir.model.fields,field_description:rating.field_ir_cron__rating_ids
-#: model:ir.model.fields,field_description:rating.field_lunch_supplier__rating_ids
 #: model:ir.model.fields,field_description:rating.field_mail_blacklist__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_thread__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_thread_blacklist__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_thread_cc__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_thread_main_attachment__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_thread_phone__rating_ids
-#: model:ir.model.fields,field_description:rating.field_mail_tracking_duration_mixin__rating_ids
-#: model:ir.model.fields,field_description:rating.field_maintenance_equipment__rating_ids
-#: model:ir.model.fields,field_description:rating.field_maintenance_request__rating_ids
-#: model:ir.model.fields,field_description:rating.field_maintenance_team__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread_blacklist__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread_cc__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread_main_attachment__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_thread_phone__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_mail_tracking_duration__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_rating__rating_ids
+#: model:ir.model.fields,field_description:rating.field_mixin_rating_parent__rating_child_ids
 #: model:ir.model.fields,field_description:rating.field_phone_blacklist__rating_ids
-#: model:ir.model.fields,field_description:rating.field_product_category__rating_ids
-#: model:ir.model.fields,field_description:rating.field_product_pricelist__rating_ids
-#: model:ir.model.fields,field_description:rating.field_product_product__rating_ids
-#: model:ir.model.fields,field_description:rating.field_product_template__rating_ids
-#: model:ir.model.fields,field_description:rating.field_rating_mixin__rating_ids
-#: model:ir.model.fields,field_description:rating.field_rating_parent_mixin__rating_ids
+#: model:ir.model.fields,field_description:rating.field_res_bank__rating_ids
+#: model:ir.model.fields,field_description:rating.field_res_company__rating_ids
 #: model:ir.model.fields,field_description:rating.field_res_partner__rating_ids
 #: model:ir.model.fields,field_description:rating.field_res_users__rating_ids
 #: model:ir.ui.menu,name:rating.rating_rating_menu_technical
@@ -556,12 +517,8 @@ msgstr "Der er ingen bedømmelse på dette objekt på nuværende tidspunkt."
 #. module: rating
 #. odoo-python
 #: code:addons/rating/controllers/main.py:0
-#: model:ir.model.fields.selection,name:rating.selection__discuss_channel__rating_avg_text__ko
-#: model:ir.model.fields.selection,name:rating.selection__product_template__rating_avg_text__ko
-#: model:ir.model.fields.selection,name:rating.selection__project_task__rating_avg_text__ko
-#: model:ir.model.fields.selection,name:rating.selection__rating_mixin__rating_avg_text__ko
+#: model:ir.model.fields.selection,name:rating.selection__mixin_rating__rating_avg_text__ko
 #: model:ir.model.fields.selection,name:rating.selection__rating_rating__rating_text__ko
-#: model:ir.model.fields.selection,name:rating.selection__slide_channel__rating_avg_text__ko
 #: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_search
 msgid "Unhappy"
 msgstr ""
@@ -570,12 +527,6 @@ msgstr ""
 #: model:ir.model.fields,field_description:rating.field_rating_rating__is_internal
 msgid "Visible Internally Only"
 msgstr "Kun Synligt Internt"
-
-#. module: rating
-#. odoo-python
-#: code:addons/rating/models/mail_thread.py:0
-msgid "Wrong rating value. A rate should be between 0 and 5 (received %d)."
-msgstr ""
 
 #. module: rating
 #: model_terms:ir.ui.view,arch_db:rating.rating_external_page_invalid_partner
@@ -596,6 +547,12 @@ msgstr "for"
 #: model_terms:ir.ui.view,arch_db:rating.rating_rating_view_kanban
 msgid "on"
 msgstr "på"
+
+#~ msgid "<i class=\"fa fa-clock-o me-2\" aria-label=\"Create date\"/>"
+#~ msgstr "<i class=\"fa fa-clock-o me-2\" aria-label=\"Create date\"/>"
+
+#~ msgid "<i class=\"fa fa-folder me-2\" aria-label=\"Open folder\"/>"
+#~ msgstr "<i class=\"fa fa-folder me-2\" aria-label=\"Open folder\"/>"
 
 #~ msgid "Date"
 #~ msgstr "Dato"
