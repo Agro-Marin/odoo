@@ -1,3 +1,4 @@
+import gc
 from datetime import timedelta
 
 from psycopg.errors import CheckViolation
@@ -4894,3 +4895,184 @@ class TestBoMAuditFixes(TestMrpCommon):
                 Bom._get_bom_by_product(variant)[variant],
                 f"the two paths disagree for {variant.display_name}",
             )
+
+    def _variant_template(self, tag, colours=("red", "blue"), finish=False):
+        Attribute = self.env["product.attribute"]
+        colour = Attribute.create(
+            {
+                "name": f"{tag}-colour",
+                "value_ids": [Command.create({"name": name}) for name in colours],
+            }
+        )
+        attributes = colour
+        if finish:
+            attributes |= Attribute.create(
+                {
+                    "name": f"{tag}-finish",
+                    "value_ids": [Command.create({"name": "matt"})],
+                }
+            )
+        template = self.env["product.template"].create(
+            {
+                "name": f"{tag}-T",
+                "type": "consu",
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": attribute.id,
+                            "value_ids": [Command.set(attribute.value_ids.ids)],
+                        }
+                    )
+                    for attribute in attributes
+                ],
+            }
+        )
+        ptavs = template.attribute_line_ids.filtered(
+            lambda line: line.attribute_id == colour
+        ).product_template_value_ids
+        variants = {
+            ptav.name: template.product_variant_ids.filtered(
+                lambda variant, ptav=ptav: (
+                    ptav in variant.product_template_attribute_value_ids
+                )
+            )
+            for ptav in ptavs
+        }
+        return template, ptavs, variants
+
+    def _capacity_bom(self, template, operations=1, product=None):
+        workcenters = self.env["mrp.workcenter"].create(
+            [
+                {"name": f"{template.name}-WC{index}", "time_start": 0, "time_stop": 0}
+                for index in range(operations)
+            ]
+        )
+        self.env["mrp.workcenter.capacity"].create(
+            [
+                {
+                    "workcenter_id": workcenter.id,
+                    "product_uom_id": self.unit.id,
+                    "capacity": 5,
+                }
+                for workcenter in workcenters
+            ]
+        )
+        bom = self.env["mrp.bom"].create(
+            {
+                "product_tmpl_id": template.id,
+                "product_id": product and product.id,
+                "product_qty": 10,
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": f"OP{index}",
+                            "workcenter_id": workcenter.id,
+                            "time_cycle_manual": 60,
+                        }
+                    )
+                    for index, workcenter in enumerate(workcenters)
+                ],
+            }
+        )
+        return bom, workcenters
+
+    def _variant_capacity(self, workcenters, variant, capacity=2):
+        self.env["mrp.workcenter.capacity"].create(
+            [
+                {
+                    "workcenter_id": workcenter.id,
+                    "product_id": variant.id,
+                    "product_uom_id": self.unit.id,
+                    "capacity": capacity,
+                }
+                for workcenter in workcenters
+            ]
+        )
+
+    def test_an_operation_of_many_variants_shows_the_generic_capacity(self):
+        template, ptavs, variants = self._variant_template("VCAP1")
+        bom, workcenters = self._capacity_bom(template)
+        self._variant_capacity(workcenters, variants["red"])
+        operation = bom.operation_ids
+        operation.bom_product_template_attribute_value_ids = [Command.set(ptavs.ids)]
+        self.assertEqual(
+            operation.time_total,
+            120,
+            "red and blue both apply: no variant stands in for the template, "
+            "so 10 units go in the generic batches of 5, not red's batches of 2",
+        )
+        operation.bom_product_template_attribute_value_ids = [Command.clear()]
+        self.assertEqual(operation.time_total, 120)
+
+    def test_an_operation_uses_the_capacity_of_the_variant_it_knows(self):
+        template, ptavs, variants = self._variant_template("VCAP2", finish=True)
+        bom, workcenters = self._capacity_bom(template)
+        self._variant_capacity(workcenters, variants["red"])
+        operation = bom.operation_ids
+        self.assertEqual(operation.time_total, 120)
+        self.assertEqual(
+            operation.with_context(product=variants["red"]).time_total,
+            300,
+            "the variant named by the caller: 10 units in batches of 2",
+        )
+        self.assertEqual(
+            operation.with_context(product=variants["blue"]).time_total, 120
+        )
+        operation.bom_product_template_attribute_value_ids = [
+            Command.set(ptavs.filtered(lambda ptav: ptav.name == "red").ids)
+        ]
+        self.assertEqual(
+            operation.time_total,
+            300,
+            "restricted to red, the operation only ever runs for the red variant",
+        )
+        variant_bom, variant_workcenters = self._capacity_bom(
+            template, product=variants["red"]
+        )
+        self._variant_capacity(variant_workcenters, variants["red"])
+        self.assertEqual(variant_bom.operation_ids.time_total, 300)
+
+    def test_an_operation_flags_a_capacity_that_varies_by_variant(self):
+        template, ptavs, variants = self._variant_template("VCAP3")
+        bom, workcenters = self._capacity_bom(template)
+        operation = bom.operation_ids
+        self.assertFalse(operation.capacity_varies_by_variant)
+        self._variant_capacity(workcenters, variants["red"])
+        self.assertTrue(operation.capacity_varies_by_variant)
+        operation.bom_product_template_attribute_value_ids = [
+            Command.set(ptavs.filtered(lambda ptav: ptav.name == "blue").ids)
+        ]
+        self.assertFalse(
+            operation.capacity_varies_by_variant,
+            "restricted to blue, which has no line of its own",
+        )
+        variant_bom, variant_workcenters = self._capacity_bom(
+            template, product=variants["red"]
+        )
+        self._variant_capacity(variant_workcenters, variants["red"])
+        self.assertFalse(
+            variant_bom.operation_ids.capacity_varies_by_variant,
+            "a variant BoM knows its variant",
+        )
+
+    def _operation_list_statements(self, colours, operations):
+        template, _ptavs, variants = self._variant_template(
+            f"VCAPQ{len(colours)}x{operations}", colours=colours
+        )
+        bom, workcenters = self._capacity_bom(template, operations=operations)
+        for variant in variants.values():
+            self._variant_capacity(workcenters, variant)
+        self.env.flush_all()
+        self.env.invalidate_all()
+        self.env.registry.clear_all_caches()
+        gc.collect()
+        before = self.env.cr.sql_statement_count
+        bom.operation_ids.read(["time_total", "cost", "capacity_varies_by_variant"])
+        return self.env.cr.sql_statement_count - before
+
+    def test_the_operation_list_reads_in_constant_statements(self):
+        small = self._operation_list_statements(("a", "b"), 1)
+        large = self._operation_list_statements(("a", "b", "c", "d", "e"), 6)
+        self.assertEqual(
+            large, small, "neither the variants nor the operations cost a statement"
+        )

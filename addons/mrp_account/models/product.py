@@ -45,7 +45,7 @@ class ProductProduct(models.Model):
 
     def button_bom_cost(self):
         self.check_singleton()
-        self.with_context(action_button_product=self)._update_standard_price_from_bom()
+        self._update_standard_price_from_bom()
 
     def action_bom_cost(self):
         boms_to_recompute = self.env["mrp.bom"].search(
@@ -58,9 +58,7 @@ class ProductProduct(models.Model):
             ]
         )
         for product in self:
-            product.with_context(
-                action_button_product=product
-            )._update_standard_price_from_bom(boms_to_recompute)
+            product._update_standard_price_from_bom(boms_to_recompute)
 
     def _update_standard_price_from_bom(self, boms_to_recompute=False):
         self.check_singleton()
@@ -90,7 +88,10 @@ class ProductProduct(models.Model):
         if not boms_to_recompute:
             boms_to_recompute = []
         total = 0
-        for opt in bom.operation_ids:
+        operations = bom.operation_ids.with_context(
+            product=self.browse() if byproduct_bom else self
+        )
+        for opt in operations:
             if opt._is_bom_line_skipped(self):
                 continue
 

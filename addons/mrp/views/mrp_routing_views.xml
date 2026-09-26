@@ -24,6 +24,13 @@
                         widget="float_time"
                         optional="hide" />
                     <field
+                        name="capacity_varies_by_variant"
+                        widget="boolean_icon"
+                        optional="show"
+                        options="{'icon': 'fa-code-fork'}"
+                        groups="product.group_product_variant"
+                        invisible="not capacity_varies_by_variant" />
+                    <field
                         name="company_id"
                         optional="hide"
                         groups="base.group_multi_company" />
@@ -205,6 +212,12 @@
                                         class="oe_inline" />
                                     <span>minutes</span>
                                 </div>
+                                <field
+                                    name="capacity_varies_by_variant"
+                                    widget="boolean_icon"
+                                    options="{'icon': 'fa-code-fork'}"
+                                    groups="product.group_product_variant"
+                                    invisible="not capacity_varies_by_variant" />
                                 <field
                                     name="company_id"
                                     groups="base.group_multi_company" />

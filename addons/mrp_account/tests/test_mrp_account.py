@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from odoo import fields
+from odoo import Command, fields
 from odoo.tests import Form
 from odoo.tests.common import new_test_user
 from odoo.tools import float_compare, float_round
@@ -213,6 +213,62 @@ class TestMrpAccountWorkorder(TestBomPriceOperationCommon):
         ).action_bom_cost()
         self.assertEqual(
             float_compare(self.dining_table.standard_price, 927, precision_digits=2), 0
+        )
+
+    def test_each_variant_is_costed_at_its_own_capacity(self):
+        colour = self.env["product.attribute"].create(
+            {
+                "name": "Cost colour",
+                "value_ids": [
+                    Command.create({"name": "red"}),
+                    Command.create({"name": "blue"}),
+                ],
+            }
+        )
+        template = self.env["product.template"].create(
+            {
+                "name": "Painted table",
+                "is_storable": True,
+                "attribute_line_ids": [
+                    Command.create(
+                        {
+                            "attribute_id": colour.id,
+                            "value_ids": [Command.set(colour.value_ids.ids)],
+                        }
+                    )
+                ],
+            }
+        )
+        red, blue = template.product_variant_ids
+        self.env["mrp.workcenter.capacity"].create(
+            {
+                "product_id": red.id,
+                "workcenter_id": self.workcenter.id,
+                "time_start": 45,
+                "time_stop": 45,
+            }
+        )
+        self.Bom.create(
+            {
+                "product_tmpl_id": template.id,
+                "product_qty": 1,
+                "operation_ids": [
+                    Command.create(
+                        {
+                            "name": "Painting",
+                            "workcenter_id": self.workcenter.id,
+                            "time_mode": "manual",
+                            "time_cycle_manual": 60,
+                        }
+                    )
+                ],
+            }
+        )
+        (red | blue).action_bom_cost()
+        self.assertEqual(
+            (red.standard_price, blue.standard_price),
+            (275, 175),
+            "red: 45 + 45 + 60 / 0.8 minutes, blue: 15 + 15 + 60 / 0.8, at 100 an hour",
         )
 
     def test_labor_cost_posting_is_not_rounded_incorrectly(self):

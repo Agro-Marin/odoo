@@ -138,6 +138,13 @@ class MrpRoutingWorkcenter(models.Model):
         "- Based on Estimated time: the cost will be calculated based on estimated time and costs.",
     )
     cost = fields.Float(compute="_compute_cost")
+    capacity_varies_by_variant = fields.Boolean(
+        string="Varies by Variant",
+        compute="_compute_capacity_varies_by_variant",
+        help="The work center has its own capacity for some of the variants this "
+        "operation applies to. The duration shown uses the generic capacity; a "
+        "manufacturing order uses its variant's.",
+    )
 
     def _get_recent_workorders(self):
         Workorder = self.env["mrp.workorder"]
@@ -201,6 +208,7 @@ class MrpRoutingWorkcenter(models.Model):
         "bom_id.product_id",
         "bom_id.product_qty",
         "bom_id.product_uom_id",
+        "bom_product_template_attribute_value_ids",
         "workcenter_id.time_start",
         "workcenter_id.time_stop",
         "workcenter_id.time_efficiency",
@@ -242,15 +250,7 @@ class MrpRoutingWorkcenter(models.Model):
 
         for operation in self:
             workcenter = self.env.context.get("workcenter", operation.workcenter_id)
-            product = self.env.context.get("product", operation.bom_id.product_id)
-            if not product:
-                product = (
-                    self.env.context["action_button_product"]
-                    if "action_button_product" in self.env.context
-                    else operation._get_applicable_variants()
-                )
-            if len(product) > 1:
-                product = product[0]
+            product = operation._get_capacity_product()
             quantity = self.env.context.get(
                 "quantity", operation.bom_id.product_qty or 1
             )
@@ -261,6 +261,19 @@ class MrpRoutingWorkcenter(models.Model):
             operation.cycle_number = cycles
             operation.show_time_total = operation.cycle_number > 1 or not float_is_zero(
                 overhead, precision_digits=0
+            )
+
+    @api.depends(
+        "bom_id.product_id",
+        "bom_id.product_tmpl_id.product_variant_ids",
+        "bom_product_template_attribute_value_ids",
+        "workcenter_id.capacity_ids.product_id",
+    )
+    def _compute_capacity_varies_by_variant(self):
+        for operation in self:
+            variants = operation._get_bom_variants()
+            operation.capacity_varies_by_variant = len(variants) > 1 and bool(
+                operation.workcenter_id.capacity_ids.product_id & variants
             )
 
     def _compute_workorder_count(self):
@@ -393,14 +406,30 @@ class MrpRoutingWorkcenter(models.Model):
             },
         }
 
-    def _get_applicable_variants(self):
+    def _get_bom_variants(self):
         self.check_singleton()
-        return self.bom_id.product_tmpl_id.product_variant_ids.filtered(
-            lambda product: (
-                product.product_template_attribute_value_ids
-                <= self.bom_product_template_attribute_value_ids
+        variants = (
+            self.bom_id.product_id or self.bom_id.product_tmpl_id.product_variant_ids
+        )
+        values = self.bom_product_template_attribute_value_ids
+        if not values:
+            return variants
+        no_variant_values = self._get_no_variant_values()
+        return variants.filtered(
+            lambda variant: (
+                not self.env["mrp.bom"]._is_skipped_for_no_variant(
+                    variant, values, no_variant_values
+                )
             )
         )
+
+    def _get_capacity_product(self):
+        self.check_singleton()
+        product = self.env.context.get("product") or self.bom_id.product_id
+        if product:
+            return product
+        variants = self._get_bom_variants()
+        return variants if len(variants) == 1 else variants.browse()
 
     def _is_bom_line_skipped(self, product, never_attribute_values=False):
         self.check_singleton()
