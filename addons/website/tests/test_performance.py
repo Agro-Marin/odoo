@@ -68,6 +68,8 @@ class UtilPerf(HttpCaseWithUserPortal, HttpCaseWithUserDemo):
         queries = query_separator.join(sql_queries)
 
         for query in sql_queries:
+            if query.startswith(("SAVEPOINT", "RELEASE SAVEPOINT")):
+                continue
             query_type, table = classify_query(query)
             if query_type == "other" and "orm_signaling_registry" in query:
                 query_type, table = "from", "orm_signaling_registry"
@@ -281,7 +283,8 @@ class TestWebsitePerformance(TestWebsitePerformanceCommon):
                     insert_tables_perf = {
                         "website_visitor": 1,
                     }
-                    expected_query_count += 1
+                    # the upsert, inside its SAVEPOINT / RELEASE SAVEPOINT
+                    expected_query_count += 3
                 self.page.track = True
 
                 self.menu.unlink()
@@ -313,7 +316,8 @@ class TestWebsitePerformance(TestWebsitePerformanceCommon):
                     insert_tables_perf = {
                         "website_visitor": 1,
                     }
-                    expected_query_count += 1
+                    # the upsert, inside its SAVEPOINT / RELEASE SAVEPOINT
+                    expected_query_count += 3
                 self._check_url_hot_query(
                     "/", expected_query_count, select_tables_perf, insert_tables_perf
                 )
@@ -333,7 +337,8 @@ class TestWebsitePerformance(TestWebsitePerformanceCommon):
                     insert_tables_perf = {
                         "website_visitor": 1,
                     }
-                    expected_query_count += 1
+                    # the upsert, inside its SAVEPOINT / RELEASE SAVEPOINT
+                    expected_query_count += 3
                 self._check_url_hot_query(
                     "/",
                     expected_query_count,

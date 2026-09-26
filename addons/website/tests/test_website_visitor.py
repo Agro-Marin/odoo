@@ -5,8 +5,10 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from odoo.tests import HttpCase, common, tagged
+from odoo.tools import mute_logger
 
 from odoo.addons.base.tests.common import HttpCaseWithUserDemo
+from odoo.addons.http_routing.tests.common import MockRequest
 from odoo.addons.website.models.website_visitor import WebsiteVisitor
 
 _logger = logging.getLogger(__name__)
@@ -139,6 +141,29 @@ class TestVisitorState(common.TransactionCase):
         )
         self.assertEqual(len(self.visitor.website_track_ids), 1)
         self.assertEqual(values, expected)
+
+    def test_concurrent_tracking_failure_spares_the_page(self):
+        def conflicting_upsert(visitor, *args, **kwargs):
+            visitor.env.cr.execute(
+                "DO $$ BEGIN RAISE EXCEPTION 'concurrent update' "
+                "USING ERRCODE = 'serialization_failure'; END $$"
+            )
+
+        with (
+            mute_logger("odoo.db.cursor"),
+            MockRequest(self.env, website=self.env.ref("website.default_website")),
+            patch.object(
+                WebsiteVisitor,
+                "_upsert_visitor",
+                autospec=True,
+                side_effect=conflicting_upsert,
+            ) as upsert,
+        ):
+            self.env["website.visitor"]._handle_webpage_dispatch(self.pages[0])
+        upsert.assert_called_once()
+        # The transaction serving the page is still usable, so it commits.
+        self.env.cr.execute("SELECT 1")
+        self.assertEqual(self.env.cr.fetchone(), (1,))
 
     def test_page_search_agrees_with_displayed_pages(self):
         self._track(self.pages[0], url=False)
