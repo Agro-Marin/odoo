@@ -1,0 +1,426 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * trade_agreement
+#
+# Translators:
+# Martin Trigaux, 2022
+# Thi Huong Nguyen, 2023
+#
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-25 18:36+0000\n"
+"PO-Revision-Date: 2025-09-16 04:42+0000\n"
+"Last-Translator: \"Dylan Kiss (dyki)\" <dyki@odoo.com>\n"
+"Language-Team: Vietnamese <https://translate.odoo.com/projects/odoo-19/"
+"trade_agreement/vi/>\n"
+"Language: vi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_needaction
+msgid "Action Needed"
+msgstr "Tác vụ cần thiết"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__active
+msgid "Active"
+msgstr "Đang hoạt động"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_ids
+msgid "Activities"
+msgstr "Hoạt động"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_exception_decoration
+msgid "Activity Exception Decoration"
+msgstr "Hoạt động ngoại lệ"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_state
+msgid "Activity State"
+msgstr "Trạng thái hoạt động"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_type_icon
+msgid "Activity Type Icon"
+msgstr "Biểu tượng loại hoạt động"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__name
+msgid "Agreement"
+msgstr "Hợp đồng"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__agreement_type
+msgid "Agreement Type"
+msgstr "Loại hợp đồng"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__analytic_distribution
+msgid "Analytic Distribution"
+msgstr "Phân bổ phân tích"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__analytic_precision
+msgid "Analytic Precision"
+msgstr "Độ chính xác phân tích"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_attachment_count
+msgid "Attachment Count"
+msgstr "Số lượng tệp đính kèm"
+
+#. module: trade_agreement
+#: model:ir.model.fields.selection,name:trade_agreement.selection__mixin_agreement__agreement_type__blanket_order
+#: model:ir.model.fields.selection,name:trade_agreement.selection__purchase_requisition__agreement_type__blanket_order
+#: model:ir.model.fields.selection,name:trade_agreement.selection__sale_agreement__agreement_type__blanket_order
+msgid "Blanket Order"
+msgstr "Hợp đồng khung"
+
+#. module: trade_agreement
+#: model:ir.model.fields.selection,name:trade_agreement.selection__mixin_agreement__state__cancel
+#: model:ir.model.fields.selection,name:trade_agreement.selection__purchase_requisition__state__cancel
+#: model:ir.model.fields.selection,name:trade_agreement.selection__sale_agreement__state__cancel
+msgid "Cancelled"
+msgstr "Đã hủy"
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "Cancelled by the agreement associated to this quotation."
+msgstr "Bị huỷ bởi hợp đồng liên quan đến báo giá này."
+
+#. module: trade_agreement
+#: model:ir.model.fields.selection,name:trade_agreement.selection__mixin_agreement__state__done
+#: model:ir.model.fields.selection,name:trade_agreement.selection__purchase_requisition__state__done
+#: model:ir.model.fields.selection,name:trade_agreement.selection__sale_agreement__state__done
+msgid "Closed"
+msgstr "Đã chốt"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__company_id
+msgid "Company"
+msgstr "Công ty"
+
+#. module: trade_agreement
+#: model:ir.model.fields.selection,name:trade_agreement.selection__mixin_agreement__state__confirmed
+#: model:ir.model.fields.selection,name:trade_agreement.selection__purchase_requisition__state__confirmed
+#: model:ir.model.fields.selection,name:trade_agreement.selection__sale_agreement__state__confirmed
+msgid "Confirmed"
+msgstr "Đã xác nhận"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__currency_id
+msgid "Currency"
+msgstr "Tiền tệ"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__description
+msgid "Description"
+msgstr "Mô tả"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__display_name
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__display_name
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_order_agreement__display_name
+msgid "Display Name"
+msgstr "Tên hiển thị"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__distribution_analytic_account_ids
+msgid "Distribution Analytic Account"
+msgstr "Tài khoản phân tích phân phối"
+
+#. module: trade_agreement
+#: model:ir.model.fields.selection,name:trade_agreement.selection__mixin_agreement__state__draft
+#: model:ir.model.fields.selection,name:trade_agreement.selection__purchase_requisition__state__draft
+#: model:ir.model.fields.selection,name:trade_agreement.selection__sale_agreement__state__draft
+msgid "Draft"
+msgstr "Nháp"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__date_end
+msgid "End Date"
+msgstr "Ngày kết thúc"
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid ""
+"End date cannot be earlier than start date. Please check dates for "
+"agreements: %s"
+msgstr ""
+"Ngày kết thúc không thể sớm hơn ngày bắt đầu. Vui lòng kiểm tra ngày của hợp "
+"đồng: %s"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_follower_ids
+msgid "Followers"
+msgstr "Người theo dõi"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "Người theo dõi (Đối tác)"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__has_message
+msgid "Has Message"
+msgstr "Có tin nhắn"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__id
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__id
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_order_agreement__id
+msgid "ID"
+msgstr "ID"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_exception_icon
+msgid "Icon"
+msgstr "Biểu tượng"
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__activity_exception_icon
+msgid "Icon to indicate an exception activity."
+msgstr "Biểu tượng cho thấy một hoạt động ngoại lệ."
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "Nếu chọn, bạn cần chú ý tới các tin nhắn mới."
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__message_has_error
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr "Nếu chọn, một số tin nhắn sẽ có lỗi gửi."
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_is_follower
+msgid "Is Follower"
+msgstr "Là người theo dõi"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_has_error
+msgid "Message Delivery error"
+msgstr "Lỗi gửi tin nhắn"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_ids
+msgid "Messages"
+msgstr "Tin nhắn"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__my_activity_date_deadline
+msgid "My Activity Deadline"
+msgstr "Thời hạn hoạt động của tôi"
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "New"
+msgstr "Mới"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_date_deadline
+msgid "Next Activity Deadline"
+msgstr "Thời hạn cho hoạt động tiếp theo"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_summary
+msgid "Next Activity Summary"
+msgstr "Tóm tắt hoạt động tiếp theo"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_type_id
+msgid "Next Activity Type"
+msgstr "Loại hoạt động tiếp theo"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_needaction_counter
+msgid "Number of Actions"
+msgstr "Số lượng tác vụ"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_has_error_counter
+msgid "Number of errors"
+msgstr "Số lượng lỗi"
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr "Số tin nhắn cần xử lý"
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "Số tin nhắn bị gửi lỗi"
+
+#. module: trade_agreement
+#: model:ir.model,name:trade_agreement.model_mixin_order_agreement
+msgid "Order Placed Against an Agreement"
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__qty_ordered
+msgid "Ordered"
+msgstr "Đã đặt"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__partner_id
+msgid "Partner"
+msgstr "Đối tác"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__product_id
+msgid "Product"
+msgstr "Sản phẩm"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__product_qty
+msgid "Quantity"
+msgstr "Số lượng"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__reference
+msgid "Reference"
+msgstr "Tham chiếu"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_user_id
+msgid "Responsible User"
+msgstr "Người phụ trách"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr "Lỗi gửi SMS"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__date_start
+msgid "Start Date"
+msgstr "Ngày bắt đầu"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__state
+msgid "Status"
+msgstr "Trạng thái"
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__activity_state
+msgid ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+msgstr ""
+"Trạng thái dựa trên hoạt động\n"
+"Quá hạn: Hạn chót hạn đã qua\n"
+"Hôm nay: Hôm nay là ngày phải thực hiện\n"
+"Kế hoạch: Cần thực hiện trong tương lai."
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid ""
+"There is already an open blanket order for this partner. We suggest you "
+"complete this open blanket order, instead of creating a new one."
+msgstr ""
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid ""
+"To close this agreement, cancel its related quotations first.\n"
+"\n"
+"Imagine the mess if someone confirms these duplicates: double the order, double the trouble :)"
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model,name:trade_agreement.model_mixin_agreement
+msgid "Trade Agreement"
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model,name:trade_agreement.model_mixin_agreement_line
+msgid "Trade Agreement Line"
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__activity_exception_decoration
+msgid "Type of the exception activity on record."
+msgstr "Loại hoạt động ngoại lệ trong bản ghi."
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__product_uom_id
+msgid "Unit"
+msgstr "Đơn vị"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__price_unit
+msgid "Unit Price"
+msgstr "Đơn giá"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__user_id
+msgid "User"
+msgstr "Người dùng"
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "Warning for %s"
+msgstr "Cảnh báo cho %s"
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "You can only delete draft or cancelled agreements."
+msgstr ""
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid ""
+"You cannot change the Agreement Type or Company of an agreement that is not "
+"a draft."
+msgstr ""
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "You cannot confirm a blanket order with lines missing a price."
+msgstr "Bạn không thể xác nhận hợp đồng khung chứa dòng không có giá."
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "You cannot confirm a blanket order with lines missing a quantity."
+msgstr "Bạn không thể xác nhận hợp đồng khung chứa dòng không có số lượng."
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid ""
+"You cannot confirm agreement '%(agreement)s' because it does not contain any"
+" product lines."
+msgstr ""

@@ -7,19 +7,19 @@
         <field name="inherit_id" ref="purchase.view_purchase_order_form" />
         <field name="arch" type="xml">
             <field name="partner_id" position="replace">
-                <field name="requisition_type" invisible="1" />
+                <field name="agreement_type" invisible="1" />
                 <field
                     name="partner_id"
                     placeholder="Name, TIN, Email, or Reference"
                     widget="res_partner_many2one"
                     force_save="1"
                     context="{'res_partner_search_mode': 'supplier', 'show_vat': True}"
-                    readonly="requisition_type == 'blanket_order' or state in ['done', 'cancel']" />
+                    readonly="agreement_type == 'blanket_order' or state in ['done', 'cancel']" />
             </field>
             <field name="partner_ref" position="after">
                 <field
-                    name="requisition_id"
-                    domain="[('state', '=', 'confirmed'), ('vendor_id', 'in', (partner_id, False)), ('company_id', '=', company_id)]"
+                    name="agreement_id"
+                    domain="[('state', '=', 'confirmed'), ('partner_id', 'in', (partner_id, False)), ('company_id', '=', company_id)]"
                     options="{'no_create': True}" />
             </field>
             <xpath expr="//page[@name='other_information']" position="after">
@@ -78,13 +78,13 @@
         <field name="inherit_id" ref="purchase.view_purchase_order_search" />
         <field name="arch" type="xml">
             <field name="product_id" position="after">
-                <field name="requisition_id" />
+                <field name="agreement_id" />
             </field>
             <filter name="representative" position="after">
                 <filter
                     name="requisition"
                     string="Agreement"
-                    context="{'group_by': 'requisition_id'}" />
+                    context="{'group_by': 'agreement_id'}" />
             </filter>
         </field>
     </record>

@@ -1,0 +1,439 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * trade_agreement
+#
+# Translators:
+# Marek Pontus, 2022
+# Andre Roomet <andreroomet@gmail.com>, 2022
+# Ants Peetsalu <ants@avalah.ee>, 2022
+# Algo Kärp <algokarp@gmail.com>, 2022
+# Egon Raamat <egon@avalah.ee>, 2022
+# Martin Aavastik <martin@avalah.ee>, 2022
+# Rivo Zängov <eraser@eraser.ee>, 2022
+# Triine Aavik <triine@avalah.ee>, 2022
+# Arma Gedonsky <armagedonsky@hot.ee>, 2022
+# Piia Paurson <piia@avalah.ee>, 2022
+# Martin Trigaux, 2022
+# Eneli Õigus <enelioigus@gmail.com>, 2022
+# Leaanika Randmets, 2022
+# JanaAvalah, 2022
+# Anna, 2023
+# Kristina Pešehodko <kristina@avalah.ee>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-25 18:36+0000\n"
+"PO-Revision-Date: 2025-11-18 07:56+0000\n"
+"Last-Translator: Kristina Pešehodko <kristina@avalah.ee>\n"
+"Language-Team: Estonian <https://translate.odoo.com/projects/odoo-19/"
+"trade_agreement/et/>\n"
+"Language: et\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=n != 1;\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_needaction
+msgid "Action Needed"
+msgstr "Vajalik toiming"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__active
+msgid "Active"
+msgstr "Tegev"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_ids
+msgid "Activities"
+msgstr "Tegevused"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_exception_decoration
+msgid "Activity Exception Decoration"
+msgstr "Tegevuse erandlik kohendus"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_state
+msgid "Activity State"
+msgstr "Tegevuse staatus"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_type_icon
+msgid "Activity Type Icon"
+msgstr "Tegevustüübi ikoon"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__name
+msgid "Agreement"
+msgstr "Leping"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__agreement_type
+msgid "Agreement Type"
+msgstr "Lepingu tüüp"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__analytic_distribution
+msgid "Analytic Distribution"
+msgstr "Analüütiline jaotus"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__analytic_precision
+msgid "Analytic Precision"
+msgstr "Analüütiline täpsus"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_attachment_count
+msgid "Attachment Count"
+msgstr "Manuste arv"
+
+#. module: trade_agreement
+#: model:ir.model.fields.selection,name:trade_agreement.selection__mixin_agreement__agreement_type__blanket_order
+#: model:ir.model.fields.selection,name:trade_agreement.selection__purchase_requisition__agreement_type__blanket_order
+#: model:ir.model.fields.selection,name:trade_agreement.selection__sale_agreement__agreement_type__blanket_order
+msgid "Blanket Order"
+msgstr "Üldine ostukokkulepe"
+
+#. module: trade_agreement
+#: model:ir.model.fields.selection,name:trade_agreement.selection__mixin_agreement__state__cancel
+#: model:ir.model.fields.selection,name:trade_agreement.selection__purchase_requisition__state__cancel
+#: model:ir.model.fields.selection,name:trade_agreement.selection__sale_agreement__state__cancel
+msgid "Cancelled"
+msgstr "Tühistatud"
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "Cancelled by the agreement associated to this quotation."
+msgstr "Selle hinnapakkumisega seotud leping on tühistatud."
+
+#. module: trade_agreement
+#: model:ir.model.fields.selection,name:trade_agreement.selection__mixin_agreement__state__done
+#: model:ir.model.fields.selection,name:trade_agreement.selection__purchase_requisition__state__done
+#: model:ir.model.fields.selection,name:trade_agreement.selection__sale_agreement__state__done
+msgid "Closed"
+msgstr "Kinnitatud"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__company_id
+msgid "Company"
+msgstr "Ettevõte"
+
+#. module: trade_agreement
+#: model:ir.model.fields.selection,name:trade_agreement.selection__mixin_agreement__state__confirmed
+#: model:ir.model.fields.selection,name:trade_agreement.selection__purchase_requisition__state__confirmed
+#: model:ir.model.fields.selection,name:trade_agreement.selection__sale_agreement__state__confirmed
+msgid "Confirmed"
+msgstr "Kinnitatud"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__currency_id
+msgid "Currency"
+msgstr "Valuuta"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__description
+msgid "Description"
+msgstr "Kirjeldus"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__display_name
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__display_name
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_order_agreement__display_name
+msgid "Display Name"
+msgstr "Kuva nimi"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__distribution_analytic_account_ids
+msgid "Distribution Analytic Account"
+msgstr "Jaotumise analüütiline konto"
+
+#. module: trade_agreement
+#: model:ir.model.fields.selection,name:trade_agreement.selection__mixin_agreement__state__draft
+#: model:ir.model.fields.selection,name:trade_agreement.selection__purchase_requisition__state__draft
+#: model:ir.model.fields.selection,name:trade_agreement.selection__sale_agreement__state__draft
+msgid "Draft"
+msgstr "Mustand"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__date_end
+msgid "End Date"
+msgstr "Lõppkuupäev"
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid ""
+"End date cannot be earlier than start date. Please check dates for "
+"agreements: %s"
+msgstr ""
+"Lõppkuupäev peab olema pärast alguskuupäeva. Palun vaata üle lepingute "
+"kuupäevad: %s"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_follower_ids
+msgid "Followers"
+msgstr "Jälgijad"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "Jälgijad (partnerid)"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__has_message
+msgid "Has Message"
+msgstr "On sõnum"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__id
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__id
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_order_agreement__id
+msgid "ID"
+msgstr "ID"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_exception_icon
+msgid "Icon"
+msgstr "Ikoon"
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__activity_exception_icon
+msgid "Icon to indicate an exception activity."
+msgstr "Ikoon, mis näitab erandi tegevust."
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "Kui kontrollitud, siis uued sõnumid nõuavad Su tähelepanu."
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__message_has_error
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr "Kui valitud, on mõningatel sõnumitel saatmiserror."
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_is_follower
+msgid "Is Follower"
+msgstr "Jälgija"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_has_error
+msgid "Message Delivery error"
+msgstr "Sõnumi edastamise veateade"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_ids
+msgid "Messages"
+msgstr "Sõnumid"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__my_activity_date_deadline
+msgid "My Activity Deadline"
+msgstr "Minu tegevuse tähtaeg"
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "New"
+msgstr "Uus"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_date_deadline
+msgid "Next Activity Deadline"
+msgstr "Järgmise tegevuse kuupäev"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_summary
+msgid "Next Activity Summary"
+msgstr "Järgmise tegevuse kokkuvõte"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_type_id
+msgid "Next Activity Type"
+msgstr "Järgmise tegevuse tüüp"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_needaction_counter
+msgid "Number of Actions"
+msgstr "Toimingute arv"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_has_error_counter
+msgid "Number of errors"
+msgstr "Vigade arv"
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr "Tegevust nõudvate sõnumite arv"
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "Kohaletoimetamise veateatega sõnumite arv"
+
+#. module: trade_agreement
+#: model:ir.model,name:trade_agreement.model_mixin_order_agreement
+msgid "Order Placed Against an Agreement"
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__qty_ordered
+msgid "Ordered"
+msgstr "Tellitud"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__partner_id
+msgid "Partner"
+msgstr "Kontakti kaart"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__product_id
+msgid "Product"
+msgstr "Toode"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__product_qty
+msgid "Quantity"
+msgstr "Kogus"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__reference
+msgid "Reference"
+msgstr "Viide"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__activity_user_id
+msgid "Responsible User"
+msgstr "Vastutav kasutaja"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr "Sõnumi kohaletoimetamise veateade"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__date_start
+msgid "Start Date"
+msgstr "Alguskuupäev"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__state
+msgid "Status"
+msgstr "Staatus"
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__activity_state
+msgid ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+msgstr ""
+"Tegevuspõhised staatused\n"
+"Üle aja: Tähtaeg on juba möödas\n"
+"Täna: Tegevuse tähtaeg on täna\n"
+"Planeeritud: Tulevased tegevused."
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid ""
+"There is already an open blanket order for this partner. We suggest you "
+"complete this open blanket order, instead of creating a new one."
+msgstr ""
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid ""
+"To close this agreement, cancel its related quotations first.\n"
+"\n"
+"Imagine the mess if someone confirms these duplicates: double the order, double the trouble :)"
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model,name:trade_agreement.model_mixin_agreement
+msgid "Trade Agreement"
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model,name:trade_agreement.model_mixin_agreement_line
+msgid "Trade Agreement Line"
+msgstr ""
+
+#. module: trade_agreement
+#: model:ir.model.fields,help:trade_agreement.field_mixin_agreement__activity_exception_decoration
+msgid "Type of the exception activity on record."
+msgstr "Kirjel oleva erandtegevuse tüüp."
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__product_uom_id
+msgid "Unit"
+msgstr "Ühik"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement_line__price_unit
+msgid "Unit Price"
+msgstr "Ühikuhind"
+
+#. module: trade_agreement
+#: model:ir.model.fields,field_description:trade_agreement.field_mixin_agreement__user_id
+msgid "User"
+msgstr "Kasutaja"
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "Warning for %s"
+msgstr "Hoiatus %s"
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "You can only delete draft or cancelled agreements."
+msgstr ""
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid ""
+"You cannot change the Agreement Type or Company of an agreement that is not "
+"a draft."
+msgstr ""
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "You cannot confirm a blanket order with lines missing a price."
+msgstr ""
+"Te ei saa kinnitada üldist ostukokkulepet, kui ridadel puuduvad hinnad."
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid "You cannot confirm a blanket order with lines missing a quantity."
+msgstr "Te ei saa kinnitada üldist ostukokkulepet ilma koguseta."
+
+#. module: trade_agreement
+#. odoo-python
+#: code:addons/trade_agreement/models/mixin_agreement.py:0
+msgid ""
+"You cannot confirm agreement '%(agreement)s' because it does not contain any"
+" product lines."
+msgstr ""

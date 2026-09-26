@@ -64,8 +64,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         requisition_blanket = self.env["purchase.requisition"].create(
             {
                 "line_ids": [line1, line2],
-                "requisition_type": "blanket_order",
-                "vendor_id": self.res_partner_1.id,
+                "agreement_type": "blanket_order",
+                "partner_id": self.res_partner_1.id,
             }
         )
 
@@ -119,8 +119,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
     def test_03_blanket_order_rfq(self):
 
         bo_form = Form(self.env["purchase.requisition"])
-        bo_form.vendor_id = self.res_partner_1
-        bo_form.requisition_type = "blanket_order"
+        bo_form.partner_id = self.res_partner_1
+        bo_form.agreement_type = "blanket_order"
         with bo_form.line_ids.new() as line:
             line.product_id = self.product_09
             line.product_qty = 5.0
@@ -130,7 +130,7 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
 
         po_form = Form(
             self.env["purchase.order"].with_context(
-                {"default_requisition_id": bo.id, "default_user_id": False}
+                {"default_agreement_id": bo.id, "default_user_id": False}
             )
         )
         po = po_form.save()
@@ -142,7 +142,7 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         )
         self.assertEqual(
             po.partner_id,
-            bo.vendor_id,
+            bo.partner_id,
             "The blanket order vendor should have been copied to purchase order",
         )
 
@@ -197,8 +197,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         requisition_blanket = self.env["purchase.requisition"].create(
             {
                 "line_ids": [line1],
-                "requisition_type": "blanket_order",
-                "vendor_id": vendor.id,
+                "agreement_type": "blanket_order",
+                "partner_id": vendor.id,
             }
         )
         requisition_blanket.action_confirm()
@@ -206,7 +206,7 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
             {
                 "product_id": product.id,
                 "product_qty": 14.0,
-                "requisition_id": requisition_blanket.id,
+                "agreement_id": requisition_blanket.id,
                 "price_unit": 10,
             }
         )
@@ -513,15 +513,15 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         requisition_blanket = self.env["purchase.requisition"].create(
             {
                 "line_ids": [line1],
-                "requisition_type": "blanket_order",
-                "vendor_id": self.res_partner_1.id,
+                "agreement_type": "blanket_order",
+                "partner_id": self.res_partner_1.id,
             }
         )
         requisition_blanket.action_confirm()
         po_form = Form(
             self.env["purchase.order"].with_context(
                 {
-                    "default_requisition_id": requisition_blanket.id,
+                    "default_agreement_id": requisition_blanket.id,
                     "default_user_id": False,
                 }
             )
@@ -529,8 +529,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         po_1 = po_form.save()
         po_1.action_confirm()
         self.assertTrue(
-            po_1.requisition_id,
-            "The requisition_id should be set in the purchase order",
+            po_1.agreement_id,
+            "The agreement_id should be set in the purchase order",
         )
 
         action = po_1.action_create_alternative()
@@ -546,8 +546,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
 
         po_2 = po_1.alternative_po_ids - po_1
         self.assertFalse(
-            po_2.requisition_id,
-            "The requisition_id should not be set in the alternative purchase order",
+            po_2.agreement_id,
+            "The agreement_id should not be set in the alternative purchase order",
         )
 
     def test_12_alternative_po_line_different_currency(self):
@@ -894,8 +894,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         purchase_template = self.env["purchase.requisition"].create(
             {
                 "line_ids": [line1, line2],
-                "requisition_type": "purchase_template",
-                "vendor_id": self.res_partner_1.id,
+                "agreement_type": "purchase_template",
+                "partner_id": self.res_partner_1.id,
             }
         )
 
@@ -915,7 +915,7 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         po_form = Form(
             self.env["purchase.order"].with_context(
                 {
-                    "default_requisition_id": purchase_template.id,
+                    "default_agreement_id": purchase_template.id,
                     "default_user_id": False,
                 }
             )
@@ -923,7 +923,7 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         po = po_form.save()
         self.assertEqual(
             po.partner_id,
-            purchase_template.vendor_id,
+            purchase_template.partner_id,
             "The purchase template vendor should have been copied to purchase order",
         )
         self.assertEqual(
@@ -950,8 +950,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
     def test_blanket_order_validity_reaches_the_supplierinfo(self):
         requisition = self.env["purchase.requisition"].create(
             {
-                "vendor_id": self.res_partner_1.id,
-                "requisition_type": "blanket_order",
+                "partner_id": self.res_partner_1.id,
+                "agreement_type": "blanket_order",
                 "date_start": fields.Date.today() - timedelta(days=60),
                 "date_end": fields.Date.today() + timedelta(days=60),
                 "line_ids": [
@@ -976,8 +976,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
     def test_expired_blanket_order_does_not_price_anything(self):
         requisition = self.env["purchase.requisition"].create(
             {
-                "vendor_id": self.res_partner_1.id,
-                "requisition_type": "blanket_order",
+                "partner_id": self.res_partner_1.id,
+                "agreement_type": "blanket_order",
                 "date_start": fields.Date.today() - timedelta(days=60),
                 "date_end": fields.Date.today() - timedelta(days=1),
                 "line_ids": [
@@ -1017,8 +1017,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         )
         requisition = self.env["purchase.requisition"].create(
             {
-                "vendor_id": self.res_partner_1.id,
-                "requisition_type": "purchase_template",
+                "partner_id": self.res_partner_1.id,
+                "agreement_type": "purchase_template",
                 "line_ids": [
                     Command.create(
                         {
@@ -1041,8 +1041,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
     def test_line_added_to_a_confirmed_blanket_order_without_a_price(self):
         requisition = self.env["purchase.requisition"].create(
             {
-                "vendor_id": self.res_partner_1.id,
-                "requisition_type": "blanket_order",
+                "partner_id": self.res_partner_1.id,
+                "agreement_type": "blanket_order",
                 "date_start": fields.Date.today(),
                 "date_end": fields.Date.today() + timedelta(days=30),
                 "line_ids": [
@@ -1062,7 +1062,7 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         with self.assertRaises(UserError):
             self.env["purchase.requisition.line"].create(
                 {
-                    "requisition_id": requisition.id,
+                    "agreement_id": requisition.id,
                     "product_id": self.product_13.id,
                     "product_uom_id": self.product_uom_id.id,
                     "product_qty": 5.0,
@@ -1072,8 +1072,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
     def test_description_variants_reach_the_order_line_on_both_paths(self):
         requisition = self.env["purchase.requisition"].create(
             {
-                "vendor_id": self.res_partner_1.id,
-                "requisition_type": "blanket_order",
+                "partner_id": self.res_partner_1.id,
+                "agreement_type": "blanket_order",
                 "date_start": fields.Date.today(),
                 "date_end": fields.Date.today() + timedelta(days=30),
                 "line_ids": [
@@ -1094,7 +1094,7 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         order = self.env["purchase.order"].create(
             {
                 "partner_id": self.res_partner_1.id,
-                "requisition_id": requisition.id,
+                "agreement_id": requisition.id,
                 "line_ids": [
                     Command.create(
                         {"product_id": self.product_09.id, "product_qty": 5.0}
@@ -1111,23 +1111,23 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
 
         with Form(
             self.env["purchase.order"].with_context(
-                default_requisition_id=requisition.id
+                default_agreement_id=requisition.id
             )
         ) as order_form:
             order_from_ui = order_form.save()
         self.assertIn("ENGRAVED", order_from_ui.line_ids[0].name)
 
     def test_purchase_requisition_with_same_product(self):
-        self.bo_requisition.vendor_id = self.res_partner_1
-        self.bo_requisition.requisition_type = "purchase_template"
+        self.bo_requisition.partner_id = self.res_partner_1
+        self.bo_requisition.agreement_type = "purchase_template"
         requisition_2 = self.bo_requisition.copy({"name": "requisition_2"})
         po_form = Form(
             self.env["purchase.order"].with_context(
-                default_requisition_id=requisition_2.id
+                default_agreement_id=requisition_2.id
             )
         )
         po = po_form.save()
-        self.assertEqual(po.requisition_id, requisition_2)
+        self.assertEqual(po.agreement_id, requisition_2)
         po.action_confirm()
         self.assertEqual(po.state, "done")
         (self.bo_requisition.line_ids | requisition_2.line_ids)._compute_qty_ordered()
@@ -1336,7 +1336,7 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
             .with_company(child_company.id)
             .create(
                 {
-                    "vendor_id": self.res_partner_1.id,
+                    "partner_id": self.res_partner_1.id,
                     "line_ids": [
                         Command.create(
                             {
@@ -1352,11 +1352,11 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         purchase_requisition.action_confirm()
 
         po_form = Form(self.env["purchase.order"].with_company(child_company.id))
-        po_form.requisition_id = purchase_requisition
+        po_form.agreement_id = purchase_requisition
         po = po_form.save()
         self.assertEqual(
             po.partner_id,
-            purchase_requisition.vendor_id,
+            purchase_requisition.partner_id,
             "The partner should have been set from the purchase requisition",
         )
         self.assertEqual(
@@ -1393,8 +1393,8 @@ class TestPurchaseRequisition(TestPurchaseRequisitionCommon):
         )
         requisition = self.env["purchase.requisition"].create(
             {
-                "vendor_id": self.res_partner_1.id,
-                "requisition_type": "purchase_template",
+                "partner_id": self.res_partner_1.id,
+                "agreement_type": "purchase_template",
                 "date_start": fields.Date.today(),
                 "line_ids": [
                     Command.create(

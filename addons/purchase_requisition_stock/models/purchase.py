@@ -22,11 +22,11 @@ class PurchaseOrder(models.Model):
             else:
                 po.on_time_rate_perc = -1
 
-    @api.onchange("requisition_id")
-    def _onchange_requisition_id(self):
-        super()._onchange_requisition_id()
-        if self.requisition_id:
-            self.picking_type_id = self.requisition_id.picking_type_id.id
+    @api.onchange("agreement_id")
+    def _onchange_agreement_id(self):
+        super()._onchange_agreement_id()
+        if self.agreement_id:
+            self.picking_type_id = self.agreement_id.picking_type_id.id
 
 
 class PurchaseOrderLine(models.Model):

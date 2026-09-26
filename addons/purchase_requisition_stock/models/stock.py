@@ -12,7 +12,7 @@ class StockRule(models.Model):
         res = super()._prepare_purchase_order_vals(company_id, origins, values)
         values = values[0]
         res["partner_ref"] = values["supplier"].purchase_requisition_id.name
-        res["requisition_id"] = values["supplier"].purchase_requisition_id.id
+        res["agreement_id"] = values["supplier"].purchase_requisition_id.id
         if values["supplier"].purchase_requisition_id.currency_id:
             res["currency_id"] = values[
                 "supplier"
@@ -33,6 +33,6 @@ class StockRule(models.Model):
         domain = super()._get_domain_po(company_id, values, partner)
         if "supplier" in values and values["supplier"].purchase_requisition_id:
             domain += (
-                ("requisition_id", "=", values["supplier"].purchase_requisition_id.id),
+                ("agreement_id", "=", values["supplier"].purchase_requisition_id.id),
             )
         return domain

@@ -19,15 +19,16 @@ class PurchaseOrderGroup(models.Model):
 
 
 class PurchaseOrder(models.Model):
-    _inherit = "purchase.order"
+    _name = "purchase.order"
+    _inherit = ["purchase.order", "mixin.order.agreement"]
 
-    requisition_id = fields.Many2one(
+    agreement_id = fields.Many2one(
         comodel_name="purchase.requisition",
         string="Agreement",
         index="btree_not_null",
         copy=False,
     )
-    requisition_type = fields.Selection(related="requisition_id.requisition_type")
+    agreement_type = fields.Selection(related="agreement_id.agreement_type")
 
     purchase_group_id = fields.Many2one(
         comodel_name="purchase.order.group",
@@ -42,78 +43,6 @@ class PurchaseOrder(models.Model):
         check_company=True,
         help="Other potential purchase orders for purchasing products",
     )
-
-    @api.onchange("requisition_id")
-    def _onchange_requisition_id(self):
-        if not self.requisition_id:
-            return
-
-        self = self.with_company(self.company_id)
-        requisition = self.requisition_id
-        if self.partner_id:
-            partner = self.partner_id
-        else:
-            partner = requisition.vendor_id
-        payment_term = partner.property_supplier_payment_term_id
-
-        FiscalPosition = self.env["account.fiscal.position"]
-        fpos = FiscalPosition.with_company(self.company_id)._get_fiscal_position(
-            partner
-        )
-
-        self.partner_id = partner.id
-        self.fiscal_position_id = fpos.id
-        self.payment_term_id = payment_term.id
-        self.company_id = requisition.company_id.id
-        self.currency_id = requisition.currency_id.id
-        if not self.origin or requisition.name not in self.origin.split(", "):
-            if self.origin:
-                if requisition.name:
-                    self.origin = self.origin + ", " + requisition.name
-            else:
-                self.origin = requisition.name
-        self.notes = requisition.description
-        if requisition.date_start:
-            self.date_order = max(
-                fields.Datetime.now(),
-                fields.Datetime.to_datetime(requisition.date_start),
-            )
-        else:
-            self.date_order = fields.Datetime.now()
-
-        if self.state != "draft":
-            return
-        order_lines = []
-        for line in requisition.line_ids:
-            product_lang = line.product_id.with_context(
-                lang=partner.lang or self.env.user.lang, partner_id=partner.id
-            )
-            name = product_lang.display_name
-            if product_lang.description_purchase:
-                name += "\n" + product_lang.description_purchase
-
-            taxes_ids = fpos.map_tax(
-                line.product_id.supplier_taxes_id.filtered(
-                    lambda tax: any(
-                        tax._serves_company(c)
-                        for c in requisition.company_id.parent_ids
-                    )
-                )
-            ).ids
-
-            product_qty = (
-                line.product_qty
-                if requisition.requisition_type == "purchase_template"
-                else 0
-            )
-            order_line_values = line._prepare_purchase_order_line(
-                name=name,
-                product_qty=product_qty,
-                price_unit=line.price_unit,
-                taxes_ids=taxes_ids,
-            )
-            order_lines.append(Command.create(order_line_values))
-        self.line_ids = order_lines
 
     def action_confirm(self):
         if self.alternative_po_ids and not self.env.context.get(
@@ -156,30 +85,12 @@ class PurchaseOrder(models.Model):
                 self.env["purchase.order.group"].create(
                     {"order_ids": [Command.set(origin_po_id.ids + orders.ids)]}
                 )
-        for order in orders:
-            if order.requisition_id:
-                order.message_post_with_source(
-                    "mail.message_origin_link",
-                    render_values={"self": order, "origin": order.requisition_id},
-                    subtype_xmlid="mail.mt_note",
-                )
         return orders
 
     def write(self, vals):
         if vals.get("purchase_group_id", False):
             orig_purchase_group = self.purchase_group_id
         result = super().write(vals)
-        if vals.get("requisition_id"):
-            for order in self:
-                order.message_post_with_source(
-                    "mail.message_origin_link",
-                    render_values={
-                        "self": order,
-                        "origin": order.requisition_id,
-                        "edit": True,
-                    },
-                    subtype_xmlid="mail.mt_note",
-                )
         if vals.get("alternative_po_ids", False):
             if not self.purchase_group_id and len(self.alternative_po_ids + self) > len(
                 self
@@ -303,7 +214,7 @@ class PurchaseOrder(models.Model):
 
     def _prepare_grouped_data(self, rfq):
         match_fields = super()._prepare_grouped_data(rfq)
-        return match_fields + (rfq.requisition_id.id,)
+        return match_fields + (rfq.agreement_id.id,)
 
     def _merge_alternative_po(self, rfqs):
         if self.alternative_po_ids:
@@ -330,10 +241,10 @@ class PurchaseOrderLine(models.Model):
         for line in self:
             line.price_total_cc = line.price_subtotal / line.order_id.currency_rate
 
-    def _get_requisition_line(self):
+    def _get_agreement_line(self):
         self.check_singleton()
         matched = None
-        for req_line in self.order_id.requisition_id.line_ids:
+        for req_line in self.order_id.agreement_id.line_ids:
             if req_line.product_id != self.product_id:
                 continue
             matched = req_line
@@ -343,7 +254,7 @@ class PurchaseOrderLine(models.Model):
 
     def _get_line_description_from_product(self, product_lang):
         name = super()._get_line_description_from_product(product_lang)
-        return self._get_requisition_line()._add_description_variants(name)
+        return self._get_agreement_line()._add_description_variants(name)
 
     def action_clear_quantities(self):
         zeroed_lines = self.filtered(lambda l: l.state not in ["done", "cancel"])

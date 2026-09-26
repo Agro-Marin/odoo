@@ -1,6 +1,6 @@
 {
     "name": "Purchase Agreements",
-    "version": "0.3",
+    "version": "0.4",
     "category": "Supply Chain/Purchase",
     "description": """
 This module allows you to manage your Purchase Agreements.
@@ -14,6 +14,7 @@ are agreements you have with vendors to benefit from a predetermined pricing.
     "license": "LGPL-3",
     "depends": [
         "purchase",
+        "trade_agreement",
     ],
     "data": [
         "security/purchase_requisition_security.xml",

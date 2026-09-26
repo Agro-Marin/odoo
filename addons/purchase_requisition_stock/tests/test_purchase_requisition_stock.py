@@ -69,8 +69,8 @@ class TestPurchaseRequisitionStock(TestPurchaseRequisitionCommon):
         requisition_blanket = self.env["purchase.requisition"].create(
             {
                 "line_ids": [line1],
-                "requisition_type": "blanket_order",
-                "vendor_id": vendor2.id,
+                "agreement_type": "blanket_order",
+                "partner_id": vendor2.id,
                 "currency_id": self.env.user.company_id.currency_id.id,
             }
         )
@@ -110,7 +110,7 @@ class TestPurchaseRequisitionStock(TestPurchaseRequisitionCommon):
         purchase2 = self.env["purchase.order"].search(
             [
                 ("partner_id", "=", vendor2.id),
-                ("requisition_id", "=", requisition_blanket.id),
+                ("agreement_id", "=", requisition_blanket.id),
             ]
         )
         self.assertEqual(len(purchase2), 1)
@@ -185,16 +185,16 @@ class TestPurchaseRequisitionStock(TestPurchaseRequisitionCommon):
         requisition_1 = self.env["purchase.requisition"].create(
             {
                 "line_ids": [line1],
-                "requisition_type": "blanket_order",
-                "vendor_id": vendor1.id,
+                "agreement_type": "blanket_order",
+                "partner_id": vendor1.id,
                 "currency_id": self.env.user.company_id.currency_id.id,
             }
         )
         requisition_2 = self.env["purchase.requisition"].create(
             {
                 "line_ids": [line2],
-                "requisition_type": "blanket_order",
-                "vendor_id": vendor1.id,
+                "agreement_type": "blanket_order",
+                "partner_id": vendor1.id,
                 "currency_id": self.env.user.company_id.currency_id.id,
             }
         )
@@ -478,8 +478,8 @@ class TestPurchaseRequisitionStock(TestPurchaseRequisitionCommon):
     def _create_expired_blanket_order(self, vendor, product):
         agreement = self.env["purchase.requisition"].create(
             {
-                "vendor_id": vendor.id,
-                "requisition_type": "blanket_order",
+                "partner_id": vendor.id,
+                "agreement_type": "blanket_order",
                 "date_start": fields.Date.today() - timedelta(days=30),
                 "date_end": fields.Date.today() - timedelta(days=1),
                 "line_ids": [
@@ -538,7 +538,7 @@ class TestPurchaseRequisitionStock(TestPurchaseRequisitionCommon):
         lines = self._run_buy_procurement(product, 50.0)
 
         self.assertEqual(lines.order_id.partner_id, regular_vendor)
-        self.assertFalse(lines.order_id.requisition_id)
+        self.assertFalse(lines.order_id.agreement_id)
         self.assertEqual(
             lines.price_unit,
             7.0,
