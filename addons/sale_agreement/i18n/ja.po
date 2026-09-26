@@ -1,0 +1,480 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * sale_agreement
+#
+# Translators:
+# Martin Trigaux, 2022
+# Yoshi Tashiro (Quartile) <tashiro@roomsfor.hk>, 2023
+# Ryoko Tsuda <ryoko@quartile.co>, 2023
+# Andy Yiu, 2023
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+# "Junko Augias (juau)" <juau@odoo.com>, 2025, 2026.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-25 18:36+0000\n"
+"PO-Revision-Date: 2026-02-02 13:44+0000\n"
+"Last-Translator: \"Junko Augias (juau)\" <juau@odoo.com>\n"
+"Language-Team: Japanese <https://translate.odoo.com/projects/odoo-19/"
+"sale_agreement/ja/>\n"
+"Language: ja\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.14.3\n"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "<span><strong>From</strong></span>"
+msgstr "<span><strong>以下から</strong></span>"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "<span><strong>to</strong></span>"
+msgstr "<span><strong>次へ</strong></span>"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_needaction
+msgid "Action Needed"
+msgstr "要アクション"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__active
+msgid "Active"
+msgstr "有効"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_ids
+msgid "Activities"
+msgstr "活動"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_exception_decoration
+msgid "Activity Exception Decoration"
+msgstr "例外の活動を示す装飾"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_state
+msgid "Activity State"
+msgstr "活動ステータス"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_type_icon
+msgid "Activity Type Icon"
+msgstr "活動タイプアイコン"
+
+#. module: sale_agreement
+#: model_terms:ir.actions.act_window,help:sale_agreement.action_sale_agreement
+msgid ""
+"Agree on products, quantities and prices for a period; the orders\n"
+"                placed against it take those prices, and each line shows what is\n"
+"                left to order."
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__agreement_id
+msgid "Agreement"
+msgstr "契約"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__agreement_type
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__agreement_type
+msgid "Agreement Type"
+msgstr "契約タイプ"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Agreement Validity"
+msgstr "契約有効性"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__analytic_distribution
+msgid "Analytic Distribution"
+msgstr "分析分配"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__analytic_precision
+msgid "Analytic Precision"
+msgstr "分析精度"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Archived"
+msgstr "アーカイブ済"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_attachment_count
+msgid "Attachment Count"
+msgstr "添付数"
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement
+#: model:ir.ui.menu,name:sale_agreement.menu_sale_agreement
+msgid "Blanket Orders"
+msgstr "包括オーダ"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Cancel"
+msgstr "キャンセル"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Close"
+msgstr "閉じる"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__company_id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__company_id
+msgid "Company"
+msgstr "会社"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Confirm"
+msgstr "確定"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__create_uid
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__create_uid
+msgid "Created by"
+msgstr "作成者"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__create_date
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__create_date
+msgid "Created on"
+msgstr "作成日"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__currency_id
+msgid "Currency"
+msgstr "通貨"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__description
+msgid "Description"
+msgstr "説明"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order_line__display_name
+msgid "Display Name"
+msgstr "表示名"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__distribution_analytic_account_ids
+msgid "Distribution Analytic Account"
+msgstr "分配分析勘定"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__date_end
+msgid "End Date"
+msgstr "終了日"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_follower_ids
+msgid "Followers"
+msgstr "フォロワー"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "フォロワー (取引先)"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__has_message
+msgid "Has Message"
+msgstr "メッセージあり"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order_line__id
+msgid "ID"
+msgstr "ID"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_exception_icon
+msgid "Icon"
+msgstr "アイコン"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_exception_icon
+msgid "Icon to indicate an exception activity."
+msgstr "例外活動を示すアイコン"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "チェックした場合は、新しいメッセージに注意が必要です。"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_error
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr "有効にすると、一部のメッセージに配信エラーが発生します。"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_is_follower
+msgid "Is Follower"
+msgstr "フォロー中"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__write_uid
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__write_uid
+msgid "Last Updated by"
+msgstr "最終更新者"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__write_date
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__write_date
+msgid "Last Updated on"
+msgstr "最終更新日"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_error
+msgid "Message Delivery error"
+msgstr "メッセージ配信エラー"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_ids
+msgid "Messages"
+msgstr "メッセージ"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__my_activity_date_deadline
+msgid "My Activity Deadline"
+msgstr "活動期限"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "My Agreements"
+msgstr "自分の契約"
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement_new_quotation
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "New Quotation"
+msgstr "新規見積"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_date_deadline
+msgid "Next Activity Deadline"
+msgstr "次の活動期限"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_summary
+msgid "Next Activity Summary"
+msgstr "次の活動概要"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_type_id
+msgid "Next Activity Type"
+msgstr "次の活動タイプ"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_needaction_counter
+msgid "Number of Actions"
+msgstr "アクション数"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__order_count
+msgid "Number of Orders"
+msgstr "オーダ数"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_error_counter
+msgid "Number of errors"
+msgstr "エラー数"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr "対応が必要なメッセージ数"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "配信エラーが発生されたメッセージ数"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Open"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__qty_ordered
+msgid "Ordered"
+msgstr "注文済"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__partner_id
+msgid "Partner"
+msgstr "取引先"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__product_id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_id
+msgid "Product"
+msgstr "プロダクト"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Products"
+msgstr "プロダクト"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__line_ids
+msgid "Products to Sell"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_qty
+msgid "Quantity"
+msgstr "数量"
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement_orders
+msgid "Quotations and Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Quotations/Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.actions.act_window,help:sale_agreement.action_sale_agreement
+msgid "Record a blanket order with a customer"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__reference
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Reference"
+msgstr "参照"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Reset to Draft"
+msgstr "ドラフトにリセット"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_user_id
+msgid "Responsible User"
+msgstr "担当ユーザ"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr "SMS送信エラー"
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_order
+msgid "Sale Order"
+msgstr "販売オーダ"
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__agreement_id
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Sales Agreement"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_agreement_line
+msgid "Sales Agreement Line"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_list
+msgid "Sales Agreements"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_order_line
+msgid "Sales Order Line"
+msgstr "販売オーダ明細"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__order_ids
+msgid "Sales Orders"
+msgstr "販売オーダ"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__user_id
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Salesperson"
+msgstr "販売担当者"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Search Sales Agreements"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__date_start
+msgid "Start Date"
+msgstr "開始日"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__state
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Status"
+msgstr "ステータス"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_state
+msgid ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+msgstr ""
+"活動に基づくステータス\n"
+"遅延: 期日が既に過ぎています\n"
+"今日: 活動日は今日です\n"
+"予定: 将来の活動。"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Terms and Conditions"
+msgstr "利用規約"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_exception_decoration
+msgid "Type of the exception activity on record."
+msgstr "記録上の例外活動の種類。"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_uom_id
+msgid "Unit"
+msgstr "単位"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__price_unit
+msgid "Unit Price"
+msgstr "単価"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "e.g. customer contract number"
+msgstr ""

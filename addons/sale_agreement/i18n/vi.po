@@ -1,0 +1,478 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * sale_agreement
+#
+# Translators:
+# Martin Trigaux, 2022
+# Thi Huong Nguyen, 2023
+#
+# "Dylan Kiss (dyki)" <dyki@odoo.com>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-25 18:36+0000\n"
+"PO-Revision-Date: 2025-09-16 04:42+0000\n"
+"Last-Translator: \"Dylan Kiss (dyki)\" <dyki@odoo.com>\n"
+"Language-Team: Vietnamese <https://translate.odoo.com/projects/odoo-19/"
+"sale_agreement/vi/>\n"
+"Language: vi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "<span><strong>From</strong></span>"
+msgstr "<span><strong>Từ</strong></span>"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "<span><strong>to</strong></span>"
+msgstr "<span><strong>đến</strong></span>"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_needaction
+msgid "Action Needed"
+msgstr "Tác vụ cần thiết"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__active
+msgid "Active"
+msgstr "Đang hoạt động"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_ids
+msgid "Activities"
+msgstr "Hoạt động"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_exception_decoration
+msgid "Activity Exception Decoration"
+msgstr "Hoạt động ngoại lệ"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_state
+msgid "Activity State"
+msgstr "Trạng thái hoạt động"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_type_icon
+msgid "Activity Type Icon"
+msgstr "Biểu tượng loại hoạt động"
+
+#. module: sale_agreement
+#: model_terms:ir.actions.act_window,help:sale_agreement.action_sale_agreement
+msgid ""
+"Agree on products, quantities and prices for a period; the orders\n"
+"                placed against it take those prices, and each line shows what is\n"
+"                left to order."
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__agreement_id
+msgid "Agreement"
+msgstr "Hợp đồng"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__agreement_type
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__agreement_type
+msgid "Agreement Type"
+msgstr "Loại hợp đồng"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Agreement Validity"
+msgstr "Thời hạn hiệu lực hợp đồng"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__analytic_distribution
+msgid "Analytic Distribution"
+msgstr "Phân bổ phân tích"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__analytic_precision
+msgid "Analytic Precision"
+msgstr "Độ chính xác phân tích"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Archived"
+msgstr "Đã lưu trữ"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_attachment_count
+msgid "Attachment Count"
+msgstr "Số lượng tệp đính kèm"
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement
+#: model:ir.ui.menu,name:sale_agreement.menu_sale_agreement
+msgid "Blanket Orders"
+msgstr "Hợp đồng khung"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Cancel"
+msgstr "Hủy"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Close"
+msgstr "Đóng"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__company_id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__company_id
+msgid "Company"
+msgstr "Công ty"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Confirm"
+msgstr "Xác nhận"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__create_uid
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__create_uid
+msgid "Created by"
+msgstr "Được tạo bởi"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__create_date
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__create_date
+msgid "Created on"
+msgstr "Được tạo vào"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__currency_id
+msgid "Currency"
+msgstr "Tiền tệ"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__description
+msgid "Description"
+msgstr "Mô tả"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order_line__display_name
+msgid "Display Name"
+msgstr "Tên hiển thị"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__distribution_analytic_account_ids
+msgid "Distribution Analytic Account"
+msgstr "Tài khoản phân tích phân phối"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__date_end
+msgid "End Date"
+msgstr "Ngày kết thúc"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_follower_ids
+msgid "Followers"
+msgstr "Người theo dõi"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "Người theo dõi (Đối tác)"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__has_message
+msgid "Has Message"
+msgstr "Có tin nhắn"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order_line__id
+msgid "ID"
+msgstr "ID"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_exception_icon
+msgid "Icon"
+msgstr "Biểu tượng"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_exception_icon
+msgid "Icon to indicate an exception activity."
+msgstr "Biểu tượng cho thấy một hoạt động ngoại lệ."
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "Nếu chọn, bạn cần chú ý tới các tin nhắn mới."
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_error
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr "Nếu chọn, một số tin nhắn sẽ có lỗi gửi."
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_is_follower
+msgid "Is Follower"
+msgstr "Là người theo dõi"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__write_uid
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__write_uid
+msgid "Last Updated by"
+msgstr "Cập nhật lần cuối bởi"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__write_date
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__write_date
+msgid "Last Updated on"
+msgstr "Cập nhật lần cuối vào"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_error
+msgid "Message Delivery error"
+msgstr "Lỗi gửi tin nhắn"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_ids
+msgid "Messages"
+msgstr "Tin nhắn"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__my_activity_date_deadline
+msgid "My Activity Deadline"
+msgstr "Thời hạn hoạt động của tôi"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "My Agreements"
+msgstr "Hợp đồng của tôi"
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement_new_quotation
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "New Quotation"
+msgstr "Báo giá mới"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_date_deadline
+msgid "Next Activity Deadline"
+msgstr "Thời hạn cho hoạt động tiếp theo"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_summary
+msgid "Next Activity Summary"
+msgstr "Tóm tắt hoạt động tiếp theo"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_type_id
+msgid "Next Activity Type"
+msgstr "Loại hoạt động tiếp theo"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_needaction_counter
+msgid "Number of Actions"
+msgstr "Số lượng tác vụ"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__order_count
+msgid "Number of Orders"
+msgstr "Số lượng đơn hàng"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_error_counter
+msgid "Number of errors"
+msgstr "Số lượng lỗi"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr "Số tin nhắn cần xử lý"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "Số tin nhắn bị gửi lỗi"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Open"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__qty_ordered
+msgid "Ordered"
+msgstr "Đã đặt"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__partner_id
+msgid "Partner"
+msgstr "Đối tác"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__product_id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_id
+msgid "Product"
+msgstr "Sản phẩm"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Products"
+msgstr "Sản phẩm"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__line_ids
+msgid "Products to Sell"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_qty
+msgid "Quantity"
+msgstr "Số lượng"
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement_orders
+msgid "Quotations and Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Quotations/Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.actions.act_window,help:sale_agreement.action_sale_agreement
+msgid "Record a blanket order with a customer"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__reference
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Reference"
+msgstr "Tham chiếu"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Reset to Draft"
+msgstr "Đặt lại thành nháp"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_user_id
+msgid "Responsible User"
+msgstr "Người phụ trách"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr "Lỗi gửi SMS"
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_order
+msgid "Sale Order"
+msgstr "Đơn bán hàng"
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__agreement_id
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Sales Agreement"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_agreement_line
+msgid "Sales Agreement Line"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_list
+msgid "Sales Agreements"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_order_line
+msgid "Sales Order Line"
+msgstr "Dòng đơn bán hàng"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__order_ids
+msgid "Sales Orders"
+msgstr "Đơn bán hàng"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__user_id
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Salesperson"
+msgstr "Nhân viên sales"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Search Sales Agreements"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__date_start
+msgid "Start Date"
+msgstr "Ngày bắt đầu"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__state
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Status"
+msgstr "Trạng thái"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_state
+msgid ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+msgstr ""
+"Trạng thái dựa trên hoạt động\n"
+"Quá hạn: Hạn chót hạn đã qua\n"
+"Hôm nay: Hôm nay là ngày phải thực hiện\n"
+"Kế hoạch: Cần thực hiện trong tương lai."
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Terms and Conditions"
+msgstr "Điều khoản và điều kiện"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_exception_decoration
+msgid "Type of the exception activity on record."
+msgstr "Loại hoạt động ngoại lệ trong bản ghi."
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_uom_id
+msgid "Unit"
+msgstr "Đơn vị"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__price_unit
+msgid "Unit Price"
+msgstr "Đơn giá"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "e.g. customer contract number"
+msgstr ""

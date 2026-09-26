@@ -1,0 +1,475 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# * sale_agreement
+#
+# Translators:
+# Weblate <noreply-mt-weblate@weblate.org>, 2025.
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo 9.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-01-25 18:36+0000\n"
+"PO-Revision-Date: 2025-11-10 13:17+0000\n"
+"Last-Translator: Weblate <noreply-mt-weblate@weblate.org>\n"
+"Language-Team: Hindi <https://translate.odoo.com/projects/odoo-19/"
+"sale_agreement/hi/>\n"
+"Language: hi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Weblate 5.12.2\n"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "<span><strong>From</strong></span>"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "<span><strong>to</strong></span>"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_needaction
+msgid "Action Needed"
+msgstr "कार्रवाई की ज़रूरत है"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__active
+msgid "Active"
+msgstr "ऐक्टिव"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_ids
+msgid "Activities"
+msgstr "गतिविधियाँ"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_exception_decoration
+msgid "Activity Exception Decoration"
+msgstr "ऐक्टिविटी एक्सेप्शन डेकोरेशन"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_state
+msgid "Activity State"
+msgstr "ऐक्टिविटी स्टेट"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_type_icon
+msgid "Activity Type Icon"
+msgstr "ऐक्टिविटी टाइप आइकॉन"
+
+#. module: sale_agreement
+#: model_terms:ir.actions.act_window,help:sale_agreement.action_sale_agreement
+msgid ""
+"Agree on products, quantities and prices for a period; the orders\n"
+"                placed against it take those prices, and each line shows what is\n"
+"                left to order."
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__agreement_id
+msgid "Agreement"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__agreement_type
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__agreement_type
+msgid "Agreement Type"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Agreement Validity"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__analytic_distribution
+msgid "Analytic Distribution"
+msgstr "एनालिटिक डिस्ट्रिब्यूशन"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__analytic_precision
+msgid "Analytic Precision"
+msgstr "एनालिटिक प्रीसीज़न"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Archived"
+msgstr "संग्रहीत किया गया"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_attachment_count
+msgid "Attachment Count"
+msgstr "अटैचमेंट की संख्या"
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement
+#: model:ir.ui.menu,name:sale_agreement.menu_sale_agreement
+msgid "Blanket Orders"
+msgstr "ब्लैंकेट ऑर्डर"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Cancel"
+msgstr "रद्द"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Close"
+msgstr "बंद"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__company_id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__company_id
+msgid "Company"
+msgstr "संस्था"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Confirm"
+msgstr "पुष्टि करें"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__create_uid
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__create_uid
+msgid "Created by"
+msgstr "इन्होंने बनाया"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__create_date
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__create_date
+msgid "Created on"
+msgstr "इस तारीख को बनाया गया"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__currency_id
+msgid "Currency"
+msgstr "करेंसी"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__description
+msgid "Description"
+msgstr "विवरण"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order_line__display_name
+msgid "Display Name"
+msgstr "डिस्प्ले का नाम"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__distribution_analytic_account_ids
+msgid "Distribution Analytic Account"
+msgstr "डिस्ट्रिब्यूशन एनालिटिक अकाउं"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__date_end
+msgid "End Date"
+msgstr "समाप्ति तिथि"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_follower_ids
+msgid "Followers"
+msgstr "फ़ॉलोवर"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "फ़ॉलोवर (पार्टनर)"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__has_message
+msgid "Has Message"
+msgstr "मैसेज है"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order_line__id
+msgid "ID"
+msgstr "आईडी"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_exception_icon
+msgid "Icon"
+msgstr "आइकॉन"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_exception_icon
+msgid "Icon to indicate an exception activity."
+msgstr "एक छोटा निशान जो बताता है कि कुछ अलग या असामान्य हुआ है।"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "अगर यह बॉक्स चेक है, तो नए मैसेज देखने ज़रूरी हैं।"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_error
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr "अगर बॉक्स पर टिक है, तो कुछ मैसेज भेजने में गलती हुई है।"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_is_follower
+msgid "Is Follower"
+msgstr "फ़ॉलोवर है"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__write_uid
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__write_uid
+msgid "Last Updated by"
+msgstr "इन्होंने आखिरी बार अपडेट किया"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__write_date
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__write_date
+msgid "Last Updated on"
+msgstr "आखिरी बार अपडेट हुआ"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_error
+msgid "Message Delivery error"
+msgstr "मैसेज डिलीवरी में गड़बड़ी"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_ids
+msgid "Messages"
+msgstr "संदेश"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__my_activity_date_deadline
+msgid "My Activity Deadline"
+msgstr "मेरी गतिविधि की डेडलाइन"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "My Agreements"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement_new_quotation
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "New Quotation"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_date_deadline
+msgid "Next Activity Deadline"
+msgstr "अगली गतिविधि की डेडलाइन"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_summary
+msgid "Next Activity Summary"
+msgstr "अगली गतिविधी की जानकारी"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_type_id
+msgid "Next Activity Type"
+msgstr "अगली गतिविधि का प्रकार"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_needaction_counter
+msgid "Number of Actions"
+msgstr "ऐक्शन की संख्या"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__order_count
+msgid "Number of Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_error_counter
+msgid "Number of errors"
+msgstr "गड़बड़ी की संख्या"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr "ऐसे मैसेज की संख्या जिनपर कार्रवाई की ज़रूरत है"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "डिलीवरी में गड़बड़ी वाले मैसेज की संख्या"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Open"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__qty_ordered
+msgid "Ordered"
+msgstr "ऑर्डर किया गया"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__partner_id
+msgid "Partner"
+msgstr "साथी"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__product_id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_id
+msgid "Product"
+msgstr "उत्पाद"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Products"
+msgstr "प्रॉडक्ट"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__line_ids
+msgid "Products to Sell"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_qty
+msgid "Quantity"
+msgstr "मात्रा"
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement_orders
+msgid "Quotations and Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Quotations/Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.actions.act_window,help:sale_agreement.action_sale_agreement
+msgid "Record a blanket order with a customer"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__reference
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Reference"
+msgstr "संदर्भ"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Reset to Draft"
+msgstr "ड्रॉफ़्ट के लिए रीसेट करें"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_user_id
+msgid "Responsible User"
+msgstr "जिम्मेदार उपयोगकर्ता"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr "एसएमएस डिलीवरी में गड़बड़ी"
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_order
+msgid "Sale Order"
+msgstr "सेल ऑर्डर"
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__agreement_id
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Sales Agreement"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_agreement_line
+msgid "Sales Agreement Line"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_list
+msgid "Sales Agreements"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_order_line
+msgid "Sales Order Line"
+msgstr "बिक्री आदेश पंक्ति"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__order_ids
+msgid "Sales Orders"
+msgstr "सेल्स ऑर्डर"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__user_id
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Salesperson"
+msgstr "सेल्सपर्सन"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Search Sales Agreements"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__date_start
+msgid "Start Date"
+msgstr "प्रारंभ दिनांक"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__state
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Status"
+msgstr "स्थिति"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_state
+msgid ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+msgstr ""
+"ऐक्टिविटी के हिसाब से स्टेटस\n"
+"ओवरड्यू: जिस काम की आखिरी तारीख निकल गई हो\n"
+"टुडे: जो काम आज करना है\n"
+"प्लान्ड: जो काम भविष्य में करने हैं।"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Terms and Conditions"
+msgstr "नियम और शर्तें"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_exception_decoration
+msgid "Type of the exception activity on record."
+msgstr "रिकॉर्ड में जो अलग तरह की गतिविधि हुई है, वह किस तरह की है।"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_uom_id
+msgid "Unit"
+msgstr "यूनिट"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__price_unit
+msgid "Unit Price"
+msgstr "यूनिट प्राइस"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "e.g. customer contract number"
+msgstr ""

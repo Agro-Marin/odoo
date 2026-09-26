@@ -1,0 +1,474 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* sale_agreement
+#
+# Translators:
+# Qaidjohar Barbhaya, 2023
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 16.0+e\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2023-05-16 13:49+0000\n"
+"PO-Revision-Date: 2022-09-22 05:54+0000\n"
+"Last-Translator: Qaidjohar Barbhaya, 2023\n"
+"Language-Team: Gujarati (https://app.transifex.com/odoo/teams/41243/gu/)\n"
+"Language: gu\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "<span><strong>From</strong></span>"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "<span><strong>to</strong></span>"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_needaction
+msgid "Action Needed"
+msgstr "Action Needed"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__active
+msgid "Active"
+msgstr "Active"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_ids
+msgid "Activities"
+msgstr "Activities"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_exception_decoration
+msgid "Activity Exception Decoration"
+msgstr "Activity Exception Decoration"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_state
+msgid "Activity State"
+msgstr "Activity State"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_type_icon
+msgid "Activity Type Icon"
+msgstr "Activity Type Icon"
+
+#. module: sale_agreement
+#: model_terms:ir.actions.act_window,help:sale_agreement.action_sale_agreement
+msgid ""
+"Agree on products, quantities and prices for a period; the orders\n"
+"                placed against it take those prices, and each line shows what is\n"
+"                left to order."
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__agreement_id
+msgid "Agreement"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__agreement_type
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__agreement_type
+msgid "Agreement Type"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Agreement Validity"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__analytic_distribution
+msgid "Analytic Distribution"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__analytic_precision
+msgid "Analytic Precision"
+msgstr "Analytic Precision"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Archived"
+msgstr "Archived"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_attachment_count
+msgid "Attachment Count"
+msgstr "Attachment Count"
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement
+#: model:ir.ui.menu,name:sale_agreement.menu_sale_agreement
+msgid "Blanket Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Cancel"
+msgstr "Cancel"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Close"
+msgstr "Close"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__company_id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__company_id
+msgid "Company"
+msgstr "Company"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Confirm"
+msgstr "Confirm"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__create_uid
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__create_uid
+msgid "Created by"
+msgstr "Created by"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__create_date
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__create_date
+msgid "Created on"
+msgstr "Created on"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__currency_id
+msgid "Currency"
+msgstr "Currency"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__description
+msgid "Description"
+msgstr "Description"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__display_name
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order_line__display_name
+msgid "Display Name"
+msgstr "Display Name"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__distribution_analytic_account_ids
+msgid "Distribution Analytic Account"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__date_end
+msgid "End Date"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_follower_ids
+msgid "Followers"
+msgstr "Followers"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_partner_ids
+msgid "Followers (Partners)"
+msgstr "Followers (Partners)"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__has_message
+msgid "Has Message"
+msgstr "Has Message"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order__id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_order_line__id
+msgid "ID"
+msgstr "ID"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_exception_icon
+msgid "Icon"
+msgstr "Icon"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_exception_icon
+msgid "Icon to indicate an exception activity."
+msgstr "Icon to indicate an exception activity."
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr "If checked, new messages require your attention."
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_error
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr "If checked, some messages have a delivery error."
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_is_follower
+msgid "Is Follower"
+msgstr "Is Follower"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__write_uid
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__write_uid
+msgid "Last Updated by"
+msgstr "Last Updated by"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__write_date
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__write_date
+msgid "Last Updated on"
+msgstr "Last Updated on"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_error
+msgid "Message Delivery error"
+msgstr "Message Delivery error"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_ids
+msgid "Messages"
+msgstr "Messages"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__my_activity_date_deadline
+msgid "My Activity Deadline"
+msgstr "My Activity Deadline"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "My Agreements"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement_new_quotation
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "New Quotation"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_date_deadline
+msgid "Next Activity Deadline"
+msgstr "Next Activity Deadline"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_summary
+msgid "Next Activity Summary"
+msgstr "Next Activity Summary"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_type_id
+msgid "Next Activity Type"
+msgstr "Next Activity Type"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_needaction_counter
+msgid "Number of Actions"
+msgstr "Number of Actions"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__order_count
+msgid "Number of Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_error_counter
+msgid "Number of errors"
+msgstr "Number of errors"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr "Number of messages with delivery error"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Open"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__qty_ordered
+msgid "Ordered"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__partner_id
+msgid "Partner"
+msgstr "Partner"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__website_message_ids
+msgid "Portal Messages"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__website_message_ids
+msgid "Portal communication history for this record."
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__product_id
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_id
+msgid "Product"
+msgstr "Product"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Products"
+msgstr "Products"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__line_ids
+msgid "Products to Sell"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_qty
+msgid "Quantity"
+msgstr "Quantity"
+
+#. module: sale_agreement
+#: model:ir.actions.act_window,name:sale_agreement.action_sale_agreement_orders
+msgid "Quotations and Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Quotations/Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.actions.act_window,help:sale_agreement.action_sale_agreement
+msgid "Record a blanket order with a customer"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__reference
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Reference"
+msgstr "Reference"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Reset to Draft"
+msgstr "Reset to Draft"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__activity_user_id
+msgid "Responsible User"
+msgstr "Responsible User"
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr "SMS Delivery error"
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_order
+msgid "Sale Order"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__agreement_id
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Sales Agreement"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_agreement_line
+msgid "Sales Agreement Line"
+msgstr ""
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_list
+msgid "Sales Agreements"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model,name:sale_agreement.model_sale_order_line
+msgid "Sales Order Line"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__order_ids
+msgid "Sales Orders"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__user_id
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Salesperson"
+msgstr "Salesperson"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Search Sales Agreements"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__date_start
+msgid "Start Date"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement__state
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_search
+msgid "Status"
+msgstr "Status"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_state
+msgid ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+msgstr ""
+"Status based on activities\n"
+"Overdue: Due date is already passed\n"
+"Today: Activity date is today\n"
+"Planned: Future activities."
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "Terms and Conditions"
+msgstr "Terms and Conditions"
+
+#. module: sale_agreement
+#: model:ir.model.fields,help:sale_agreement.field_sale_agreement__activity_exception_decoration
+msgid "Type of the exception activity on record."
+msgstr "Type of the exception activity on record."
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__product_uom_id
+msgid "Unit"
+msgstr ""
+
+#. module: sale_agreement
+#: model:ir.model.fields,field_description:sale_agreement.field_sale_agreement_line__price_unit
+msgid "Unit Price"
+msgstr "Unit Price"
+
+#. module: sale_agreement
+#: model_terms:ir.ui.view,arch_db:sale_agreement.sale_agreement_view_form
+msgid "e.g. customer contract number"
+msgstr ""

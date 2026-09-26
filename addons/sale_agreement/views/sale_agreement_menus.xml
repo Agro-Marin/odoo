@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem
+        id="menu_sale_agreement"
+        parent="sale.sale_order_menu"
+        action="action_sale_agreement"
+        sequence="30" />
+
+</odoo>

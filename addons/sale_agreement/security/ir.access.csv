@@ -1,0 +1,7 @@
+id,name,model_id/id,group_id/id,kind,operation,reach,anchor,domain
+access_sale_agreement_salesman,sale.agreement salesman,model_sale_agreement,sale.group_sale_salesman,permission,crud,,,
+access_sale_agreement_line_salesman,sale.agreement.line salesman,model_sale_agreement_line,sale.group_sale_salesman,permission,crud,,,
+access_sale_agreement_readonly,sale.agreement readonly,model_sale_agreement,sale.group_sale_readonly,permission,r,,,
+access_sale_agreement_line_readonly,sale.agreement.line readonly,model_sale_agreement_line,sale.group_sale_readonly,permission,r,,,
+sale_agreement_comp_rule,Sales Agreement multi-company,model_sale_agreement,base.group_everyone,guard,crud,company,,
+sale_agreement_line_comp_rule,Sales Agreement Line multi-company,model_sale_agreement_line,base.group_everyone,guard,crud,company,,

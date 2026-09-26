@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="action_sale_agreement_orders" model="ir.actions.act_window">
+        <field name="name">Quotations and Orders</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('agreement_id', '=', active_id)]</field>
+        <field name="context">{'default_agreement_id': active_id}</field>
+    </record>
+
+    <record id="action_sale_agreement_new_quotation" model="ir.actions.act_window">
+        <field name="name">New Quotation</field>
+        <field name="res_model">sale.order</field>
+        <field name="view_mode">form,list</field>
+        <field name="domain">[('agreement_id', '=', active_id)]</field>
+        <field name="context">{'default_agreement_id': active_id}</field>
+    </record>
+
+    <record id="sale_agreement_view_form" model="ir.ui.view">
+        <field name="name">sale.agreement.form</field>
+        <field name="model">sale.agreement</field>
+        <field name="arch" type="xml">
+            <form string="Sales Agreement">
+                <field name="company_id" invisible="1" />
+                <field name="currency_id" invisible="1" />
+                <field name="active" invisible="1" />
+                <header>
+                    <widget
+                        name="web_ribbon"
+                        title="Archived"
+                        invisible="active"
+                        bg_color="text-bg-danger" />
+                    <button
+                        name="%(action_sale_agreement_new_quotation)d"
+                        type="action"
+                        string="New Quotation"
+                        context="{'default_currency_id': currency_id, 'default_user_id': user_id}"
+                        invisible="state != 'confirmed'"
+                        class="btn-primary" />
+                    <button
+                        name="action_confirm"
+                        type="object"
+                        string="Confirm"
+                        invisible="state != 'draft'"
+                        class="btn-primary" />
+                    <button
+                        name="action_done"
+                        type="object"
+                        string="Close"
+                        invisible="state != 'confirmed'"
+                        class="btn-primary" />
+                    <button
+                        name="action_draft"
+                        type="object"
+                        string="Reset to Draft"
+                        invisible="state != 'cancel'" />
+                    <button
+                        name="action_cancel"
+                        type="object"
+                        string="Cancel"
+                        invisible="state not in ('draft', 'confirmed')" />
+                    <field
+                        name="state"
+                        widget="statusbar"
+                        statusbar_visible="draft,confirmed,done" />
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button
+                            name="%(action_sale_agreement_orders)d"
+                            type="action"
+                            icon="fa-list-alt"
+                            context="{'default_currency_id': currency_id}"
+                            invisible="state == 'draft'"
+                            class="oe_stat_button">
+                            <field
+                                name="order_count"
+                                string="Quotations/Orders"
+                                widget="statinfo" />
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <label for="name" class="oe_inline" />
+                        <h1>
+                            <field name="name" />
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field
+                                name="partner_id"
+                                context="{'res_partner_search_mode': 'customer'}"
+                                readonly="state in ['confirmed', 'done']"
+                                required="1" />
+                            <field
+                                name="user_id"
+                                domain="[('share', '=', False)]"
+                                readonly="state != 'draft'" />
+                            <field
+                                name="currency_id"
+                                groups="base.group_multi_currency" />
+                        </group>
+                        <group>
+                            <label for="date_start" string="Agreement Validity" />
+                            <div class="o_row">
+                                <span><strong>From</strong></span>
+                                <field
+                                    name="date_start"
+                                    widget="date"
+                                    readonly="state not in ('draft', 'confirmed')" />
+                                <span><strong>to</strong></span>
+                                <field
+                                    name="date_end"
+                                    widget="date"
+                                    readonly="state not in ('draft', 'confirmed')" />
+                            </div>
+                            <field
+                                name="reference"
+                                placeholder="e.g. customer contract number" />
+                            <field
+                                name="company_id"
+                                options="{'no_create': True}"
+                                groups="base.group_multi_company"
+                                readonly="state != 'draft'" />
+                        </group>
+                    </group>
+                    <notebook>
+                        <page name="products" string="Products">
+                            <field name="line_ids" readonly="state == 'done'">
+                                <list string="Products" editable="bottom">
+                                    <field
+                                        name="product_id"
+                                        domain="[('sale_ok', '=', True), '|', ('company_id', '=', False), ('company_id', '=', parent.company_id)]" />
+                                    <field name="product_qty" />
+                                    <field name="qty_ordered" optional="show" />
+                                    <field
+                                        name="product_uom_id"
+                                        widget="many2one_uom"
+                                        optional="show"
+                                        groups="uom.group_uom"
+                                        required="product_id" />
+                                    <field
+                                        name="analytic_distribution"
+                                        widget="analytic_distribution"
+                                        optional="hide"
+                                        options="{'product_field': 'product_id', 'business_domain': 'sale_order'}"
+                                        groups="analytic.group_analytic_accounting" />
+                                    <field name="price_unit" />
+                                </list>
+                            </field>
+                            <separator string="Terms and Conditions" />
+                            <field name="description" class="oe-bordered-editor" />
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter />
+            </form>
+        </field>
+    </record>
+
+    <record id="sale_agreement_view_list" model="ir.ui.view">
+        <field name="name">sale.agreement.list</field>
+        <field name="model">sale.agreement</field>
+        <field name="arch" type="xml">
+            <list string="Sales Agreements" sample="1">
+                <field name="name" decoration-bf="1" />
+                <field name="partner_id" optional="show" />
+                <field name="user_id" widget="many2one_avatar_user" optional="show" />
+                <field
+                    name="company_id"
+                    optional="show"
+                    options="{'no_create': True}"
+                    groups="base.group_multi_company" />
+                <field name="date_start" optional="show" />
+                <field
+                    name="date_end"
+                    widget="remaining_days"
+                    optional="show"
+                    invisible="state in ('done', 'cancel')" />
+                <field name="reference" optional="show" />
+                <field
+                    name="state"
+                    widget="badge"
+                    optional="show"
+                    decoration-info="state not in ('done', 'cancel')"
+                    decoration-success="state == 'done'" />
+            </list>
+        </field>
+    </record>
+
+    <record id="sale_agreement_view_search" model="ir.ui.view">
+        <field name="name">sale.agreement.search</field>
+        <field name="model">sale.agreement</field>
+        <field name="arch" type="xml">
+            <search string="Search Sales Agreements">
+                <field name="partner_id" />
+                <field
+                    name="name"
+                    string="Reference"
+                    filter_domain="['|', ('name', 'ilike', self), ('reference', 'ilike', self)]" />
+                <field name="user_id" />
+                <field name="product_id" />
+                <filter
+                    name="my_agreements"
+                    string="My Agreements"
+                    domain="[('user_id', '=', uid)]" />
+                <separator />
+                <filter
+                    name="confirmed"
+                    string="Open"
+                    domain="[('state', '=', 'confirmed')]" />
+                <filter
+                    name="inactive"
+                    string="Archived"
+                    domain="[('active', '=', False)]" />
+                <group>
+                    <filter
+                        name="salesperson"
+                        string="Salesperson"
+                        context="{'group_by': 'user_id'}" />
+                    <filter
+                        name="status"
+                        string="Status"
+                        context="{'group_by': 'state'}" />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_sale_agreement" model="ir.actions.act_window">
+        <field name="name">Blanket Orders</field>
+        <field name="res_model">sale.agreement</field>
+        <field name="path">sales-agreements</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="sale_agreement_view_search" />
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Record a blanket order with a customer
+            </p><p>
+                Agree on products, quantities and prices for a period; the orders
+                placed against it take those prices, and each line shows what is
+                left to order.
+            </p>
+        </field>
+    </record>
+
+</odoo>
