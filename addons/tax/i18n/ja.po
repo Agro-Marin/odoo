@@ -31,6 +31,12 @@ msgstr ""
 "X-Generator: Weblate 5.14.3\n"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "A fiscal position with a foreign VAT already exists in this country."
+msgstr "国外付加価値税の会計ポジションは、すでにこの国に存在しています。"
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
 msgid "Active"
 msgstr "有効"
@@ -139,6 +145,16 @@ msgid "ID"
 msgstr "ID"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"Invalid \"Zip Range\", You have to configure both \"From\" and \"To\" values"
+" for the zip range and \"To\" should be greater than \"From\"."
+msgstr ""
+"郵便番号の範囲 \"が無効です。郵便番号の範囲には \"から \"と \"まで \"の両方の値を設定する必要があり、\"まで \"は "
+"\"から\"よりも大きくなければなりません。"
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
 #: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
 msgid "Is Domestic"
@@ -212,6 +228,14 @@ msgstr ""
 "これを使ってクイックサーチできます。"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"The country of the foreign VAT number could not be detected. Please assign a"
+" country to the fiscal position."
+msgstr "国外VAT番号の国を検出できませんでした。会計ポジションに国を割り当ててください。"
+
+#. module: tax
 #: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
 msgid "The country to use the tax reports from for this company"
 msgstr "この会社の税レポートの課税国"
@@ -233,6 +257,22 @@ msgstr "この会計ポジションにマップされた地区での会社の登
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__vat_required
 msgid "VAT required"
 msgstr "要登録番号"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr "選択した国グループ以外の国で会計ポジションを作成することはできません。"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr "国外VATを持つ会計ポジションは、そのVATにステータスを割り当てなければ、会計上の国で作成することはできません。"
 
 #. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
@@ -285,3 +325,9 @@ msgstr "販売税"
 #: model:ir.model.fields,field_description:tax.field_product_template__tax_string
 msgid "Tax String"
 msgstr "税文字列"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "会計ポジション [%s]"

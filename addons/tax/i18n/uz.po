@@ -25,6 +25,12 @@ msgstr ""
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "A fiscal position with a foreign VAT already exists in this country."
+msgstr "Bu mamlakatda chet el QQSli soliq pozitsiyasi allaqachon mavjud."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
 #, fuzzy
 msgid "Active"
@@ -157,6 +163,17 @@ msgid "ID"
 msgstr "ID"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"Invalid \"Zip Range\", You have to configure both \"From\" and \"To\" values"
+" for the zip range and \"To\" should be greater than \"From\"."
+msgstr ""
+"\"Pochta indeksi oralig‘i\" noto‘g‘ri, siz pochta indeksi oralig‘i uchun "
+"\"Boshlanish\" va \"Tugash\" qiymatlarini sozlashingiz kerak va \"Tugash\" "
+"qiymati \"Boshlanish\" qiymatidan katta bo‘lishi lozim"
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
 #: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
 #, fuzzy
@@ -245,6 +262,16 @@ msgstr ""
 "foydalanishingiz mumkin."
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"The country of the foreign VAT number could not be detected. Please assign a"
+" country to the fiscal position."
+msgstr ""
+"Xorijiy QQS raqamining mamlakati aniqlanmadi. Iltimos, fiskal pozitsiyaga "
+"mamlakat tayinlang."
+
+#. module: tax
 #: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
 #, fuzzy
 msgid "The country to use the tax reports from for this company"
@@ -274,6 +301,26 @@ msgstr ""
 #, fuzzy
 msgid "VAT required"
 msgstr "QQS talab qilinadi"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr ""
+"Tanlangan mamlakatlar guruhidan tashqaridagi mamlakat bilan soliq "
+"pozitsiyasini yarata olmaysiz."
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr ""
+"O‘z soliq mamlakatingiz ichida xorijiy QQSni davlatga biriktirmasdan soliq "
+"pozitsiyasini yarata olmaysiz."
 
 #. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
@@ -335,3 +382,9 @@ msgstr "Sotishdan olinadigan soliqlar"
 #, fuzzy
 msgid "Tax String"
 msgstr "Soliq qatori"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "fiskal holat [%s]"

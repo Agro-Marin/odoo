@@ -33,6 +33,12 @@ msgstr ""
 "X-Generator: Weblate 5.14.3\n"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "A fiscal position with a foreign VAT already exists in this country."
+msgstr "O poziție fiscală cu un TVA străin există deja în această țară."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
 msgid "Active"
 msgstr "Activ"
@@ -145,6 +151,16 @@ msgid "ID"
 msgstr "ID"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"Invalid \"Zip Range\", You have to configure both \"From\" and \"To\" values"
+" for the zip range and \"To\" should be greater than \"From\"."
+msgstr ""
+"Interval 'Cod Poștal' nevalid. Trebuie să configurați atât valorile 'De la' "
+"cât și 'Până la', iar 'Până la' trebuie să fie mai mare decât 'De la'."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
 #: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
 msgid "Is Domestic"
@@ -220,6 +236,16 @@ msgstr ""
 "Puteți utiliza acest câmp pentru căutări rapide."
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"The country of the foreign VAT number could not be detected. Please assign a"
+" country to the fiscal position."
+msgstr ""
+"Țara codului TVA străin nu a putut fi detectată. Vă rugăm să atribuiți o "
+"țară poziției fiscale."
+
+#. module: tax
 #: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
 msgid "The country to use the tax reports from for this company"
 msgstr "Țara în care se utilizează rapoartele fiscale din această companie"
@@ -244,6 +270,26 @@ msgstr ""
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__vat_required
 msgid "VAT required"
 msgstr "TVA-ul necesar"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr ""
+"Nu poți crea o poziție fiscală cu o țară din afara grupului de țări "
+"selectat."
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr ""
+"Nu puteți crea o poziție fiscală cu o TVA străină în țara dvs. fiscală fără "
+"a o atribui unui stat."
 
 #. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
@@ -296,3 +342,9 @@ msgstr "Taxe pe vânzări"
 #: model:ir.model.fields,field_description:tax.field_product_template__tax_string
 msgid "Tax String"
 msgstr "Șir taxă"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "poziție fiscală [%s]"

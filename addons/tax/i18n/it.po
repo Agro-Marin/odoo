@@ -31,6 +31,14 @@ msgstr ""
 "X-Generator: Weblate 5.14.3\n"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "A fiscal position with a foreign VAT already exists in this country."
+msgstr ""
+"Esiste già una posizione fiscale con una Partita IVA estera per questa "
+"nazione."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
 msgid "Active"
 msgstr "Attivo"
@@ -143,6 +151,17 @@ msgid "ID"
 msgstr "ID"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"Invalid \"Zip Range\", You have to configure both \"From\" and \"To\" values"
+" for the zip range and \"To\" should be greater than \"From\"."
+msgstr ""
+"\"Intervallo CAP\" non valido. È necessario configurare sia il valore \"Da\""
+" che il valore \"A\" per l'intervallo CAP e \"A\" deve essere maggiore di "
+"\"Da\"."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
 #: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
 msgid "Is Domestic"
@@ -218,6 +237,16 @@ msgstr ""
 "È possibile usare questo campo per una ricerca rapida."
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"The country of the foreign VAT number could not be detected. Please assign a"
+" country to the fiscal position."
+msgstr ""
+"Non è stato possibile individuare il Paese corrispondente al numero di "
+"partita IVA estero. Assegna un Paese alla posizione fiscale."
+
+#. module: tax
 #: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
 msgid "The country to use the tax reports from for this company"
 msgstr "La nazione di cui utilizzare i resoconti fiscali per l'azienda"
@@ -243,6 +272,26 @@ msgstr ""
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__vat_required
 msgid "VAT required"
 msgstr "Partita IVA obbligatoria"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr ""
+"Non è possibile creare una posizione fiscale con un Paese al di fuori del "
+"gruppo di Paesi selezionato."
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr ""
+"Non è possibile creare una posizione di bilancio con un'IVA estera "
+"all'interno del Paese fiscale senza aver assegnato uno stato."
 
 #. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
@@ -295,3 +344,9 @@ msgstr "Imposte vendite"
 #: model:ir.model.fields,field_description:tax.field_product_template__tax_string
 msgid "Tax String"
 msgstr "Stringa fiscale"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "posizione di bilancio [%s]"

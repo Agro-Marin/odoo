@@ -2937,6 +2937,12 @@ msgstr "Nivea"
 
 #. module: product
 #. odoo-python
+#: code:addons/product/models/mixin_product_catalog.py:0
+msgid "No Section"
+msgstr "Bo‘lim yo‘q"
+
+#. module: product
+#. odoo-python
 #: code:addons/product/wizard/product_label_layout.py:0
 #, fuzzy
 msgid ""

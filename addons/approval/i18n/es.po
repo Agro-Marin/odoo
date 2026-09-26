@@ -1499,7 +1499,7 @@ msgstr ""
 #. module: approval
 #: model:ir.model,name:approval.model_base
 msgid "Base"
-msgstr ""
+msgstr "Base"
 
 #. module: approval
 #: model:ir.model.fields,help:approval.field_approval_decision_wizard__request_ids

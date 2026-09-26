@@ -255,6 +255,25 @@ msgid "VAT required"
 msgstr "Käibemaks vajalik"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr ""
+"Ei saa luua finantspositsiooni riigiga väljaspool valitud riikide gruppi."
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr ""
+"Finantspositsiooni ei saa luua välismaise käibemaksuga oma riigi piires, "
+"ilma et oleks määramata riik."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
 msgid "Zip Range From"
 msgstr "Sihtnumber alates"
@@ -305,3 +324,9 @@ msgstr "Müügi maksud"
 #: model:ir.model.fields,field_description:tax.field_product_template__tax_string
 msgid "Tax String"
 msgstr "Maksustring"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "finantspositsioon [%s]"

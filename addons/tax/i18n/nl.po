@@ -30,6 +30,13 @@ msgstr ""
 "X-Generator: Weblate 5.14.3\n"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "A fiscal position with a foreign VAT already exists in this country."
+msgstr ""
+"Er bestaat al een fiscale positie met een buitenlandse btw in dit land."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
 msgid "Active"
 msgstr "Actief"
@@ -142,6 +149,17 @@ msgid "ID"
 msgstr "ID"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"Invalid \"Zip Range\", You have to configure both \"From\" and \"To\" values"
+" for the zip range and \"To\" should be greater than \"From\"."
+msgstr ""
+"Ongeldig \"postcodebereik\", je moet zowel de waaden \"Van\" als \"Tot\" "
+"configureren voor het postcodebereik en \"T/m\" moet groter zijn dan "
+"\"Van\"."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
 #: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
 msgid "Is Domestic"
@@ -217,6 +235,16 @@ msgstr ""
 "Je kunt dit veld gebruiken voor snelzoeken."
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"The country of the foreign VAT number could not be detected. Please assign a"
+" country to the fiscal position."
+msgstr ""
+"Het land van het buitenlandse btw-nummer kon niet worden gedetecteerd. Wijs "
+"een land toe aan de fiscale positie."
+
+#. module: tax
 #: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
 msgid "The country to use the tax reports from for this company"
 msgstr ""
@@ -243,6 +271,26 @@ msgstr ""
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__vat_required
 msgid "VAT required"
 msgstr "Btw verplicht"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr ""
+"Je kunt geen fiscale positie creëren met een land buiten de geselecteerde "
+"landengroep."
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr ""
+"Je kunt geen fiscale positie aanmaken met een buitenlandse btw binnen je "
+"fiscale land zonder er een staat aan toe te kennen."
 
 #. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
@@ -295,3 +343,9 @@ msgstr "Btw Verkoop"
 #: model:ir.model.fields,field_description:tax.field_product_template__tax_string
 msgid "Tax String"
 msgstr "Btw string"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "fiscale positie [%s]"

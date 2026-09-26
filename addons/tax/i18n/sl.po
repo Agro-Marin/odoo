@@ -147,6 +147,17 @@ msgid "ID"
 msgstr "ID"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"Invalid \"Zip Range\", You have to configure both \"From\" and \"To\" values"
+" for the zip range and \"To\" should be greater than \"From\"."
+msgstr ""
+"Neveljaven \"Obseg poštnih številk\". Za obseg poštnih številk morate "
+"konfigurirati vrednosti \"Od\" in \"Do\", vrednost \"Do\" pa mora biti večja"
+" od vrednosti \"Od\"."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
 #: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
 msgid "Is Domestic"
@@ -245,6 +256,25 @@ msgid "VAT required"
 msgstr "DDV zahtevan"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr ""
+"Fiskalne pozicije ne morete ustvariti z državo zunaj izbrane skupine držav."
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr ""
+"Davčnega položaja s tujim DDV-jem znotraj vaše davčne države ne morete "
+"ustvariti, ne da bi mu dodelili zvezno državo."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
 msgid "Zip Range From"
 msgstr "P.št. razpon od"
@@ -295,3 +325,9 @@ msgstr "Davki od prodaje"
 #: model:ir.model.fields,field_description:tax.field_product_template__tax_string
 msgid "Tax String"
 msgstr "Davčni niz"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "fiskalni položaj [%s]"

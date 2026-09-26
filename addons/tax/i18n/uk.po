@@ -136,6 +136,17 @@ msgid "ID"
 msgstr "ID"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"Invalid \"Zip Range\", You have to configure both \"From\" and \"To\" values"
+" for the zip range and \"To\" should be greater than \"From\"."
+msgstr ""
+"Недійсний «Діапазон поштового зв’язку». Ви повинні налаштувати значення "
+"«Від» і «До» для діапазону поштового зв’язку, а «До» має бути більше, ніж "
+"«Від»."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
 #: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
 msgid "Is Domestic"
@@ -237,6 +248,26 @@ msgid "VAT required"
 msgstr "ПДВ обов'язкове"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr ""
+"Ви не можете створити схему оподаткування з країною за межами вибраної групи"
+" країн."
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr ""
+"Ви не можете створити схему оподаткування з іноземним ПДВ у вашій фіскальній"
+" країні, не призначивши їй область."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
 msgid "Zip Range From"
 msgstr "Діапазон індексів від"
@@ -287,3 +318,9 @@ msgstr "Податки продажу"
 #: model:ir.model.fields,field_description:tax.field_product_template__tax_string
 msgid "Tax String"
 msgstr "Рядок податку"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "схема оподаткування [%s]"

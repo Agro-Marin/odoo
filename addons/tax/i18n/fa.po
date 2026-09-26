@@ -158,6 +158,16 @@ msgid "ID"
 msgstr "شناسه"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"Invalid \"Zip Range\", You have to configure both \"From\" and \"To\" values"
+" for the zip range and \"To\" should be greater than \"From\"."
+msgstr ""
+"\"محدوده ZIP\" نامعتبر است، باید هر دو مقدار \"از\" و \"به\" را برای محدوده "
+"ZIP پیکربندی کنید و \"به\" باید بزرگتر از \"از\" باشد."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
 #: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
 msgid "Is Domestic"
@@ -257,6 +267,26 @@ msgid "VAT required"
 msgstr "ارزش افروزده نیاز است"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr ""
+"شما نمی‌توانید یک موقعیت مالی با یک کشور خارج از گروه کشورهای انتخاب‌شده "
+"ایجاد کنید."
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr ""
+"شما نمی‌توانید یک موقعیت مالی که دارای کد مالیاتی ارزش افزوده در کشور "
+"مالی‌تان است را بدون تعیین وضعیت آن ایجاد کنید."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
 msgid "Zip Range From"
 msgstr "دامنه زیپ از"
@@ -307,3 +337,9 @@ msgstr "مالیات فروش"
 #: model:ir.model.fields,field_description:tax.field_product_template__tax_string
 msgid "Tax String"
 msgstr "ردیف مالیت"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "موقعیت مالی [%s]"

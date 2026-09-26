@@ -259,6 +259,24 @@ msgid "VAT required"
 msgstr "מע\"מ חובה"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr "אינך יכול ליצור מעמד פיסקלי עם מדינה מחוץ לקבוצת המדינות שנבחרה."
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr ""
+"לא ניתן ליצור סוג תנועה עם מע\"מ זר בתוך המדינה הפיסקלית שלך מבלי להקצות לו "
+"מדינה."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
 msgid "Zip Range From"
 msgstr "מיקוד מינימום"
@@ -309,3 +327,9 @@ msgstr "מיסי מכירה"
 #: model:ir.model.fields,field_description:tax.field_product_template__tax_string
 msgid "Tax String"
 msgstr "מחרוזת מס"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "סוג תנועה %s"

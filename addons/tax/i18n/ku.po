@@ -225,6 +225,16 @@ msgid "VAT required"
 msgstr ""
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr ""
+"ناتوانیت پێگەیەکی دارایی لەگەڵ وڵاتێک لە دەرەوەی گروپی وڵاتی هەڵبژێردراو "
+"دروست بکەیت."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
 msgid "Zip Range From"
 msgstr ""

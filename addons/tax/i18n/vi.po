@@ -28,6 +28,14 @@ msgstr ""
 "X-Generator: Weblate 5.14.3\n"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "A fiscal position with a foreign VAT already exists in this country."
+msgstr ""
+"Một vị trí tài chính với mã số thuế GTGT nước ngoài đã tồn tại ở quốc gia "
+"này."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__active
 msgid "Active"
 msgstr "Đang hoạt động"
@@ -140,6 +148,16 @@ msgid "ID"
 msgstr "ID"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"Invalid \"Zip Range\", You have to configure both \"From\" and \"To\" values"
+" for the zip range and \"To\" should be greater than \"From\"."
+msgstr ""
+"\"Phạm vi Zip\" không hợp lệ, Bạn phải cấu hình cả hai giá trị \"Từ\" và "
+"\"Đến\" cho phạm vi zip và \"Đến\" phải lớn hơn \"Từ\"."
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
 #: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
 msgid "Is Domestic"
@@ -215,6 +233,16 @@ msgstr ""
 "Bạn có thể sử dụng trường này để tìm kiếm nhanh."
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"The country of the foreign VAT number could not be detected. Please assign a"
+" country to the fiscal position."
+msgstr ""
+"Không thể phát hiện quốc gia của mã số thuế GTGT nước ngoài. Vui lòng chỉ "
+"định quốc gia cho vị trí tài chính."
+
+#. module: tax
 #: model:ir.model.fields,help:tax.field_account_fiscal_position__company_country_id
 msgid "The country to use the tax reports from for this company"
 msgstr "Quốc gia quy định báo cáo thuế mà công ty này sử dụng"
@@ -238,6 +266,26 @@ msgstr ""
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__vat_required
 msgid "VAT required"
 msgstr "Phải có thuế GTGT"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr ""
+"Bạn không thể tạo vị thế tài chính với một quốc gia nằm ngoài nhóm quốc gia "
+"đã chọn."
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr ""
+"Bạn không thể tạo vị trí tài chính với thuế GTGT nước ngoài trong quốc gia "
+"tài chính của mình mà không xác định tỉnh thành."
 
 #. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
@@ -290,3 +338,9 @@ msgstr "Thuế bán hàng"
 #: model:ir.model.fields,field_description:tax.field_product_template__tax_string
 msgid "Tax String"
 msgstr "Chuỗi thuế"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "vị trí tài chính [%s]"

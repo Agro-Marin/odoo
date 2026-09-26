@@ -143,6 +143,16 @@ msgid "ID"
 msgstr "ไอดี"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"Invalid \"Zip Range\", You have to configure both \"From\" and \"To\" values"
+" for the zip range and \"To\" should be greater than \"From\"."
+msgstr ""
+"\"ช่วงรหัสไปรษณีย์\" ไม่ถูกต้อง คุณต้องกำหนดค่าทั้ง \"จาก\" และ \"ถึง\" "
+"สำหรับช่วงรหัสไปรษณีย์ และ \"ถึง\" ควรมากกว่า \"จาก\""
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__is_domestic
 #: model:ir.model.fields,field_description:tax.field_account_tax__is_domestic
 msgid "Is Domestic"
@@ -240,6 +250,24 @@ msgid "VAT required"
 msgstr "ภาษีมูลค่าเพิ่ม VAT"
 
 #. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a country outside of the selected "
+"country group."
+msgstr "คุณไม่สามารถสร้างสถานะทางการเงินกับประเทศนอกกลุ่มประเทศที่เลือกได้"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid ""
+"You cannot create a fiscal position with a foreign VAT within your fiscal "
+"country without assigning it a state."
+msgstr ""
+"คุณไม่สามารถสร้างสถานะทางบัญชีที่มี VAT "
+"ต่างประเทศภายในประเทศทางบัญชีของคุณโดยไม่มีกำหนดจากรัฐได้"
+
+#. module: tax
 #: model:ir.model.fields,field_description:tax.field_account_fiscal_position__zip_from
 msgid "Zip Range From"
 msgstr "ช่วงรหัสไปรษณีย์จาก"
@@ -290,3 +318,9 @@ msgstr "ภาษีขาย"
 #: model:ir.model.fields,field_description:tax.field_product_template__tax_string
 msgid "Tax String"
 msgstr "แถวข้อความภาษี"
+
+#. module: tax
+#. odoo-python
+#: code:addons/tax/models/account_fiscal_position.py:0
+msgid "fiscal position [%s]"
+msgstr "สถานะทางการเงิน [%s]"
