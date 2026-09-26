@@ -1,0 +1,2 @@
+id,name,model_id/id,group_id/id,kind,operation,domain
+access_stock_picking_delivery_failure_user,stock.picking.delivery.failure.user,model_stock_picking_delivery_failure,stock.group_stock_user,permission,crud,

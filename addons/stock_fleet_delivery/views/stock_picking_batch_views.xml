@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="stock_picking_batch_form_trip_operator_sales" model="ir.ui.view">
+        <field name="name">stock.picking.batch.form.trip.operator.sales</field>
+        <field name="model">stock.picking.batch</field>
+        <field name="inherit_id" ref="stock_fleet.stock_picking_batch_form_trip" />
+        <field name="arch" type="xml">
+            <button name="action_depart" position="before">
+                <button
+                    name="action_load_operator_sales"
+                    type="object"
+                    string="Load Operator's Sales"
+                    invisible="date_departure or not operator_id or state in ('done', 'cancel')" />
+            </button>
+        </field>
+    </record>
+
+</odoo>
