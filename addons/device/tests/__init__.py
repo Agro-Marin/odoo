@@ -18,3 +18,4 @@ from . import test_state_retry_lock
 from . import test_device_profile_secrets
 from . import test_push_route_admission
 from . import test_device_parts
+from . import test_inbound_credential_without_key

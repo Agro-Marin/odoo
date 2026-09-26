@@ -47,6 +47,7 @@ class DeviceDevice(models.Model):
     )
     config_id = fields.Many2one(
         comodel_name="device.profile",
+        index="btree_not_null",
         tracking=True,
         help="Configuration profile with communication settings, authentication, and data retention policies",
     )
@@ -67,6 +68,7 @@ class DeviceDevice(models.Model):
     child_count = fields.Count(count_of="child_ids")
     device_category_id = fields.Many2one(
         comodel_name="device.kind",
+        index="btree_not_null",
         ondelete="restrict",
         tracking=True,
     )
@@ -297,20 +299,24 @@ class DeviceDevice(models.Model):
             "credential.credential_category_bearer_token",
             raise_if_not_found=False,
         )
-        return (
-            self.env["credential.credential"]
-            .sudo()
-            .create(
-                {
-                    "name": "Device %s Token" % label,
-                    "company_id": company_id,
-                    "category_id": (
-                        bearer_token_category.id if bearer_token_category else False
-                    ),
-                    "credential_value": self._generate_api_token(),
-                },
+        Credential = self.env["credential.credential"].sudo()
+        vals = {
+            "name": "Device %s Token" % label,
+            "company_id": company_id,
+            "category_id": (
+                bearer_token_category.id if bearer_token_category else False
+            ),
+        }
+        if Credential._is_encryption_key_configured():
+            vals["credential_value"] = self._generate_api_token()
+        else:
+            _logger.warning(
+                "Device %s: no ODOO_API_ENCRYPTION_KEY, so its inbound credential "
+                "is left unprovisioned and every call it makes is refused until "
+                "a token is set.",
+                label,
             )
-        )
+        return Credential.create(vals)
 
     @api.depends(
         "comm_protocol",

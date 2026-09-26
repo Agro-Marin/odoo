@@ -33,7 +33,6 @@ class DeviceConfig(models.Model):
     )
     service_id = fields.Many2one(
         comodel_name="integration.service",
-        string="Service",
         copy=False,
         readonly=True,
         ondelete="restrict",

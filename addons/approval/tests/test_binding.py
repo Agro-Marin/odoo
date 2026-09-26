@@ -187,6 +187,24 @@ class TestApprovalBinding(common.TransactionCase):
             partner.with_user(self.approver).sudo().action_archive()
         self.assertTrue(partner.active)
 
+    def test_module_data_passes_an_enforced_gate_and_is_recorded(self):
+        binding = self._bind(
+            mode="block", category_id=self.category.id, sudo_policy="enforce"
+        )
+        partner = self._partner()
+        partner.with_context(install_module="approval").action_archive()
+        self.assertFalse(partner.active)
+        self.assertEqual(binding.observation_ids.res_id, partner.id)
+        self.assertTrue(binding.observation_ids.would_block)
+
+    def test_module_data_run_as_a_user_passes_an_enforced_gate(self):
+        self._bind(mode="block", category_id=self.category.id, sudo_policy="enforce")
+        partner = self._partner()
+        partner.with_user(self.approver).with_context(
+            install_module="approval"
+        ).action_archive()
+        self.assertFalse(partner.active)
+
     def test_the_kill_switch_disables_every_binding(self):
         self._bind(mode="block", category_id=self.category.id, sudo_policy="enforce")
         self.env["ir.config_parameter"].sudo().set_param(

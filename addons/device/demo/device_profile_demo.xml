@@ -8,7 +8,6 @@
         <field name="http_method">GET</field>
         <field name="http_timeout">30</field>
         <field name="auth_type">bearer</field>
-        <field name="auth_token">demo_api_token_123456789</field>
         <field name="alert_on_disconnect" eval="True" />
         <field name="disconnect_timeout">600</field>
         <field name="data_retention_days">90</field>
@@ -22,8 +21,6 @@
         <field name="http_method">GET</field>
         <field name="http_timeout">45</field>
         <field name="auth_type">basic</field>
-        <field name="auth_username">camera_admin</field>
-        <field name="auth_password">secure_demo_pass</field>
         <field name="alert_on_disconnect" eval="True" />
         <field name="disconnect_timeout">900</field>
         <field name="data_retention_days">180</field>

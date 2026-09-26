@@ -17,7 +17,10 @@ class TestStateRetryLockTimeout(DeviceTransactionCase):
             return "ran"
 
         self.env.cr.execute("LOCK TABLE device_device IN ACCESS EXCLUSIVE MODE")
-        with patch.object(type(Device), "_STATE_LOCK_TIMEOUT", timeout):
+        with (
+            patch.object(type(Device), "_STATE_LOCK_TIMEOUT", timeout),
+            self.leave_registry_test_mode(),
+        ):
             started = time.monotonic()
             result = Device._run_with_state_retry(_touch, "lock timeout probe")
             elapsed = time.monotonic() - started

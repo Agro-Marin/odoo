@@ -148,7 +148,10 @@ class ApprovalBinding(models.Model):
         • Superuser passes: the default. Internal machinery keeps working, an
           ordinary user cannot self-elevate past the gate.
         • Any elevated caller passes: what `web_studio` does unconditionally.
-          Every bypass is still recorded, which is the part it does not do.""",
+          Every bypass is still recorded, which is the part it does not do.
+
+        A module's own data and demo files pass under every policy, recorded
+        the same way: they are reviewed with the code, not decided by a user.""",
     )
 
     approve_on_invoke = fields.Boolean(
@@ -612,7 +615,9 @@ class ApprovalBinding(models.Model):
 
     def _passes_on_elevation(self, elevation: str) -> bool:
         self.check_singleton()
-        if elevation == "none":
+        if self.env.context.get("install_module"):
+            passes, rule = True, "module_data"
+        elif elevation == "none":
             passes, rule = False, "not_elevated"
         elif self.sudo_policy == "enforce":
             passes, rule = False, "enforced"
