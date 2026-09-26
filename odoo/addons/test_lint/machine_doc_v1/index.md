@@ -51,7 +51,23 @@ only shrinks. The elevation gates of `tests/test_elevation.py` count, per
 repository, the bare `sudo()` calls (`bare_sudo_odoo`, `bare_sudo_enterprise`,
 `bare_sudo_agromarin`) that `with_privilege` replaces where code acts on someone's
 behalf, and the `has_group` checks (`has_group_odoo`, `has_group_enterprise`,
-`has_group_agromarin`) that ir.access rows replace as authority;
+`has_group_agromarin`) that ir.access rows replace as authority, and the
+public model methods -- RPC entry points: no leading underscore, not
+`@api.private` in the model's or a parent's class, not a door of a
+`models.Verb` -- that write through an elevation (`public_elevation_odoo`,
+`public_elevation_enterprise`, `public_elevation_agromarin`). An elevation is
+`sudo()`, `with_privilege`, the superuser as user or an environment built with
+`su`, followed through the method's local names; a write is `write`, `create`,
+`unlink`, `copy` or a field assignment on elevated records, or raw DML. Such a
+method is guarded when, before its first elevated write in source order, it
+tests a role or calls `check_access` (or `check_access_rights`,
+`check_access_rule`, `has_access`) for an operation other than `read` on
+records that are not themselves elevated, or when it writes the records it was
+called on under the caller's own access anywhere in the body (the ORM refuses
+that write and the RPC transaction rolls back what the elevation wrote). A
+CRUD override that calls its `super()` is guarded the same way. Elevations
+rooted at a parameter are not counted, since JSON carries no recordset, and a
+helper the method calls is not followed;
 `grant_membership_write` counts the memberships odoo's modules still write
 outside base instead of granting them with a cause. `tests/test_style_literals.py`
 counts, per repository, the hex and numeric `rgb()`/`hsl()` colours module

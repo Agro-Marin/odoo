@@ -112,6 +112,13 @@ value (`coding_guidelines.rst` §2.6). It is a zero rule per repository
 (`view_depends_undeclared_{odoo,enterprise,agromarin}`, no floor entry); the
 narrow scope installs few SQL views, so grade it on a fuller install
 (`--lint-full`).
+`tests/test_elevation.py` counts per repository the bare `sudo()` calls
+(`bare_sudo_<repo>`), the `has_group` checks (`has_group_<repo>`) and the public
+model methods — RPC entry points — that write through an elevation without
+first asking the caller's own right (`public_elevation_<repo>`); the machine
+doc (`odoo/addons/test_lint/machine_doc_v1/index.md`) states what counts as an
+elevation, a write and a guard. The enterprise and agromarin floors are read
+only where those repositories are on the addons path (`--lint-full`).
 
 Four real-dependency pytest suites are in no `testpaths` and run only when
 named: `tests/contract` (`ODOO_CONTRACT_REQUIRE_DEPS=1`; PostgreSQL + psql +

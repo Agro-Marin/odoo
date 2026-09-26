@@ -5,7 +5,7 @@
   "backdrop_filters_agromarin": 23,
   "backdrop_filters_enterprise": 1,
   "backdrop_filters_odoo": 20,
-  "bare_sudo_agromarin": 614,
+  "bare_sudo_agromarin": 609,
   "bare_sudo_enterprise": 2320,
   "bare_sudo_odoo": 4476,
   "bundle_double_eval_web": 5,
@@ -54,5 +54,8 @@
   "owl_this_render_odoo": 3,
   "owl_use_component_odoo": 5,
   "owl_use_env_raw_enterprise": 10,
-  "owl_use_env_raw_odoo": 20
+  "owl_use_env_raw_odoo": 20,
+  "public_elevation_agromarin": 6,
+  "public_elevation_enterprise": 71,
+  "public_elevation_odoo": 93
 }
