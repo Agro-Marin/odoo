@@ -528,7 +528,7 @@ What the engine asks of any record a request is raised for, whichever adopter sh
 | `pending_approver_ids` | Many2many(`res.users`) | No | No | related |
 | `date_approval_requested` | Datetime | Yes | No | related (=date_confirmed), store, tracking |
 | `approval_user_ids` | Many2many(`res.users`) | No | No | related |
-| `approval_required` | Boolean | No | No | compute (memoised per domain+company) |
+| `approval_required` | Boolean | No | No | compute (memoised per domain+company) over `_get_approval_trigger()`: no category configured for the document type is no opinion, so nothing is required; otherwise a `rule` trigger requires it and a `category` trigger requires a category that applies (`_find_approval_category()`) |
 | `can_request_approval` | Boolean | No | No | compute |
 | `approval_chain_preview` | Html | No | No | compute: the approvers routing would stage for a request raised now, in deciding order (`_get_approval_chain_preview` runs `_get_desired_approvers()` on a new-mode request built by `_prepare_approval_request_values`; nothing is written). Empty once a request exists or when none is required |
 | `approval_pending_user_ids` | Many2many(`res.users`) | No | No | compute + search: the request's `pending_user_ids`, searched as `approval_request_id IN (SELECT request_id FROM approval_request_pending_user_rel ...)`. The adopters' approver-reach read rows are written on it |
@@ -546,6 +546,7 @@ What the engine asks of any record a request is raised for, whichever adopter sh
 | `_get_approval_request_name()` | **Override**: customize request name |
 | `_prepare_approval_request_values()` | **Override**: customize request creation values. Honours `approval_binding_for` = (model, id, binding) in context, only when it names this record, so a binding-raised request knows its operation and a nested document cannot inherit the link |
 | `_on_approval_state_changed()` | **Dispatcher — do NOT override.** Routes to `_on_approval_approved` / `_on_approval_refused` / `_on_approval_cancelled` / `_on_approval_revoked` / `_on_approval_reset`. Base posts a chatter note per state; for the `pending` revocation it also schedules a To-Do for the responsible user on activity-enabled models. See conventions.md |
+| `_get_approval_trigger()` | **Override**: `False` (nothing asks), `APPROVAL_TRIGGER_CATEGORY` (default: a category that applies asks) or `APPROVAL_TRIGGER_RULE` (the document's own rule asks — a flag, a level, a threshold — and a category only routes it; a configured category that does not apply is refused when asked) |
 | `_find_approval_category()` | The lookup that never raises: candidates by domain + company, first `_is_applicable_for`, then the fallback. What `_compute_approval_required` reads |
 | `_get_approval_category()` | Find matching category (uses domain + company). Owns the whole selection algorithm; supply `_get_domain_approval_category()`, `approval.category._is_applicable_for()`, `_get_approval_category_fallback()` and the two `_raise_*` hooks instead of overriding it |
 | `_approval_side_effect(failure_note)` | Context manager wrapping any document-advancing call made from a hook: savepoint + `UserError`/`ValidationError` catch + chatter note. Hooks run inside the approver's transaction — do not hand-roll this |

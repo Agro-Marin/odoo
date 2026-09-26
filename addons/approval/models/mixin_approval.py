@@ -15,6 +15,9 @@ from . import approval_trace as trace
 if TYPE_CHECKING:
     from odoo.addons.approval.models.approval_category import ApprovalCategory
 
+APPROVAL_TRIGGER_CATEGORY = "category"
+APPROVAL_TRIGGER_RULE = "rule"
+
 
 class MixinApproval(models.AbstractModel):
     _name = "mixin.approval"
@@ -149,7 +152,12 @@ class MixinApproval(models.AbstractModel):
         candidates: dict[tuple, Any] = {}
         hits = 0
         required = 0
+        unconfigured = 0
         for record in self:
+            trigger = record._get_approval_trigger()
+            if not trigger:
+                record.approval_required = False
+                continue
             company_id = False
             if "company_id" in record._fields:
                 company_id = record.company_id.id if record.company_id else False
@@ -158,7 +166,11 @@ class MixinApproval(models.AbstractModel):
                 hits += 1
             else:
                 candidates[key] = record._get_candidate_approval_categories()
-            record.approval_required = bool(
+            if not candidates[key]:
+                record.approval_required = False
+                unconfigured += 1
+                continue
+            record.approval_required = trigger == APPROVAL_TRIGGER_RULE or bool(
                 record._find_approval_category(candidates[key])
             )
             required += record.approval_required
@@ -168,8 +180,22 @@ class MixinApproval(models.AbstractModel):
             n=len(self),
             searches=len(candidates),
             hits=hits,
+            unconfigured=unconfigured,
             required=required,
         )
+
+    def _get_approval_trigger(self) -> str | bool:
+        """What asks this document for an approval, if anything.
+
+        ``APPROVAL_TRIGGER_CATEGORY``: a configured category that applies asks it.
+        ``APPROVAL_TRIGGER_RULE``: the document's own rule asks it, and a category
+        only routes it; one that does not apply is refused when it is asked.
+        ``False``: nothing asks it. Either way, a document type no category is
+        configured for requires no approval: absence is no opinion, and a gate
+        refuses only what it has an opinion about.
+        """
+        self.check_singleton()
+        return APPROVAL_TRIGGER_CATEGORY
 
     @api.depends("approval_request_id.pending_user_ids")
     def _compute_approval_pending_user_ids(self) -> None:

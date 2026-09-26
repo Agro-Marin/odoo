@@ -88,7 +88,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
 
     def test_warning_on_invoice_with_downpayment(self):
         self.env.company.account_config_id.account_use_credit_limit = True
-        self.partner_a.credit_limit = 1000.0
+        self.partner_a.sudo().credit_limit = 1000.0
 
         sale_order = self.empty_order
         sale_order.write(
@@ -158,7 +158,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
         self.assertEqual(sale_order.amount_taxinc_to_invoice, sale_order.amount_total)
 
     def test_credit_limit_multicurrency(self):
-        self.partner_a.credit_limit = 50
+        self.partner_a.sudo().credit_limit = 50
 
         self.assertRecordValues(
             self.partner_a,
@@ -244,7 +244,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
 
     def test_invoice_independent_of_credit_to_invoice(self):
         self.env.company.account_config_id.account_use_credit_limit = True
-        self.partner_a.credit_limit = 1000.0
+        self.partner_a.sudo().credit_limit = 1000.0
 
         sale_order = self.empty_order
         sale_order.write(
@@ -337,7 +337,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
 
     def test_credit_limit_and_warning_overinvoiced_sales_order(self):
         self.env.company.account_config_id.account_use_credit_limit = True
-        self.partner_a.credit_limit = 1000.0
+        self.partner_a.sudo().credit_limit = 1000.0
 
         self.empty_order.write(
             {
@@ -431,7 +431,6 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
             {
                 "name": "Company A",
                 "is_company": True,
-                "credit_limit": 10000.0,
                 "child_ids": [
                     Command.link(self.partner_a.id),
                     Command.create(
@@ -443,6 +442,7 @@ class TestSaleOrderCreditLimit(TestSaleCommon):
                 ],
             }
         )
+        company_a.sudo().credit_limit = 10000.0
         invoice_partner = company_a.child_ids.filtered(lambda p: p.type == "invoice")
 
         order = self.empty_order
