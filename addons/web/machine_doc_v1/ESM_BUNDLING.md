@@ -144,7 +144,7 @@ wired into `AssetsBundle.invalidate_addon_scan_cache` (the canonical
 | `import_map_includes` | Parent → satellites reusing the parent's import map, skipping esbuild; used for test-runner bundles |
 | `external_libs` | Bare specifier → root-relative URL for a library this module ships (`@odoo/owl`, `chartjs-chart-geo`, …). One specifier resolves to one URL and the owning module declares it; a second module declaring it differently is an error |
 | `exports` | Module specifiers (`@web/core/registry`, …) that must stay reachable **by name** from outside the bundle graph — a test's `browser_js`, a tour started from Python — which no scan of JavaScript sources can discover, so the module that owns them declares them. Aggregated into `EsmRegistry.exports`; `_get_exported_specs` (`ir_qweb_assets_esbuild.py`) adds them to a compiled page's exports beside the specifiers its consumers import. Anything not starting with `@` is rejected at registry build |
-| `secondary_import_map_includes` | Parent → satellites loaded as a separate later `<script>`; only the satellite's NEW import-map specifiers merge into the parent's map. **Gated**: the merge runs only when the satellites are actually rendered (`'tests' in debug or test_mode_enabled`), the same condition `web.conditional_assets_tests` uses |
+| `secondary_import_map_includes` | Parent → satellites loaded as a separate later `<script>`; only the satellite's NEW import-map specifiers merge into the parent's map. **Gated**: the merge runs only when the satellites are actually rendered (`'tests' in debug or test_mode_enabled`), the same condition `web.conditional_assets_tests` uses. A child that is itself declared a parent (`EsmRegistry.page_secondaries`: `web.assets_frontend_lazy` under `web.assets_frontend_minimal`) is the second half of a split page, not a satellite: it keeps a page bundle's export surface, and neither it nor the satellites it declares are merged into the first half's map |
 
 Choosing between the last two, since both silence the "module-syntax file in a
 non-ESM bundle" stub and neither raises when it is the wrong one:
@@ -173,7 +173,9 @@ Example:
                             ['web.assets_unit_tests']},
     'secondary_import_map_includes': {'web.assets_web': ['web.assets_tests'],
                                       'web.assets_frontend': ['web.assets_tests'],
-                                      'web.assets_frontend_lazy': ['web.assets_tests']},
+                                      'web.assets_frontend_lazy': ['web.assets_tests'],
+                                      'web.assets_frontend_minimal': ['web.assets_tests',
+                                                                      'web.assets_frontend_lazy']},
 }
 # web_tour/__manifest__.py — the CHILD declares its lazy bundles under the parent:
 'esm': {
@@ -526,37 +528,53 @@ env["ir.config_parameter"].sudo().set_param("web.esbuild.timeout_s", "60")
 | `[registry] Duplicate add for key "…" … (first registration wins)` console.warn in debug | Module loaded twice (separate instances) — `registry.add` is first-wins and warns rather than throwing | Missing bridge shim (happy path is an attachment URL; `data:` URI only as the read-only-cursor fallback); check `_prepare_native_to_legacy_bridge` |
 | Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override in `_get_esm_nodes_prod` (`ir_qweb_assets.py`). |
 
-### Public pages evaluate modules twice (`bundle_double_eval_<addon>` floors)
+### A split page evaluates each module once (`bundle_double_eval_<addon>` floors)
+
+`web.assets_frontend_lazy` is `web.assets_frontend` minus the modules
+`web.assets_frontend_minimal` owns, and every frontend page renders both. Until
+2026-09-26 the lazy half imported those modules by relative or bare specifier,
+so esbuild inlined them again and each website page evaluated eight modules
+twice (`@web/session`, `@web/core/browser/cookie`, `@web/core/utils/dom/ui`,
+`@web/public/lazyloader`, `@web/public/minimal_dom`,
+`@website/js/content/generate_video_iframe`, `@website/utils/misc`,
+`@website/utils/video_urls`), each copy with its own state: `lazyloader`'s
+readiness promise and delay list existed twice. Three pieces close it:
+
+- `web.assets_frontend_minimal` declares `web.assets_frontend_lazy` a secondary
+  under `esm.secondary_import_map_includes`, so the lazy half's imports of the
+  minimal half's modules compile to strict loader stubs
+  (`_get_secondary_parent_stubs`) and the minimal half registers what the lazy
+  half imports (`_get_export_consumers`).
+- `web.frontend_layout` (and `room`'s booking page, `web.webclient_scoped_app`)
+  render the minimal half **first**: module scripts run in document order, and
+  a stub throws when its provider has not registered.
+- One import map per document: `IrQweb._render` folds every map the document
+  emitted into the first one's place (`_merge_page_import_maps`), stamped with
+  the first rendered bundle declaring dynamic children
+  (`_get_page_import_map_stamp`), so `pageBundleOf` still names
+  `web.assets_frontend_lazy` and the `web_tour.*` entries resolve although the
+  minimal half's map comes first. The merge runs only when a document emitted
+  more than one map, and leaves the page alone when the maps it finds are not
+  the ones it emitted.
+
+The lazy half keeps a page bundle's export surface (`page_secondaries`), not a
+satellite's register-everything one. Measured 2026-09-26 with website_sale,
+survey, room and portal installed: `web.assets_frontend_lazy` 1,344,319 →
+1,341,382 bytes raw (415,781 → 413,911 gzipped), `web.assets_frontend_minimal`
+29,616 → 29,851 (11,661 → 11,737).
 
 `test_bundle_double_evaluation` ratchets the modules a bundle removes by name
-and an importer re-inlines, so pages that load both bundles evaluate them twice,
-each copy with its own state and class identities. The floors in
-`test_lint/tests/floors.json` are keyed by the addon owning the module and are
-exact, graded wherever that addon is installed: **`bundle_double_eval_web` 5**,
-all in `web.assets_frontend_lazy` (`@web/core/browser/cookie`,
-`@web/core/utils/dom/ui`, `@web/public/lazyloader`, `@web/public/minimal_dom`,
-`@web/session`), and **`bundle_double_eval_website` 3**,
-the same lazy-bundle re-inlining of website's modules (among them
-`@website/js/content/generate_video_iframe` and `@website/utils/misc`). A new owning addon is a hard zero.
+and an importer re-inlines, subtracting what the secondary-parent mechanism
+stubs; its `bundle_double_eval_<addon>` floors are keyed by the addon owning
+the module, exact, and zero. `TestSplitFrontendPage` (`web/tests`) reads each
+page's compiled scripts back through their metafiles and fails when a module of
+the minimal half is evaluated by any other script, when the page carries more
+than one import map, or when the page does not boot in Chrome.
 
 - **Not every re-appearance is a double evaluation.** A module that one addon
   removes and another adds back is a bundle *member*, not an import, and is
   ignored; import-map bundles such as `web.assets_unit_tests` are never bundled
   and are skipped.
-- **Two constraints block the obvious fix.** Declaring
-  `web.assets_frontend_minimal` a secondary parent of `web.assets_frontend_lazy`
-  stubs all five to the shared loader, but (1) `web.frontend_layout` emits the
-  lazy bundle before the minimal one and module scripts run in document order,
-  so the stubs resolve against an unpopulated loader (537 registered modules
-  drop to 12, every response still 200); and (2) swapping the two looks fixed
-  but loses the tours, because only the first `<script type="importmap">` of a
-  document is honoured and the lazy bundle's map is the one carrying the
-  `web_tour.*` dynamic children (126 entries vs 22). `room`'s
-  `room_booking_templates_frontend.xml` mirrors this order on purpose.
-- **The fix is the bundler's**: the page's honoured import map has to carry the
-  lazy bundle's entries while the provider still runs first — one map per page
-  instead of one per bundle. Specifiers the secondary-parent mechanism already
-  stubs are subtracted, so a correctly wired bundle reads clean.
 
 ## Cache invalidation on source change — no manual flush needed
 
@@ -595,9 +613,10 @@ bypassed when `dev_mode` contains `"xml"` (`@tools.conditional`,
 
 ## Browser baseline
 
-Pages that render several ESM bundles, and every per-file load (`?debug=assets`, the
-compile-declined or circuit-open fallback, cross-document loads), append a second
-`<script type="importmap">`. Only browsers that merge import maps honour it:
+A server-rendered page carries one `<script type="importmap">`, however many ESM
+bundles it renders (`_merge_page_import_maps`). What the client appends at runtime —
+every per-file load (`?debug=assets` children, the compile-declined or circuit-open
+fallback, cross-document loads) — is a second `<script type="importmap">`. Only browsers that merge import maps honour it:
 **Chrome/Edge 133+ and Safari 18.4+**. Firefox stable drops it (support sits behind
 `dom.multiple_import_maps.enabled`), so the bare specifiers it carries fail to resolve —
 on exactly the resilience paths. The compiled production path for dynamic children is

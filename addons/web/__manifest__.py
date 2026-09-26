@@ -584,6 +584,7 @@ This module provides the core of the Odoo Web Client.
             ],
             "web.assets_frontend_minimal": [
                 "web.assets_tests",
+                "web.assets_frontend_lazy",
             ],
         },
     },

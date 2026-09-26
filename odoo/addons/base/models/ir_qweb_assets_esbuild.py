@@ -269,7 +269,10 @@ class IrQweb(models.AbstractModel):
                     )
                 )
                 registry = esm_registry()
-                if bundle in registry.secondary_bundle_names:
+                if (
+                    bundle in registry.secondary_bundle_names
+                    and bundle not in registry.page_secondaries
+                ):
                     registered_reach = self._get_secondary_inlined_reach(
                         bundle, assets_params, page_scope, sec_ab=asset_bundle
                     )

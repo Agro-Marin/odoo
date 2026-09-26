@@ -358,7 +358,25 @@ class IrQweb(models.AbstractModel):
         *,
         debug_assets: bool,
     ) -> None:
-        for sec_name in esm_registry().secondary_import_map_includes.get(bundle, ()):
+        registry = esm_registry()
+        secondaries = registry.secondary_import_map_includes.get(bundle, ())
+        # the later half of a split page maps its satellites itself, after its
+        # own bridges; merged here first, a source URL would shadow a bridge
+        deferred = {
+            name
+            for half in secondaries
+            if half in registry.page_secondaries
+            for name in (half, *registry.secondary_import_map_includes.get(half, ()))
+        }
+        for sec_name in secondaries:
+            if sec_name in deferred:
+                _debug.logic(
+                    "importmap.secondary_skipped",
+                    bundle=bundle,
+                    secondary=sec_name,
+                    reason="page_secondary",
+                )
+                continue
             sec_ab = self._get_asset_bundle(
                 sec_name,
                 js=True,

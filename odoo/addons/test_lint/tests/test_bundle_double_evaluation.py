@@ -142,8 +142,8 @@ class TestBundleDoubleEvaluation(lint_case.LintCase):
                     "stubbed to the shared loader instead of inlined; or give the "
                     "module a specifier esbuild leaves external. Why the floors "
                     "exist and how they are keyed: web/machine_doc_v1/"
-                    "ESM_BUNDLING.md, section 'Public pages evaluate modules "
-                    "twice'.",
+                    "ESM_BUNDLING.md, section 'A split page evaluates each "
+                    "module once'.",
                 )
         _logger.info(
             "%s removed-but-reinlined module(s) across %s bundle(s) with removes",

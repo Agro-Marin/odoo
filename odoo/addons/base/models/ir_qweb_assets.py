@@ -1,11 +1,14 @@
 import hashlib
+import itertools
 import logging
+import re
 import time
 from collections.abc import Collection, Iterable
 from pathlib import Path
 from typing import Any, Self
 
 from lxml import etree
+from markupsafe import Markup, escape
 from psycopg.errors import LockNotAvailable, ReadOnlySqlTransaction
 from rjsmin import jsmin as _rjsmin
 
@@ -67,6 +70,10 @@ _pregen_log = get_asset_logger("pregen")
 
 _ASSET_CACHE_ENABLED = "xml" not in tools.config["dev_mode"]
 
+_PAGE_IMPORT_MAP_RE = re.compile(
+    r'<script type="importmap" data-bundle="([^"]*)">(.*?)</script>', re.DOTALL
+)
+
 
 class _BuildDeclined(Exception):
     pass
@@ -115,12 +122,68 @@ class IrQweb(models.AbstractModel):
         _debug.lifecycle("esm_document_opened", template=template)
         request._esm_import_map_rendered = False
         request._esm_import_map_specs = frozenset()
+        request._esm_import_map_count = 0
+        request._esm_import_map_bundle = None
+        request._esm_page_stamp = None
         request._esm_page_bundles = ()
         request._esm_document_open = True
         try:
-            return super()._render(template, values, **options)
+            html = super()._render(template, values, **options)
+            stamp = request._esm_page_stamp
+            if request._esm_import_map_count > 1 or (
+                stamp and stamp != request._esm_import_map_bundle
+            ):
+                html = self._merge_page_import_maps(
+                    html, request._esm_import_map_count, request._esm_page_stamp
+                )
+            return html
         finally:
             request._esm_document_open = False
+
+    def _merge_page_import_maps(
+        self, html: Markup, emitted: int, stamp: str | None
+    ) -> Markup:
+        # Only browsers that merge import maps (Chrome 133+, Safari 18.4+)
+        # honour a second one; Firefox drops it. One map per document, at the
+        # first one's place, ahead of every module script.
+        maps = list(_PAGE_IMPORT_MAP_RE.finditer(html))
+        if not maps or len(maps) != emitted:
+            _debug.logic(
+                "page_import_maps_unmerged",
+                emitted=emitted,
+                found=len(maps),
+                reason="count_mismatch",
+            )
+            return html
+        imports: dict[str, str] = {}
+        for match in maps:
+            for spec, url in json.loads(match.group(2))["imports"].items():
+                imports.setdefault(spec, url)
+        stamp = stamp or maps[0].group(1)
+        merged = (
+            f'<script type="importmap" data-bundle="{escape(stamp)}">'
+            f"{json.dumps({'imports': imports})}</script>"
+        )
+        pieces = [html[: maps[0].start()], merged]
+        for previous, match in itertools.pairwise(maps):
+            pieces.append(html[previous.end() : match.start()])
+        pieces.append(html[maps[-1].end() :])
+        _debug.logic(
+            "page_import_maps_merged",
+            maps=len(maps),
+            entries=len(imports),
+            stamp=stamp,
+        )
+        return Markup("".join(pieces))
+
+    def _declares_dynamic_children(
+        self, bundle: str, assets_params: dict[str, Any] | None
+    ) -> bool:
+        registry = esm_registry()
+        return any(
+            registry.dynamic_children.get(parent)
+            for parent in self._get_dynamic_parent_bundles(bundle, assets_params)
+        )
 
     def _get_asset_nodes(
         self,
@@ -1188,6 +1251,15 @@ class IrQweb(models.AbstractModel):
         if not page:
             return pre, post
         self._record_esm_page_bundle(bundle)
+        # the stamp names the page to `/web/bundle?page=`, which compiles a
+        # dynamic child against the page bundle that declares it
+        if (
+            request
+            and not getattr(request, "_esm_page_stamp", None)
+            and any(self._is_import_map_node(node) for node in pre)
+            and self._declares_dynamic_children(bundle, assets_params)
+        ):
+            request._esm_page_stamp = bundle
         return self._dedup_request_page_scripts(bundle, pre), post
 
     def _get_page_scoped_nodes_cached(
@@ -2356,6 +2428,8 @@ class IrQweb(models.AbstractModel):
             if not any(self._is_import_map_node(node) for node in pre_nodes):
                 return pre_nodes
             request._esm_import_map_rendered = True
+            request._esm_import_map_count = 1
+            request._esm_import_map_bundle = bundle
             request._esm_import_map_specs = self._get_import_map_specs(pre_nodes)
             _debug.lifecycle(
                 "page_import_map_rendered",
@@ -2373,6 +2447,9 @@ class IrQweb(models.AbstractModel):
         )
         if added:
             request._esm_import_map_specs = rendered | added
+        request._esm_import_map_count = getattr(
+            request, "_esm_import_map_count", 1
+        ) + sum(1 for node in nodes if self._is_import_map_node(node))
         self._log_narrowed_import_map(bundle, added)
         return nodes
 

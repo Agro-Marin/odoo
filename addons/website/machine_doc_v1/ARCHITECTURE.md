@@ -168,7 +168,7 @@ Defined in `__manifest__.py`. The split is **frontend (public) vs editor
 |--------|----------|
 | `web.assets_frontend` | The visitor site. Globs `interactions/**`, `core/**`, `utils/**`, `snippets/**/*.js`, then **removes** `interactions/**/*.edit.js` and `snippets/**/*.edit.js` (the only two `.edit.js`-bearing dirs); also removes `multirange_input.js`, `ripple_effect.js` (on-demand) and `core/website_edit_service.js`. **Replaces** the framework's `public_root_instance.js` with website's `website_root_instance.js`. |
 | `web.assets_frontend_minimal` | Early-boot subset: `misc.js`, `inject_dom.js`, `auto_hide_menu.js`, `redirect.js`, `adapt_content.js`, `generate_video_iframe.js`. |
-| `web.assets_frontend_lazy` | Removes the minimal subset (loaded later instead). |
+| `web.assets_frontend_lazy` | Removes the minimal subset, which renders first; its imports of those modules read the minimal bundle's copies from the loader. |
 | `mail.assets_public` | `**/common/**/*` (shared record models). |
 
 ### Editor / Builder

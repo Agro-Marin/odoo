@@ -48,6 +48,7 @@ class EsmRegistry(NamedTuple):
     import_map_included_bundles: frozenset
     secondary_parents: Mapping = MappingProxyType({})
     secondary_bundle_names: frozenset = frozenset()
+    page_secondaries: frozenset = frozenset()
     standalone_bundles: frozenset = frozenset()
     external_libs: Mapping = MappingProxyType({})
     runtime_bundle_names: frozenset = frozenset()
@@ -270,6 +271,13 @@ def _freeze_registry(
         secondary_bundle_names=frozenset(
             child for children in secondary_includes.values() for child in children
         ),
+        # a secondary others declare as their parent is one half of a split
+        # page (web.assets_frontend_lazy under web.assets_frontend_minimal),
+        # not a satellite riding on one
+        page_secondaries=frozenset(
+            child for children in secondary_includes.values() for child in children
+        )
+        & (frozenset(secondary_includes) | frozenset(dynamic_children)),
         standalone_bundles=frozenset(standalone_bundles),
         external_libs=MappingProxyType(dict(external_libs)),
         runtime_bundle_names=frozenset(runtime_bundles)

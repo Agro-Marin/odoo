@@ -27,24 +27,18 @@
             </script>
             <t t-set="title" t-value="room.name" />
             <t t-set="body_classname" t-value="'o_room_booking_frontend'" />
-            <!-- Order mirrors ``web.frontend_layout`` and is load-bearing twice
-                over.  ``web.assets_frontend_lazy`` must come first because only
-                the first ESM bundle's ``<script type=importmap>`` is honoured
-                per document, and it is the one carrying the ``web_tour.*``
-                dynamic-child entries a tour needs to resolve; leading with
-                ``web.assets_frontend_minimal`` published its 11-entry map
-                instead.  And ``web.assets_tests`` must come last because a
-                module script cannot import from a bundle that has not run yet:
-                rendered here, ahead of the app bundles, it could externalise
-                nothing and esbuild inlined a second copy of everything it
-                touched — the singleton split ``pos_assets_index.xml``
-                describes at length. -->
+            <!-- Order mirrors ``web.frontend_layout`` and is load-bearing:
+                ``web.assets_frontend_lazy`` reads the modules
+                ``web.assets_frontend_minimal`` registers, so it runs after it;
+                and ``web.assets_tests`` comes last because a module script
+                cannot import from a bundle that has not run yet — the
+                singleton split ``pos_assets_index.xml`` describes at length. -->
             <t
-                t-call-assets="web.assets_frontend_lazy"
+                t-call-assets="web.assets_frontend_minimal"
                 t-css="false"
                 defer_load="True" />
             <t
-                t-call-assets="web.assets_frontend_minimal"
+                t-call-assets="web.assets_frontend_lazy"
                 t-css="false"
                 defer_load="True" />
             <t

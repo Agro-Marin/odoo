@@ -2099,6 +2099,7 @@ class TestImportMapMergeHelpers(TransactionCase):
             dynamic_bundle_names=set(),
             import_map_includes={},
             secondary_import_map_includes={},
+            page_secondaries=frozenset(),
             runtime_bundle_names=set(),
             exports=frozenset(),
             bundle_owners={},
