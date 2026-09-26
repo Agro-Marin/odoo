@@ -486,6 +486,48 @@ The database manager's master password gates *who may ask for a restore*. It
 says nothing about what the backup contains, and a backup is a file that
 travels.
 
+## Upgrading across the forced UTC session
+
+Since `723be6ba37d4` every pooled connection starts with `-c TimeZone=UTC`
+(`odoo/db/README.md`). Before it, a session ran in whatever zone the cluster,
+database or role configured, and a SQL clock — `now()`, `CURRENT_TIMESTAMP`,
+`LOCALTIMESTAMP`, a `DEFAULT now()` — stored that zone's wall clock into naive
+`timestamp` columns the ORM reads as UTC. On a UTC cluster nothing changed. On
+any other, the rows those statements wrote before the upgrade are shifted by
+the zone's offset, and no migration repairs them: which rows a SQL clock wrote,
+as opposed to the ORM, is a fact about the database's history, not its schema.
+
+Before or right after deploying a build that contains the fix:
+
+1. `psql -d <db> -c 'SHOW TimeZone;'` as the server's role, without `PGTZ` or
+   `PGOPTIONS` in the environment. `UTC` (or `Etc/UTC`): stop, nothing to do.
+2. Otherwise run the tool dry, with the instant the new build went live:
+   `odoo-bin sql_zone_repair -c <conf> -d <db> --until 2026-09-26T02:31:12Z`.
+   It prints the zone a session got without the forced UTC, and where it came
+   from (`postgresql.conf`, `ALTER DATABASE`, `ALTER ROLE`, the replayed
+   startup options, `PGTZ`), then, per registered column, how many values are
+   older than the deploy's local wall clock, how many of them are *witnessed*,
+   and before → after samples.
+3. Review. A value is witnessed when its UTC reading equals, to the
+   microsecond, a `create_date`/`write_date` in an `ir_*` table: `now()` is the
+   transaction's start, so the ORM row the same transaction wrote (a module's
+   state write, the `ir_model_data` rows its upgrade created) carries exactly
+   that instant. That rules out an ORM-written value in the same column and
+   checks the zone at the same time: a wrong `--zone` finds no witnesses.
+   Unwitnessed values — a hook or migration whose transaction left no `ir_*`
+   row still standing, a runtime `write_date = now()` touch — are listed and
+   left for a person to decide.
+4. `--apply` repeats the plan and moves the witnessed values in one
+   transaction, a savepoint per column; any failing column rolls the whole run
+   back. Success is recorded as `base.sql_zone_repair` in
+   `ir_config_parameter`, and a second `--apply` is refused.
+
+What the tool does not repair: `date` columns filled from `CURRENT_DATE` or
+`now()::date` (a day that may be off by one cannot be shifted without the hour
+it lost), the `orm_signaling_*` clocks (reported only; autovacuum prunes them
+hourly), and reads — a report or domain that compared against `now()` was
+wrong while it ran and is right from the upgrade on.
+
 ## What a deployment must provide
 
 | Dependency | Why it is not optional |

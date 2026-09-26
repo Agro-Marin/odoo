@@ -601,6 +601,23 @@ one exception, and the scanner has a control showing it tells the two apart.
   zone is `Asia/Kathmandu`. The reader's calendar day is not the session's: SQL
   that buckets by "today" for a user takes that day as a parameter
   (`fields.Date.context_today`).
+- **Rows written before that fix keep the cluster's wall clock, and are repaired
+  by an operator, not a migration**: a SQL clock (`now()`, `CURRENT_TIMESTAMP`,
+  `LOCALTIMESTAMP`, `DEFAULT now()`) stored into a naive `timestamp` column in a
+  non-UTC session wrote local time, while the ORM's `cr.now()` (`now() AT TIME
+  ZONE 'UTC'`) wrote UTC into the same columns. `odoo-bin sql_zone_repair`
+  (`odoo/modules/sql_zone_repair.py`) tells the two apart without guessing:
+  `now()` is the transaction's start, so a SQL-written value `v` is moved only
+  when `(v AT TIME ZONE <zone>) AT TIME ZONE 'UTC'` equals, to the microsecond,
+  a `create_date`/`write_date` of an `ir_*` table — the ORM row the same
+  transaction wrote (a module's `ir_module_module` state write, its new
+  `ir_model_data` rows). Only the reviewed registry `CLOCK_WRITES` is
+  considered; `odoo/modules/tests/test_sql_zone_repair.py` fails when a stored
+  SQL clock in any of the three repositories is missing from it. Unwitnessed
+  values are reported and left. The zone it reads back replays the pool's own
+  startup options minus the forced `TimeZone=UTC`. Pinned live in
+  `tests/contract/test_sql_zone_repair.py`; the operator procedure is in
+  `doc/architecture/deployment.md`, *Upgrading across the forced UTC session*.
 - **A stale cached plan is recoverable, and is recovered one layer up**: after a
   committed schema change, a sibling connection re-executing an auto-prepared
   statement gets `FeatureNotSupported: cached plan must not change result type`.
