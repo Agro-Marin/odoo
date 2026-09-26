@@ -465,6 +465,7 @@ class TestProductionLate(common.TestMrpCommon):
 
 
 @tagged("-at_install", "post_install")
+@freeze_time("2026-09-23 12:00:00")
 class TestWorkcenterStatReports(common.TestMrpCommon):
     @classmethod
     def setUpClass(cls):
@@ -490,7 +491,7 @@ class TestWorkcenterStatReports(common.TestMrpCommon):
                     ("productive", 3, 120),
                     ("performance", 2, 60),
                     ("availability", 1, 15),
-                    ("quality", 1, 10),
+                    ("quality", 5, 10),
                     ("availability", 70, 30),
                 )
             ]
