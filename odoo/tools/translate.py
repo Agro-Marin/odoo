@@ -1071,12 +1071,19 @@ class PoFileReader:
             pot_path = get_pot_path(getattr(source, "name", ""))
 
         if pot_path:
-            active = {entry.msgid for entry in self.pofile if not entry.obsolete}
+            active = {e.msgid_with_context for e in self.pofile if not e.obsolete}
+            # polib's merge keys obsolete entries too: a #~ copy of a live term
+            # would take the pot's occurrences and be read after the live one
+            self.pofile[:] = [
+                entry
+                for entry in self.pofile
+                if not (entry.obsolete and entry.msgid_with_context in active)
+            ]
             self.pofile.merge(polib.pofile(pot_path))
             # the pot refreshes occurrences; a term it lacks is one it has not
             # caught up with yet, so the .po's own occurrences still stand
             for entry in self.pofile:
-                if entry.obsolete and entry.msgid in active:
+                if entry.obsolete and entry.msgid_with_context in active:
                     entry.obsolete = False
         _debug.lifecycle(
             "translate.po_read",

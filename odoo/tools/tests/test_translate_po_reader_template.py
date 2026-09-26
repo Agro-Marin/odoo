@@ -42,6 +42,42 @@ class TestPoFileReaderTemplate(unittest.TestCase):
         )
         self.assertEqual(rows, {"Old": "Ancien", "New": "Nouveau"})
 
+    def test_an_obsolete_duplicate_never_overrides_the_live_translation(self):
+        po_body = """\
+            #. module: mod_a
+            #: code:addons/mod_a/a.py:0
+            msgid "Fiscal Years"
+            msgstr "Ejercicios fiscales"
+
+            #~ msgid "Fiscal Years"
+            #~ msgstr "Años fiscales"
+            """
+        pot_entry = """\
+            #. module: mod_a
+            #: code:addons/mod_a/a.py:0
+            msgid "Fiscal Years"
+            msgstr ""
+            """
+        for pot_body in (pot_entry, pot_entry.replace("Fiscal Years", "Other")):
+            with self.subTest(template_has_msgid="Fiscal Years" in pot_body):
+                rows = self._read(pot_body, po_body)
+                self.assertEqual(rows.get("Fiscal Years"), "Ejercicios fiscales")
+
+    def test_an_obsolete_entry_the_template_carries_is_read_until_merged(self):
+        rows = self._read(
+            """\
+            #. module: mod_a
+            #: code:addons/mod_a/a.py:0
+            msgid "Fiscal Years"
+            msgstr ""
+            """,
+            """\
+            #~ msgid "Fiscal Years"
+            #~ msgstr "Años fiscales"
+            """,
+        )
+        self.assertEqual(rows, {"Fiscal Years": "Años fiscales"})
+
     def test_the_template_refreshes_occurrences(self):
         with tempfile.TemporaryDirectory() as tmp:
             i18n = Path(tmp, "mod_a", "i18n")
