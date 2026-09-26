@@ -540,6 +540,8 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"- Uus väli \"Kokku (sh maksud)\" kiirendamaks ja kontrollimaks "
+"automatiseeritud konto ja maksu kasutamist."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -551,7 +553,7 @@ msgstr "- Osamakse"
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "- Dokumendi järjestus muutub muudetavaks kõikidel dokumentidel."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -571,6 +573,10 @@ msgid ""
 "                --\n"
 "                <br/>"
 msgstr ""
+".\n"
+"                <br/>\n"
+"                --\n"
+"                <br/>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -578,13 +584,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". Andmiku kanded peavad olema arvutatud Odoo poolt enne, kui postitada need "
+"ettevõttes kasutusel oleva valuutaga."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". Siia võiks panna mingi suurema numbri"
 
 #. module: account
 #. odoo-python
@@ -905,6 +913,21 @@ msgid ""
 "            </div>\n"
 "        "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px;\">\n"
+"                    <t t-if=\"object.id != object.commercial_partner_id.id\">Lugupeetud <t t-out=\"object.name or ''\"/> (<t t-out=\"object.commercial_partner_id.name or ''\"/>),</t>\n"
+"                    <t t-else=\"\">Lugupeetud <t t-out=\"object.name or ''\"/>,</t>\n"
+"                    <br/>\n"
+"                   Manusest leiate konto väljavõtte.\n"
+"                    <br/>\n"
+"                    Küsimuste korral palun võtke ühendust.\n"
+"                    <br/>\n"
+"                    Lugupidamisega\n"
+"                    <br/>\n"
+"                    <t t-out=\"object._get_followup_responsible().name if is_html_empty(object._get_followup_responsible().signature) else object._get_followup_responsible().signature\"/>\n"
+"                </p>\n"
+"            </div>\n"
+"        "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_tax_return_deadline
@@ -1039,7 +1062,7 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>Tagasi seadetesse"
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> Eelvaade"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1047,6 +1070,8 @@ msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
 msgstr ""
+"<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/> Aliasdomeeni "
+"seadistamine"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1093,6 +1118,10 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">Ebausaldusväärne</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Usaldusväärne</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
@@ -1100,6 +1129,8 @@ msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
 msgstr ""
+"<span class=\"figure-caption\">Ära jäta ühtegi tähtaega vahele, tänu "
+"automaatsetele aruannetele ja hoiatustele.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1138,6 +1169,9 @@ msgid ""
 "                                    Audit\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Audit\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1146,6 +1180,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Maksud\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1154,6 +1191,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"Saldo\n"
+"</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1162,6 +1202,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Maksud\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1254,6 +1297,9 @@ msgid ""
 "                            <i>inclusive, to make them immutable</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted ms-2\">\n"
+"                            <i>kaasa arvatud, et muuta need muutumatuks</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1262,6 +1308,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_fiscalyear_lock_date_exception_for_me_id                                                  or not min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1270,6 +1319,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_purchase_lock_date_exception_for_me_id                                                  or not min_purchase_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1278,6 +1330,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_sale_lock_date_exception_for_me_id                                                  or not min_sale_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1286,6 +1341,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_tax_lock_date_exception_for_me_id                                                  or not min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1310,6 +1368,9 @@ msgid ""
 "                            <i>Secure entries up to</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted\">\n"
+"                            <i>Lukusta kirjed kuni</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
@@ -1415,6 +1476,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\"> Arve</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\"> Kreeditarve</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1643,6 +1706,8 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>Antud kanne on koostatud läbi Arvete rakenduse, enne Arvepidamise "
+"installimist. Selle saldo on sisestatud eraldi.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3026,7 +3091,7 @@ msgstr "Raamatupidamisdokumendid"
 msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
-msgstr ""
+msgstr "Raamatupidamisbüroo režiim muudab arve/ostuarve kodeeringut:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3206,6 +3271,9 @@ msgid ""
 "Activate\n"
 "                        auto-validation"
 msgstr ""
+"Aktiveeri\n"
+"                        automaatne\n"
+"                        kinnitamine"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5091,6 +5159,8 @@ msgid ""
 "Bank\n"
 "                                    Setup"
 msgstr ""
+"Panga\n"
+"                                    seadistus"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5899,6 +5969,8 @@ msgid ""
 "Capture invoices, register payments and keep track of the discussions with your\n"
 "                vendors."
 msgstr ""
+"Salvesta arveid, registreeri makseid ja hoia silm peal aruteludel oma "
+"hankijatega"
 
 #. module: account
 #. odoo-javascript
@@ -7028,7 +7100,7 @@ msgstr ""
 msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
-msgstr ""
+msgstr "Loo ühendus pangaga. Sobita arved automaatselt."
 
 #. module: account
 #. odoo-javascript
@@ -7444,6 +7516,8 @@ msgid ""
 "                IFRS, or fiscal\n"
 "                adjustments, ensuring compliance with diverse regulations."
 msgstr ""
+"Looge nii palju pearaamatu gruppe kui vaja\n"
+"                tagades vajaliku vastavuse erinevatele regulatsioonidele."
 
 #. module: account
 #. odoo-javascript
@@ -7470,6 +7544,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Loo arveid, registreeri makseid ja pea oma klientidega peetavatel aruteludel"
+" silma peal."
 
 #. module: account
 #. odoo-javascript
@@ -10069,7 +10145,7 @@ msgstr "Kanded"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Kontrollimist vajavad kanded"
 
 #. module: account
 #. odoo-python
@@ -10615,6 +10691,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"Esmane\n"
+"                                                    kanne"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -10622,6 +10700,8 @@ msgid ""
 "First\n"
 "                                                    Hash"
 msgstr ""
+"Esmane\n"
+"                                                    räsi"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11152,6 +11232,8 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"See aruanne annab ülevaate tarnijate poolt arveldatavatest summadest. "
+"Otsingu tööriistaga saab aruande personaliseerida vastavalt vajadusele."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11160,6 +11242,8 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"See aruanne annab ülevaate teie poolt arveldatavatest summadest. Otsingu "
+"tööriistaga saab aruande personaliseerida vastavalt vajadusele."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -11384,7 +11468,7 @@ msgstr "Üldine maksuaruanne"
 msgid ""
 "Get Paid\n"
 "                                online. Send electronic invoices."
-msgstr ""
+msgstr "Saa tasu veebis. Saada elektroonilisi arveid."
 
 #. module: account
 #: model:ir.model,name:account.model_report_account_report_hash_integrity
@@ -11693,6 +11777,9 @@ msgid ""
 "                <br/><br/>\n"
 "                Your email has been discarded. the e-mail address you have used only accepts new invoices:"
 msgstr ""
+"Tere,\n"
+"                <br/><br/>\n"
+"                Teie e-kiri on tagasi lükatud. Kasutatud e-posti aadress võtab vastu ainult uusi arveid:"
 
 #. module: account
 #. odoo-javascript
@@ -13936,6 +14023,8 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"Viimane\n"
+"                                                    kanne"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -14242,7 +14331,7 @@ msgstr "Vähem makse"
 msgid ""
 "Let\n"
 "                                artificial intelligence scan your bill. Pay easily."
-msgstr ""
+msgstr "Lase tehisintellektil oma arve digitaliseerida. Lihtsusta maksmist."
 
 #. module: account
 #. odoo-javascript
@@ -15488,7 +15577,7 @@ msgstr "Mitte kunagi"
 msgid ""
 "Never\n"
 "                        for this vendor"
-msgstr ""
+msgstr "Mitte kunagi sellele tarnijale"
 
 #. module: account
 #. odoo-python
@@ -15950,6 +16039,7 @@ msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
 msgstr ""
+"Lihtsaim viis tarnija kreeditarve loomiseks on teha seda otse ostuarvelt."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17480,13 +17570,15 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"Makseid kasutatakse likviidsuse liikumise registreerimiseks. Te saate neid "
+"makseid töödelda omal valikul või paigaldatud lahenduste abil."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
 msgid ""
 "Payments related to partners with no bank account\n"
 "                        specified will be skipped."
-msgstr ""
+msgstr "Partnerite maksed ilma pangakonto numbrita jäetakse vahele."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__reconciled_payment_ids
@@ -17821,7 +17913,7 @@ msgstr "Postita"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Postita kõik kirjed"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -20156,6 +20248,9 @@ msgid ""
 "Any file extension will be accepted.\n"
 "Only PDF and XML files will be interpreted by Odoo"
 msgstr ""
+"Saada eraldi email iga arve kohta\n"
+"Sobib igasugune faili laiend\n"
+"Vaid ODOO töötleb vaid PDF ja XML faile "
 
 #. module: account
 #. odoo-javascript
@@ -22381,7 +22476,7 @@ msgstr "Pangakonto väljavõttel kasutusel olev valuute"
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "Praegune suurim number on"
 
 #. module: account
 #. odoo-javascript
@@ -22939,6 +23034,8 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"Valitud kontol on määratud kindel valuuta. Iga tehing konverteeritakse antud valuutasse tekitades\n"
+"                    kahjumi välisvaluuta summast."
 
 #. module: account
 #. odoo-python
@@ -25231,6 +25328,8 @@ msgid ""
 "Want to make your life even easier and automate bill validation from this vendor\n"
 "                    ?"
 msgstr ""
+"Soovid muuta elu kergemaks ja automatiseerida arve kinnitamise sellele "
+"tarnijale?"
 
 #. module: account
 #. odoo-python
@@ -26518,14 +26617,14 @@ msgstr ""
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "aktiveerige ostuarve valuuta"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 "activate the currency of the\n"
 "                    invoice"
-msgstr ""
+msgstr "aktiveerige arve valuuta"
 
 #. module: account
 #. odoo-javascript
@@ -26764,7 +26863,7 @@ msgstr "kõik kasutajad"
 msgid ""
 "fall outside the typical\n"
 "                        range."
-msgstr ""
+msgstr "jääb tavapärasest vahemikust välja."
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__1h
@@ -26811,7 +26910,7 @@ msgstr ""
 msgid ""
 "has been\n"
 "                            applied."
-msgstr ""
+msgstr "on rakendatud."
 
 #. module: account
 #. odoo-javascript
@@ -26877,7 +26976,7 @@ msgstr "arved"
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "ei ole samast riigist nagu partner ("
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -26886,6 +26985,8 @@ msgid ""
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
 msgstr ""
+"on raha ülekande teenus ja mitte pank. Kontrolli, kas konto on õige, "
+"helistades tarnijale.<br/>"
 
 #. module: account
 #. odoo-javascript
@@ -26975,7 +27076,7 @@ msgstr "partnerid"
 msgid ""
 "payments\n"
 "                        will be skipped due to"
-msgstr ""
+msgstr "maksed on vahele jäetud, sest"
 
 #. module: account
 #. odoo-python
@@ -27140,7 +27241,7 @@ msgstr "ebausaldusväärne"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "Ebausaldusväärsed pangakontod"
 
 #. module: account
 #. odoo-javascript
@@ -27165,7 +27266,7 @@ msgstr "kes ei ole asutatud üheski EL riigis."
 msgid ""
 "will auto-confirm on their\n"
 "                        respective dates."
-msgstr ""
+msgstr "automaatselt kinnitatakse vastavalt nendele kuupäevadele."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_default_terms_and_conditions
@@ -27210,7 +27311,7 @@ msgstr "ilma kehtiva käibemaksunumbrita."
 msgid ""
 "without making any\n"
 "                    corrections."
-msgstr ""
+msgstr "ilma korrektuure tegemata."
 
 #. module: account
 #. odoo-python

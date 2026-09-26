@@ -9938,6 +9938,8 @@ msgid ""
 "Entries\n"
 "                                            to Review"
 msgstr ""
+"Entries\n"
+"                                            to Review"
 
 #. module: account
 #. odoo-python
@@ -11002,6 +11004,9 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"From this report, you can have an overview of the amount invoiced from\n"
+"            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
+"            so, match this analysis to your needs."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11010,6 +11015,9 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"From this report, you can have an overview of the amount invoiced to your\n"
+"            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
+"            match this analysis to your needs."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -17610,6 +17618,8 @@ msgid ""
 "Post All\n"
 "                                            Entries"
 msgstr ""
+"Post All\n"
+"                                            Entries"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form

@@ -187,8 +187,9 @@ class I18n(DatabaseCommand):
             "Merge .po files with their template",
             "Brings .po files in line with their module's template without a\n"
             "database: every template term is written with the template's\n"
-            "occurrences, the file's translations are kept, and the\n"
-            "translations of terms the template lost turn obsolete (#~).",
+            "occurrences, the file's translations are kept, a term whose text\n"
+            "changed only in whitespace keeps its translation, re-indented,\n"
+            "and the translations of terms the template lost turn obsolete (#~).",
         )
         parser.set_defaults(func=self._merge_translations)
         parser.add_argument(

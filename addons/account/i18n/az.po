@@ -515,7 +515,7 @@ msgstr "- Hissə ödənişi"
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "- Bütün sənədlərdə sənədin ardıcıllığına düzəliş edilə bilər."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -542,13 +542,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". Jurnal qeydləri sizin firma valyutasında qeyd olunmamışdan əvvəl Odoo "
+"tərəfindən hesablanmalıdır."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". Daha yuxarı ədəd qeyd etməyiniz yaxşı olar."
 
 #. module: account
 #. odoo-python
@@ -869,6 +871,21 @@ msgid ""
 "            </div>\n"
 "        "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"    <p style=\"margin: 0px; padding: 0px;\">\n"
+"        <t t-if=\"object.id != object.commercial_partner_id.id\">Hörmətli <t t-out=\"object.name or ''\"/> (<t t-out=\"object.commercial_partner_id.name or ''\"/>),</t>\n"
+"        <t t-else=\"\">Hörmətli <t t-out=\"object.name or ''\"/>,</t>\n"
+"        <br/>\n"
+"        Zəhmət olmasa, hesabınızın çıxarışını əlavə olunmuş şəkildə nəzərdən keçirin.\n"
+"        <br/>\n"
+"        Hər hansı bir sualınız olarsa, bizimlə əlaqə saxlamaqdan çəkinməyin.\n"
+"        <br/>\n"
+"        Hörmətlə,\n"
+"        <br/>\n"
+"        <t t-out=\"object._get_followup_responsible().name if is_html_empty(object._get_followup_responsible().signature) else object._get_followup_responsible().signature\"/>\n"
+"    </p>\n"
+"</div>\n"
+"        "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_tax_return_deadline
@@ -1106,6 +1123,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Vergilər\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1114,6 +1134,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Balans\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1122,6 +1145,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Vergilər\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1371,6 +1397,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\"> Hesab-Faktura</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\"> Kredit-Nota</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -7397,6 +7425,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Hesab-fakturalar yaradın, ödənişləri qediyyata alın və müştərilərinizlə "
+"aparılan müzakirələri izləyin."
 
 #. module: account
 #. odoo-javascript
@@ -9996,7 +10026,7 @@ msgstr "Girişlər"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Rəy bildirmək üçün Girişlər"
 
 #. module: account
 #. odoo-python
@@ -10542,6 +10572,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"İlkin\n"
+"                                                    Giriş"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -10549,6 +10581,8 @@ msgid ""
 "First\n"
 "                                                    Hash"
 msgstr ""
+"İlkin\n"
+"                                                    Həş"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11075,6 +11109,10 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"Podratçılarınız vasitəsilə hesab-fakturada göndərilən məbləğ barədə ümumi "
+"məlumatı bu hesabatdan əldə edə bilərsiniz. Axtarış aləti faktura "
+"hesabatlarınızı fərdiləşdirmək və beləliklə də, bu təhlili tələblərinizə "
+"uyğunlaşdırmaq üçün istifadə edilə bilər."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11083,6 +11121,10 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"Bu hesabatdan müştərilərinizə hesab-fakturada göndərilən məbləğ barədə ümumi"
+" məlumat əldə edə bilərsiniz. Axtarış aləti faktura hesabatlarınızı "
+"fərdiləşdirmək və beləliklə də, bu təhlili tələblərinizə uyğunlaşdırmaq üçün"
+" istifadə edilə bilər."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -13845,6 +13887,9 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"Ən\n"
+"                                                    son\n"
+"                                                    Giriş"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -15383,7 +15428,7 @@ msgstr "Heç vaxt"
 msgid ""
 "Never\n"
 "                        for this vendor"
-msgstr ""
+msgstr "Bu təchizatçı üçün heç vaxt"
 
 #. module: account
 #. odoo-python
@@ -15844,6 +15889,8 @@ msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
 msgstr ""
+"Təchizatçı kredit-notası yaratmağın ən asan yolu onu birbaşa təchizatçı "
+"qaiməsindən yaratmaqdır."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17375,6 +17422,9 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"Ödənişlər likvidlik hərəkətlərinin qeydiyyatdan keçirilməsi üçün istifadə "
+"olunur Bu ödənişləri öz üsullarınızla və ya quraşdırılmış avadanlıqlardan "
+"istifadə edərək həyata keçirə bilərsiniz."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -17717,7 +17767,7 @@ msgstr "Göndərin"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Bütün Girişləri Göndərin"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -22458,6 +22508,8 @@ msgid ""
 "The hash chain is compliant: it is not possible to alter the\n"
 "                                        data without breaking the hash chain for subsequent parts."
 msgstr ""
+"Həş zənciri uyğundur: sonrakı hissələr üçün\n"
+"                                        həş zəncirini pozmadan məlumatları dəyişdirmək mümkün deyil."
 
 #. module: account
 #. odoo-python
@@ -25025,6 +25077,8 @@ msgid ""
 "Want to make your life even easier and automate bill validation from this vendor\n"
 "                    ?"
 msgstr ""
+"Həyatınızı daha da asanlaşdırmaq və bu təchizatçıdan qaimə təsdiqini "
+"avtomatlaşdırmaq istəyirsiniz?"
 
 #. module: account
 #. odoo-python

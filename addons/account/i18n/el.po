@@ -530,6 +530,9 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"- Ένα καινούργιο πεδίο «Σύνολο (συμπ φόρων.)» για την επίσπευση και τον "
+"καλύτερο έλεγχο με την αυτόματη δημιουργία γραμμής με το σωστό λογαριασμό "
+"&amp; φόρου."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -541,7 +544,7 @@ msgstr "- Δόση από"
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "- Η αρίθμηση των παραστατικών μπορεί να τροποποηθεί."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -561,6 +564,10 @@ msgid ""
 "                --\n"
 "                <br/>"
 msgstr ""
+".\n"
+"                <br/>\n"
+"                --\n"
+"                <br/>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -568,13 +575,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". Οι λογιστικές εγγραφές πρέπει να υπολογιστούν από το Odoo πριν "
+"λογιστικοποιηθούν στο νόμισμα της εταιρείας."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". Ίσως πρέπει να βάλετε έναν μεγαλύτερο αριθμό εδώ."
 
 #. module: account
 #. odoo-python
@@ -1030,7 +1039,7 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>Πίσω στις ρυθμίσει�
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> Προεπισκόπιηση"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1038,6 +1047,8 @@ msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
 msgstr ""
+"<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/> Ρύθμιση Domain με "
+"κωδικό alias"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1058,6 +1069,9 @@ msgid ""
 "                        You can choose how you want us to send your invoices, and with which electronic format.\n"
 "                    </small>"
 msgstr ""
+"<small class=\"form-text text-muted\">\n"
+"                        Μπορείτε να επιλέξετε πως θέλετε να αποστέλλουμε τα παραστατικά και σε ποια ηλεκτρονική μορφή.\n"
+"                    </small>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.portal_my_invoices
@@ -1084,6 +1098,10 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">Μη έμπιστο</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Έμπιστο</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
@@ -1091,6 +1109,8 @@ msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
 msgstr ""
+"<span class=\"figure-caption\">Μην χάσετε ποτέ προθεσμίες, με την λειτουργία"
+" των αυτόματων δηλώσεων και ενημερώσεων.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1129,6 +1149,9 @@ msgid ""
 "                                    Audit\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Έλεγχος\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1137,6 +1160,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Φόροι\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1145,6 +1171,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Υπόλοιπο\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1153,6 +1182,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Φόροι\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1395,6 +1427,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\">Τιμολόγιο</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">Πιστωτικό</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1625,6 +1659,9 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>Αυτή η καταχώρηση δημιουργήθηκε μέσω της εφαρμογής Τιμολόγηση, πριν "
+"από την εγκατάσταση του Λογιστηρίου. Το υπόλοιπό του έχει εισαχθεί "
+"ξεχωριστά.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3025,6 +3062,8 @@ msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
 msgstr ""
+"Η λειτουργία της λογιστικής εταιρείας θα αλλάξει την κωδικοποίηση "
+"τιμολογίου/λογαριασμού:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3130,6 +3169,8 @@ msgid ""
 "Accrual entry created on %(date)s: %(accrual_entry)s.                And its"
 " reverse entry: %(reverse_entry)s."
 msgstr ""
+"Εγγραφή δεδουλευμένου που δημιουργήθηκε στις %(date)s: %(accrual_entry)s."
+"                  Και η αντίστροφη εγγραφή του: %(reverse_entry)s."
 
 #. module: account
 #. odoo-python
@@ -10102,7 +10143,7 @@ msgstr "Καταχωρήσεις"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Καταχωρήσεις για Αναθεώρηση"
 
 #. module: account
 #. odoo-python
@@ -11179,6 +11220,10 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"Από αυτήν την αναφορά, μπορείτε να δείτε μια επισκόπηση του ποσού που "
+"τιμολογήθηκε από τους προμηθευτές σας. Το εργαλείο αναζήτησης μπορεί επίσης "
+"να χρησιμοποιηθεί για να προσαρμόσετε τις εκθέσεις τιμολογίων σας και έτσι, "
+"ταιριάζει την ανάλυση αυτή με τις ανάγκες σας."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11187,6 +11232,10 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"Από αυτήν την αναφορά, μπορείτε να δείτε μια επισκόπηση του ποσού που "
+"τιμολογήθηκε στους πελάτες σας. Το εργαλείο αναζήτησης μπορεί επίσης να "
+"χρησιμοποιηθεί για να προσαρμόσετε τις εκθέσεις τιμολογίων σας και έτσι, "
+"ταιριάζει την ανάλυση αυτή με τις ανάγκες σας."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel

@@ -519,6 +519,8 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"- Новое поле \"Итого (с учетом налогов)\" ускоряет и контролирует "
+"кодирование, автоматизируя создание строки с нужным счетом &amp; налог."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -531,6 +533,7 @@ msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
 msgstr ""
+"- Последовательность документа становится редактируемой во всех документах."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -550,6 +553,10 @@ msgid ""
 "                --\n"
 "                <br/>"
 msgstr ""
+".\n"
+"                <br/>\n"
+"                --\n"
+"                <br/>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -557,13 +564,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". Записи в журнале должны быть рассчитаны в Odoo перед публикацией в валюте "
+"вашей компании."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". Возможно, вы захотите указать здесь большее число."
 
 #. module: account
 #. odoo-python
@@ -750,6 +759,49 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                        Здравствуйте,\n"
+"                        <t t-if=\"object.partner_id.parent_id\">\n"
+"                            <t t-if=\"object.partner_id.name\">\n"
+"                                <t t-out=\"object.partner_id.name\">Брэндон Фримен</t> (<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>),\n"
+"                            </t>\n"
+"                            <t t-else=\"\">\n"
+"                                <t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>,\n"
+"                            </t>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Брэндон Фримен</t>,\n"
+"                        </t>\n"
+"                        <br/><br/>\n"
+"                        Во вложении\n"
+"                        <t t-if=\"object.name\">\n"
+"                            самовыставляемый счет<span style=\"font-weight:bold;\" t-out=\"object.name or ''\">INV/2021/05/0005</span>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            самовыставляемый счет\n"
+"                        </t>\n"
+"                        <t t-if=\"object.invoice_origin\">\n"
+"                            (номер: <t t-out=\"object.invoice_origin or ''\">SUB003</t>)\n"
+"                        </t>\n"
+"                        на сумму <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount_total, object.currency_id) or ''\">143 750,00 $ </span>\n"
+"                        от <t t-out=\"object.company_id.name or ''\">YourCompany</t>.\n"
+"                        <t t-if=\"object.payment_state in ('paid', 'in_payment')\">\n"
+"                            Данный счет уже оплачен.\n"
+"                        </t>\n"
+"                        <t t-if=\"hasattr(object, 'timesheet_count') and object.timesheet_count\">\n"
+"                            <br/><br/>\n"
+"             Вы можете проверить табели учета рабочего времени <a t-att-href=\"'/my/timesheets?search_in=invoice&amp;search=%s' % object.name\">на портале.</a>\n"
+"                        </t>\n"
+"                        <br/><br/>\n"
+"                        Если у вас возникнут вопросы, мы всегда готовы на них ответить.\n"
+"                        <t t-if=\"not is_html_empty(object.invoice_user_id.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-o-mail-quote=\"1\">Митчелл Админ</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_edi_credit_note
@@ -899,6 +951,21 @@ msgid ""
 "            </div>\n"
 "        "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px;\">\n"
+"                    <t t-if=\"object.id != object.commercial_partner_id.id\">Здравствуйте, <t t-out=\"object.name or ''\"/> (<t t-out=\"object.commercial_partner_id.name or ''\"/>)!</t>\n"
+"                    <t t-else=\"\">Здравствуйте, <t t-out=\"object.name or ''\"/>!</t>\n"
+"                    <br/>\n"
+"                    Прилагаем выписку по вашему счету.\n"
+"                    <br/>\n"
+"                    Если у вас возникнут вопросы, не стесняйтесь с нами связаться.\n"
+"                    <br/>\n"
+"                    С уважением,\n"
+"                    <br/>\n"
+"                    <t t-out=\"object._get_followup_responsible().name if is_html_empty(object._get_followup_responsible().signature) else object._get_followup_responsible().signature\"/>\n"
+"                </p>\n"
+"            </div>\n"
+"        "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_tax_return_deadline
@@ -1058,7 +1125,7 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>Вернуться к настро�
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> Предпросмотр"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1066,6 +1133,8 @@ msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
 msgstr ""
+"<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/> Настроить домен "
+"псевдонима"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1115,6 +1184,10 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">Недоверенный</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Доверенный</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
@@ -1122,6 +1195,8 @@ msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
 msgstr ""
+"<span class=\"figure-caption\">Никогда не пропустите срок с автоматическими "
+"выписками и уведомлениями.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1160,6 +1235,9 @@ msgid ""
 "                                    Audit\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Аудит\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1168,6 +1246,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Налоги\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1176,6 +1257,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Баланс\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1184,6 +1268,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Налоги\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1281,6 +1368,9 @@ msgid ""
 "                            <i>inclusive, to make them immutable</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted ms-2\">\n"
+"                            <i>включительно, чтобы сделать их неизменяемыми</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1289,6 +1379,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_fiscalyear_lock_date_exception_for_me_id                                                  or not min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1297,6 +1390,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_purchase_lock_date_exception_for_me_id                                                  or not min_purchase_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1305,6 +1401,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_sale_lock_date_exception_for_me_id                                                  or not min_sale_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1313,6 +1412,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_tax_lock_date_exception_for_me_id                                                  or not min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1343,6 +1445,9 @@ msgid ""
 "                            <i>Secure entries up to</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted\">\n"
+"                            <i>Защитить записи до</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
@@ -1451,6 +1556,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\"> Счёт-фактура</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\"> Кредитная нота</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1682,6 +1789,8 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>Эта запись была создана в приложении «Счета-фактуры» до установки "
+"«Бухгалтерии». Её баланс был импортирован отдельно.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3084,7 +3193,7 @@ msgstr "Бухгалтерские документы"
 msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
-msgstr ""
+msgstr "Режим бухгалтерской фирмы изменит кодировку счетов/фактур:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3266,6 +3375,8 @@ msgid ""
 "Activate\n"
 "                        auto-validation"
 msgstr ""
+"Активировать\n"
+"                        авто-проверку"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5182,6 +5293,8 @@ msgid ""
 "Bank\n"
 "                                    Setup"
 msgstr ""
+"Настройка\n"
+"                                    банка"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -6010,6 +6123,8 @@ msgid ""
 "Capture invoices, register payments and keep track of the discussions with your\n"
 "                vendors."
 msgstr ""
+"Регистрируйте счета, фиксируйте платежи и отслеживайте обсуждения с "
+"поставщиками."
 
 #. module: account
 #. odoo-javascript
@@ -7156,7 +7271,7 @@ msgstr ""
 msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
-msgstr ""
+msgstr "Подключите ваш банк. Автоматически сопоставляйте счета."
 
 #. module: account
 #. odoo-javascript
@@ -7582,6 +7697,8 @@ msgid ""
 "                IFRS, or fiscal\n"
 "                adjustments, ensuring compliance with diverse regulations."
 msgstr ""
+"Создавайте столько групп журналов, сколько необходимо для ведения отдельных журналов согласно местным GAAP, IFRS или налоговым\n"
+"                корректировкам, обеспечивая соответствие различным нормативам."
 
 #. module: account
 #. odoo-javascript
@@ -7608,6 +7725,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Создавайте счета-фактуры, регистрируйте платежи и отслеживайте обсуждения с "
+"клиентами."
 
 #. module: account
 #. odoo-javascript
@@ -10231,7 +10350,7 @@ msgstr "Проводки"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Проводки для проверки"
 
 #. module: account
 #. odoo-python
@@ -10783,6 +10902,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"Первая\n"
+"                                                    проводка"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -10790,6 +10911,8 @@ msgid ""
 "First\n"
 "                                                    Hash"
 msgstr ""
+"Первый\n"
+"                                                    хеш"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11330,6 +11453,9 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"Из этого отчёта вы можете получить обзор суммы, выставленной вашими "
+"поставщиками. Инструмент поиска также позволяет настроить отчёты по счетам-"
+"фактурам под ваши нужды."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11338,6 +11464,9 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"Из этого отчёта вы можете получить обзор суммы, выставленной вашим клиентам."
+" Инструмент поиска также позволяет настроить отчёты по счетам-фактурам под "
+"ваши нужды."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -11562,7 +11691,7 @@ msgstr "Общий налоговый отчёт"
 msgid ""
 "Get Paid\n"
 "                                online. Send electronic invoices."
-msgstr ""
+msgstr "Получайте оплату онлайн. Отправляйте электронные счета."
 
 #. module: account
 #: model:ir.model,name:account.model_report_account_report_hash_integrity
@@ -11875,6 +12004,9 @@ msgid ""
 "                <br/><br/>\n"
 "                Your email has been discarded. the e-mail address you have used only accepts new invoices:"
 msgstr ""
+"Привет,\n"
+"                <br/><br/>\n"
+"                Ваше письмо отклонено. Указанный адрес электронной почты принимает только новые счета-фактуры:"
 
 #. module: account
 #. odoo-javascript
@@ -12398,6 +12530,9 @@ msgid ""
 "based on the delivery address.                                 This rule "
 "applies regardless of where you are located."
 msgstr ""
+"Если вы продаете товары и услуги клиентам в другой стране ЕС, вы должны "
+"начислять НДС на основании адреса доставки. Это правило действует независимо"
+" от вашего местонахождения."
 
 #. module: account
 #. odoo-python
@@ -14143,6 +14278,8 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"Последняя\n"
+"                                                    запись"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -14454,6 +14591,7 @@ msgid ""
 "Let\n"
 "                                artificial intelligence scan your bill. Pay easily."
 msgstr ""
+"Позвольте искусственному интеллекту сканировать ваш счёт. Платите легко."
 
 #. module: account
 #. odoo-javascript
@@ -15720,7 +15858,7 @@ msgstr "Никогда"
 msgid ""
 "Never\n"
 "                        for this vendor"
-msgstr ""
+msgstr "Никогда для этого поставщика"
 
 #. module: account
 #. odoo-python
@@ -16186,6 +16324,8 @@ msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
 msgstr ""
+"Обратите внимание, что самый простой способ создать кредитную ноту "
+"поставщика — сделать это непосредственно из счёта поставщика."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17727,6 +17867,8 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"Платежи используются для регистрации движения ликвидности. Вы можете "
+"обрабатывать эти платежи самостоятельно или с помощью установленных средств."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -17734,6 +17876,8 @@ msgid ""
 "Payments related to partners with no bank account\n"
 "                        specified will be skipped."
 msgstr ""
+"Платежи, связанные с партнёрами, у которых не указан банковский счёт, будут "
+"пропущены."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__reconciled_payment_ids
@@ -18072,7 +18216,7 @@ msgstr "Провести"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Провести все записи"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -20446,6 +20590,11 @@ msgid ""
 "Any file extension will be accepted.\n"
 "Only PDF and XML files will be interpreted by Odoo"
 msgstr ""
+"Отправляйте одно отдельное электронное письмо для каждого счета. \n"
+"\n"
+"Допускается любое расширение файла. \n"
+"\n"
+"Odoo будет интерпретировать только файлы PDF и XML"
 
 #. module: account
 #. odoo-javascript
@@ -22719,7 +22868,7 @@ msgstr "Валюта, используемая для ввода выписки"
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "Текущий наибольший номер"
 
 #. module: account
 #. odoo-javascript
@@ -22964,6 +23113,8 @@ msgid ""
 "The hash chain is compliant: it is not possible to alter the\n"
 "                                        data without breaking the hash chain for subsequent parts."
 msgstr ""
+"Цепочка хешей соответствует требованиям: невозможно изменить\n"
+"                                        данные без нарушения цепочки хешей для последующих частей."
 
 #. module: account
 #. odoo-python
@@ -23309,6 +23460,8 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"Выбранный счет назначения настроен на использование определенной валюты. Каждая запись, переведенная на него, будет конвертирована в эту валюту, что приведет к\n"
+"                    потере любой ранее существовавшей суммы в иностранной валюте."
 
 #. module: account
 #. odoo-python
@@ -23649,6 +23802,8 @@ msgid ""
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
 msgstr ""
+"Для выбранного заказа, похоже, нет ничего для выставления счета. Однако вы "
+"можете использовать поле суммы для принудительной записи начисления."
 
 #. module: account
 #. odoo-python
@@ -25572,6 +25727,9 @@ msgid ""
 "\n"
 "*Factoring contracts involve a business selling its unpaid invoices (accounts receivable) to a third-party company, known as a factor, in exchange for immediate cash."
 msgstr ""
+"Проверьте, что кассовые и карточные поступления, отраженные на конец периода, фактически закрыты в следующем периоде. Также проверьте корректность учета операций дисконтирования и факторинга*.\n"
+"\n"
+"*Факторинг – это операция, при которой компания уступает свою дебиторскую задолженность третьей стороне (фактору) в обмен на немедленное получение денежных средств."
 
 #. module: account
 #: model:account.return.check.template,description:account.account_return_check_template_minimum_share_capital_compliance
@@ -25676,6 +25834,8 @@ msgid ""
 "Want to make your life even easier and automate bill validation from this vendor\n"
 "                    ?"
 msgstr ""
+"Хотите упростить себе жизнь и автоматизировать подтверждение счетов от этого"
+" поставщика?"
 
 #. module: account
 #. odoo-python
@@ -27045,14 +27205,14 @@ msgstr ""
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "активировать валюту счета"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 "activate the currency of the\n"
 "                    invoice"
-msgstr ""
+msgstr "активировать валюту счета-фактуры"
 
 #. module: account
 #. odoo-javascript
@@ -27292,7 +27452,7 @@ msgstr "все"
 msgid ""
 "fall outside the typical\n"
 "                        range."
-msgstr ""
+msgstr "выходят за пределы типичного диапазона."
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__1h
@@ -27339,7 +27499,7 @@ msgstr ""
 msgid ""
 "has been\n"
 "                            applied."
-msgstr ""
+msgstr "было применено."
 
 #. module: account
 #. odoo-javascript
@@ -27405,7 +27565,7 @@ msgstr "счета"
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "не из той же страны, что и партнер ("
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -27414,6 +27574,8 @@ msgid ""
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
 msgstr ""
+"это служба денежных переводов, а не банк. Дважды проверьте, можно ли "
+"доверять счету, позвонив поставщику.<br/>"
 
 #. module: account
 #. odoo-javascript
@@ -27503,7 +27665,7 @@ msgstr "партнеры"
 msgid ""
 "payments\n"
 "                        will be skipped due to"
-msgstr ""
+msgstr "платежи будут пропущены из-за"
 
 #. module: account
 #. odoo-python
@@ -27670,7 +27832,7 @@ msgstr "недоверенный"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "недоверенные банковские счета"
 
 #. module: account
 #. odoo-javascript
@@ -27695,7 +27857,7 @@ msgstr "которые не учреждены ни в одной из стра�
 msgid ""
 "will auto-confirm on their\n"
 "                        respective dates."
-msgstr ""
+msgstr "будут автоматически подтверждены в соответствующие даты."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_default_terms_and_conditions
@@ -27741,7 +27903,7 @@ msgstr "без действующего внутриобщинного номе�
 msgid ""
 "without making any\n"
 "                    corrections."
-msgstr ""
+msgstr "без внесения каких-либо исправлений."
 
 #. module: account
 #. odoo-python

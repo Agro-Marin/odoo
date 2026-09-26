@@ -4981,6 +4981,8 @@ msgid ""
 "Bank\n"
 "                                    Setup"
 msgstr ""
+"ဘာဏ်\n"
+"                                    ဖန်တီးခြင်း"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -6893,7 +6895,7 @@ msgstr ""
 msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
-msgstr ""
+msgstr "ဘာဏ်များနှင့် ချိတ်ဆက်ပါ။"
 
 #. module: account
 #. odoo-javascript

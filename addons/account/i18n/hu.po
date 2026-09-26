@@ -530,6 +530,9 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"- Egy új mező  « Összesen (tartalmazza az adót) », hogy felgyorsítsa és "
+"irányítsa a kódolást azzal, hogy automatizálja a sor készítést a megfelelő "
+"számlával és adóval."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -541,7 +544,7 @@ msgstr "- Fizetési részlet"
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "- A dokumentum sorrendje szerkeszthető lesz minden dokumentumon."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -561,6 +564,10 @@ msgid ""
 "                --\n"
 "                <br/>"
 msgstr ""
+". \n"
+"    <br/> \n"
+"    -- \n"
+"    <br/>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -568,13 +575,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". A naplóbejegyzéseket az Odoo-nak ki kell számítania, mielőtt azokat a "
+"vállalat pénznemében könyvelné el."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". Ide érdemes beírni egy magasabb számot."
 
 #. module: account
 #. odoo-python
@@ -908,6 +917,21 @@ msgid ""
 "            </div>\n"
 "        "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px;\">\n"
+"                   <t t-if=\"object.id != object.commercial_partner_id.id\"> Tisztelt <t t-out=\"object.name or ''\"/> (<t t-out=\"object.commercial_partner_id.name or ''\"/>),</t>\n"
+"                    <t t-else=\"\">Tisztelt <t t-out=\"object.name or ''\"/>,</t>\n"
+"                    <br/>\n"
+"                    Mellékletben megtalálja számlájának kimutatását.\n"
+"                   <br/> \n"
+"                    Kérdés esetén kérjük, forduljon hozzánk bizalommal.\n"
+"                   <br/> \n"
+"                    Üdvözlettel,\n"
+"                   <br/>\n"
+"                    <t t-out=\"object._get_followup_responsible().name if is_html_empty(object._get_followup_responsible().signature) else object._get_followup_responsible().signature\"/> \n"
+"               </p>\n"
+"            </div>\n"
+"        "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_tax_return_deadline
@@ -1058,6 +1082,8 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>Vissza a beállításokhoz"
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
 msgstr ""
+"<i class=\"fa fa-arrow-right\"/>\n"
+"                                                    Előnézet"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1065,6 +1091,8 @@ msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
 msgstr ""
+"<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/> Domain Álnév "
+"konfigurálása"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1085,6 +1113,9 @@ msgid ""
 "                        You can choose how you want us to send your invoices, and with which electronic format.\n"
 "                    </small>"
 msgstr ""
+"<small class=\"form-text text-muted\">\n"
+"                        Kiválaszthatja, hogyan és milyen elektronikus formátumban küldjük ki számláit.\n"
+"                    </small>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.portal_my_invoices
@@ -1111,6 +1142,10 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">Nem megbízható</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Megbízható</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
@@ -1118,6 +1153,8 @@ msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
 msgstr ""
+"<span class=\"figure-caption\">Soha ne szalasszon el egy határidőt az "
+"automatizált kivonatok és figyelmeztetések segítségével.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1156,6 +1193,9 @@ msgid ""
 "                                    Audit\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Audit\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1164,6 +1204,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Adók\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1172,6 +1215,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Egyenleg\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1180,6 +1226,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Adók\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1270,6 +1319,9 @@ msgid ""
 "                            <i>inclusive, to make them immutable</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted ms-2\">\n"
+"                            <i>bezárólag, hogy megváltoztathatatlanok legyenek</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1326,6 +1378,9 @@ msgid ""
 "                            <i>Secure entries up to</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted\">\n"
+"                            <i>Tételek biztosítása eddig:</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
@@ -1436,6 +1491,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\"> Számla</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\"> Jóváírás értesítés</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1665,6 +1722,8 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>Ez a bejegyzés a Számlázás alkalmazáson keresztül jött létre, a "
+"Könyvelés telepítése előtt. Egyenlege külön lett importálva.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3062,6 +3121,7 @@ msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
 msgstr ""
+"A könyvelő cég mód megváltoztatja a számla/beszállítói számla rögzítését:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3167,6 +3227,8 @@ msgid ""
 "Accrual entry created on %(date)s: %(accrual_entry)s.                And its"
 " reverse entry: %(reverse_entry)s."
 msgstr ""
+"Elhatárolási tétel létrehozva %(date)s: %(accrual_entry)s. És a "
+"visszafordító tétel: %(reverse_entry)s."
 
 #. module: account
 #. odoo-python
@@ -3241,6 +3303,9 @@ msgid ""
 "Activate\n"
 "                        auto-validation"
 msgstr ""
+"Automatikus\n"
+"                        jóváhagyás\n"
+"                        aktiválása"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5151,6 +5216,8 @@ msgid ""
 "Bank\n"
 "                                    Setup"
 msgstr ""
+"Banki\n"
+"                                    beállítás"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5965,6 +6032,8 @@ msgid ""
 "Capture invoices, register payments and keep track of the discussions with your\n"
 "                vendors."
 msgstr ""
+"Rögzítse a számlákat, regisztrálja a kifizetéseket, és kövesse nyomon a "
+"beszélgetéseket a beszállítóival."
 
 #. module: account
 #. odoo-javascript
@@ -7095,7 +7164,7 @@ msgstr ""
 msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
-msgstr ""
+msgstr "Csatlakoztassa a bankját. Számlák automatikus párosítása."
 
 #. module: account
 #. odoo-javascript
@@ -7521,6 +7590,9 @@ msgid ""
 "                IFRS, or fiscal\n"
 "                adjustments, ensuring compliance with diverse regulations."
 msgstr ""
+"Hozzon létre annyi főkönyv csoportot, amennyire szükség van a helyi GAAP, "
+"IFRS vagy pénzügyi kiigazítások külön főkönyveinek fenntartásához, "
+"biztosítva a különböző szabályozásoknak való megfelelést"
 
 #. module: account
 #. odoo-javascript
@@ -7547,6 +7619,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Hozzon létre számlákat, regisztráljon fizetési műveleteket, és kövesse "
+"nyomon a vevőkkel folytatott megbeszéléseket."
 
 #. module: account
 #. odoo-javascript
@@ -10149,7 +10223,7 @@ msgstr "Tételek"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Ellenőrizendő napló tételek"
 
 #. module: account
 #. odoo-python
@@ -10691,6 +10765,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"Első\n"
+"                                                    bejegyzés"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -10698,6 +10774,8 @@ msgid ""
 "First\n"
 "                                                    Hash"
 msgstr ""
+"Első\n"
+"                                                    Hash"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11229,6 +11307,9 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"Ebből a kimutatásból, áttekintheti a beszállítói által számlázott "
+"összegeket. A kereső eszközzel egyénivé teheti a Számla kimutatásait és így,"
+" az a kívánsága szerinti lesz."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11237,6 +11318,9 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"Ebből a kimutatásból, áttekintheti a vásárlóihoz tartozó számlázott "
+"összegeket. A kereső eszközzel egyénivé teheti a Számla kimutatásait és így,"
+" az a kívánsága szerinti lesz."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -11461,7 +11545,7 @@ msgstr "Általános adójelentés"
 msgid ""
 "Get Paid\n"
 "                                online. Send electronic invoices."
-msgstr ""
+msgstr "Fizesse ki online. Küldjön elektronikus számlákat"
 
 #. module: account
 #: model:ir.model,name:account.model_report_account_report_hash_integrity
@@ -14040,6 +14124,8 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"Utolsó\n"
+"                                                    bejegyzés"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -14348,6 +14434,8 @@ msgid ""
 "Let\n"
 "                                artificial intelligence scan your bill. Pay easily."
 msgstr ""
+"Hagyja, hogy a mesterséges intelligencia átvizsgálja a számláját. Fizessen "
+"egyszerűen"
 
 #. module: account
 #. odoo-javascript
@@ -15585,7 +15673,7 @@ msgstr "Soha"
 msgid ""
 "Never\n"
 "                        for this vendor"
-msgstr ""
+msgstr "Soha nem ennek a szolgáltatónak"
 
 #. module: account
 #. odoo-python
@@ -16048,6 +16136,8 @@ msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
 msgstr ""
+"Vegye figyelembe, hogy a legegyszerűbb módja a beszállítói jóváírási jegy "
+"létrehozásának, ha közvetlenül a beszállítói számláról végzi el."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17584,6 +17674,9 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"A kifizetések a likviditási mozgások nyilvántartására szolgálnak. Ezeket a "
+"kifizetéseket saját eszközeiddel vagy telepített lehetőségek "
+"igénybevételével dolgozhatod fel"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -17591,6 +17684,8 @@ msgid ""
 "Payments related to partners with no bank account\n"
 "                        specified will be skipped."
 msgstr ""
+"A banki számlával nem rendelkező partnerekkel kapcsolatos kifizetések "
+"átugrásra kerülnek"
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__reconciled_payment_ids
@@ -17928,7 +18023,7 @@ msgstr "Bejegyzés"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Minden bejegyzést könyvelésre küld"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -22528,7 +22623,7 @@ msgstr "Számlakivonat tételek rögzítésének pénzneme"
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "A jelenlegi legmagasabb szám"
 
 #. module: account
 #. odoo-javascript
@@ -23105,6 +23200,9 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"A kiválasztott cél számla be van állítva, hogy egy adott valutát használjon."
+" Minden átutalt tétel erre a valutára lesz átváltva, ami a meglévő külföldi "
+"valuta összeg elvesztését okozza"
 
 #. module: account
 #. odoo-python
@@ -23438,6 +23536,9 @@ msgid ""
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
 msgstr ""
+"Úgy tűnik, hogy nincs semmi, amit számlázni lehetne a kiválasztott "
+"rendeléshez. Azonban használhatja az összeget tartalmazó mezőt egy "
+"költségelszámolási bejegyzés kényszerítésére"
 
 #. module: account
 #. odoo-python
@@ -25436,6 +25537,8 @@ msgid ""
 "Want to make your life even easier and automate bill validation from this vendor\n"
 "                    ?"
 msgstr ""
+"Szeretné még könnyebbé tenni az életét, és automatizálni a számlák "
+"érvényesítését ettől a szolgáltatótól?"
 
 #. module: account
 #. odoo-python
@@ -26737,14 +26840,14 @@ msgstr ""
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "aktiválja a számla pénznemét"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 "activate the currency of the\n"
 "                    invoice"
-msgstr ""
+msgstr "aktiválja a számla pénznemét"
 
 #. module: account
 #. odoo-javascript
@@ -26984,7 +27087,7 @@ msgstr "mindenki"
 msgid ""
 "fall outside the typical\n"
 "                        range."
-msgstr ""
+msgstr "kívül esik a tipikus tartományon"
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__1h
@@ -27031,7 +27134,7 @@ msgstr ""
 msgid ""
 "has been\n"
 "                            applied."
-msgstr ""
+msgstr "alkalmazva lett"
 
 #. module: account
 #. odoo-javascript
@@ -27097,7 +27200,7 @@ msgstr "számla"
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "nem ugyanabból az országból származik, mint a partner ("
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -27106,6 +27209,8 @@ msgid ""
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
 msgstr ""
+"ez egy pénzátutalási szolgáltatás, és nem bank. \n"
+"                            Ellenőrizze, hogy a fiók megbízható-e a szolgáltató felhívásával.<br/>"
 
 #. module: account
 #. odoo-javascript
@@ -27195,7 +27300,7 @@ msgstr ""
 msgid ""
 "payments\n"
 "                        will be skipped due to"
-msgstr ""
+msgstr "a kifizetések elmaradnak a következő miatt"
 
 #. module: account
 #. odoo-python
@@ -27362,7 +27467,7 @@ msgstr "megbízhatatlan"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "megbízhatatlan banki számlák"
 
 #. module: account
 #. odoo-javascript
@@ -27387,7 +27492,7 @@ msgstr ""
 msgid ""
 "will auto-confirm on their\n"
 "                        respective dates."
-msgstr ""
+msgstr "automatikusan megerősítik a megfelelő dátumokon"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_default_terms_and_conditions
@@ -27433,7 +27538,7 @@ msgstr ""
 msgid ""
 "without making any\n"
 "                    corrections."
-msgstr ""
+msgstr "javítások nélkül"
 
 #. module: account
 #. odoo-python

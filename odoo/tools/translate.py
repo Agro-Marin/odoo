@@ -2853,12 +2853,68 @@ def _template_rows(template: polib.POFile) -> Iterator[tuple]:
                 yield (module, kind, name, res_id, entry.msgid, "", tuple(comments))
 
 
+_PO_SPACE = re.compile(r"[ \t\n\r\f\v]+")
+_PO_SPACE_CHARS = " \t\n\r\f\v"
+
+
+def _po_spaced_key(text: str) -> str:
+    return _PO_SPACE.sub(" ", text).strip(_PO_SPACE_CHARS)
+
+
+def _po_edges(text: str) -> tuple[str, str, str]:
+    core = text.strip(_PO_SPACE_CHARS)
+    lead = text[: len(text) - len(text.lstrip(_PO_SPACE_CHARS))]
+    return lead, core, text[len(lead) + len(core) :]
+
+
+def _po_respaced(msgstr: str, old: str, new: str) -> str:
+    if msgstr == old:
+        return new
+    old_lead, old_core, old_trail = _po_edges(old)
+    new_lead, new_core, new_trail = _po_edges(new)
+    runs: dict[str, set[str]] = {}
+    for old_run, new_run in zip(
+        _PO_SPACE.findall(old_core), _PO_SPACE.findall(new_core), strict=True
+    ):
+        runs.setdefault(old_run, set()).add(new_run)
+
+    def respace(match: re.Match[str]) -> str:
+        targets = runs.get(match[0], ())
+        return next(iter(targets)) if len(targets) == 1 else match[0]
+
+    lead, core, trail = _po_edges(msgstr)
+    return (
+        (new_lead if lead == old_lead else lead)
+        + _PO_SPACE.sub(respace, core)
+        + (new_trail if trail == old_trail else trail)
+    )
+
+
+def _po_respaced_translations(
+    translations: Mapping[str, str], msgids: Iterable[str]
+) -> dict[str, str]:
+    msgids = set(msgids)
+    vanished: dict[str, tuple[str, str]] = {}
+    for msgid, msgstr in translations.items():
+        if msgid not in msgids:
+            vanished.setdefault(_po_spaced_key(msgid), (msgid, msgstr))
+    respaced = {}
+    for msgid in msgids:
+        if not translations.get(msgid) and (hit := vanished.get(_po_spaced_key(msgid))):
+            old, msgstr = hit
+            respaced[msgid] = _po_respaced(msgstr, old, msgid)
+    return respaced
+
+
 def merge_po_template(po_text: str, template_text: str, lang: str) -> str:
     translations = _po_translations(polib.pofile(po_text))
+    rows = list(_template_rows(polib.pofile(template_text)))
+    respaced = _po_respaced_translations(translations, (row[4] for row in rows))
+    _debug.logic("translate.po_merge_respaced", lang=lang, respaced=len(respaced))
+    translations |= respaced
     buffer = io.BytesIO()
     PoFileWriter(buffer, lang=lang, previous=po_text).write_rows(
-        (*row[:5], translations.get(row[4], ""), row[6])
-        for row in _template_rows(polib.pofile(template_text))
+        (*row[:5], translations.get(row[4], ""), row[6]) for row in rows
     )
     return buffer.getvalue().decode()
 

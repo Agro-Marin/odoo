@@ -527,6 +527,8 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"- Novo polje »Skupaj (z vključenim DDV)« za pospešitev in nadzor kodiranja z"
+" avtomatizacijo ustvarjanja vrstic s pravilnim računom in davkom."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -538,7 +540,7 @@ msgstr "- Obrok"
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "- Zaporedje dokumenta je mogoče urejati v vseh dokumentih."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -558,6 +560,10 @@ msgid ""
 "                --\n"
 "                <br/>"
 msgstr ""
+".\n"
+"                <br/>\n"
+"                --\n"
+"                <br/>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -565,13 +571,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". Dnevniške vnose mora Odoo izračunati, preden jih knjiži v valuti vašega "
+"podjetja."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". Morda boste želeli vpisati večjo številko."
 
 #. module: account
 #. odoo-python
@@ -795,6 +803,38 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                        Pozdravljeni\n"
+"                        <t t-if=\"object.partner_id.parent_id\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Tomaž Novak</t> (<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Editor</t>),\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Tomaž Novak\n"
+"                </t>,\n"
+"                        </t>\n"
+"                        <br/><br/>\n"
+"                        Tukaj je vaš\n"
+"                        <t t-if=\"object.name\">\n"
+"                            dobropis <span style=\"font-weight:bold;\" t-out=\"object.name or ''\">RINV/2025/05/0001</span>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            dobropis\n"
+"                        </t>\n"
+"                        <t t-if=\"object.invoice_origin\">\n"
+"                            (z referenco: <t t-out=\"object.invoice_origin or ''\">SUB003</t>)\n"
+"                        </t>\n"
+"                        v višini <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount_total, object.currency_id) or ''\">€ 143,750.00</span>\n"
+"                        iz<t t-out=\"object.company_id.name or ''\">Vašegapodjetja</t>.\n"
+"                        <br/><br/>\n"
+"                        Če imate kakršna koli vprašanja, nas brez oklevanja kontaktirajte.\n"
+"                        <t t-if=\"not is_html_empty(object.invoice_user_id.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-o-mail-quote=\"1\">Tomaž Admin</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_edi_self_billing_credit_note
@@ -853,6 +893,23 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                        Pozdravljeni<t t-out=\"object.partner_id.name or ''\">Azure Editor</t><br/><br/>\n"
+"                        Hvala za vaše plačilo.\n"
+"                        Tukaj je vaše potrdilo o plačilu <span style=\"font-weight:bold;\" t-out=\"(object.name or '').replace('/','-') or ''\">BNK1-2025-05-0002</span> znesek\n"
+"                        za <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount, object.currency_id) or ''\">10.00 €</span> od<t t-out=\"object.company_id.name or ''\">Vašegapodjetja</t>.\n"
+"                        <br/><br/>\n"
+"                        Če imate kakršna koli vprašanja, nas brez oklevanja kontaktirajte.\n"
+"                        <br/><br/>\n"
+"                        Lep pozdrav\n"
+"                        <t t-if=\"not is_html_empty(user.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"user.signature or ''\" data-o-mail-quote=\"1\">Tomaž Admin</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_customer_follow_up_report
@@ -893,6 +950,22 @@ msgid ""
 "            </div>\n"
 "        "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px;\">\n"
+"                    <t t-if=\"object.id != object.commercial_partner_id.id\">Spoštovani<t t-out=\"object.name or ''\"/> (<t t-out=\"object.commercial_partner_id.name or ''\"/>),</t>\n"
+"                    <t t-else=\"\">Spoštovani\n"
+"<t t-out=\"object.name or ''\"/>,</t>\n"
+"                    <br/>\n"
+"                    V prilogi vam pošiljamo izpisek vašega računa.\n"
+"                    <br/>\n"
+"                   Če imate kakršna koli vprašanja, nas brez oklevanja kontaktirajte.\n"
+"                    <br/>\n"
+"                    Sincerely,\n"
+"                    <br/>\n"
+"                    <t t-out=\"object._get_followup_responsible().name if is_html_empty(object._get_followup_responsible().signature) else object._get_followup_responsible().signature\"/>\n"
+"                </p>\n"
+"            </div>\n"
+"        "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_tax_return_deadline
@@ -1027,7 +1100,7 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>Nazaj na nastavitve"
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> Predogled"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1035,6 +1108,8 @@ msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
 msgstr ""
+"<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/> Konfiguriraj vzdevek "
+"domene"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1055,6 +1130,9 @@ msgid ""
 "                        You can choose how you want us to send your invoices, and with which electronic format.\n"
 "                    </small>"
 msgstr ""
+"<small class=\"form-text text-muted\">\n"
+"                        Izberete lahko, kako želite, da vam pošiljamo račune in v kateri elektronski obliki..\n"
+"                    </small>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.portal_my_invoices
@@ -1081,6 +1159,10 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">Nepotrjeno</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Potrjeno</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
@@ -1088,6 +1170,8 @@ msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
 msgstr ""
+"<span class=\"figure-caption\">Z avtomatiziranimi izpiski in opozorili "
+"nikoli ne zamudite roka.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1128,6 +1212,9 @@ msgid ""
 "                                    Audit\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Revizija\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1136,6 +1223,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                             Davki\n"
+"                                         </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1144,6 +1234,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Stanje\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1152,6 +1245,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                             Davki\n"
+"                                         </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1249,6 +1345,10 @@ msgid ""
 "                            <i>inclusive, to make them immutable</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted ms-2\">\n"
+"                            <i>vključujoče, da bi bile nespremenljive\n"
+"</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1257,6 +1357,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_fiscalyear_lock_date_exception_for_me_id                                                  or not min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1265,6 +1368,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_purchase_lock_date_exception_for_me_id                                                  or not min_purchase_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1273,6 +1379,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_sale_lock_date_exception_for_me_id                                                  or not min_sale_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1281,6 +1390,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_tax_lock_date_exception_for_me_id                                                  or not min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1305,6 +1417,9 @@ msgid ""
 "                            <i>Secure entries up to</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted\">\n"
+"                            <i>Varni vnosi do</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
@@ -1410,6 +1525,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\"> Račun</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\"> Dobropis</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1641,6 +1758,8 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>Ta vnos je bil ustvarjen v aplikaciji Obračun, preden je bilo "
+"nameščeno Knjigovodstvo. Njegovo stanje je bilo uvoženo ločeno.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3034,7 +3153,7 @@ msgstr "Računovodski dokumenti"
 msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
-msgstr ""
+msgstr "Način računovodskega podjetja bo spremenil kodiranje računa/fakture:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3140,6 +3259,8 @@ msgid ""
 "Accrual entry created on %(date)s: %(accrual_entry)s.                And its"
 " reverse entry: %(reverse_entry)s."
 msgstr ""
+"Vnos obračuna ustvarjen dne %(date)s: %(accrual_entry)s.                In "
+"njegov obratni vnos: %(reverse_entry)s."
 
 #. module: account
 #. odoo-python
@@ -3214,6 +3335,9 @@ msgid ""
 "Activate\n"
 "                        auto-validation"
 msgstr ""
+"Aktiviraj\n"
+"                        samodejno\n"
+"                        preverjanje"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5118,6 +5242,8 @@ msgid ""
 "Bank\n"
 "                                    Setup"
 msgstr ""
+"Nastavitev\n"
+"                                    banke"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5935,6 +6061,8 @@ msgid ""
 "Capture invoices, register payments and keep track of the discussions with your\n"
 "                vendors."
 msgstr ""
+"Zajemajte račune, registrirajte plačila in spremljajte pogovore s svojimi "
+"dobavitelji."
 
 #. module: account
 #. odoo-javascript
@@ -7064,7 +7192,7 @@ msgstr ""
 msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
-msgstr ""
+msgstr "Povežite svojo banko. Samodejno uskladite račune."
 
 #. module: account
 #. odoo-javascript
@@ -7486,6 +7614,8 @@ msgid ""
 "                IFRS, or fiscal\n"
 "                adjustments, ensuring compliance with diverse regulations."
 msgstr ""
+"Ustvarite toliko skupin knjigovodskih knjig, kot je potrebno za vzdrževanje ločenih knjigovodskih knjig za lokalne GAAP, MSRP ali fiskalne standarde.\n"
+"                prilagoditve, ki zagotavljajo skladnost z različnimi predpisi."
 
 #. module: account
 #. odoo-javascript
@@ -7512,6 +7642,7 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Ustvarite račune, registrirajte plačila in spremljajte razprave s strankami."
 
 #. module: account
 #. odoo-javascript
@@ -10119,7 +10250,7 @@ msgstr "Vknjižbe"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Vnosi za preveriti"
 
 #. module: account
 #. odoo-python
@@ -10668,6 +10799,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"Prvi\n"
+"                                                    vnos"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -10675,6 +10808,9 @@ msgid ""
 "First\n"
 "                                                    Hash"
 msgstr ""
+"Prva\n"
+"                                                    zgoščena\n"
+"                                                    vrednost"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11209,6 +11345,9 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"V tem poročilu si lahko ogledate znesek, ki vam ga zaračunajo vaši "
+"dobavitelji. Iskalno orodje lahko uporabite tudi za prilagoditev poročil o "
+"računih in tako to analizo uskladite z vašimi potrebami."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11217,6 +11356,9 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"V tem poročilu si lahko ogledate znesek, izstavljen vašim strankam. Iskalno "
+"orodje lahko uporabite tudi za prilagoditev poročil o računih in tako to "
+"analizo uskladite z vašimi potrebami."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -11441,7 +11583,7 @@ msgstr "Splošno davčno poročilo"
 msgid ""
 "Get Paid\n"
 "                                online. Send electronic invoices."
-msgstr ""
+msgstr "Plačilo prek spleta. Pošiljajte elektronske račune."
 
 #. module: account
 #: model:ir.model,name:account.model_report_account_report_hash_integrity
@@ -11751,6 +11893,9 @@ msgid ""
 "                <br/><br/>\n"
 "                Your email has been discarded. the e-mail address you have used only accepts new invoices:"
 msgstr ""
+"Živjo,\n"
+"                <br/><br/>\n"
+"                Vaš e-poštni naslov je bil zavržen. E-poštni naslov, ki ste ga uporabili, sprejema samo nove račune:"
 
 #. module: account
 #. odoo-javascript
@@ -14015,6 +14160,8 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"Zadnji\n"
+"                                                    vnos"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -14322,7 +14469,7 @@ msgstr "Manjše plačilo"
 msgid ""
 "Let\n"
 "                                artificial intelligence scan your bill. Pay easily."
-msgstr ""
+msgstr "Naj umetna inteligenca skenira vaš račun. Plačajte enostavno."
 
 #. module: account
 #. odoo-javascript
@@ -15574,7 +15721,7 @@ msgstr "Nikoli"
 msgid ""
 "Never\n"
 "                        for this vendor"
-msgstr ""
+msgstr "Nikoli za tega prodajalca"
 
 #. module: account
 #. odoo-python
@@ -16040,6 +16187,8 @@ msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
 msgstr ""
+"Upoštevajte, da je najlažji način za ustvarjanje dobropisa dobavitelja "
+"neposredno iz računa dobavitelja."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17574,6 +17723,8 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"Plačila se uporabljajo za evidentiranje gibanja likvidnosti. Ta plačila "
+"lahko obdelujete z lastnimi sredstvi ali z uporabo nameščenih naprav."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -17581,6 +17732,8 @@ msgid ""
 "Payments related to partners with no bank account\n"
 "                        specified will be skipped."
 msgstr ""
+"Plačila, povezana s partnerji brez navedenega bančnega računa, bodo "
+"preskočena."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__reconciled_payment_ids
@@ -17919,7 +18072,7 @@ msgstr "Vknjiži"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Vknjiži vse vnose"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -22532,7 +22685,7 @@ msgstr "Valuta uporabljena pri vnosu izpiska"
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "Trenutno najvišje število je"
 
 #. module: account
 #. odoo-javascript
@@ -22779,6 +22932,8 @@ msgid ""
 "The hash chain is compliant: it is not possible to alter the\n"
 "                                        data without breaking the hash chain for subsequent parts."
 msgstr ""
+"Zgoščevalna veriga je skladna: ni mogoče spremeniti\n"
+"                                        podatke brez prekinitve zgoščevalne verige za naslednje dele."
 
 #. module: account
 #. odoo-python
@@ -23109,6 +23264,8 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"Izbrani ciljni račun je nastavljen za uporabo določene valute. Vsak vnos, prenesen nanj, bo pretvorjen v to valuto, kar bo povzročilo\n"
+"                    izguba morebitnega že obstoječega zneska v tuji valuti."
 
 #. module: account
 #. odoo-python
@@ -23448,6 +23605,8 @@ msgid ""
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
 msgstr ""
+"Zdi se, da za izbrano naročilo ni ničesar za fakturiranje. Lahko pa "
+"uporabite polje za znesek, da vsilite obračunavanje."
 
 #. module: account
 #. odoo-python
@@ -25466,6 +25625,8 @@ msgid ""
 "Want to make your life even easier and automate bill validation from this vendor\n"
 "                    ?"
 msgstr ""
+"Želite si še olajšati življenje in avtomatizirati potrjevanje računov pri "
+"tem ponudniku?"
 
 #. module: account
 #. odoo-python
@@ -26812,14 +26973,14 @@ msgstr ""
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "aktivirajte valuto računa"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 "activate the currency of the\n"
 "                    invoice"
-msgstr ""
+msgstr "aktivirajte valuto računa"
 
 #. module: account
 #. odoo-javascript
@@ -27059,7 +27220,7 @@ msgstr "vsi"
 msgid ""
 "fall outside the typical\n"
 "                        range."
-msgstr ""
+msgstr "padejo izven tipičnega območja."
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__1h
@@ -27106,7 +27267,7 @@ msgstr ""
 msgid ""
 "has been\n"
 "                            applied."
-msgstr ""
+msgstr "je bil uporabljen."
 
 #. module: account
 #. odoo-javascript
@@ -27172,7 +27333,7 @@ msgstr "računi"
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "ni iz iste države kot partner ("
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -27181,6 +27342,8 @@ msgid ""
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
 msgstr ""
+"je storitev denarnih prenosov in ne banka. Dvakrat preverite, ali je računu "
+"mogoče zaupati, tako da pokličete prodajalca.<br/>"
 
 #. module: account
 #. odoo-javascript
@@ -27270,7 +27433,7 @@ msgstr "partnerji"
 msgid ""
 "payments\n"
 "                        will be skipped due to"
-msgstr ""
+msgstr "plačila bodo preskočena zaradi"
 
 #. module: account
 #. odoo-python
@@ -27436,7 +27599,7 @@ msgstr "nezaupanja vreden"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "nezaupanja vrednih bančnih računov"
 
 #. module: account
 #. odoo-javascript
@@ -27461,7 +27624,7 @@ msgstr "ki nimajo sedeža v nobeni od držav ES."
 msgid ""
 "will auto-confirm on their\n"
 "                        respective dates."
-msgstr ""
+msgstr "bodo samodejno potrjeni na ustrezne datume."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_default_terms_and_conditions
@@ -27507,7 +27670,7 @@ msgstr "brez veljavne davčne številke znotraj skupnosti."
 msgid ""
 "without making any\n"
 "                    corrections."
-msgstr ""
+msgstr "brez kakršnih koli popravkov."
 
 #. module: account
 #. odoo-python

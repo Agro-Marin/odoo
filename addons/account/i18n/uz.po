@@ -573,6 +573,9 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"- To‘g‘ri hisob va soliq bilan qatorlarni avtomatik yaratish orqali "
+"kodlashni tezlashtirish va nazorat qilish uchun yangi \"Jami (soliq bilan)\""
+" maydoni."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -586,6 +589,7 @@ msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
 msgstr ""
+"- Hujjatning ketma-ketligi barcha hujjatlarda tahrirlanishi mumkin bo‘ladi."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -606,7 +610,7 @@ msgid ""
 "                <br/>\n"
 "                --\n"
 "                <br/>"
-msgstr ""
+msgstr ". <br/> -- <br/>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -614,13 +618,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". Jurnal yozuvlari kompaniyangiz valyutasida joylashtirishdan oldin Odoo "
+"tomonidan hisoblanishi kerak."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". Bu yerga kattaroq raqam kiritishni xohlashingiz mumkin."
 
 #. module: account
 #. odoo-python
@@ -821,6 +827,34 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\"> <p style=\"margin: 0px; padding: "
+"0px; font-size: 13px;\"> Hurmatli <t t-if=\"object.partner_id.parent_id\"> "
+"<t t-if=\"object.partner_id.name\"> <t "
+"t-out=\"object.partner_id.name\">Brandon Freeman</t> (<t "
+"t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>), </t> "
+"<t t-else=\"\"> <t t-out=\"object.partner_id.parent_id.name or ''\">Azure "
+"Interior</t>, </t> </t> <t t-else=\"\"> <t t-out=\"object.partner_id.name or"
+" ''\">Brandon Freeman</t>, </t> <br/><br/> Sizga <t t-if=\"object.name\"> "
+"<span style=\"font-weight:bold;\" t-out=\"object.name or "
+"''\">INV/2021/05/0005</span> raqamli o‘z-o‘zini hisoblash hisobnomasini </t>"
+" <t t-else=\"\"> o‘z-o‘zini hisoblash hisobnomasini </t> <t "
+"t-if=\"object.invoice_origin\"> (havola raqami: <t "
+"t-out=\"object.invoice_origin or ''\">SUB003</t>) </t> taqdim etmoqdamiz."
+"         Ushbu hisobnoma <t t-out=\"object.company_id.name or "
+"''\">YourCompany</t> kompaniyasi tomonidan <span style=\"font-weight:bold;\""
+" t-out=\"format_amount(object.amount_total, object.currency_id) or ''\">$ "
+"143,750.00</span> miqdorida tayyorlangan.         <t "
+"t-if=\"object.payment_state in ('paid', 'in_payment')\"> Ushbu o‘z-o‘zini "
+"hisoblash hisobnomasi allaqachon to‘langan.         </t> <t "
+"t-if=\"hasattr(object, 'timesheet_count') and object.timesheet_count\"> "
+"<br/><br/> Eslatma: Siz vaqt jadvallaringizni <a t-att-"
+"href=\"'/my/timesheets?search_in=invoice&amp;search=%s' % "
+"object.name\">portal orqali ko‘rib chiqishingiz mumkin.</a> </t> <br/><br/> "
+"Savollaringiz bo‘lsa, bizga murojaat qilishdan tortinmang. <t t-if=\"not "
+"is_html_empty(object.invoice_user_id.signature)\" data-o-mail-quote-"
+"container=\"1\"> <br/><br/> <div data-o-mail-quote=\"1\">--<br data-o-mail-"
+"quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-o-"
+"mail-quote=\"1\">Mitchell Admin</t></div> </t> </p> </div>"
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_edi_credit_note
@@ -857,6 +891,25 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\"> <p style=\"margin: 0px; padding: "
+"0px; font-size: 13px;\"> Hurmatli <t t-if=\"object.partner_id.parent_id\"> "
+"<t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t> (<t "
+"t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>), </t> "
+"<t t-else=\"\"> <t t-out=\"object.partner_id.name or ''\">Brandon "
+"Freeman</t>, </t> <br/><br/> Sizga <t t-if=\"object.name\"> <span "
+"style=\"font-weight:bold;\" t-out=\"object.name or "
+"''\">RINV/2021/05/0001</span> raqamli kredit hisoboti </t> <t t-else=\"\"> "
+"kredit hisoboti </t> <t t-if=\"object.invoice_origin\"> (havola raqami: <t "
+"t-out=\"object.invoice_origin or ''\">SUB003</t>) </t> yuborilmoqda."
+"         Ushbu hujjat <t t-out=\"object.company_id.name or "
+"''\">YourCompany</t> kompaniyasidan bo‘lib, umumiy miqdori <span "
+"style=\"font-weight:bold;\" t-out=\"format_amount(object.amount_total, "
+"object.currency_id) or ''\">$ 143,750.00</span> ni tashkil etadi.         "
+"<br/><br/> Savollaringiz bo‘lsa, bizga murojaat qilishdan tortinmang. <t "
+"t-if=\"not is_html_empty(object.invoice_user_id.signature)\" data-o-mail-"
+"quote-container=\"1\"> <br/><br/> <div data-o-mail-quote=\"1\">--<br data-o-"
+"mail-quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-"
+"o-mail-quote=\"1\">Mitchell Admin</t></div> </t> </p> </div>"
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_edi_self_billing_credit_note
@@ -893,6 +946,33 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                Hurmatli\n"
+"                <t t-if=\"object.partner_id.parent_id\">\n"
+"                    <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>),\n"
+"                </t>\n"
+"                <t t-else=\"\">\n"
+"                    <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>,\n"
+"                </t>\n"
+"                <br/><br/>\n"
+"                Sizga\n"
+"                <t t-if=\"object.name\">\n"
+"                    <span style=\"font-weight:bold;\" t-out=\"object.name or ''\">RINV/2021/05/0001</span> raqamli o‘z-o‘zidan hisoblangan kredit hisobotingizni\n"
+"                </t>\n"
+"                <t t-else=\"\">\n"
+"                    o‘z-o‘zidan hisoblangan kredit hisobotingizni\n"
+"                </t>\n"
+"                <t t-if=\"object.invoice_origin\">\n"
+"                    (havola raqami: <t t-out=\"object.invoice_origin or ''\">SUB003</t>)\n"
+"                </t>\n"
+"                taqdim etmoqdamiz. Ushbu hujjat <t t-out=\"object.company_id.name or ''\">YourCompany</t> tomonidan tayyorlangan bo‘lib, umumiy summasi <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount_total, object.currency_id) or ''\">$ 143,750.00</span> ni tashkil etadi. <br/><br/>\n"
+"                Agar biron-bir savolingiz bo‘lsa, biz bilan bog‘lanishdan tortinmang. <t t-if=\"not is_html_empty(object.invoice_user_id.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                    <br/><br/>\n"
+"                    <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                </t>\n"
+"    </p>\n"
+"</div>"
 
 #. module: account
 #: model:mail.template,body_html:account.mail_template_data_payment_receipt
@@ -915,6 +995,20 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\"> <p style=\"margin: 0px; padding: "
+"0px; font-size: 13px;\"> Hurmatli <t t-out=\"object.partner_id.name yoki "
+"''\">Zangori interyer</t><br/><br/> To‘lovingiz uchun tashakkur.         "
+"Mana sizning <t t-out=\"object.company_id.name yoki "
+"''\">Kompaniyangiz</t>dan <span style=\"font-weight:bold;\" "
+"t-out=\"format_amount(object.amount, object.currency_id) yoki ''\">10.00 "
+"$</span> miqdoridagi <span style=\"font-weight:bold;\" t-out=\"(object.name "
+"yoki '').replace('/','-') yoki ''\">BNK1-2021-05-0002</span> raqamli to‘lov "
+"kvitantsiyangiz.         <br/><br/> Savollaringiz bo‘lsa, bizga murojaat "
+"qilishdan tortinmang.         <br/><br/> Hurmat bilan, <t t-if=\"not "
+"is_html_empty(user.signature)\" data-o-mail-quote-container=\"1\"> "
+"<br/><br/> <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t "
+"t-out=\"user.signature or ''\" data-o-mail-quote=\"1\">Mitchell "
+"Admin</t></div> </t> </p> </div>"
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_customer_follow_up_report
@@ -968,6 +1062,18 @@ msgid ""
 "            </div>\n"
 "        "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"    <p style=\"margin: 0px; padding: 0px;\">\n"
+"        <t t-if=\"object.id != object.commercial_partner_id.id\">Hurmatli <t t-out=\"object.name or ''\"/> (<t t-out=\"object.commercial_partner_id.name or ''\"/>),</t>\n"
+"        <t t-else=\"\">Hurmatli <t t-out=\"object.name or ''\"/>,</t>\n"
+"        <br/>\n"
+"        Hisobingizning bayonnomasini ilova qilganmiz. <br/>\n"
+"        Biron-bir savolingiz bo‘lsa, bizga murojaat qilishdan tortinmang. <br/>\n"
+"        Samimiy hurmat bilan,\n"
+"        <br/>\n"
+"        <t t-out=\"object._get_followup_responsible().name if is_html_empty(object._get_followup_responsible().signature) else object._get_followup_responsible().signature\"/>\n"
+"    </p>\n"
+"</div>"
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_tax_return_deadline
@@ -1126,7 +1232,7 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>Sozlamalarga qaytish"
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> Ko‘rib chiqish"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1134,6 +1240,8 @@ msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
 msgstr ""
+"<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/> Taxallus domenini "
+"sozlash"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1176,7 +1284,7 @@ msgid ""
 "<span class=\"badge text-bg-info\">\n"
 "                                    To Review\n"
 "                                </span>"
-msgstr ""
+msgstr "<span class=\"badge text-bg-info\"> Ko‘rib chiqish uchun </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -1186,6 +1294,9 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\"> <span invisible=\"allow_out_payment\" "
+"class=\"text-muted\">Ishonchsiz</span> <span invisible=\"not "
+"allow_out_payment\" class=\"text-success\">Ishonchli</span> </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
@@ -1193,6 +1304,8 @@ msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
 msgstr ""
+"<span class=\"figure-caption\">Avtomatlashtirilgan hisobotlar va "
+"ogohlantirishlar bilan hech qachon muddatni o‘tkazib yubormang.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1236,7 +1349,7 @@ msgid ""
 "<span class=\"o_stat_text\">\n"
 "                                    Audit\n"
 "                                </span>"
-msgstr ""
+msgstr "<span class=\"o_stat_text\"> Audit </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1253,7 +1366,7 @@ msgid ""
 "<span class=\"o_stat_text\">\n"
 "                            Balance\n"
 "                        </span>"
-msgstr ""
+msgstr "<span class=\"o_stat_text\">Balans</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1261,7 +1374,7 @@ msgid ""
 "<span class=\"o_stat_text\">\n"
 "                            Taxes\n"
 "                        </span>"
-msgstr ""
+msgstr "<span class=\"o_stat_text\">Soliqlar</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1374,6 +1487,8 @@ msgid ""
 "                            <i>inclusive, to make them immutable</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted ms-2\"><i>o‘zgarmas qilish uchun, shu "
+"jumladan</i></span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1382,6 +1497,10 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_fiscalyear_lock_date_exception_for_me_id or not "
+"min_fiscalyear_lock_date_exception_for_everyone_id\"> <span style=\"white-"
+"space: pre\">; </span> </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1390,6 +1509,10 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_purchase_lock_date_exception_for_me_id or not "
+"min_purchase_lock_date_exception_for_everyone_id\"> <span style=\"white-"
+"space: pre\">; </span> </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1398,6 +1521,10 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_sale_lock_date_exception_for_me_id or not "
+"min_sale_lock_date_exception_for_everyone_id\"> <span style=\"white-space: "
+"pre\">; </span> </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1406,6 +1533,10 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not "
+"min_tax_lock_date_exception_for_me_id or not "
+"min_tax_lock_date_exception_for_everyone_id\"> <span style=\"white-space: "
+"pre\">; </span> </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1439,6 +1570,7 @@ msgid ""
 "                            <i>Secure entries up to</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted\"><i>Muayyan sanagacha xavfsiz yozuvlar</i></span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
@@ -1564,6 +1696,9 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\">Hisob-"
+"faktura</span> <span invisible=\"reconciled_invoices_type == "
+"'invoice'\">Kredit eslatmasi</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1836,6 +1971,8 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>Ushbu yozuv Buxgalteriya dasturi o‘rnatilishidan oldin Hisob-faktura "
+"ilovasi orqali yaratilgan. Uning qoldig‘i alohida import qilingan.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3412,7 +3549,7 @@ msgstr "Buxgalteriya hujjatlari"
 msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
-msgstr ""
+msgstr "Buxgalteriya firmasi rejimi hisob-faktura kodlashini o‘zgartiradi:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3615,6 +3752,9 @@ msgid ""
 "Activate\n"
 "                        auto-validation"
 msgstr ""
+"Avtomatik\n"
+"                        tekshiruvni\n"
+"                        faollashtirish"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5824,6 +5964,8 @@ msgid ""
 "Bank\n"
 "                                    Setup"
 msgstr ""
+"Bank\n"
+"                                    sozlamalari"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -6769,6 +6911,8 @@ msgid ""
 "Capture invoices, register payments and keep track of the discussions with your\n"
 "                vendors."
 msgstr ""
+"Hisob-fakturalarni yozib oling, to‘lovlarni qayd eting va "
+"ta'minotchilaringiz bilan muzokaralarni kuzatib boring."
 
 #. module: account
 #. odoo-javascript
@@ -8090,7 +8234,7 @@ msgstr "Tasdiqlash ogohlantirmasi"
 msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
-msgstr ""
+msgstr "Bankingizni ulang. Hisob-fakturalarni avtomatik moslashtiring."
 
 #. module: account
 #. odoo-javascript
@@ -8587,6 +8731,9 @@ msgid ""
 "                IFRS, or fiscal\n"
 "                adjustments, ensuring compliance with diverse regulations."
 msgstr ""
+"Turli xil qoidalarga rioya qilishni ta'minlagan holda, mahalliy GAAP, MHXS "
+"yoki moliyaviy tuzatishlar uchun alohida daftarlarni yuritish uchun zarur "
+"miqdorda daftar guruhlarini yaratish."
 
 #. module: account
 #. odoo-javascript
@@ -8616,6 +8763,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Hisob-fakturalar yarating, to‘lovlarni ro‘yxatga oling va mijozlaringiz "
+"bilan muloqotlarni kuzatib boring."
 
 #. module: account
 #. odoo-javascript
@@ -11606,7 +11755,7 @@ msgstr "Yozuvlar"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Ko‘rib chiqiladigan yozuvlar"
 
 #. module: account
 #. odoo-python
@@ -12254,6 +12403,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"Birinchi\n"
+"                                                    yozuv"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -12261,6 +12412,8 @@ msgid ""
 "First\n"
 "                                                    Hash"
 msgstr ""
+"Birinchi\n"
+"                                                    xesh"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -12883,6 +13036,10 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"Ushbu hisobot orqali yetkazib beruvchilaringizdan hisoblangan summalar "
+"haqida umumiy ma'lumot olishingiz mumkin. Qidiruv vositasi yordamida hisob-"
+"faktura hisobotlarini shaxsiylashtirish va tahlilni ehtiyojlaringizga "
+"moslashtirish imkoniyati ham mavjud."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -12891,6 +13048,10 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"Ushbu hisobot orqali mijozlaringizga hisoblangan summalar haqida umumiy "
+"ma'lumot olishingiz mumkin. Qidiruv vositasi yordamida hisob-faktura "
+"hisobotlarini shaxsiylashtirish va tahlilni ehtiyojlaringizga moslashtirish "
+"imkoniyati ham mavjud."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -13153,7 +13314,7 @@ msgstr "Umumiy soliq hisoboti"
 msgid ""
 "Get Paid\n"
 "                                online. Send electronic invoices."
-msgstr ""
+msgstr "Onlayn to‘lov qabul qiling. Elektron hisob-fakturalar yuboring."
 
 #. module: account
 #: model:ir.model,name:account.model_report_account_report_hash_integrity
@@ -13512,6 +13673,9 @@ msgid ""
 "                <br/><br/>\n"
 "                Your email has been discarded. the e-mail address you have used only accepts new invoices:"
 msgstr ""
+"Salom, <br/><br/> Sizning elektron xatingiz o‘chirib tashlandi. Siz "
+"foydalangan elektron pochta manzili faqat yangi hisob-fakturalarni qabul "
+"qiladi:"
 
 #. module: account
 #. odoo-javascript
@@ -16095,6 +16259,8 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"Oxirgi\n"
+"                                                    yozuv"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -16435,7 +16601,7 @@ msgstr "Kam to‘lov"
 msgid ""
 "Let\n"
 "                                artificial intelligence scan your bill. Pay easily."
-msgstr ""
+msgstr "Sun'iy intellekt hisobingizni tekshirib chiqsin. Oson to‘lang."
 
 #. module: account
 #. odoo-javascript
@@ -17912,7 +18078,7 @@ msgstr "Hech qachon"
 msgid ""
 "Never\n"
 "                        for this vendor"
-msgstr ""
+msgstr "Bu yetkazib beruvchi uchun hech qachon"
 
 #. module: account
 #. odoo-python
@@ -18442,6 +18608,8 @@ msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
 msgstr ""
+"E'tibor bering, yetkazib beruvchi kredit notasini yaratishning eng oson "
+"usuli uni to‘g‘ridan-to‘g‘ri yetkazib beruvchi hisobvarag‘idan yaratishdir."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -20229,6 +20397,9 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"To‘lovlar pul mablag‘lari harakatini qayd etish uchun ishlatiladi. Bu "
+"to‘lovlarni o‘zingiz yoki o‘rnatilgan vositalar yordamida amalga "
+"oshirishingiz mumkin."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -20236,6 +20407,8 @@ msgid ""
 "Payments related to partners with no bank account\n"
 "                        specified will be skipped."
 msgstr ""
+"Bank hisobi ko‘rsatilmagan hamkorlarga tegishli to‘lovlar o‘tkazib "
+"yuboriladi."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__reconciled_payment_ids
@@ -20630,7 +20803,7 @@ msgstr "Jo‘natish"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Barcha yozuvlarni jo‘natish"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -25999,7 +26172,7 @@ msgstr "Bayonot kiritish uchun ishlatiladigan valyuta"
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "Hozirgi eng yuqori raqam"
 
 #. module: account
 #. odoo-javascript
@@ -26271,6 +26444,8 @@ msgid ""
 "The hash chain is compliant: it is not possible to alter the\n"
 "                                        data without breaking the hash chain for subsequent parts."
 msgstr ""
+"Xesh-zanjir muvofiq: keyingi qismlar uchun xesh-zanjirni buzmasdan "
+"ma'lumotlarni o‘zgartirish imkonsiz."
 
 #. module: account
 #. odoo-python
@@ -26660,6 +26835,9 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"Tanlangan maqsad hisobi ma'lum bir valyutadan foydalanishga sozlangan. Unga "
+"o‘tkazilgan har bir yozuv ushbu valyutaga aylantiriladi, bu esa mavjud "
+"xorijiy valyuta miqdorining yo‘qolishiga olib keladi."
 
 #. module: account
 #. odoo-python
@@ -27037,6 +27215,9 @@ msgid ""
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
 msgstr ""
+"Tanlangan buyurtma uchun hisob-kitob qilinadigan hech narsa yo‘qqa "
+"o‘xshaydi. Biroq, majburiy hisobga olish yozuvini kiritish uchun summa "
+"maydonidan foydalanishingiz mumkin."
 
 #. module: account
 #. odoo-python
@@ -29380,6 +29561,8 @@ msgid ""
 "Want to make your life even easier and automate bill validation from this vendor\n"
 "                    ?"
 msgstr ""
+"Hayotingizni yanada osonlashtirib, ushbu yetkazib beruvchidan hisob-"
+"fakturani tasdiqlashni avtomatlashtirmoqchimisiz?"
 
 #. module: account
 #. odoo-python
@@ -29652,6 +29835,9 @@ msgid ""
 "You are changing decimals in your entire database, including invoices,\n"
 "                        tax amounts, accounting amounts, reports. This is probably not intended."
 msgstr ""
+"Siz butun ma'lumotlar bazangizdagi o‘nli kasrlarni, jumladan hisob-"
+"fakturalar, soliq summalari, buxgalteriya miqdorlari va hisobotlarni "
+"o‘zgartiryapsiz. Bu ehtimol ko‘zda tutilmagan bo‘lsa kerak."
 
 #. module: account
 #. odoo-python
@@ -30907,14 +31093,14 @@ msgstr "[Hamkor identifikatori]"
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "hisob valyutasini faollashtirish"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 "activate the currency of the\n"
 "                    invoice"
-msgstr ""
+msgstr "hisob-faktura valyutasini faollashtirish"
 
 #. module: account
 #. odoo-javascript
@@ -31191,7 +31377,7 @@ msgstr "hamma"
 msgid ""
 "fall outside the typical\n"
 "                        range."
-msgstr ""
+msgstr "odatiy oraliqdan tashqarida bo‘lishi mumkin."
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__1h
@@ -31245,7 +31431,7 @@ msgstr ""
 msgid ""
 "has been\n"
 "                            applied."
-msgstr ""
+msgstr "qo‘llanildi."
 
 #. module: account
 #. odoo-javascript
@@ -31318,7 +31504,7 @@ msgstr "hisob-fakturalar"
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "hamkor bilan bir xil mamlakatdan bo‘lmasa ("
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -31327,6 +31513,8 @@ msgid ""
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
 msgstr ""
+"pul o‘tkazish xizmati bo‘lib, bank emas. Hisobga ishonch hosil qilish uchun "
+"sotuvchiga ikki marta qo‘ng‘iroq qilib tekshiring.<br/>"
 
 #. module: account
 #. odoo-javascript
@@ -31429,7 +31617,7 @@ msgstr "hamkorlar"
 msgid ""
 "payments\n"
 "                        will be skipped due to"
-msgstr ""
+msgstr "quyidagi sabablarga ko‘ra to‘lovlar o‘tkazib yuboriladi"
 
 #. module: account
 #. odoo-python
@@ -31622,7 +31810,7 @@ msgstr "ishonchsiz"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "ishonchsiz bank hisoblari"
 
 #. module: account
 #. odoo-javascript
@@ -31650,7 +31838,7 @@ msgstr "Yevropa Ittifoqi mamlakatlarining hech birida joylashmagan."
 msgid ""
 "will auto-confirm on their\n"
 "                        respective dates."
-msgstr ""
+msgstr "tegishli sanalarda avtomatik ravishda tasdiqlanadi."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_default_terms_and_conditions
@@ -31682,6 +31870,8 @@ msgid ""
 "will be posted. Some of them may be\n"
 "                    future-dated or require hashing,"
 msgstr ""
+"joylashtiriladi. Ularning ba'zilari kelajak sanali bo‘lishi yoki xeshlashni "
+"talab qilishi mumkin,"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.validate_account_move_view
@@ -31701,7 +31891,7 @@ msgstr "yaroqli Yevropa Ittifoqi ichidagi QQS raqamiga ega bo‘lmagan."
 msgid ""
 "without making any\n"
 "                    corrections."
-msgstr ""
+msgstr "hech qanday tuzatishlar kiritmasdan."
 
 #. module: account
 #. odoo-python

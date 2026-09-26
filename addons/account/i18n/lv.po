@@ -508,6 +508,8 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"- Jauns lauks \"Kopā (ar nodokļiem)\", lai paātrinātu un kontrolētu "
+"kodēšanu, automatizējot rindas izveidi ar pareizo kontu &amp; amp; nodoklis."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -519,7 +521,7 @@ msgstr "- Iemaksa"
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "- Dokumentu secība ir rediģējama visiem dokumentiem."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -546,13 +548,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". Odoo ir jāaprēķina žurnāla ieraksti, pirms tie tiek iegrāmatoti Jūsu "
+"uzņēmuma valūtā."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". Iespējams, Jūs vēlējāties ievadīt šeit lielākumu numuru."
 
 #. module: account
 #. odoo-python
@@ -873,6 +877,21 @@ msgid ""
 "            </div>\n"
 "        "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px;\">\n"
+"                    <t t-if=\"object.id != object.commercial_partner_id.id\">Sveicināti <t t-out=\"object.name or ''\"/> (<t t-out=\"object.commercial_partner_id.name or ''\"/>),</t>\n"
+"                    <t t-else=\"\">Sveicināti <t t-out=\"object.name or ''\"/>,</t>\n"
+"                    <br/>\n"
+"                    Pielikumā skatiet sava konta izrakstu.\n"
+"                    <br/>\n"
+"                    Nevilcinieties sazināties ar mums, ja Jums ir kādi jautājumi.\n"
+"                    <br/>\n"
+"                    Ar cieņu,\n"
+"                    <br/>\n"
+"                    <t t-out=\"object._get_followup_responsible().name if is_html_empty(object._get_followup_responsible().signature) else object._get_followup_responsible().signature\"/>\n"
+"                </p>\n"
+"            </div>\n"
+"        "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_tax_return_deadline
@@ -1007,7 +1026,7 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>Atpakaļ uz uzstādījumiem"
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> Priekšskatījums"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1110,6 +1129,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Nodokļi\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1118,6 +1140,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Bilance\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1126,6 +1151,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Nodokļi\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1603,6 +1631,8 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>Šis ieraksts ir izveidots, izmantojot Rēķinu lietotni, pirms instalēta"
+" Grāmatvedība. Tā atlikums ir importēts atsevišķi.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -2980,7 +3010,7 @@ msgstr "Grāmatvedības dokumenti"
 msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
-msgstr ""
+msgstr "Grāmatvedības uzņēmuma režīms mainīs rēķinu/rēķinu kodējumu:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3086,6 +3116,8 @@ msgid ""
 "Accrual entry created on %(date)s: %(accrual_entry)s.                And its"
 " reverse entry: %(reverse_entry)s."
 msgstr ""
+"Uzkrāšanas ieraksts izveidots %(date)s: %(accrual_entry)s.                Un"
+" tā pretējais ieraksts: %(reverse_entry)s."
 
 #. module: account
 #. odoo-python
@@ -7435,6 +7467,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Izveidojiet rēķinus, reģistrējiet maksājumus un sekojiet līdzi diskusijām ar"
+" Jūsu klientiem."
 
 #. module: account
 #. odoo-javascript
@@ -10031,7 +10065,7 @@ msgstr "Ieraksti"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Pārskatāmie ieraksti"
 
 #. module: account
 #. odoo-python
@@ -10578,6 +10612,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"Pirmais\n"
+"                                                    ieraksts"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -10585,6 +10621,8 @@ msgid ""
 "First\n"
 "                                                    Hash"
 msgstr ""
+"Pirmais\n"
+"                                                    Hash"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11108,6 +11146,9 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"Šajā pārskatā varat pārskatīt, par kādu summu jums ir izrakstīti rēķini no "
+"Jūsu piegādātājiem. Meklēšanas rīku var izmantot arī, lai personalizētu "
+"rēķinu pārskatus un tādējādi pielāgotu šo analīzi savām vajadzībām."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11116,6 +11157,9 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"Šajā pārskatā varat pārskatīt klientiem izrakstīto rēķinu summas. Meklēšanas"
+" rīku var izmantot arī, lai personalizētu rēķinu pārskatus un tādējādi "
+"pielāgotu šo analīzi savām vajadzībām."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -12155,6 +12199,9 @@ msgid ""
 "based on the delivery address.                                 This rule "
 "applies regardless of where you are located."
 msgstr ""
+"Ja pārdodat preces un pakalpojumus klientiem ārzemju ES valstīs, PVN ir "
+"jāiekasē, pamatojoties uz piegādes adresi. Šo noteikumu piemēro neatkarīgi "
+"no jūsu atrašanās vietas."
 
 #. module: account
 #. odoo-python
@@ -13881,6 +13928,8 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"Pēdējais\n"
+"                                                    ieraksts"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -15899,6 +15948,8 @@ msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
 msgstr ""
+"Ņemiet vērā, ka visvienkāršākais veids, kā izveidot piegādātāja "
+"kredītrēķinu, ir to izdarīt tieši no piegādātāja rēķina."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17431,6 +17482,8 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"Maksājumus izmanto, lai reģistrētu likviditātes kustību. Šos maksājumus var "
+"apstrādāt ar saviem līdzekļiem vai izmantojot uzstādītās iekārtas."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -17775,7 +17828,7 @@ msgstr "Grāmatot"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Publicēt visus ierakstus"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -20111,6 +20164,9 @@ msgid ""
 "Any file extension will be accepted.\n"
 "Only PDF and XML files will be interpreted by Odoo"
 msgstr ""
+"Katram rēķinam nosūtiet vienu atsevišķu e-pastu.\n"
+"Pieņems jebkuru faila paplašinājumu.\n"
+"Odoo interpretēs tikai PDF un XML failus"
 
 #. module: account
 #. odoo-javascript
@@ -22344,7 +22400,7 @@ msgstr "Atskaitē lietotā valūta"
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "Pašreizējais lielākais skaitlis ir"
 
 #. module: account
 #. odoo-javascript
@@ -22571,6 +22627,8 @@ msgid ""
 "The hash chain is compliant: it is not possible to alter the\n"
 "                                        data without breaking the hash chain for subsequent parts."
 msgstr ""
+"Hesh ķēde ir atbilstoša: nav iespējams mainīt\n"
+"                                        datus, nepārtraucot turpmāko daļu hash ķēdi."
 
 #. module: account
 #. odoo-python
@@ -22901,6 +22959,8 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"Izvēlētais galamērķa konts ir iestatīts izmantot konkrētu valūtu. Katrs uz to pārskaitītais ieraksts tiks konvertēts šajā valūtā, tādējādi\n"
+"                    tiek zaudētas visas iepriekš esošās summas ārvalstu valūtā."
 
 #. module: account
 #. odoo-python
@@ -23217,6 +23277,8 @@ msgid ""
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
 msgstr ""
+"Šķiet, ka par izvēlēto pasūtījumu nav iespējams izrakstīt rēķinu. Tomēr jūs "
+"varat izmantot summas lauku, lai piespiestu veikt uzkrājumu ierakstu."
 
 #. module: account
 #. odoo-python
@@ -26451,14 +26513,14 @@ msgstr ""
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "aktivizē rēkina valūtu"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 "activate the currency of the\n"
 "                    invoice"
-msgstr ""
+msgstr "aktivizēt rēķina valūtu"
 
 #. module: account
 #. odoo-javascript
@@ -26811,7 +26873,7 @@ msgstr ""
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "nav no tās pašas valsts, no kuras ir partneris ("
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -26820,6 +26882,8 @@ msgid ""
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
 msgstr ""
+"ir naudas pārvedumu pakalpojums, nevis banka. Divreiz pārbaudiet, vai kontam"
+" var uzticēties, zvanot piegādātājam.<br/>"
 
 #. module: account
 #. odoo-javascript
@@ -26909,7 +26973,7 @@ msgstr ""
 msgid ""
 "payments\n"
 "                        will be skipped due to"
-msgstr ""
+msgstr "maksājumi tiks izlaisti, jo"
 
 #. module: account
 #. odoo-python
@@ -27075,7 +27139,7 @@ msgstr "neuzticams"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "neuzticamie bankas konti"
 
 #. module: account
 #. odoo-javascript

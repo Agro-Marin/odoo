@@ -544,6 +544,7 @@ msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
 msgstr ""
+"- Последователността на документа става редактируема за всички документи."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -563,6 +564,10 @@ msgid ""
 "                --\n"
 "                <br/>"
 msgstr ""
+".\n"
+"                <br/>\n"
+"                --\n"
+"                <br/>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -570,6 +575,8 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". Записите в дневника трябва да бъдат изчислени от Odoo, преди да бъдат "
+"публикувани във валутата на вашата компания."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -577,6 +584,8 @@ msgid ""
 ". You\n"
 "                            might want to put a higher number here."
 msgstr ""
+". You\n"
+"                            might want to put a higher number here."
 
 #. module: account
 #. odoo-python
@@ -1033,7 +1042,7 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>Връщане към настро�
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> Преглед"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1041,6 +1050,8 @@ msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
 msgstr ""
+"<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/> Конфигуриране на домейн"
+" за псевдоним"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1087,6 +1098,10 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">Недоверен</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Доверен</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
@@ -1094,6 +1109,8 @@ msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
 msgstr ""
+"<span class=\"figure-caption\">Никога не пропускайте краен срок с "
+"автоматизирани извлечения и сигнали.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1130,6 +1147,9 @@ msgid ""
 "                                    Audit\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Одит\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1138,6 +1158,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Данъци\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1146,6 +1169,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Салдо\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1154,6 +1180,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Данъци\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1251,6 +1280,9 @@ msgid ""
 "                            <i>inclusive, to make them immutable</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted ms-2\">\n"
+"                            <i>включително, за да ги направи непроменими</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1259,6 +1291,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_fiscalyear_lock_date_exception_for_me_id                                                  or not min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1267,6 +1302,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_purchase_lock_date_exception_for_me_id                                                  or not min_purchase_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1275,6 +1313,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_sale_lock_date_exception_for_me_id                                                  or not min_sale_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1283,6 +1324,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_tax_lock_date_exception_for_me_id                                                  or not min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1313,6 +1357,9 @@ msgid ""
 "                            <i>Secure entries up to</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted\">\n"
+"                            <i>Сигурни влизания до</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
@@ -1416,6 +1463,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\"> Фактура</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\"> Кредитно известие</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1648,6 +1697,8 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>Този запис е генериран чрез приложението за фактуриране, преди "
+"инсталирането на счетоводство. Балансът му е внесен отделно.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3044,7 +3095,7 @@ msgstr "Счетоводни документи"
 msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
-msgstr ""
+msgstr "Режим Счетоводни Фирми ще промени запазването на фактурите:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3225,6 +3276,9 @@ msgid ""
 "Activate\n"
 "                        auto-validation"
 msgstr ""
+"Активирайте\n"
+"                        автоматичното\n"
+"                        валидиране"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5147,6 +5201,9 @@ msgid ""
 "Bank\n"
 "                                    Setup"
 msgstr ""
+"Настройка\n"
+"                                    на\n"
+"                                    банка"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5964,6 +6021,8 @@ msgid ""
 "Capture invoices, register payments and keep track of the discussions with your\n"
 "                vendors."
 msgstr ""
+"Записвайте фактури, регистрирайте плащания и следете дискусиите с вашите "
+"доставчици."
 
 #. module: account
 #. odoo-javascript
@@ -7104,7 +7163,7 @@ msgstr ""
 msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
-msgstr ""
+msgstr "Свържете своята банка. Съпоставяйте фактури автоматично."
 
 #. module: account
 #. odoo-javascript
@@ -7548,6 +7607,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Създаване на фактури, регистриране на плащания и проследяване на дискусиите "
+"с Вашите клиенти."
 
 #. module: account
 #. odoo-javascript
@@ -10158,7 +10219,7 @@ msgstr "Вписвания/записи"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Влизания за преглед"
 
 #. module: account
 #. odoo-python
@@ -10698,6 +10759,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"Първи\n"
+"                                                    запис"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -11233,6 +11296,10 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"От този отчет можете да получите общ преглед на сумата, фактурирана от "
+"вашите доставчици. Инструментът за търсене може да се използва и за "
+"персонализиране на отчетите Ви за фактури, така че да съответства на този "
+"анализ според вашите нужди."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11241,6 +11308,10 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"От този отчет можете да получите общ преглед на сумата, фактурирана на "
+"клиентите Ви. Инструментът за търсене може да се използва и за "
+"персонализиране на отчетите Ви за фактури, така че да съответства на този "
+"анализ според вашите нужди."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -14011,6 +14082,8 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"последен\n"
+"                                                    запис"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -17897,7 +17970,7 @@ msgstr "Публикувайте"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Публикувайте всички записи"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -22490,7 +22563,7 @@ msgstr "Валутата, използвана за да се въведе из�
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "Настоящият най-висок номер е"
 
 #. module: account
 #. odoo-javascript
@@ -23372,6 +23445,9 @@ msgid ""
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
 msgstr ""
+"Изглежда, че няма нищо за фактуриране за избраната поръчка. Въпреки това "
+"можете да използвате полето за сума, за да създадете принудителен запис за "
+"начисление."
 
 #. module: account
 #. odoo-python
@@ -26853,7 +26929,7 @@ msgstr ""
 msgid ""
 "has been\n"
 "                            applied."
-msgstr ""
+msgstr "вече е приложено"
 
 #. module: account
 #. odoo-javascript

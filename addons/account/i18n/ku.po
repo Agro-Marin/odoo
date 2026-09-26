@@ -512,6 +512,7 @@ msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
 msgstr ""
+"- ڕێکوپێکی بەڵگەنامەکە دەبێتە شتێکی دەستکاریکراو لەسەر هەموو بەڵگەنامەکان."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -531,6 +532,10 @@ msgid ""
 "                --\n"
 "                <br/>"
 msgstr ""
+".\n"
+"<br/>\n"
+" --\n"
+"<br/>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -544,7 +549,7 @@ msgstr ""
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". لەوانەیە بتەوێت ژمارەیەکی زیاتر لێرە دابنێیت."
 
 #. module: account
 #. odoo-python
@@ -997,7 +1002,7 @@ msgstr ""
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/>پێشبینی"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1005,6 +1010,8 @@ msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
 msgstr ""
+"<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>ڕێکخستنی دۆمەینی ناوی "
+"نادیار"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1058,6 +1065,8 @@ msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
 msgstr ""
+"<span class=\"figure-caption\">هەرگیز وادەیەک لەدەست مەدە، بە لێدوان و "
+"ئاگادارکردنەوەی ئۆتۆماتیکی.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1095,7 +1104,7 @@ msgid ""
 "<span class=\"o_stat_text\">\n"
 "                                    Audit\n"
 "                                </span>"
-msgstr ""
+msgstr "<span class=\"o_stat_text\">وردبینی</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1103,7 +1112,7 @@ msgid ""
 "<span class=\"o_stat_text\">\n"
 "                                    Taxes\n"
 "                                </span>"
-msgstr ""
+msgstr "<span class=\"o_stat_text\">باجەکان</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1111,7 +1120,7 @@ msgid ""
 "<span class=\"o_stat_text\">\n"
 "                            Balance\n"
 "                        </span>"
-msgstr ""
+msgstr "<span class=\"o_stat_text\">هاوسەنگی</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1119,7 +1128,7 @@ msgid ""
 "<span class=\"o_stat_text\">\n"
 "                            Taxes\n"
 "                        </span>"
-msgstr ""
+msgstr "<span class=\"o_stat_text\">باجەکان</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1210,6 +1219,9 @@ msgid ""
 "                            <i>inclusive, to make them immutable</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted ms-2\">\n"
+"<i>گشتگیر، بۆ ئەوەی نەگۆڕ بن</i>\n"
+"</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1266,6 +1278,9 @@ msgid ""
 "                            <i>Secure entries up to</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted\">\n"
+"<i>بەشداریکردنەکان تا</i>\n"
+"</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
@@ -1599,6 +1614,8 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>ئەم نووسینە لە ڕێگەی ئەپی فاکتورەوە دروست کراوە، پێش دامەزراندنی "
+"ژمێریاری. باڵانسەکەی بە جیا هاوردە کراوە</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3143,6 +3160,10 @@ msgid ""
 "Activate\n"
 "                        auto-validation"
 msgstr ""
+"چەسپاندنی\n"
+"                        ئۆتۆماتیکی\n"
+"                        چالاک\n"
+"                        بکە"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5016,6 +5037,8 @@ msgid ""
 "Bank\n"
 "                                    Setup"
 msgstr ""
+"ڕێکخستنی\n"
+"                                    بانک"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5816,6 +5839,8 @@ msgid ""
 "Capture invoices, register payments and keep track of the discussions with your\n"
 "                vendors."
 msgstr ""
+"فاکتورەکان بگرن، پارەدانەکان تۆمار بکەن و ئاگاداری گفتوگۆکان بن لەگەڵ "
+"فرۆشیارەکانتان."
 
 #. module: account
 #. odoo-javascript
@@ -6931,6 +6956,7 @@ msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
 msgstr ""
+"بانکەکەت بەیەکەوە ببەستە. فاکتورەکان بە شێوەیەکی ئۆتۆماتیکی هاوتا بکە."
 
 #. module: account
 #. odoo-javascript
@@ -7374,6 +7400,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"دروستکردنی فاکتورە و تۆمارکردنی پارەدان و ئاگاداربوون لە گفتوگۆکان لەگەڵ "
+"کڕیارەکانت."
 
 #. module: account
 #. odoo-javascript
@@ -14107,7 +14135,7 @@ msgstr ""
 msgid ""
 "Let\n"
 "                                artificial intelligence scan your bill. Pay easily."
-msgstr ""
+msgstr "با زیرەکی دەستکرد پسووڵەکەت سکان بکات. بە ئاسانی پارە بدە."
 
 #. module: account
 #. odoo-javascript
@@ -15338,7 +15366,7 @@ msgstr "هەرگیز"
 msgid ""
 "Never\n"
 "                        for this vendor"
-msgstr ""
+msgstr "هەرگیز بۆ ئەم فرۆشیارە"
 
 #. module: account
 #. odoo-python
@@ -17326,6 +17354,8 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"پارەدان بۆ تۆمارکردنی جوڵەی نەختینەیی بەکاردەهێنرێت. دەتوانیت ئەو پارانە بە "
+"ڕێگەی خۆت یان بە بەکارهێنانی ئاسانکارییە دامەزراوەکان پرۆسێس بکەیت."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -17333,6 +17363,8 @@ msgid ""
 "Payments related to partners with no bank account\n"
 "                        specified will be skipped."
 msgstr ""
+"پارەدانەکانی پەیوەست بەو هاوبەشانەی کە هیچ هەژمارێکی بانکییان دیاری نەکراوە،"
+" دەفەوتێنرێن."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__reconciled_payment_ids
@@ -22200,7 +22232,7 @@ msgstr "ئەو دراوەی کە بۆ داخڵکردنی بەیاننامە بە
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "زۆرترین ژمارەی ئێستا بریتییە لە"
 
 #. module: account
 #. odoo-javascript
@@ -26239,14 +26271,14 @@ msgstr ""
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "دراوی پسووڵەکە چالاک بکە"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 "activate the currency of the\n"
 "                    invoice"
-msgstr ""
+msgstr "دراوی فاکتورەکە چالاک بکە"
 
 #. module: account
 #. odoo-javascript
@@ -26529,7 +26561,7 @@ msgstr ""
 msgid ""
 "has been\n"
 "                            applied."
-msgstr ""
+msgstr "جێبەجێ کراوە."
 
 #. module: account
 #. odoo-javascript
@@ -26593,7 +26625,7 @@ msgstr "فاکتورەکان"
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "خەڵکی هەمان وڵات نییە لەگەڵ هاوبەشەکەی ("
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -26602,6 +26634,8 @@ msgid ""
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
 msgstr ""
+"خزمەتگوزاری گواستنەوەی پارەیە و بانک نییە.\n"
+"دووجار بزانە کە ئایا دەتوانرێت متمانە بە ئەکاونتەکە بکرێت بە پەیوەندیکردن بە فرۆشیارەوە.<br/>"
 
 #. module: account
 #. odoo-javascript
@@ -26852,7 +26886,7 @@ msgstr "متمانەپێنەکراو"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "هەژماری بانکی متمانەپێنەکراو"
 
 #. module: account
 #. odoo-javascript
@@ -26877,7 +26911,7 @@ msgstr ""
 msgid ""
 "will auto-confirm on their\n"
 "                        respective dates."
-msgstr ""
+msgstr "لە بەروارەکانی خۆیاندا بە شێوەیەکی ئۆتۆماتیکی پشتڕاستی دەکەنەوە."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_default_terms_and_conditions
@@ -26923,7 +26957,7 @@ msgstr ""
 msgid ""
 "without making any\n"
 "                    corrections."
-msgstr ""
+msgstr "بەبێ ئەوەی هیچ چاکسازییەک."
 
 #. module: account
 #. odoo-python

@@ -880,6 +880,21 @@ msgid ""
 "            </div>\n"
 "        "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px;\">\n"
+"                    <t t-if=\"object.id != object.commercial_partner_id.id\">ຮຽນ <t t-out=\"object.name or ''\"/> (<t t-out=\"object.commercial_partner_id.name or ''\"/>),</t>\n"
+"                    <t t-else=\"\">ຮຽນ <t t-out=\"object.name or ''\"/>,</t>\n"
+"                    <br/>\n"
+"                    ກະລຸນາກວດສອບໃບແຈ້ງຍອດບັນຊີຂອງທ່ານໃນເອກະສານຄັດຕິດ.\n"
+"                    <br/>\n"
+"                    ຫາກທ່ານມີຄຳຖາມໃດໆ ສາມາດຕິດຕໍ່ສອບຖາມພວກເຮົາໄດ້ທຸກເວລາ.\n"
+"                    <br/>\n"
+"                    ດ້ວຍຄວາມນັບຖື,\n"
+"                    <br/>\n"
+"                    <t t-out=\"object._get_followup_responsible().name if is_html_empty(object._get_followup_responsible().signature) else object._get_followup_responsible().signature\"/>\n"
+"                </p>\n"
+"            </div>\n"
+"        "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_tax_return_deadline
@@ -24913,6 +24928,9 @@ msgid ""
 "\n"
 "*Factoring contracts involve a business selling its unpaid invoices (accounts receivable) to a third-party company, known as a factor, in exchange for immediate cash."
 msgstr ""
+"ກວດສອບວ່າການຮັບເງິນສົດ ແລະ ຜ່ານບັດທີ່ບັນທຶກໄວ້ໃນທ້າຍງວດນັ້ນ ໄດ້ຮັບການຊຳລະຕົວຈິງໃນງວດຖັດໄປ. ພ້ອມທັງກວດກາການບັນທຶກບັນຊີທີ່ຖືກຕ້ອງຂອງທຸລະກຳການຂາຍຫຼຸດເອກະສານມີຄ່າ ແລະ ສັນຍາການຊື້-ຂາຍໜີ້ (Factoring)*.\n"
+"\n"
+"*ສັນຍາການຊື້-ຂາຍໜີ້ (Factoring) ແມ່ນການທີ່ທຸລະກິດຂາຍໃບເກັບເງິນທີ່ຍັງບໍ່ທັນໄດ້ຊຳລະ (ລູກໜີ້ການຄ້າ) ໃຫ້ກັບບໍລິສັດພາກສ່ວນທີສາມ, ເຊິ່ງເອີ້ນວ່າ ຕົວແທນຊື້ໜີ້ (Factor), ເພື່ອແລກກັບເງິນສົດທັນທີ."
 
 #. module: account
 #: model:account.return.check.template,description:account.account_return_check_template_minimum_share_capital_compliance

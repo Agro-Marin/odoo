@@ -516,6 +516,8 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"Et nytt felt Total (inkl. mva.) for å effektivisere og kontrollere "
+"registreringen ved å automatisere linjeoppretting med riktig konto og mva."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -527,7 +529,7 @@ msgstr "- Antall avdrag"
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "Dokumentets nummerering blir redigerbar på alle dokumenter."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -547,6 +549,10 @@ msgid ""
 "                --\n"
 "                <br/>"
 msgstr ""
+".\n"
+"<br/>\n"
+"--\n"
+"<br/>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -554,13 +560,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". Regnskapsføringen må beregnes av Odoo før den bokføres i selskapets "
+"valuta."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". Du vill nok skrive ett høyrer nummer her.."
 
 #. module: account
 #. odoo-python
@@ -1014,6 +1022,8 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>Tilbake til innstillinger"
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
 msgstr ""
+"<i class=\"oi oi-arrow-right\"/>\n"
+"                                       Forhåndsvisning"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1067,6 +1077,10 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">Ubetrodd</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Betrodd</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
@@ -1120,6 +1134,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                     Skatter\n"
+"                                      </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1128,6 +1145,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Balanse\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1136,6 +1156,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                     Skatter\n"
+"                                      </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1383,6 +1406,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\"> Faktura </span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\"> Kredit Nota</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1611,6 +1636,8 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>Dette bilaget ble generert i Faktura-appen, før Regnskap-appen ble "
+"installert. Inngående saldo ble importert separat.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -2994,7 +3021,7 @@ msgstr "Regnskapsdokumenter"
 msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
-msgstr ""
+msgstr "Regnskapsfirma-modus vil endre faktura-/bilagskoding."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3100,6 +3127,8 @@ msgid ""
 "Accrual entry created on %(date)s: %(accrual_entry)s.                And its"
 " reverse entry: %(reverse_entry)s."
 msgstr ""
+"Periodisering oppføring opprettet den %(date)s: %(accrual_entry)s. \n"
+"Og dens reverserte oppføring: %(reverse_entry)s ."
 
 #. module: account
 #. odoo-python
@@ -7437,6 +7466,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Opprett fakturaer, registrer betalinger og hold oversikt over diskusjonene "
+"med kundene dine."
 
 #. module: account
 #. odoo-javascript
@@ -10032,7 +10063,7 @@ msgstr "Inngang"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Posteringer å se igjennom"
 
 #. module: account
 #. odoo-python
@@ -10574,6 +10605,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"Første\n"
+"                                                    postering"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -10581,6 +10614,8 @@ msgid ""
 "First\n"
 "                                                    Hash"
 msgstr ""
+"Første\n"
+"                                                    hash"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11108,6 +11143,8 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"Denne rapporten viser oversikt over fakturert beløp fra dine leverandører. "
+"Søkeverktøyet kan brukes til å tilpasse fakturarapporten."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11116,6 +11153,8 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"Denne rapporten viser oversikt over fakturert beløp til dine kunder. "
+"Søkeverktøyet kan brukes til å tilpasse fakturarapporten."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -13896,6 +13935,8 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"Siste\n"
+"                                                    postering"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -15916,6 +15957,8 @@ msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
 msgstr ""
+"Merk at den enkleste måten å opprette en leverandørkreditnota på er å gjøre "
+"det direkte fra leverandørfakturaen."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17449,6 +17492,8 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"Betalinger brukes til å registrere likviditetsbevegelser. Du kan behandle "
+"disse betalingene på egenhånd eller ved å bruke installerte fasiliteter."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -17792,7 +17837,7 @@ msgstr "Poster"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Bokfør alle posteringer"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -22367,7 +22412,7 @@ msgstr "Valutaen brukt til posten"
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "Det nåværende høyeste tallet er"
 
 #. module: account
 #. odoo-javascript
@@ -22599,6 +22644,8 @@ msgid ""
 "The hash chain is compliant: it is not possible to alter the\n"
 "                                        data without breaking the hash chain for subsequent parts."
 msgstr ""
+"Hash-kjeden er kompatibel: det er ikke mulig å endre\n"
+"data uten å bryte hash-kjeden for påfølgende deler."
 
 #. module: account
 #. odoo-python
@@ -22933,6 +22980,8 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"Den valgte destinasjonskontoen er satt til å bruke en bestemt valuta. Hver oppføring som overføres til den vil bli konvertert til denne valutaen, noe som forårsaker\n"
+"tapet av et eksisterende beløp i utenlandsk valuta."
 
 #. module: account
 #. odoo-python
@@ -23252,6 +23301,9 @@ msgid ""
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
 msgstr ""
+"Det ser ikke ut til å være noe å fakturere for den valgte bestillingen. Du "
+"kan imidlertid bruke beløpsfeltet til å fremtvinge en "
+"periodiseringspostering."
 
 #. module: account
 #. odoo-python
@@ -26527,14 +26579,14 @@ msgstr ""
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "aktivere valutaen til regningen"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 "activate the currency of the\n"
 "                    invoice"
-msgstr ""
+msgstr "aktivere valutaen til fakturaen"
 
 #. module: account
 #. odoo-javascript
@@ -26821,7 +26873,7 @@ msgstr ""
 msgid ""
 "has been\n"
 "                            applied."
-msgstr ""
+msgstr "har blitt benyttet."
 
 #. module: account
 #. odoo-javascript
@@ -26887,7 +26939,7 @@ msgstr "fakturaer"
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "er ikke fra samme land som partneren ("
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -26896,6 +26948,8 @@ msgid ""
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
 msgstr ""
+"er en pengeoverføringstjeneste og ikke en bank.\n"
+"                         Dobbeltsjekk om kontoen kan stoles på ved å ringe leverandøren. <br/>"
 
 #. module: account
 #. odoo-javascript
@@ -26985,7 +27039,7 @@ msgstr ""
 msgid ""
 "payments\n"
 "                        will be skipped due to"
-msgstr ""
+msgstr "betalinger vil bli hoppet over pga"
 
 #. module: account
 #. odoo-python
@@ -27151,7 +27205,7 @@ msgstr "ikke betrodd"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "ubetrodde bankkontoer"
 
 #. module: account
 #. odoo-javascript

@@ -521,6 +521,7 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"- 新しいフィールド「合計 （税込）」が追加され、自動的正しい勘定科目や税金の明細を作成することで、エンコードの速度とコントロールを向上します。"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -532,7 +533,7 @@ msgstr "- 以下の分割払い："
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "- ドキュメントの付番は、全てのドキュメントで編集できるようになります。"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -552,20 +553,24 @@ msgid ""
 "                --\n"
 "                <br/>"
 msgstr ""
+".\n"
+"                <br/>\n"
+"                --\n"
+"                <br/>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
-msgstr ""
+msgstr "。仕訳は、会社で使用されている通貨で記入する前に、Odooに計算される必要があります。"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr "。ここにより大きな数字を適用しても良いでしょう。"
 
 #. module: account
 #. odoo-python
@@ -750,6 +755,49 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"        \n"
+"        <t t-if=\"object.partner_id.parent_id\">\n"
+"                            <t t-if=\"object.partner_id.name\">\n"
+"                                <t t-out=\"object.partner_id.name\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>)様\n"
+"                            </t>\n"
+"                            <t t-else=\"\">\n"
+"                                <t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>様\n"
+"                            </t>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>様\n"
+"                        </t>\n"
+"                        <br/><br/>\n"
+"                        お世話になっております。以下にSelf-billing請求書をお送りさせていただきます。\n"
+"                        <t t-if=\"object.name\">\n"
+"                            Self-billing請求書番号： <span style=\"font-weight:bold;\" t-out=\"object.name or ''\">INV/2021/05/0005</span>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            Self-billing請求書\n"
+"                        </t>\n"
+"                        <t t-if=\"object.invoice_origin\">\n"
+"                            (参照番号: <t t-out=\"object.invoice_origin or ''\">SUB003</t>)\n"
+"                        </t>\n"
+"                        金額： <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount_total, object.currency_id) or ''\">$ 143,750.00</span>\n"
+"                        請求元： <t t-out=\"object.company_id.name or ''\">YourCompany</t>.\n"
+"                        <t t-if=\"object.payment_state in ('paid', 'in_payment')\">\n"
+"                            このSelf-billingはすでにお支払い済みです。\n"
+"                        </t>\n"
+"                        <t t-if=\"hasattr(object, 'timesheet_count') and object.timesheet_count\">\n"
+"                            <br/><br/>\n"
+"                            追記: ポータルより、タイムシート <a t-att-href=\"'/my/timesheets?search_in=invoice&amp;search=%s' % object.name\">をご確認いただけます。</a>\n"
+"                        </t>\n"
+"                        <br/><br/>\n"
+"                        ご不明な点がございましたら、お気軽にお問い合わせください。何卒よろしくお願いいたします。\n"
+"                        <t t-if=\"not is_html_empty(object.invoice_user_id.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_edi_credit_note
@@ -786,6 +834,37 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"        \n"
+"        <t t-if=\"object.partner_id.parent_id\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>)様\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>様\n"
+"                        </t>\n"
+"                        <br/><br/>\n"
+"                        いつもお世話になっております。クレジットノートをお送りさせていただきます。\n"
+"                        <t t-if=\"object.name\">\n"
+"                            クレジットノート番号: <span style=\"font-weight:bold;\" t-out=\"object.name or ''\">RINV/2021/05/0001</span>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            クレジットノート\n"
+"                        </t>\n"
+"                        <t t-if=\"object.invoice_origin\">\n"
+"                            (参照番号: <t t-out=\"object.invoice_origin or ''\">SUB003</t>)\n"
+"                        </t>\n"
+"                        金額: <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount_total, object.currency_id) or ''\">$ 143,750.00</span>\n"
+"                        発行元: <t t-out=\"object.company_id.name or ''\">YourCompany</t>.\n"
+"                        <br/><br/>\n"
+"                        ご不明な点がございましたら、お問合せ下さい。何卒よろしくお願いいたします。\n"
+"                        <t t-if=\"not is_html_empty(object.invoice_user_id.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_edi_self_billing_credit_note
@@ -822,6 +901,37 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                \n"
+"                <t t-if=\"object.partner_id.parent_id\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>)様\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>様\n"
+"                        </t>\n"
+"                        <br/><br/>\n"
+"                        いつもお世話になっております。\n"
+"                        <t t-if=\"object.name\">\n"
+"                            Self-billingクレジットノート <span style=\"font-weight:bold;\" t-out=\"object.name or ''\">RINV/2021/05/0001</span>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            Self-billingクレジットノート\n"
+"                        </t>\n"
+"                        <t t-if=\"object.invoice_origin\">\n"
+"                            (参照番号: <t t-out=\"object.invoice_origin or ''\">SUB003</t>)\n"
+"                        </t>\n"
+"                        金額: <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount_total, object.currency_id) or ''\">$ 143,750.00</span>\n"
+"                        発行元: <t t-out=\"object.company_id.name or ''\">YourCompany</t>をお送りさせていただきます。\n"
+"                        <br/><br/>\n"
+"                        ご不明な点がございましたら、お気軽にお問い合わせください。よろしくお願いいたします。\n"
+"                        <t t-if=\"not is_html_empty(object.invoice_user_id.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.mail_template_data_payment_receipt
@@ -844,6 +954,22 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                        <t t-out=\"object.partner_id.name or ''\">Azure Interior</t>様<br/><br/>\n"
+"                        いつも大変お世話になっております。お忙しい中、お支払い頂き誠にありがとうございました。以下に、領収書をお送りさせていただきます。\n"
+"                        領収書番号: <span style=\"font-weight:bold;\" t-out=\"(object.name or '').replace('/','-') or ''\">BNK1-2021-05-0002</span> 支払金額: <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount, object.currency_id) or ''\">$ 10.00</span> 発行元: <t t-out=\"object.company_id.name or ''\">YourCompany</t>.\n"
+"                        <br/><br/>\n"
+"                        何かございましたら、お気軽にお問合せ下さい。\n"
+"                        <br/><br/>\n"
+"                        何卒よろしくお願いいたします。\n"
+"                        <t t-if=\"not is_html_empty(user.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"user.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_customer_follow_up_report
@@ -899,6 +1025,21 @@ msgid ""
 "            </div>\n"
 "        "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px;\">\n"
+"                    <t t-if=\"object.id != object.commercial_partner_id.id\"><t t-out=\"object.name or ''\"/> (<t t-out=\"object.commercial_partner_id.name or ''\"/>)様</t>\n"
+"                    <t t-else=\"\"> <t t-out=\"object.name or ''\"/>様</t>\n"
+"                    <br/>\n"
+"                     添付のお取引明細書をご確認下さい。\n"
+"                    <br/>\n"
+"                    何かご質問などございましたらお気軽にご連絡下さい。\n"
+"                    <br/>\n"
+"                    宜しくお願い致します。\n"
+"                    <br/>\n"
+"                    <t t-out=\"object._get_followup_responsible().name if is_html_empty(object._get_followup_responsible().signature) else object._get_followup_responsible().signature\"/>\n"
+"                </p>\n"
+"            </div>\n"
+"        "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_tax_return_deadline
@@ -1058,14 +1199,14 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>設定に戻る"
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> プレビュー"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
 msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
-msgstr ""
+msgstr "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/> エイリアスドメインの設定"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1106,6 +1247,9 @@ msgid ""
 "                                    To Review\n"
 "                                </span>"
 msgstr ""
+"<span class=\"badge text-bg-info\">\n"
+"                                    要確認\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -1115,13 +1259,17 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">信頼できない</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">信頼できる</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
 msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
-msgstr ""
+msgstr "<span class=\"figure-caption\">自動化された明細書とアラートで、期限を逃しません。</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1160,6 +1308,9 @@ msgid ""
 "                                    Audit\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    監査\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1179,6 +1330,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            残高\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1187,6 +1341,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            税金\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1284,6 +1441,9 @@ msgid ""
 "                            <i>inclusive, to make them immutable</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted ms-2\">\n"
+"                            <i>以前を変更不可にする</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1292,6 +1452,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_fiscalyear_lock_date_exception_for_me_id                                                  or not min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1300,6 +1463,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_purchase_lock_date_exception_for_me_id                                                  or not min_purchase_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1308,6 +1474,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_sale_lock_date_exception_for_me_id                                                  or not min_sale_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1316,6 +1485,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_tax_lock_date_exception_for_me_id                                                  or not min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1346,6 +1518,9 @@ msgid ""
 "                            <i>Secure entries up to</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted\">\n"
+"                            <i>次までの仕訳を保護: </i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
@@ -1455,6 +1630,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\"> 請求書</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">クレジットノート</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1682,7 +1859,7 @@ msgid ""
 "<span>This entry has been generated through the Invoicing app,\n"
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
-msgstr ""
+msgstr "<span>この仕訳は、会計アプリがインストールされる前に、請求アプリで生成されました。残高は個別にインポートされました。</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3044,7 +3221,7 @@ msgstr "会計ドキュメント"
 msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
-msgstr ""
+msgstr "会計事務所モードは顧客・仕入先請求書のエンコードを変更します:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3225,7 +3402,7 @@ msgstr "対処可能なエラー"
 msgid ""
 "Activate\n"
 "                        auto-validation"
-msgstr ""
+msgstr "自動検証を有効化"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5098,7 +5275,7 @@ msgstr "銀行"
 msgid ""
 "Bank\n"
 "                                    Setup"
-msgstr ""
+msgstr "銀行設定"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5905,7 +6082,7 @@ msgstr "資本"
 msgid ""
 "Capture invoices, register payments and keep track of the discussions with your\n"
 "                vendors."
-msgstr ""
+msgstr "請求書を確定したり、支払を登録したり、仕入先とのコミュニケーションを追跡します。"
 
 #. module: account
 #. odoo-javascript
@@ -7023,7 +7200,7 @@ msgstr "確認警告"
 msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
-msgstr ""
+msgstr "銀行に接続して、請求書を自動的に照合。"
 
 #. module: account
 #. odoo-javascript
@@ -7439,6 +7616,8 @@ msgid ""
 "                IFRS, or fiscal\n"
 "                adjustments, ensuring compliance with diverse regulations."
 msgstr ""
+"現地GAAP、IFRS、または会計調整用の個別の元帳を維持するために必要な数の元帳グループを作成し、\n"
+"                様々な法令へのコンプライアンスを確保します。"
 
 #. module: account
 #. odoo-javascript
@@ -7464,7 +7643,7 @@ msgstr "請求書を作成"
 msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
-msgstr ""
+msgstr "請求書を作成したり、支払を登録したり、顧客とのコミュニケーションを管理したりします。"
 
 #. module: account
 #. odoo-javascript
@@ -10056,7 +10235,7 @@ msgstr "仕訳"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "要確認仕訳"
 
 #. module: account
 #. odoo-python
@@ -10600,14 +10779,14 @@ msgstr "会計業務"
 msgid ""
 "First\n"
 "                                                    Entry"
-msgstr ""
+msgstr "初回仕訳"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
 msgid ""
 "First\n"
 "                                                    Hash"
-msgstr ""
+msgstr "最初のハッシュ値"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11132,6 +11311,7 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"このレポートから、仕入先から請求された金額の概要を確認できます。検索ツールを使って請求レポートとその他をパーソナライズすることもできるため、この分析をニーズに合わせてください。"
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11140,6 +11320,7 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"このレポートから、顧客に請求した金額の概要を確認できます。検索ツールを使って、請求レポートとその他をパーソナライズすることもできるため、この分析をニーズに合わせてください。"
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -11364,7 +11545,7 @@ msgstr "汎用税レポート"
 msgid ""
 "Get Paid\n"
 "                                online. Send electronic invoices."
-msgstr ""
+msgstr "オンラインで支払いを受け取る。 電子請求書を送信。"
 
 #. module: account
 #: model:ir.model,name:account.model_report_account_report_hash_integrity
@@ -11673,6 +11854,9 @@ msgid ""
 "                <br/><br/>\n"
 "                Your email has been discarded. the e-mail address you have used only accepts new invoices:"
 msgstr ""
+"通知：\n"
+"                <br/><br/>\n"
+"   お送りいただいたメールは処理されず、破棄されました。ご利用いただいたメールアドレスでは、新規の請求書に関するメールのみを受け付けています:"
 
 #. module: account
 #. odoo-javascript
@@ -13888,7 +14072,7 @@ msgstr "言語"
 msgid ""
 "Last\n"
 "                                                    Entry"
-msgstr ""
+msgstr "最終仕訳"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -14194,7 +14378,7 @@ msgstr "減算 支払"
 msgid ""
 "Let\n"
 "                                artificial intelligence scan your bill. Pay easily."
-msgstr ""
+msgstr "AI が請求書を読み取り。支払いも簡単。"
 
 #. module: account
 #. odoo-javascript
@@ -15444,7 +15628,7 @@ msgstr "しない"
 msgid ""
 "Never\n"
 "                        for this vendor"
-msgstr ""
+msgstr "この仕入先には適用しない"
 
 #. module: account
 #. odoo-python
@@ -15902,7 +16086,7 @@ msgstr "クレジットノートを作成する一番簡単な方法は、顧客
 msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
-msgstr ""
+msgstr "仕入先請求書から簡単かつ直接に仕入先クレジットノートを作成できます。"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17428,13 +17612,14 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"支払いは、流動資金の動きを登録するために使用されています。これらの支払いは、独自の方法で、またはインストールされた機関を使用して処理できます。"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
 msgid ""
 "Payments related to partners with no bank account\n"
 "                        specified will be skipped."
-msgstr ""
+msgstr "銀行口座が指定されていない取引先に関する支払いはスキップされます。"
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__reconciled_payment_ids
@@ -17768,7 +17953,7 @@ msgstr "記帳"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "全仕訳を記帳"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -22287,7 +22472,7 @@ msgstr "明細入力に使用される通貨"
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "現在の最高値は"
 
 #. module: account
 #. odoo-javascript
@@ -22514,6 +22699,8 @@ msgid ""
 "The hash chain is compliant: it is not possible to alter the\n"
 "                                        data without breaking the hash chain for subsequent parts."
 msgstr ""
+"ハッシュチェーンは準拠しています。後続の部分のハッシュチェーンを壊さずに\n"
+"データを変更することはできません。"
 
 #. module: account
 #. odoo-python
@@ -22836,6 +23023,7 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"選択した宛先アカウントは、特定の通貨を使用するように設定されています。転送されたすべての仕訳はこの通貨に変換され、既存の外貨金額の損失を発生させます。"
 
 #. module: account
 #. odoo-python
@@ -23148,7 +23336,7 @@ msgid ""
 "There doesn't appear to be anything to invoice for the selected order.\n"
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
-msgstr ""
+msgstr "選択された注文に請求項目はないようです。しかし、「金額」フィールドを使用することで、強制的に未収計上仕訳を行えます。"
 
 #. module: account
 #. odoo-python
@@ -25103,7 +25291,7 @@ msgstr "全員に表示"
 msgid ""
 "Want to make your life even easier and automate bill validation from this vendor\n"
 "                    ?"
-msgstr ""
+msgstr "仕入先請求書の検証をさらに簡単に自動化しませんか?"
 
 #. module: account
 #. odoo-python
@@ -25326,6 +25514,8 @@ msgid ""
 "You are changing decimals in your entire database, including invoices,\n"
 "                        tax amounts, accounting amounts, reports. This is probably not intended."
 msgstr ""
+"データベース全体の小数点設定(請求書、税額、会計金額、レポートなど)を変更しようとしています。\n"
+"                        これは意図された操作ではない可能性があります。"
 
 #. module: account
 #. odoo-python
@@ -26316,14 +26506,14 @@ msgstr "[Partner id]"
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "請求書が使う通貨を有効にしてください"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 "activate the currency of the\n"
 "                    invoice"
-msgstr ""
+msgstr "請求書が使う通貨を有効にしてください"
 
 #. module: account
 #. odoo-javascript
@@ -26558,7 +26748,7 @@ msgstr "全員"
 msgid ""
 "fall outside the typical\n"
 "                        range."
-msgstr ""
+msgstr "は典型的な範囲から外れています。"
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__1h
@@ -26605,7 +26795,7 @@ msgstr "請求書通知から。"
 msgid ""
 "has been\n"
 "                            applied."
-msgstr ""
+msgstr "適用されました。"
 
 #. module: account
 #. odoo-javascript
@@ -26669,7 +26859,7 @@ msgstr "請求書"
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "が相手と同じ国からでない場合（"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -26678,6 +26868,8 @@ msgid ""
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
 msgstr ""
+"は送金サービスであり、銀行ではありません。\n"
+"仕入先に電話して、その口座が信用できるかどうかを再確認して下さい。<br/>"
 
 #. module: account
 #. odoo-javascript
@@ -26765,7 +26957,7 @@ msgstr "取引先"
 msgid ""
 "payments\n"
 "                        will be skipped due to"
-msgstr ""
+msgstr "以下により支払が省略される："
 
 #. module: account
 #. odoo-python
@@ -26925,7 +27117,7 @@ msgstr "信頼できない"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "未確認の銀行口座"
 
 #. module: account
 #. odoo-javascript
@@ -26950,7 +27142,7 @@ msgstr "EC域国で設立されていない"
 msgid ""
 "will auto-confirm on their\n"
 "                        respective dates."
-msgstr ""
+msgstr "はそれぞれの日程で自動確定されます。"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_default_terms_and_conditions
@@ -26976,7 +27168,7 @@ msgstr "は次期間のこの明細に繰越します。"
 msgid ""
 "will be posted. Some of them may be\n"
 "                    future-dated or require hashing,"
-msgstr ""
+msgstr "が記帳されます。一部は将来の日付になっているか、ハッシュ化が必要な場合があり、"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.validate_account_move_view
@@ -26994,7 +27186,7 @@ msgstr "有効な域内VAT番号がない場合。"
 msgid ""
 "without making any\n"
 "                    corrections."
-msgstr ""
+msgstr "変更することなく"
 
 #. module: account
 #. odoo-python

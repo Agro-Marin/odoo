@@ -539,6 +539,9 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"-  Naujas laukas „Iš viso (su mokesčiais)“, skirtas pagreitinti ir "
+"kontroliuoti įvedimą, automatiškai sukuriant eilutes su teisingu sąskaita ir"
+" mokesčiu."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -550,7 +553,7 @@ msgstr "- Įmoka iš"
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "- Dokumento seka tampa redaguojama visuose dokumentuose."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -577,13 +580,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". Odoo turi apskaičiuoti žurnalo įrašus prieš paskelbiant juos jūsų įmonės "
+"valiuta."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". Galbūt norėsite čia įrašyti didesnį skaičių."
 
 #. module: account
 #. odoo-python
@@ -1036,7 +1041,7 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>Grįžti į nuostatas"
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> Peržiūra"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1090,6 +1095,10 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">Nepatikima</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Patikima</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
@@ -1143,6 +1152,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Mokesčiai\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1151,6 +1163,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Balansas\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1159,6 +1174,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Mokesčiai\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1406,6 +1424,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\"> Sąskaita faktūra</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\"> Kreditinė sąskaita</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1634,6 +1654,9 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>Šis įrašas buvo sugeneruotas naudojant sąskaitų faktūrų išrašymo "
+"programą, prieš įdiegiant apskaitą. Jo likutis buvo importuotas "
+"atskirai.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3019,6 +3042,7 @@ msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
 msgstr ""
+"Apskaitos įmonės režimas pakeis išrašomų sąskaitų/tiekėjų sąskaitų kodavimą:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3124,6 +3148,8 @@ msgid ""
 "Accrual entry created on %(date)s: %(accrual_entry)s.                And its"
 " reverse entry: %(reverse_entry)s."
 msgstr ""
+"Kaupiamasis įrašas sukurtas %(date)s: %(accrual_entry)s.                Ir "
+"jo atvirkštinis įrašas: %(reverse_entry)s."
 
 #. module: account
 #. odoo-python
@@ -7466,6 +7492,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Kurkite sąskaitas-faktūras, registruokite mokėjimus ir sekite diskusijas su "
+"savo klientais."
 
 #. module: account
 #. odoo-javascript
@@ -10061,7 +10089,7 @@ msgstr "Įrašai"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Įrašai peržiūrėjimui"
 
 #. module: account
 #. odoo-python
@@ -11133,6 +11161,9 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"Ši ataskaita parodo tiekėjų išrašytų sąskaitų santrauką. Paieškos įrankis "
+"taip pat gali būti naudojamas norint personalizuoti sąskaitų ataskaitą pagal"
+" jūsų poreikius."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11141,6 +11172,9 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"Ši ataskaita parodo pirkėjų išrašytų sąskaitų santrauką. Paieškos įrankis "
+"taip pat gali būti naudojamas norint personalizuoti sąskaitų ataskaitą pagal"
+" Jūsų poreikius."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -15456,7 +15490,7 @@ msgstr "Niekada"
 msgid ""
 "Never\n"
 "                        for this vendor"
-msgstr ""
+msgstr "Niekada šiam tiekėjui"
 
 #. module: account
 #. odoo-python
@@ -17445,6 +17479,8 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"Mokėjimai yra naudojami registruoti likvidumo judėjimus. Galite apdoroti "
+"šiuo mokėjimus patys arba naudodami įdiegtas priemones."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -17787,7 +17823,7 @@ msgstr "Registruoti"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Registruoti visus įrašus"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -26305,7 +26341,7 @@ msgstr ""
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "suaktyvinti sąskaitos valiutą"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -26753,7 +26789,7 @@ msgstr "partneriai"
 msgid ""
 "payments\n"
 "                        will be skipped due to"
-msgstr ""
+msgstr "mokėjimai bus praleisti dėl"
 
 #. module: account
 #. odoo-python
@@ -26912,7 +26948,7 @@ msgstr "nepatvirtinta"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "nepatikimos banko sąskaitos"
 
 #. module: account
 #. odoo-javascript

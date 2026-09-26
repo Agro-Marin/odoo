@@ -9927,7 +9927,7 @@ msgstr "Unosi"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Zapisi za provjeriti"
 
 #. module: account
 #. odoo-python
@@ -17599,7 +17599,7 @@ msgstr "Proknjiži"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Proknjiži sve zapise"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form

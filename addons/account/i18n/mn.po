@@ -540,6 +540,9 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"- « Нийт (татвар орсон) » шинэ талбар нь мөр үүсгэлийг автоматаар хийх "
+"замаар зөв данс болон татварыг хянаж, кодчилолыг хурдавчлах боломжийг "
+"олгоно."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -551,7 +554,7 @@ msgstr ""
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "- Баримтын дугаарлалтыг бүх баримт дээр засварлах боломжтой болно."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -578,13 +581,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". Валютын гүйлгээ батлахаас өмнө журнал бичилтүүдийг Odoo системээр "
+"тооцоолуулах шаардлагатай."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr "Арай өндөр тоо оруулсан дээр байх аа"
 
 #. module: account
 #. odoo-python
@@ -1041,7 +1046,7 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>Тохиргоо руу буцах"
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> Урьдчилан харах"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1049,6 +1054,7 @@ msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
 msgstr ""
+"<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/> Alias Domain тохируулах"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1095,6 +1101,10 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">Итгэмжлэгдээгүй</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Итгэмжлэгдсэн</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
@@ -1102,6 +1112,8 @@ msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
 msgstr ""
+"<span class=\"figure-caption\">Автомат тайлан болон сануулгын тусламжтайгаар"
+" хэзээ ч хугацаа хэтрүүлэхгүй.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1136,6 +1148,9 @@ msgid ""
 "                                    Audit\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Аудит\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1144,6 +1159,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Татвар\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1152,6 +1170,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Баланс\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1160,6 +1181,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Татвар\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1410,6 +1434,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\"> Нэхэмжлэл</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\"> Буцаан олголт</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1643,6 +1669,9 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>Энэхүү бүртгэл нь Санхүү бүртгэлийн модуль суулгахаас өмнө, "
+"Нэхэмжлэлийн модулиар бүртгэгдсэн байна. Үүний үлдэгдэл нь тусдаа "
+"бүртгэгдэнэ.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3040,6 +3069,8 @@ msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
 msgstr ""
+"Нягтлан бодох фирмийн горимыг идэвхжүүлснээр нэхэмжлэл/дансны бичилт дараах "
+"байдлаар өөрчлөгдөнө:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3219,6 +3250,9 @@ msgid ""
 "Activate\n"
 "                        auto-validation"
 msgstr ""
+"Автомат\n"
+"                        батлалтыг\n"
+"                        идэвхижүүлэх"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5125,6 +5159,8 @@ msgid ""
 "Bank\n"
 "                                    Setup"
 msgstr ""
+"Банк\n"
+"                                    тохируулга"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5940,6 +5976,8 @@ msgid ""
 "Capture invoices, register payments and keep track of the discussions with your\n"
 "                vendors."
 msgstr ""
+"Нэхэмжлэхийг бүртгэж, төлбөрүүдийг бүртгэн, нийлүүлэгчидтэй хийсэн "
+"харилцааны түүхийг хянаж байгаарай."
 
 #. module: account
 #. odoo-javascript
@@ -7070,6 +7108,7 @@ msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
 msgstr ""
+"Банкны системтэй холбогдоно. Нэхэмжлэл төлбөрийг автоматаар харгалзуулна."
 
 #. module: account
 #. odoo-javascript
@@ -7495,6 +7534,9 @@ msgid ""
 "                IFRS, or fiscal\n"
 "                adjustments, ensuring compliance with diverse regulations."
 msgstr ""
+"Орон нутгийн НББОУС, ОУББН, эсвэл татварын тохируулгад зориулан тус тусын "
+"данс бүрийг тусгаарлан хөтлөхийн тулд шаардлагатай тооны дансны бүлгийг "
+"үүсгэж, олон төрлийн дүрэм журмыг дагаж мөрдөхийг баталгаажуулна уу."
 
 #. module: account
 #. odoo-javascript
@@ -7521,6 +7563,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Та захиалагчийн нэхэмжлэл үүсгэж, төлөлт бүртгэх болон тэдний санал "
+"хүсэлтийг бүртгэж хянах боломжтой."
 
 #. module: account
 #. odoo-javascript
@@ -10127,7 +10171,7 @@ msgstr "Гүйлгээ"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "Хянагдах гүйлгээнүүд"
 
 #. module: account
 #. odoo-python
@@ -10675,6 +10719,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"Эхний\n"
+"                                                    бичилт"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -10682,6 +10728,8 @@ msgid ""
 "First\n"
 "                                                    Hash"
 msgstr ""
+"Эхний\n"
+"                                                    Hash"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11212,6 +11260,9 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"Энэ тайлангаас нийлүүлэгчийн нэхэмжилсэн дүнгийн тоймыг харах боломжтой. "
+"Хайлтыг ашиглан өөрийн шаардлагад нийцүүлэн энэ нэхэмжлэлийн шинжилгээний "
+"тайланг өөриймшүүлэх боломжтой."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11220,6 +11271,9 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"Энэ тайлангаас захиалагчдаас нэхэмжилсэн дүнгийн тоймыг харах боломжтой. "
+"Хайлтыг ашиглан өөрийн шаардлагад нийцүүлэн энэ нэхэмжлэлийн шинжилгээний "
+"тайланг өөриймшүүлэх боломжтой."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -11444,7 +11498,7 @@ msgstr "Татварын тайлан"
 msgid ""
 "Get Paid\n"
 "                                online. Send electronic invoices."
-msgstr ""
+msgstr "Онлайнаар төлбөр хүлээн авч, цахим нэхэмжлэл илгээх боломжтой."
 
 #. module: account
 #: model:ir.model,name:account.model_report_account_report_hash_integrity
@@ -11753,6 +11807,9 @@ msgid ""
 "                <br/><br/>\n"
 "                Your email has been discarded. the e-mail address you have used only accepts new invoices:"
 msgstr ""
+"Hi,\n"
+"                <br/><br/>\n"
+"     Таны имэйлийг хүлээн авах боломжгүй байна. Таны ашигласан буйм энэхүү имэйл хүлээн авах хаяг зөвхөн шинэ нэхэмжлэх хүлээн авахад ашиглагддаг:"
 
 #. module: account
 #. odoo-javascript
@@ -14014,6 +14071,8 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"Сүүлийн\n"
+"                                                    бичилт"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -14321,7 +14380,7 @@ msgstr "Бага төлбөр"
 msgid ""
 "Let\n"
 "                                artificial intelligence scan your bill. Pay easily."
-msgstr ""
+msgstr "Таны нэхэмжлэхийг хиймэл оюун ухаанаар сканнердуулж, хялбар төлөөрэй."
 
 #. module: account
 #. odoo-javascript
@@ -16037,6 +16096,8 @@ msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
 msgstr ""
+"Нийлүүлэгчийн зээлийн баримт үүсгэх хамгийн хялбар арга нь нийлүүлэгчийн "
+"нэхэмжлэхээс шууд үүсгэх юм."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17572,14 +17633,14 @@ msgstr "Төлбөрийн харгалзаа"
 msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
-msgstr ""
+msgstr "Эздийн өмчийн өөрчлөлт бүртгэхэд зориулсан төлбөр."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
 msgid ""
 "Payments related to partners with no bank account\n"
 "                        specified will be skipped."
-msgstr ""
+msgstr "Банкны данс заагаагүй харилцагчдад холбогдсон төлбөрүүдийг үлдээнэ."
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__reconciled_payment_ids
@@ -17917,7 +17978,7 @@ msgstr "Батлах"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "Бүх гүйлгээг батлах"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -22752,6 +22813,8 @@ msgid ""
 "The hash chain is compliant: it is not possible to alter the\n"
 "                                        data without breaking the hash chain for subsequent parts."
 msgstr ""
+"Хэшийн гинжин холбоос зөв байна: өгөгдлийг дараагийн хэсгүүдийн хэшийн "
+"гинжийг эвдэхгүйгээр өөрчлөх боломжгүй."
 
 #. module: account
 #. odoo-python
@@ -23094,6 +23157,9 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"Сонгогдсон очих данс нь тодорхой валютаар тохируулсан байна. Түүн рүү "
+"шилжүүлсэн бүх бичилтүүд уг валютад хөрвүүлэгдэх тул урьд нь бүртгэгдсэн "
+"гадаад валютын дүнг алдагдуулах эрсдэлтэй."
 
 #. module: account
 #. odoo-python
@@ -23428,6 +23494,8 @@ msgid ""
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
 msgstr ""
+"Сонгосон захиалгад нэхэмжлэх үүсгэх зүйл байхгүй бололтой. Гэсэн хэдий ч, "
+"хуримтлагдах бичилт хийхийн тулд дүнгийн талбарыг ашиглаж болно."
 
 #. module: account
 #. odoo-python
@@ -25425,6 +25493,8 @@ msgid ""
 "Want to make your life even easier and automate bill validation from this vendor\n"
 "                    ?"
 msgstr ""
+"Энэ нийлүүлэгчийн нэхэмжлэлийг баталгаажуулах үйлдлийг автоматжуулж, ажлаа "
+"бүр ч илүү хялбар болгохыг хүсэж байна уу?"
 
 #. module: account
 #. odoo-python
@@ -27100,7 +27170,7 @@ msgstr "нэхэмжлэлүүд"
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "Харилцагчийн улстай ижил биш улстай байна ("
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -27109,6 +27179,8 @@ msgid ""
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
 msgstr ""
+"Энэ нь мөнгөн шилжүүлгийн үйлчилгээ болохоос банк биш юм. Дансны найдвартай "
+"эсэхийг баталгаажуулахын тулд нийлүүлэгч рүү залгаж дахин шалгана уу.<br/>"
 
 #. module: account
 #. odoo-javascript

@@ -514,6 +514,9 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"- एक नया फ़ील्ड है, जिसका नाम है \"कुल (टैक्स सहित)\". यह फ़ील्ड आपकी काम "
+"करने की गति बढ़ाएगा और गलतियों को कम करेगा. यह सही खाते और टैक्स के साथ "
+"लाइनों को अपने-आप बनाएगा।"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -525,7 +528,7 @@ msgstr "- इंस्टॉलमेंट"
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "- आप किसी भी दस्तावेज़ के क्रम संख्या को बदल सकते हैं।"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -545,6 +548,10 @@ msgid ""
 "                --\n"
 "                <br/>"
 msgstr ""
+".\n"
+"                <br/>\n"
+"                --\n"
+"                <br/>ॊ"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -552,13 +559,15 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". आपकी कंपनी की करेंसी में एंट्री डालने से पहले, Odoo को उन सभी का हिसाब "
+"करना होगा।"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr ". आपको शायद यहां एक बड़ी संख्या डालने की ज़रूरत हो सकती है।"
 
 #. module: account
 #. odoo-python
@@ -781,6 +790,37 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                        हेलो\n"
+"                        <t t-if=\"object.partner_id.parent_id\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t> (<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>),\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>,\n"
+"                        </t>\n"
+"                        <br/><br/>\n"
+"                        यहां आपका क्रेडिट नोट\n"
+"                        <t t-if=\"object.name\">\n"
+"                            दिया गया है <span style=\"font-weight:bold;\" t-out=\"object.name or ''\">RINV/2021/05/0001</span>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            क्रेडिट नोट\n"
+"                        </t>\n"
+"                        <t t-if=\"object.invoice_origin\">\n"
+"                            (रेफ़रंस: <t t-out=\"object.invoice_origin or ''\">SUB003</t>)\n"
+"                        </t>\n"
+"                        इसकी राशि <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount_total, object.currency_id) or ''\">$ 143,750.00</span> है जो\n"
+"         <t t-out=\"object.company_id.name or ''\">आपकी कंपनी</t> की तरफ़ से है.\n"
+"                        <br/><br/>\n"
+"                        अगर आपके पास कोई सवाल है, तो बेहिचक हमसे संपर्क करें.\n"
+"                        <t t-if=\"not is_html_empty(object.invoice_user_id.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_edi_self_billing_credit_note
@@ -839,6 +879,23 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                        हेलो <t t-out=\"object.partner_id.name or ''\">Azure Interior</t><br/><br/>\n"
+"                        पेमेंट करने के लिए आपका धन्यवाद.\n"
+"                        आपकी पेमेंट की रसीद <span style=\"font-weight:bold;\" t-out=\"(object.name or '').replace('/','-') or ''\">BNK1-2021-05-0002</span> यहां दी गई है जिसकी राशि\n"
+"         <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount, object.currency_id) or ''\">$ 10.00</span> है जो <t t-out=\"object.company_id.name or ''\">YourCompany</t> की तरफ़ से है.\n"
+"                        <br/><br/>\n"
+"                        अगर आपके पास कोई सवाल है, तो बेहिचक हमसे संपर्क करें.\n"
+"                        <br/><br/>\n"
+"                        धन्यवाद,\n"
+"                        <t t-if=\"not is_html_empty(user.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"user.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_customer_follow_up_report
@@ -879,6 +936,21 @@ msgid ""
 "            </div>\n"
 "        "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px;\">\n"
+"                    <t t-if=\"object.id != object.commercial_partner_id.id\">नमस्ते <t t-out=\"object.name or ''\"/> (<t t-out=\"object.commercial_partner_id.name or ''\"/>),</t>\n"
+"                    <t t-else=\"\">नमस्ते <t t-out=\"object.name or ''\"/>,</t>\n"
+"                    <br/>\n"
+"                    आपके खाते का स्टेटमेंट यहां साथ में दिया गया है.\n"
+"                    <br/>\n"
+"                    अगर आपका कोई सवाल हो, तो बेझिझक हमसे संपर्क करें.\n"
+"                    <br/>\n"
+"                    धन्यवाद,\n"
+"                    <br/>\n"
+"                    <t t-out=\"object._get_followup_responsible().name if is_html_empty(object._get_followup_responsible().signature) else object._get_followup_responsible().signature\"/>\n"
+"                </p>\n"
+"            </div>\n"
+"        "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_tax_return_deadline
@@ -1013,7 +1085,7 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>वापस सेटिंग प
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> प्रीव्यू"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
@@ -1021,6 +1093,8 @@ msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
 msgstr ""
+"<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/> एलियास डोमेन कॉन्फ़िगर "
+"करें"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1069,6 +1143,10 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">भरोसेमंद नहीं है</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">भरोसेमंद</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
@@ -1076,6 +1154,8 @@ msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
 msgstr ""
+"<span class=\"figure-caption\">ऑटोमेटेड स्टेटमेंट और अलर्ट के ज़रिए आप कभी "
+"कोई डेडलाइन नहीं भूलेंगे.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1116,6 +1196,9 @@ msgid ""
 "                                    Audit\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    ऑडिट\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1135,6 +1218,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            बैलेंस\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1143,6 +1229,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            टैक्स\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1240,6 +1329,9 @@ msgid ""
 "                            <i>inclusive, to make them immutable</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted ms-2\">\n"
+"                            <i>शामिल करके, </i> उन्हें ऐसा बनाया जाए कि बाद में बदला न जा सके\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1248,6 +1340,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_fiscalyear_lock_date_exception_for_me_id                                                  or not min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1256,6 +1351,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_purchase_lock_date_exception_for_me_id                                                  or not min_purchase_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1264,6 +1362,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_sale_lock_date_exception_for_me_id                                                  or not min_sale_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1272,6 +1373,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_tax_lock_date_exception_for_me_id                                                  or not min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1296,6 +1400,9 @@ msgid ""
 "                            <i>Secure entries up to</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted\">\n"
+"                            <i></i> तक एंट्री को सुरक्षित करें\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
@@ -1400,6 +1507,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\"> इनवॉइस</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\"> क्रेडिट नोट</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1631,6 +1740,8 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>यह एंट्री इनवॉइसिंग ऐप्लिकेशन से तब बनी थी जब अकाउंटिंग सिस्टम शुरू "
+"नहीं हुआ था. इसका हिसाब-किताब बाद में अलग से जोड़ा गया है.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3032,7 +3143,7 @@ msgstr "अकाउंटिंग डॉक्यूमेंट"
 msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
-msgstr ""
+msgstr "अकाउंटिंग फ़र्म मोड से इनवॉइस और बिलों के बनने का तरीका बदल जाएगा:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3212,6 +3323,9 @@ msgid ""
 "Activate\n"
 "                        auto-validation"
 msgstr ""
+"ऑटो-वैलिडेशन\n"
+"                        ऐक्टिवेट\n"
+"                        करें"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5124,6 +5238,8 @@ msgid ""
 "Bank\n"
 "                                    Setup"
 msgstr ""
+"बैंक\n"
+"                                    सेटअप"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5943,6 +6059,8 @@ msgid ""
 "Capture invoices, register payments and keep track of the discussions with your\n"
 "                vendors."
 msgstr ""
+"इनवॉइस संभाल कर रखें, पेमेंट रजिस्टर करें, और अपने वेंडर के साथ हुई बातचीत "
+"का हिसाब रखें।"
 
 #. module: account
 #. odoo-javascript
@@ -7074,7 +7192,7 @@ msgstr ""
 msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
-msgstr ""
+msgstr "अपने बैंक से जुड़ें. इनवॉइस अपने-आप मैच हो जाएगा।"
 
 #. module: account
 #. odoo-javascript
@@ -7501,6 +7619,10 @@ msgid ""
 "                IFRS, or fiscal\n"
 "                adjustments, ensuring compliance with diverse regulations."
 msgstr ""
+"जितने चाहिए, उतने खातों के अलग-अलग समूह बना लें. ये समूह इसलिए होने चाहिए, "
+"ताकि आप स्थानीय लेखा-नियमों (GAAP), अंतर्राष्ट्रीय वित्तीय रिपोर्टिंग मानकों"
+" (IFRS), या टैक्स संबंधी बदलावों के लिए अलग-अलग हिसाब-किताब रख सकें. ऐसा "
+"करने से आपका सारा हिसाब सही नियमों के अनुसार रहेगा।"
 
 #. module: account
 #. odoo-javascript
@@ -7527,6 +7649,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"इनवॉइस बनाएं, पेमेंट रजिस्टर करें और अपने ग्राहकों से हुई बातचीत का पूरा "
+"रिकॉर्ड रखें।"
 
 #. module: account
 #. odoo-javascript
@@ -10143,7 +10267,7 @@ msgstr "एंट्रीज"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "समीक्षा करने के लिए एंट्रीज"
 
 #. module: account
 #. odoo-python
@@ -10697,6 +10821,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"पहली\n"
+"                                                    एंट्री"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -10704,6 +10830,8 @@ msgid ""
 "First\n"
 "                                                    Hash"
 msgstr ""
+"पहला\n"
+"                                                    हैश"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11238,6 +11366,9 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"यह रिपोर्ट आपको आपके वेंडर के ज़रिए बिल की गई कुल राशि की जानकारी देती है. "
+"आप सर्च टूल का इस्तेमाल करके अपनी इनवॉइस रिपोर्ट को अपनी ज़रूरत के हिसाब से "
+"बदल सकते हैं और इस विश्लेषण को अपनी आवश्यकताओं के अनुसार ढाल सकते हैं।"
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11246,6 +11377,9 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"यह रिपोर्ट आपको आपके ग्राहकों को भेजे गए इनवॉइस की कुल राशि की जानकारी देती "
+"है. आप सर्च टूल का उपयोग करके अपनी इनवॉइस रिपोर्ट को अपनी ज़रूरत के हिसाब से"
+" बदल सकते हैं और इस विश्लेषण को अपनी आवश्यकताओं के अनुसार ढाल सकते हैं।"
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -11470,7 +11604,7 @@ msgstr "सामान्य टैक्स रिपोर्ट"
 msgid ""
 "Get Paid\n"
 "                                online. Send electronic invoices."
-msgstr ""
+msgstr "ऑनलान पेमेंट पाएं. इलेक्ट्रॉनिक इनवॉइस भेजें।"
 
 #. module: account
 #: model:ir.model,name:account.model_report_account_report_hash_integrity
@@ -11779,6 +11913,9 @@ msgid ""
 "                <br/><br/>\n"
 "                Your email has been discarded. the e-mail address you have used only accepts new invoices:"
 msgstr ""
+"नमस्ते, \n"
+"<br/><br/>\n"
+" आपका ईमेल रद्द कर दिया गया है, क्योंकि आपने जिस ईमेल पते का उपयोग किया है, वह केवल नए इनवॉइस ही स्वीकार करता है:"
 
 #. module: account
 #. odoo-javascript
@@ -14052,6 +14189,8 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"आखिरी\n"
+"                                                    एंट्री"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -14358,6 +14497,7 @@ msgid ""
 "Let\n"
 "                                artificial intelligence scan your bill. Pay easily."
 msgstr ""
+"आर्टिफ़िशियल इंटेलिजेंस को आपका बिल स्कैन करने दें. आसानी से पेमेंट करें।"
 
 #. module: account
 #. odoo-javascript
@@ -15617,7 +15757,7 @@ msgstr "कभी नहीं"
 msgid ""
 "Never\n"
 "                        for this vendor"
-msgstr ""
+msgstr "इस वेंडर के लिए कभी नहीं"
 
 #. module: account
 #. odoo-python
@@ -16082,6 +16222,8 @@ msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
 msgstr ""
+"ध्यान दें कि वेंडर क्रेडिट नोट बनाने का सबसे आसान तरीका है कि उसे सीधा वेंडर"
+" के बिल से बनाएं।"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17625,6 +17767,9 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"पेमेंट का इस्तेमाल नकद लेन-देन को रिकॉर्ड करने के लिए होता है. आप इन पेमेंट "
+"को अपने खुद के तरीकों से या सिस्टम में पहले से मौजूद सुविधाओं का उपयोग करके "
+"प्रोसेस कर सकते हैं।"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -17632,6 +17777,7 @@ msgid ""
 "Payments related to partners with no bank account\n"
 "                        specified will be skipped."
 msgstr ""
+"जिन पार्टनर के बैंक खाते की जानकारी नहीं है, उनके पेमेंट छोड़ दिए जाएंगे।"
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__reconciled_payment_ids
@@ -17968,7 +18114,7 @@ msgstr "पोस्ट करें"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "सभी एंट्रीज़ पोस्ट करें"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -22597,7 +22743,7 @@ msgstr "वह करेंसी जिसमें स्टेटमेंट
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "अभी सबसे बड़ा नंबर"
 
 #. module: account
 #. odoo-javascript
@@ -22847,6 +22993,8 @@ msgid ""
 "The hash chain is compliant: it is not possible to alter the\n"
 "                                        data without breaking the hash chain for subsequent parts."
 msgstr ""
+"'हैश चेन' सही और सुरक्षित है: अगर आप इसमें मौजूद जानकारी को बदलने की कोशिश करते हैं, \n"
+"तो आगे की सारी कड़ी टूट जाएगी और इससे पता चल जाएगा कि छेड़छाड़ हुई है।"
 
 #. module: account
 #. odoo-python
@@ -23189,6 +23337,8 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"आपने जो खाता चुना है, वह एक खास करेंसी में सेट किया हुआ है. इसमें जो भी एंट्री आएगी, वह उसी करेंसी में बदल जाएगी. ऐसा करने से, \n"
+"अगर उस एंट्री में पहले से कोई दूसरी विदेशी करेंसी में रकम थी, तो वह जानकारी खो जाएगी।"
 
 #. module: account
 #. odoo-python
@@ -23524,6 +23674,8 @@ msgid ""
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
 msgstr ""
+"चुने हुए ऑर्डर का इनवॉइस बनाने के लिए कुछ नहीं दिख रहा है. फिर भी, आप 'राशि'"
+" वाली जगह का इस्तेमाल करके एक 'अक्रूअल' एंट्री बना सकते हैं।"
 
 #. module: account
 #. odoo-python
@@ -25556,6 +25708,8 @@ msgid ""
 "Want to make your life even easier and automate bill validation from this vendor\n"
 "                    ?"
 msgstr ""
+"क्या आप चाहते हैं कि इस वेंडर के बिल अपने-आप जांच हो जाएं, जिससे आपका काम और"
+" आसान हो जाए?"
 
 #. module: account
 #. odoo-python
@@ -26913,14 +27067,14 @@ msgstr ""
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "बिल का करेंसी एक्टिवेट करें"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 "activate the currency of the\n"
 "                    invoice"
-msgstr ""
+msgstr "इनवॉइस की करेंसी एक्टिवेट करें"
 
 #. module: account
 #. odoo-javascript
@@ -27160,7 +27314,7 @@ msgstr "सभी"
 msgid ""
 "fall outside the typical\n"
 "                        range."
-msgstr ""
+msgstr "सामान्य सीमा से बाहर हो जाते हैं।"
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__1h
@@ -27207,7 +27361,7 @@ msgstr ""
 msgid ""
 "has been\n"
 "                            applied."
-msgstr ""
+msgstr "लागू किया गया है।"
 
 #. module: account
 #. odoo-javascript
@@ -27273,7 +27427,7 @@ msgstr "इनवॉइस"
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "पार्टनर के देश का नहीं है ("
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -27282,6 +27436,8 @@ msgid ""
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
 msgstr ""
+"यह पैसे भेजने वाली सेवा है, बैंक नहीं. \n"
+"वेंडर को फ़ोन करके दोबारा चेक कर लें कि खाता सही है या नहीं.<br/>"
 
 #. module: account
 #. odoo-javascript
@@ -27370,7 +27526,7 @@ msgstr "पार्टनर"
 msgid ""
 "payments\n"
 "                        will be skipped due to"
-msgstr ""
+msgstr "वजह से पेमेंट को स्किप कर दिया जाएगा"
 
 #. module: account
 #. odoo-python
@@ -27536,7 +27692,7 @@ msgstr "गैर-भरोसेमंद"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "गैर-भरोसेमंद बैक खाते"
 
 #. module: account
 #. odoo-javascript
@@ -27561,7 +27717,7 @@ msgstr "जो किसी भी यूरोपीय संघ के दे
 msgid ""
 "will auto-confirm on their\n"
 "                        respective dates."
-msgstr ""
+msgstr "अपनी तय तारीख पर अपने-आप पुष्टि हो जाएगा।"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_default_terms_and_conditions
@@ -27607,7 +27763,7 @@ msgstr "मान्य यूरोपीय संघ वाले वैट �
 msgid ""
 "without making any\n"
 "                    corrections."
-msgstr ""
+msgstr "बिना कोई सुधार किए"
 
 #. module: account
 #. odoo-python

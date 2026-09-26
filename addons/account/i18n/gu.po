@@ -497,6 +497,9 @@ msgid ""
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
 msgstr ""
+"- A new field « Total (tax inc.) » to speed\n"
+"                                up and control the encoding by automating line creation with the\n"
+"                                right account &amp; tax."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -509,6 +512,8 @@ msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
 msgstr ""
+"- The document's sequence becomes editable\n"
+"                                on all documents."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -535,6 +540,8 @@ msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
 msgstr ""
+". The journal entries need to be computed by Odoo before being\n"
+"                    posted in your company's currency."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -542,6 +549,8 @@ msgid ""
 ". You\n"
 "                            might want to put a higher number here."
 msgstr ""
+". You\n"
+"                            might want to put a higher number here."
 
 #. module: account
 #. odoo-python
@@ -1097,6 +1106,9 @@ msgid ""
 "                                    Taxes\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    Taxes\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1105,6 +1117,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Balance\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1113,6 +1128,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            Taxes\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1588,6 +1606,9 @@ msgid ""
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
 msgstr ""
+"<span>This entry has been generated through the Invoicing app,\n"
+"                                    before installing Accounting. Its balance has been imported\n"
+"                                    separately.</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -2968,6 +2989,8 @@ msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
 msgstr ""
+"Accounting firm mode will change\n"
+"                                invoice/bill encoding:"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3073,6 +3096,8 @@ msgid ""
 "Accrual entry created on %(date)s: %(accrual_entry)s.                And its"
 " reverse entry: %(reverse_entry)s."
 msgstr ""
+"Accrual entry created on %(date)s: %(accrual_entry)s.                And its"
+" reverse entry: %(reverse_entry)s."
 
 #. module: account
 #. odoo-python
@@ -7406,6 +7431,8 @@ msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
 msgstr ""
+"Create invoices, register payments and keep track of the discussions with your\n"
+"                customers."
 
 #. module: account
 #. odoo-javascript
@@ -10002,6 +10029,8 @@ msgid ""
 "Entries\n"
 "                                            to Review"
 msgstr ""
+"Entries\n"
+"                                            to Review"
 
 #. module: account
 #. odoo-python
@@ -10543,6 +10572,8 @@ msgid ""
 "First\n"
 "                                                    Entry"
 msgstr ""
+"First\n"
+"                                                    Entry"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
@@ -10550,6 +10581,8 @@ msgid ""
 "First\n"
 "                                                    Hash"
 msgstr ""
+"First\n"
+"                                                    Hash"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11073,6 +11106,9 @@ msgid ""
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
 msgstr ""
+"From this report, you can have an overview of the amount invoiced from\n"
+"            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
+"            so, match this analysis to your needs."
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11081,6 +11117,9 @@ msgid ""
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
 msgstr ""
+"From this report, you can have an overview of the amount invoiced to your\n"
+"            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
+"            match this analysis to your needs."
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -12119,6 +12158,10 @@ msgid ""
 "based on the delivery address.                                 This rule "
 "applies regardless of where you are located."
 msgstr ""
+"If you sell goods and services to customers in a"
+"                                 foreign EU country, you must charge VAT "
+"based on the delivery address.                                 This rule "
+"applies regardless of where you are located."
 
 #. module: account
 #. odoo-python
@@ -13848,6 +13891,8 @@ msgid ""
 "Last\n"
 "                                                    Entry"
 msgstr ""
+"Last\n"
+"                                                    Entry"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -15866,6 +15911,8 @@ msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
 msgstr ""
+"Note that the easiest way to create a vendor credit note is to do it directly from\n"
+"                the vendor bill."
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17393,6 +17440,8 @@ msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
 msgstr ""
+"Payments are used to register liquidity movements. You can process those\n"
+"                    payments by your own means or by using installed facilities."
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -17736,6 +17785,8 @@ msgid ""
 "Post All\n"
 "                                            Entries"
 msgstr ""
+"Post All\n"
+"                                            Entries"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -20068,6 +20119,9 @@ msgid ""
 "Any file extension will be accepted.\n"
 "Only PDF and XML files will be interpreted by Odoo"
 msgstr ""
+"Send one separate email for each invoice.\n"
+"Any file extension will be accepted.\n"
+"Only PDF and XML files will be interpreted by Odoo"
 
 #. module: account
 #. odoo-javascript
@@ -22294,6 +22348,8 @@ msgid ""
 "The current\n"
 "                            highest number is"
 msgstr ""
+"The current\n"
+"                            highest number is"
 
 #. module: account
 #. odoo-javascript
@@ -22520,6 +22576,8 @@ msgid ""
 "The hash chain is compliant: it is not possible to alter the\n"
 "                                        data without breaking the hash chain for subsequent parts."
 msgstr ""
+"The hash chain is compliant: it is not possible to alter the\n"
+"                                        data without breaking the hash chain for subsequent parts."
 
 #. module: account
 #. odoo-python
@@ -22855,6 +22913,9 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"The selected destination account is set to use a specific currency. Every entry\n"
+"                    transferred to it will be converted into this currency, causing\n"
+"                    the loss of any pre-existing foreign currency amount."
 
 #. module: account
 #. odoo-python
@@ -23166,6 +23227,9 @@ msgid ""
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
 msgstr ""
+"There doesn't appear to be anything to invoice for the selected order.\n"
+"                        However, you can\n"
+"                        use the amount field to force an accrual entry."
 
 #. module: account
 #. odoo-python
@@ -26391,6 +26455,8 @@ msgid ""
 "activate the currency of the\n"
 "                    bill"
 msgstr ""
+"activate the currency of the\n"
+"                    bill"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -26398,6 +26464,8 @@ msgid ""
 "activate the currency of the\n"
 "                    invoice"
 msgstr ""
+"activate the currency of the\n"
+"                    invoice"
 
 #. module: account
 #. odoo-javascript

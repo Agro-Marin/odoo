@@ -529,7 +529,7 @@ msgid ""
 "- A new field « Total (tax inc.) » to speed\n"
 "                                up and control the encoding by automating line creation with the\n"
 "                                right account &amp; tax."
-msgstr ""
+msgstr "- 加入 «总计（含税）» 新字段，使用正确科目和税项自动创建记项，加快并控制账单编码过程。"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_invoice_document
@@ -541,7 +541,7 @@ msgstr "- 分期付款"
 msgid ""
 "- The document's sequence becomes editable\n"
 "                                on all documents."
-msgstr ""
+msgstr "- 可在所有文档上编辑文档序号。"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form_reconcile
@@ -561,20 +561,24 @@ msgid ""
 "                --\n"
 "                <br/>"
 msgstr ""
+".\n"
+"                <br/>\n"
+"                --\n"
+"                <br/>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". The journal entries need to be computed by Odoo before being\n"
 "                    posted in your company's currency."
-msgstr ""
+msgstr "。日记账分录需由系统计算，然后才能以公司的币别过账。"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 ". You\n"
 "                            might want to put a higher number here."
-msgstr ""
+msgstr "。 您可能希望在此处输入更大的数目。"
 
 #. module: account
 #. odoo-python
@@ -759,6 +763,49 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                        尊敬的\n"
+"                        <t t-if=\"object.partner_id.parent_id\">\n"
+"                            <t t-if=\"object.partner_id.name\">\n"
+"                                <t t-out=\"object.partner_id.name\">Brandon Freeman</t>（<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t> 公司），\n"
+"                            </t>\n"
+"                            <t t-else=\"\">\n"
+"                                <t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t> 公司，\n"
+"                            </t>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>，\n"
+"                        </t>\n"
+"                        <br/><br/>\n"
+"                        现向您发送\n"
+"                        <t t-if=\"object.name\">\n"
+"                            自开票发票 <span style=\"font-weight:bold;\" t-out=\"object.name or ''\">INV/2021/05/0005</span>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            自开票发票\n"
+"                        </t>\n"
+"                        <t t-if=\"object.invoice_origin\">\n"
+"                            （参考编号：<t t-out=\"object.invoice_origin or ''\">SUB003</t>）\n"
+"                        </t>\n"
+"                        金额为 <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount_total, object.currency_id) or ''\">$ 143,750.00</span>\n"
+"                        由 <t t-out=\"object.company_id.name or ''\">YourCompany</t> 开具。\n"
+"                        <t t-if=\"object.payment_state in ('paid', 'in_payment')\">\n"
+"                            该自开票发票款项已付清。\n"
+"                        </t>\n"
+"                        <t t-if=\"hasattr(object, 'timesheet_count') and object.timesheet_count\">\n"
+"                            <br/><br/>\n"
+"                            附注：您可以通过<a t-att-href=\"'/my/timesheets?search_in=invoice&amp;search=%s' % object.name\">门户网站</a>查看您的工时表。\n"
+"                        </t>\n"
+"                        <br/><br/>\n"
+"                        如有任何疑问，请随时与我们联系。\n"
+"                        <t t-if=\"not is_html_empty(object.invoice_user_id.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_edi_credit_note
@@ -795,6 +842,37 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                        亲爱的\n"
+"                        <t t-if=\"object.partner_id.parent_id\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t> （<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t>），\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>，\n"
+"                        </t>\n"
+"                        <br/><br/>\n"
+"                        这是您的\n"
+"                        <t t-if=\"object.name\">\n"
+"                            退货凭证 <span style=\"font-weight:bold;\" t-out=\"object.name or ''\">RINV/2021/05/0001</span>\n"
+"                        </t>\n"
+"                        <t t-else=\"\">\n"
+"                            退货凭证\n"
+"                        </t>\n"
+"                        <t t-if=\"object.invoice_origin\">\n"
+"                            （参考编号：<t t-out=\"object.invoice_origin or ''\">SUB003</t>）\n"
+"                        </t>\n"
+"                        金额为 <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount_total, object.currency_id) or ''\">$ 143,750.00</span>\n"
+"                        退款方 <t t-out=\"object.company_id.name or ''\">YourCompany</t>.\n"
+"                        <br/><br/>\n"
+"                        如有问题，请随时联系我们。\n"
+"                        <t t-if=\"not is_html_empty(object.invoice_user_id.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_edi_self_billing_credit_note
@@ -831,6 +909,37 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                尊敬的\n"
+"                <t t-if=\"object.partner_id.parent_id\">\n"
+"                    <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>（<t t-out=\"object.partner_id.parent_id.name or ''\">Azure Interior</t> 公司），\n"
+"                </t>\n"
+"                <t t-else=\"\">\n"
+"                    <t t-out=\"object.partner_id.name or ''\">Brandon Freeman</t>，\n"
+"                </t>\n"
+"                <br/><br/>\n"
+"                现向您发送\n"
+"                <t t-if=\"object.name\">\n"
+"                    自开票贷项通知单 <span style=\"font-weight:bold;\" t-out=\"object.name or ''\">RINV/2021/05/0001</span>\n"
+"                </t>\n"
+"                <t t-else=\"\">\n"
+"                    自开票贷项通知单\n"
+"                </t>\n"
+"                <t t-if=\"object.invoice_origin\">\n"
+"                    （参考编号：<t t-out=\"object.invoice_origin or ''\">SUB003</t>）\n"
+"                </t>\n"
+"                金额为 <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount_total, object.currency_id) or ''\">$ 143,750.00</span>\n"
+"                由 <t t-out=\"object.company_id.name or ''\">YourCompany</t> 开具。\n"
+"                <br/><br/>\n"
+"                如有任何疑问，请随时与我们联系。\n"
+"                <t t-if=\"not is_html_empty(object.invoice_user_id.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                    <br/><br/>\n"
+"                    <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"object.invoice_user_id.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                </t>\n"
+"    </p>\n"
+"</div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.mail_template_data_payment_receipt
@@ -853,6 +962,23 @@ msgid ""
 "                </div>\n"
 "            "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                    <p style=\"margin: 0px; padding: 0px; font-size: 13px;\">\n"
+"                        亲爱的 <t t-out=\"object.partner_id.name or ''\">Azure Interior</t><br/><br/>\n"
+"                        感谢您的支付。\n"
+"                        附上您的付款收据 <span style=\"font-weight:bold;\" t-out=\"(object.name or '').replace('/','-') or ''\">BNK1-2021-05-0002</span> ，金额为\n"
+"         <span style=\"font-weight:bold;\" t-out=\"format_amount(object.amount, object.currency_id) or ''\">$ 10.00</span>，付款由 <t t-out=\"object.company_id.name or ''\">YourCompany</t>作出。\n"
+"                        <br/><br/>\n"
+"                        如有任何疑问，请随时联系我们。\n"
+"                        <br/><br/>\n"
+"                        祝好，\n"
+"                        <t t-if=\"not is_html_empty(user.signature)\" data-o-mail-quote-container=\"1\">\n"
+"                            <br/><br/>\n"
+"                            <div data-o-mail-quote=\"1\">--<br data-o-mail-quote=\"1\"/><t t-out=\"user.signature or ''\" data-o-mail-quote=\"1\">Mitchell Admin</t></div>\n"
+"                        </t>\n"
+"                    </p>\n"
+"                </div>\n"
+"            "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_customer_follow_up_report
@@ -908,6 +1034,21 @@ msgid ""
 "            </div>\n"
 "        "
 msgstr ""
+"<div style=\"margin: 0px; padding: 0px;\">\n"
+"                <p style=\"margin: 0px; padding: 0px;\">\n"
+"                    <t t-if=\"object.id != object.commercial_partner_id.id\">亲爱的 <t t-out=\"object.name or ''\"/>（<t t-out=\"object.commercial_partner_id.name or ''\"/>），</t>\n"
+"                    <t t-else=\"\">亲爱的 <t t-out=\"object.name or ''\"/>，</t>\n"
+"                    <br/>\n"
+"                    随函附上您的账户对账单。\n"
+"                    <br/>\n"
+"                    如有任何疑问，请随时联系我们。\n"
+"                    <br/>\n"
+"                    诚挚问候，\n"
+"                    <br/>\n"
+"                    <t t-out=\"object._get_followup_responsible().name if is_html_empty(object._get_followup_responsible().signature) else object._get_followup_responsible().signature\"/>\n"
+"                </p>\n"
+"            </div>\n"
+"        "
 
 #. module: account
 #: model:mail.template,body_html:account.email_template_tax_return_deadline
@@ -1067,14 +1208,14 @@ msgstr "<i class=\"oi oi-arrow-right me-1\"/>返回设置"
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
 msgid "<i class=\"oi oi-arrow-right\"/> Preview"
-msgstr ""
+msgstr "<i class=\"oi oi-arrow-right\"/> 预览"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_journal_form
 msgid ""
 "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/>\n"
 "                                            Configure Alias Domain"
-msgstr ""
+msgstr "<i class=\"oi oi-fw o_button_icon oi-arrow-right\"/> 配置别名域"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_report_file_download_error_wizard_form
@@ -1115,6 +1256,9 @@ msgid ""
 "                                    To Review\n"
 "                                </span>"
 msgstr ""
+"<span class=\"badge text-bg-info\">\n"
+"                                    待审核\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -1124,13 +1268,17 @@ msgid ""
 "                        <span invisible=\"not allow_out_payment\" class=\"text-success\">Trusted</span>\n"
 "                    </span>"
 msgstr ""
+"<span class=\"d-flex gap-2 w-100\">\n"
+"                        <span invisible=\"allow_out_payment\" class=\"text-muted\">不信任</span>\n"
+"                        <span invisible=\"not allow_out_payment\" class=\"text-success\">受信任</span>\n"
+"                    </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.setup_financial_year_opening_form
 msgid ""
 "<span class=\"figure-caption\">Never miss a deadline, with automated statements\n"
 "                        and alerts.</span>"
-msgstr ""
+msgstr "<span class=\"figure-caption\">通过自动报表和警报，绝不会错过最后期限。</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
@@ -1169,6 +1317,9 @@ msgid ""
 "                                    Audit\n"
 "                                </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                                    审计\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_position_form
@@ -1188,6 +1339,9 @@ msgid ""
 "                            Balance\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            余额\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_form
@@ -1196,6 +1350,9 @@ msgid ""
 "                            Taxes\n"
 "                        </span>"
 msgstr ""
+"<span class=\"o_stat_text\">\n"
+"                            税项\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form_inherit
@@ -1293,6 +1450,9 @@ msgid ""
 "                            <i>inclusive, to make them immutable</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted ms-2\">\n"
+"                            <i>（包括在内），使其不可以再修改</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1301,6 +1461,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_fiscalyear_lock_date_exception_for_me_id                                                  or not min_fiscalyear_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1309,6 +1472,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_purchase_lock_date_exception_for_me_id                                                  or not min_purchase_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1317,6 +1483,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_sale_lock_date_exception_for_me_id                                                  or not min_sale_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1325,6 +1494,9 @@ msgid ""
 "                                    <span style=\"white-space: pre\">; </span>\n"
 "                                </span>"
 msgstr ""
+"<span class=\"text-muted o_form_label\" invisible=\"not min_tax_lock_date_exception_for_me_id                                                  or not min_tax_lock_date_exception_for_everyone_id\">\n"
+"                                    <span style=\"white-space: pre\">; </span>\n"
+"                                </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_change_lock_date
@@ -1355,6 +1527,9 @@ msgid ""
 "                            <i>Secure entries up to</i>\n"
 "                        </span>"
 msgstr ""
+"<span class=\"text-muted\">\n"
+"                            <i>锁定安全分录至</i>\n"
+"                        </span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.bill_preview
@@ -1463,6 +1638,8 @@ msgid ""
 "                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">\n"
 "                                            Credit Note</span>"
 msgstr ""
+"<span invisible=\"reconciled_invoices_type != 'invoice'\">发票</span>\n"
+"                                        <span invisible=\"reconciled_invoices_type == 'invoice'\">退款单</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_lock_exception_form
@@ -1690,7 +1867,7 @@ msgid ""
 "<span>This entry has been generated through the Invoicing app,\n"
 "                                    before installing Accounting. Its balance has been imported\n"
 "                                    separately.</span>"
-msgstr ""
+msgstr "<span>在安装会计应用程序之前，通过发票应用程序生成该分录。其余额已单独导入。</span>"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_terms_conditions_setting_banner
@@ -3053,7 +3230,7 @@ msgstr "会计单据"
 msgid ""
 "Accounting firm mode will change\n"
 "                                invoice/bill encoding:"
-msgstr ""
+msgstr "在会计师事务所模式下，将更改发票/账单编码："
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_property_form
@@ -3232,7 +3409,7 @@ msgstr "可采取行动的错误"
 msgid ""
 "Activate\n"
 "                        auto-validation"
-msgstr ""
+msgstr "激活自动验证"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5105,7 +5282,7 @@ msgstr "银行"
 msgid ""
 "Bank\n"
 "                                    Setup"
-msgstr ""
+msgstr "银行设置"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.res_config_settings_view_form
@@ -5909,7 +6086,7 @@ msgstr "资本"
 msgid ""
 "Capture invoices, register payments and keep track of the discussions with your\n"
 "                vendors."
-msgstr ""
+msgstr "捕捉发票、登记付款，并追踪与供应商的沟通。"
 
 #. module: account
 #. odoo-javascript
@@ -7024,7 +7201,7 @@ msgstr "操作确认提示"
 msgid ""
 "Connect your\n"
 "                                bank. Match invoices automatically."
-msgstr ""
+msgstr "连接银行。自动匹配发票。"
 
 #. module: account
 #. odoo-javascript
@@ -7440,6 +7617,8 @@ msgid ""
 "                IFRS, or fiscal\n"
 "                adjustments, ensuring compliance with diverse regulations."
 msgstr ""
+"根据需要创建任意数量的分类账组，以便为本地 GAAP、IFRS 或财政管理部门维护单独的分类账\n"
+"调整，确保遵守各种法规。"
 
 #. module: account
 #. odoo-javascript
@@ -7465,7 +7644,7 @@ msgstr "创建发票/账单"
 msgid ""
 "Create invoices, register payments and keep track of the discussions with your\n"
 "                customers."
-msgstr ""
+msgstr "创建发票，登记付款，并追踪与客户的沟通。"
 
 #. module: account
 #. odoo-javascript
@@ -10052,7 +10231,7 @@ msgstr "分录"
 msgid ""
 "Entries\n"
 "                                            to Review"
-msgstr ""
+msgstr "待审查分录"
 
 #. module: account
 #. odoo-python
@@ -10594,14 +10773,14 @@ msgstr "融资活动"
 msgid ""
 "First\n"
 "                                                    Entry"
-msgstr ""
+msgstr "首个分录"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.report_hash_integrity
 msgid ""
 "First\n"
 "                                                    Hash"
-msgstr ""
+msgstr "首个散列"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_resequence_wizard__first_date
@@ -11125,7 +11304,7 @@ msgid ""
 "From this report, you can have an overview of the amount invoiced from\n"
 "            your vendors. The search tool can also be used to personalise your Invoices reports and\n"
 "            so, match this analysis to your needs."
-msgstr ""
+msgstr "您可以在该报表中查看供应商开具发票的金额。搜索工具可用于个性化发票报表，以便根据您的需求匹配分析。"
 
 #. module: account
 #: model_terms:ir.actions.act_window,help:account.action_account_invoice_report_all
@@ -11133,7 +11312,7 @@ msgid ""
 "From this report, you can have an overview of the amount invoiced to your\n"
 "            customers. The search tool can also be used to personalise your Invoices reports and so,\n"
 "            match this analysis to your needs."
-msgstr ""
+msgstr "您可以在该报表中查看供应商开具发票的金额。搜索工具可用于个性化发票报表，以便根据您的需求匹配分析。"
 
 #. module: account
 #: model:account.account,name:account.2_account_account_us_fuel
@@ -11358,7 +11537,7 @@ msgstr "一般税务报表"
 msgid ""
 "Get Paid\n"
 "                                online. Send electronic invoices."
-msgstr ""
+msgstr "线上收款，发送电子发票。"
 
 #. module: account
 #: model:ir.model,name:account.model_report_account_report_hash_integrity
@@ -11667,6 +11846,9 @@ msgid ""
 "                <br/><br/>\n"
 "                Your email has been discarded. the e-mail address you have used only accepts new invoices:"
 msgstr ""
+"您好！\n"
+"                <br/><br/>\n"
+"                您的电子邮件已丢弃。您使用的电子邮件地址只接受新的发票："
 
 #. module: account
 #. odoo-javascript
@@ -13882,7 +14064,7 @@ msgstr "语言"
 msgid ""
 "Last\n"
 "                                                    Entry"
-msgstr ""
+msgstr "上一分录"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.pdf_export_main_table_header_ledger
@@ -14188,7 +14370,7 @@ msgstr "非足额付款"
 msgid ""
 "Let\n"
 "                                artificial intelligence scan your bill. Pay easily."
-msgstr ""
+msgstr "让人工智能扫描您的账单，轻松支付。"
 
 #. module: account
 #. odoo-javascript
@@ -15441,7 +15623,7 @@ msgstr "从不"
 msgid ""
 "Never\n"
 "                        for this vendor"
-msgstr ""
+msgstr "拒绝在此供应商购买"
 
 #. module: account
 #. odoo-python
@@ -15901,7 +16083,7 @@ msgstr ""
 msgid ""
 "Note that the easiest way to create a vendor credit note is to do it directly from\n"
 "                the vendor bill."
-msgstr ""
+msgstr "请注意，创建供应商退款的最简单方法是直接从供应商账单创建。"
 
 #. module: account
 #: model:ir.model.fields,field_description:account.field_account_setup_bank_manual_config__note
@@ -17423,14 +17605,14 @@ msgstr "付款匹配"
 msgid ""
 "Payments are used to register liquidity movements. You can process those\n"
 "                    payments by your own means or by using installed facilities."
-msgstr ""
+msgstr "付款用于登记流动性移动。可以通过您自己的方式或使用安装的设备处理该等付款。"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
 msgid ""
 "Payments related to partners with no bank account\n"
 "                        specified will be skipped."
-msgstr ""
+msgstr "与未指定银行账户的合作伙伴相关的付款将被跳过。"
 
 #. module: account
 #: model:ir.model.fields,help:account.field_account_bank_statement_line__reconciled_payment_ids
@@ -17764,7 +17946,7 @@ msgstr "过账"
 msgid ""
 "Post All\n"
 "                                            Entries"
-msgstr ""
+msgstr "过账所有分录"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_account_payment_register_form
@@ -22278,7 +22460,7 @@ msgstr "用于对账单输入的币别"
 msgid ""
 "The current\n"
 "                            highest number is"
-msgstr ""
+msgstr "当前最高数字为"
 
 #. module: account
 #. odoo-javascript
@@ -22502,6 +22684,8 @@ msgid ""
 "The hash chain is compliant: it is not possible to alter the\n"
 "                                        data without breaking the hash chain for subsequent parts."
 msgstr ""
+"散列链是一致的：不能在打破散列链的情况下为序列部分修改\n"
+"                                数据。"
 
 #. module: account
 #. odoo-python
@@ -22824,6 +23008,8 @@ msgid ""
 "                    transferred to it will be converted into this currency, causing\n"
 "                    the loss of any pre-existing foreign currency amount."
 msgstr ""
+"选定目标科目设置为使用特定币别。所有向其转账的分录被转换为该币别，并导致\n"
+"                    任何之前已存在的外币金额的损失。"
 
 #. module: account
 #. odoo-python
@@ -23135,7 +23321,7 @@ msgid ""
 "There doesn't appear to be anything to invoice for the selected order.\n"
 "                        However, you can\n"
 "                        use the amount field to force an accrual entry."
-msgstr ""
+msgstr "选定订单无发票。但可以使用金额字段强制创建应计分录。"
 
 #. module: account
 #. odoo-python
@@ -24980,6 +25166,10 @@ msgid ""
 "\n"
 "*Factoring contracts involve a business selling its unpaid invoices (accounts receivable) to a third-party company, known as a factor, in exchange for immediate cash."
 msgstr ""
+"核实期末记录的现金和银行卡收款是否在下一期实际结清。同时检查贴现业务及保理合同*的会计处理是否正确。\n"
+"\n"
+"*保理合同是指企业将其未收款的发票（应收账款）出售给第三方公司（称为保理商），以换取即时现金的交易。\n"
+"       "
 
 #. module: account
 #: model:account.return.check.template,description:account.account_return_check_template_minimum_share_capital_compliance
@@ -25083,7 +25273,7 @@ msgstr "对所有人可见"
 msgid ""
 "Want to make your life even easier and automate bill validation from this vendor\n"
 "                    ?"
-msgstr ""
+msgstr "想让生活更轻松，并自动验证此供应商的账单吗 ?"
 
 #. module: account
 #. odoo-python
@@ -25306,6 +25496,8 @@ msgid ""
 "You are changing decimals in your entire database, including invoices,\n"
 "                        tax amounts, accounting amounts, reports. This is probably not intended."
 msgstr ""
+"您正在更改整个数据库中的小数精度，包括发票、税额、会计金额、报表。\n"
+"请谨慎操作！"
 
 #. module: account
 #. odoo-python
@@ -26291,14 +26483,14 @@ msgstr "[业务伙伴ID]"
 msgid ""
 "activate the currency of the\n"
 "                    bill"
-msgstr ""
+msgstr "启用账单币别"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_move_form
 msgid ""
 "activate the currency of the\n"
 "                    invoice"
-msgstr ""
+msgstr "启用发票币别"
 
 #. module: account
 #. odoo-javascript
@@ -26533,7 +26725,7 @@ msgstr "所有人"
 msgid ""
 "fall outside the typical\n"
 "                        range."
-msgstr ""
+msgstr "超出了典型范围。"
 
 #. module: account
 #: model:ir.model.fields.selection,name:account.selection__account_change_lock_date__exception_duration__1h
@@ -26580,7 +26772,7 @@ msgstr ""
 msgid ""
 "has been\n"
 "                            applied."
-msgstr ""
+msgstr "已套用。"
 
 #. module: account
 #. odoo-javascript
@@ -26644,7 +26836,7 @@ msgstr "结算单"
 msgid ""
 "is\n"
 "                        not from the same country as the partner ("
-msgstr ""
+msgstr "与合作伙伴的国家/地区不同（"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.view_partner_bank_form_inherit_account
@@ -26652,7 +26844,7 @@ msgid ""
 "is a\n"
 "                        money transfer service and not a bank. Double check if the account can be\n"
 "                        trusted by calling the vendor.<br/>"
-msgstr ""
+msgstr "是资金转账服务，而非银行。 请联系供应商，确认账户是否可信。<br/>"
 
 #. module: account
 #. odoo-javascript
@@ -26739,7 +26931,7 @@ msgstr "合作伙伴"
 msgid ""
 "payments\n"
 "                        will be skipped due to"
-msgstr ""
+msgstr "将跳过付款，因为"
 
 #. module: account
 #. odoo-python
@@ -26898,7 +27090,7 @@ msgstr "不信任"
 msgid ""
 "untrusted bank\n"
 "                        accounts"
-msgstr ""
+msgstr "不信任的银行账户"
 
 #. module: account
 #. odoo-javascript
@@ -26923,7 +27115,7 @@ msgstr "未在任何欧洲共同体（EC）国家成立。"
 msgid ""
 "will auto-confirm on their\n"
 "                        respective dates."
-msgstr ""
+msgstr "将在各自的日期才会自动确认。"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.account_default_terms_and_conditions
@@ -26949,7 +27141,7 @@ msgstr "下一期间结转至该行。"
 msgid ""
 "will be posted. Some of them may be\n"
 "                    future-dated or require hashing,"
-msgstr ""
+msgstr "将被过账。其中一些可能是未来日期或需要哈希处理，"
 
 #. module: account
 #: model_terms:ir.ui.view,arch_db:account.validate_account_move_view
@@ -26967,7 +27159,7 @@ msgstr "没有有效的社区内增值税号码。"
 msgid ""
 "without making any\n"
 "                    corrections."
-msgstr ""
+msgstr "不做任何更正。"
 
 #. module: account
 #. odoo-python
